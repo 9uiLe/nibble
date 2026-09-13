@@ -180,6 +180,7 @@ struct LibraryView: View {
                 .accessibilityLabel("スニペットを検索")
             if !model.query.isEmpty {
                 Button("検索をクリア", systemImage: "xmark.circle.fill") { model.query = "" }
+                    .labelStyle(.iconOnly)
                     .foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("library.search.clear")
             }
