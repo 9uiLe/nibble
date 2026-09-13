@@ -89,7 +89,7 @@ Privacy Manifest は target の resources に含める。Swift Package ではフ
 
 **設計への示唆：** 最初のローカル CRUD・呼び出し検証に、アカウントや分析 SDK を必須にしない。Apple は重要なアカウント機能がなければログインなしで利用可能にすることを求め、アカウント作成を提供するならアプリ内のアカウント削除も求める。[^S01] クラウド同期や外部 AI によるスニペット加工は、データフロー・同意・保存・削除を再評価してから検討する。第三者 AI への個人データ共有にも明示的な説明と許可の要件がある。[^S01]
 
-**未確認：** nibble が実際に使う required reason API の種類と理由コード、採用 SDK の manifest、診断・同期を含めた最終的な App Privacy 回答。使用するAPI・SDKとデータフローに基づいて宣言を確定する。
+現行のrequired reason APIの5カテゴリと用途別の候補コードは [P10〜P12](experiments/primary-source-validation.md) で照合した。ResearchProbeのarchive検査は署名を行わず、manifestのbundle rootへの配置と構文を[E19](experiments/ios-26-5-validation.md)で評価する。**未確認：** 製品が実際に使うAPI・理由コード、採用SDKのmanifest、診断・同期を含めた最終的なApp Privacy回答。使用するAPI・SDKとデータフローに基づいて宣言を確定する。
 
 ## 5. 開発環境とテストの責務
 
@@ -169,7 +169,7 @@ nibbleのリポジトリはコード公開用とし、外部からの投稿は�
 [^S11]: Apple, **Adding package dependencies to your app**, 現行 DocC、確認 2026-09-13。[本文](https://developer.apple.com/documentation/xcode/adding-package-dependencies-to-your-app)。閲読：要件指定と Coordinate package versions across your team。Xcode のアプリ依存が対象。
 [^S12]: Apple, **Describing use of required reason API**, 現行 DocC、確認 2026-09-13。[本文](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api)。閲読：Overview、bundle ごとの宣言、承認された理由、更新方針。各理由コードの選択は未実施。
 [^S13]: Apple, **Apple Platform Security — Data Protection classes**, 公開日 2024-12-19。[本文](https://support.apple.com/guide/security/data-protection-classes-secb010e978a/web)。閲読：Class A–D、Protected Until First User Authentication。実機での nibble の保存属性は未確認。
-[^S14]: Apple, **Adding a privacy manifest to your app or third-party SDK**, 現行 DocC、確認 2026-09-13。[本文](https://developer.apple.com/documentation/bundleresources/adding-a-privacy-manifest-to-your-app-or-third-party-sdk)。閲読：manifest validation、app / framework / Swift Package の配置。最終 archive の検査は未実施。
+[^S14]: Apple, **Adding a privacy manifest to your app or third-party SDK**, 現行 DocC、確認 2026-09-13。[本文](https://developer.apple.com/documentation/bundleresources/adding-a-privacy-manifest-to-your-app-or-third-party-sdk)。閲読：manifest validation、app / framework / Swift Package の配置。製品の署名済みarchiveの検査は未実施。研究用のunsigned archiveはE19に記録する。
 [^S15]: Apple, **Distributing your app for beta testing and releases**, 現行 DocC、確認 2026-09-13。[本文](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases)。閲読：archive、Validate App、distribution、signing、symbols、beta / App Store の関連節。配布操作はしていない。
 [^S16]: Apple, **Upcoming Requirements**, 確認 2026-09-13。[本文](https://developer.apple.com/news/upcoming-requirements/)。閲読：SDK minimum requirements（2026-04-28 以降）。提出時には再確認する。
 [^S17]: Apple, **Generating Log Messages from Your Code**, 現行 DocC、確認 2026-09-13。[本文](https://developer.apple.com/documentation/os/generating-log-messages-from-your-code)。閲読：Redact Sensitive User Data from a Log Message。システム側の伏字機能だけで安全と判断しない。

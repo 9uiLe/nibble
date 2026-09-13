@@ -12,7 +12,7 @@ UIKit文書は、Full Access（キーボードの追加アクセス許可）が�
 
 ## 導線の比較
 
-表の「読取」は取得可能な内容、「挿入」は**他アプリの入力欄に入れる能力**を示す。設定負担は資料を踏まえた相対的な設計評価で、操作数・所要時間の測定値ではない。「候補」は未実装・未検証を表す。
+表の「読取」は取得可能な内容、「挿入」は**他アプリの入力欄に入れる能力**を示す。設定負担は資料を踏まえた相対的な設計評価で、操作数・所要時間の測定値ではない。表は公開APIの能力から比較する製品候補を示す。実装・実行の状態は[ResearchProbeの結果](experiments/ios-26-5-validation.md)に記録する。
 
 | 導線 | 呼び出し | 読取 | 挿入 | 必要な操作と復帰 | 主な制約 | 設定負担 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -125,7 +125,7 @@ custom URL scheme は登録競合時にどのアプリへ届くかが未定義�
 | `ControlWidget` | 18.0 | I22。Action Button の機器条件や全 control initializer の対応とは区別する |
 | `UIInputViewController.textDocumentProxy` | 8.0 | [textDocumentProxy](https://developer.apple.com/documentation/uikit/uiinputviewcontroller/textdocumentproxy) [I28] |
 | `UITextDocumentProxy.selectedText` / `UIInputViewController.hasFullAccess` | いずれも 11.0 | [selectedText](https://developer.apple.com/documentation/uikit/uitextdocumentproxy/selectedtext)、[hasFullAccess](https://developer.apple.com/documentation/uikit/uiinputviewcontroller/hasfullaccess) [I28] |
-| `UIKeyInput.insertText(_:)` / `deleteBackward()` | iOS 対象の記載はあるが、導入バージョン欄はない | [insertText](https://developer.apple.com/documentation/uikit/uikeyinput/inserttext(_:))、[deleteBackward](https://developer.apple.com/documentation/uikit/uikeyinput/deletebackward()) [I28]。現行 keyboard ガイド I10 は利用例を示すが、導入年を推定しない。deployment target 26.0でのコンパイルは未確認 |
+| `UIKeyInput.insertText(_:)` / `deleteBackward()` | iOS 対象の記載はあるが、導入バージョン欄はない | [insertText](https://developer.apple.com/documentation/uikit/uikeyinput/inserttext(_:))、[deleteBackward](https://developer.apple.com/documentation/uikit/uikeyinput/deletebackward()) [I28]。現行 keyboard ガイド I10 は利用例を示すが、導入年を推定しない。deployment target 26.0の両SDK・extension条件でコンパイル成功（[E18](experiments/ios-26-5-validation.md)） |
 | `NSExtensionContext` / `completeRequest(returningItems:completionHandler:)` | いずれも 8.0 | I13。host が結果をどう利用するかは API availability の範囲外 |
 | `UIPasteControl` / `UIPasteboard.hasStrings` | 16.0 / 10.0 | I14 / [hasStrings](https://developer.apple.com/documentation/uikit/uipasteboard/hasstrings) [I28] |
 | `OptionsKey.localOnly` / `OptionsKey.expirationDate` / `setItems(_:options:)` | いずれも 10.0 | I23 / I24 / I25 |
@@ -136,7 +136,9 @@ Universal Links、Share / Action、Widget の導線は複数の API・設定・h
 
 ## 導線を選ぶ実機検証
 
-以下の製品導線の実験は **未実施**。本体とextensionのdeployment targetを26.0にそろえ、実行検証はiOS 26.5のみを対象とする。使用 API の availability と extension-safe な利用可否を実際の SDK で確認する。クラウドの静的検査はこれらを代替しない。
+呼び出し導線は、一覧への登録、実行、本文の利用、元の作業への復帰を独立した条件として評価する。ResearchProbeでは本体のCRUD・コピー・URL判定と、Safariへのペースト・一覧復帰を比較する。Shortcutsは登録に成功するが実行は失敗し、原因は未特定である。[実行結果E16〜E25](experiments/ios-26-5-validation.md)に条件と証跡を示す。
+
+全入口・権限・実機条件の比較は未完了。本体とextensionのdeployment targetを26.0にそろえ、iOS 26.5のみで実行する。APIのavailabilityとextension-safeな利用可否はSDKで、host・権限・ロック等の動作は実環境で評価する。
 
 | 順番 | 小さな検証 | 観測すること | この結果で決めること |
 | --- | --- | --- | --- |

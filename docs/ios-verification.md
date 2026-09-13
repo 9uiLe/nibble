@@ -4,18 +4,20 @@
 
 ## 検証対象と前提
 
-標準の対象は `VerificationApp`。ダミーテキストを入力欄から結果表示へ反映するfixture（検証用アプリ）で、検証コマンドと証跡取得の成立を確認する。製品の保存・検索・呼び出し導線は [製品の検証計画](../research/05-decisions-and-validation.md) に従って評価する。
+共通driverは設定ファイルで検証対象を選ぶ。指定を省略すると、基盤を試験するVerificationAppを使用する。
 
-| 項目 | 設定・確認範囲 |
-| --- | --- |
-| project | `validation/VerificationApp.xcodeproj` |
-| shared scheme | `VerificationApp` |
-| bundle ID | `dev.nibble.VerificationApp` |
-| 設定ファイル | [validation/project.json](../validation/project.json) |
-| 最低対応OS / Swift language mode | iOS 26.0 / Swift 6 |
-| 確認済みツールチェーン | Xcode 26.5、Apple Swift 6.3.2、Simulator SDK 26.5 |
-| 検証対象Simulator runtime | iOS 26.5のみ（確認済みbuild：23F77） |
-| 補助ツール | NixのPythonとsim-use 0.14.0 |
+| 項目 | VerificationApp | ResearchProbe |
+| --- | --- | --- |
+| 目的 | 入力欄から結果表示への反映と、検証コマンド・証跡取得の成立 | 保存・検索・入力・コピー・復旧・OS連携の比較 |
+| project | `validation/VerificationApp.xcodeproj` | `validation/ResearchProbe.xcodeproj` |
+| shared scheme | `VerificationApp` | `ResearchProbe` |
+| bundle ID | `dev.nibble.VerificationApp` | `dev.nibble.ResearchProbe` |
+| 設定ファイル | [validation/project.json](../validation/project.json) | [validation/research-project.json](../validation/research-project.json) |
+| 操作の検証 | `scripts/ios.py smoke` | `validation/check-research-ui.py` |
+
+両targetの最低対応OSはiOS 26.0、Swift language modeは6。確認環境はXcode 26.5、Apple Swift 6.3.2、Simulator SDK 26.5、NixのPythonとsim-use 0.14.0。実行対象はiOS 26.5のみで、確認したbuildは23F77。研究用driverはApple Silicon Macを前提とする。
+
+ResearchProbeの比較条件・追加コマンドは[設計と実行手順](../validation/RESEARCH.md)、製品の採用条件は[検証計画](../research/05-decisions-and-validation.md)を参照する。
 
 [READMEのセットアップ](../README.md#セットアップ) を完了し、Xcodeのライセンス・追加コンポーネントと対象runtimeを用意する。NixはXcodeをインストールしない。コマンドはリポジトリルートで実行する。
 
@@ -52,6 +54,8 @@ nix develop --command python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
 必要なら `open -a Simulator` でSimulatorウィンドウを表示する。CLIによる操作はsim-useが観測したaccessibility identifierを使用する。
 
 ## ビルド・テスト・動作確認
+
+以下は標準設定のVerificationAppを検証するコマンド。ResearchProbeには[対象設定](#検証対象の切り替え)を指定する。
 
 ```sh
 # Simulator向けビルド。署名アカウントは不要
@@ -126,11 +130,22 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 
 **コマンド成功、ファイル生成、動画のデコード、ローカルパスの記載だけでは、画面レビューとPR添付の完了にはならない。** 未実施の条件を記録し、公開するログ・画像・動画に個人情報や秘密情報が含まれないことを確認する。
 
-## 製品targetへの接続
+## 検証対象の切り替え
 
-製品のXcode projectとshared schemeに対し、`validation/project.json` と同じ形式の設定を用意する。`project` / `scheme` / `bundle_id` / `app_name` / `minimum_ios` を実際のtargetに合わせ、`--project-config <設定ファイル>` で選択する。
+ResearchProbeのビルド・テスト・起動には専用設定を指定する。
 
-ビルド・テスト・起動・画面読取・操作・撮影を共通利用できる。`smoke` は `VerificationApp` 専用のため、製品の操作と期待結果に対応する検証フローを実装する。
+```sh
+nix develop --command python3 scripts/ios.py test \
+  --project-config validation/research-project.json \
+  --configuration Release --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 scripts/ios.py run \
+  --project-config validation/research-project.json \
+  --configuration Release --device "$NIBBLE_SIMULATOR"
+```
+
+`smoke`はVerificationApp専用。ResearchProbeの画面操作には`nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_SIMULATOR"`を使う。APIやデータの比較条件、Safari・日本語入力・表示設定の手順は[研究用の設計と手順](../validation/RESEARCH.md)で定義する。
+
+製品のtargetには同じ形式の設定を用意する。`project` / `scheme` / `bundle_id` / `app_name` / `minimum_ios`を実際の構成に合わせ、`--project-config <設定ファイル>`で選択する。共通のビルド・テスト・実行管理・撮影を利用し、操作と期待結果は製品の仕様に対応するdriverで検査する。
 
 ## 実機と製品固有の検証
 

@@ -1,0 +1,7 @@
+{
+  "project": "validation/ResearchProbe.xcodeproj",
+  "scheme": "ResearchProbe",
+  "bundle_id": "dev.nibble.ResearchProbe",
+  "app_name": "ResearchProbe",
+  "minimum_ios": "26.0"
+}
