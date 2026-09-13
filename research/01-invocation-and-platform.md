@@ -1,5 +1,7 @@
 # 呼び出し導線と iOS の境界
 
+MVPは本体、Share Extension、標準ショートカットの一覧・作成URLを採用する。App Intents、Controls、Keyboard、Widget等は比較候補として扱う。採用仕様は[製品設計](../docs/decisions/0002-mvp-app.md)、製品での成否は[MVPの検証結果](../docs/mvp-validation.md)を参照する。
+
 対象は **iOS 26.0以上**。一次資料の確認日：2026-09-13。nibbleを呼び出し、テキストを取り込み、他アプリで利用するための公開APIと設計候補を整理する。各導線の採用には、対象host（連携先アプリ）と実機での検証を必要とする。
 
 ## 呼び出し・取り込み・挿入の境界

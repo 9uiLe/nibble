@@ -1,5 +1,7 @@
 # 文献・公開API・配布要件の確認結果
 
+本書は研究の対象・資料・条件に対する記録である。製品Nibble / NibbleShareの採用仕様は[製品設計](../../docs/decisions/0002-mvp-app.md)、実施済みの製品確認と未検証項目は[MVPの検証結果](../../docs/mvp-validation.md)で管理する。本書の比較候補・未実施条件を、製品の未決定事項や実施結果として扱わない。
+
 nibbleの入力・共有・保護・同期・配布を設計するために、公開仕様と原著で確定できる事項を整理する。資料の確認日は2026-09-13。P01〜P13を問いの識別子とし、引用元をR01〜R26で管理する。
 
 対象領域は[呼び出し導線](../01-invocation-and-platform.md)、[データとアーキテクチャ](../02-data-and-architecture.md)、[UI/UXと性能](../03-ux-and-performance.md)、[保護と配布](../04-security-distribution-and-operations.md)である。製品の実行検証はiOS 26.5、deployment targetは26.0とする。端末上の結果は[ResearchProbeの実行検証](ios-26-5-validation.md)を参照する。
@@ -27,9 +29,9 @@ Apple公式DocCの本文・metadata・参照ノード、App Review Guidelines、
 | P07 | 01 Clipboard / V5：期限後に後続コピーBを消さない契約があるか | 実測条件あり | `expirationDate`はpasteboard itemの期限。確認した個別APIには後続書き込み・同一文字列・再起動・転送先での処理の厳密な保証がない。後追い全消去timerを採用する根拠にはならない。A→B→A期限の試験が必要。[R08][R09][R10][R11] |
 | P08 | 02 §7：SwiftData/Core Dataの自動同期で競合UXを制御できる範囲 | 実測条件あり | SwiftDataの同期は`NSPersistentCloudKitContainer`による。Core Data公式説明は単一文字列の衝突で片方を残す例と、関係・独立した変更をモデル化する例を示す。公開された同期ガイド・API一覧にはSwiftDataへCloudKitの三者競合を渡して採否を決めるcallbackを確認できなかった。端末間での無損失要件は追加試験が必要。[R12][R13][R14] |
 | P09 | 02 §7：`CKSyncEngine`の独自競合制御と責務 | 文書確認済み | `serverRecordChanged`はアプリが処理する。client / server / ancestorを比較し、server recordへmergeして再保存する。同期状態・受信変更・アカウント切替のローカル処理はアプリ責務。実装・運用量と収束は試作で評価する。[R15][R16][R17] |
-| P10 | 04 §4：required reason API・理由コードの現行範囲 | 製品宣言未確定 | 現行の5カテゴリと、候補となる用途の理由コードを個別文書まで確認。対象APIを使うbundleごとに実用途を宣言する。製品の最終API・SDK・配布物が確定していないため、製品の宣言そのものは未確定。[R18][R19][R20] |
+| P10 | 04 §4：required reason API・理由コードの現行範囲 | 配布時の適合未検証 | 現行の5カテゴリと、候補となる用途の理由コードを個別文書まで確認。対象APIを使うbundleごとに実用途を宣言する。MVPのmanifestは製品ソースに含む。配布用bundleと実用途の照合、提出時の宣言の適合は本書の文献確認では判定しない。[R18][R19][R20] |
 | P11 | 04 §4：Privacy Manifest / SDKの配置・署名・検証要件 | 文書確認済み | app / framework / Swift Packageの配置、対象SDKと再包装版の要件、バイナリ依存への署名要件を確認。最終archiveの内容・署名・提出結果は別の配布検証。[R21][R22][R23] |
-| P12 | 04 §4：App Privacyを「収集なし」と回答できる条件 | 製品回答未確定 | 端末内だけの処理は収集に含めない。Appleサービスを使う場合も開発者が得るデータを区別する。同期・診断・第三者コードを含む製品のデータフローを確定しないと最終回答はできない。[R24] |
+| P12 | 04 §4：App Privacyを「収集なし」と回答できる条件 | 提出回答未確定 | 端末内だけの処理は収集に含めない。Appleサービスを使う場合も開発者が得るデータを区別する。MVPはデータ収集なしの構成だが、提出時の回答は配布物のデータフローと照合して確定する。[R24] |
 | P13 | 04 §6：App Store Connectの提出SDK条件 | 文書確認済み | 確認日の要件は2026-04-28以降Xcode 26以上、iOS 26 SDK以上。iOS実行検証を26.5に限定する方針やdeployment target 26.0とは別の条件。提出直前にも更新を確認する。[R25] |
 
 ## 中断・再開研究を使える範囲

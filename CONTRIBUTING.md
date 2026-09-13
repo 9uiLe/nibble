@@ -4,7 +4,7 @@
 
 nibbleはiOS向けのスニペットツール。作業中に必要なスニペットを素早く呼び出せ、作成・編集・削除を迷わず行えることを価値とする。操作の少なさ、理解しやすさ、入力や描画を待たせないことを優先し、UI/UXと性能を設計・実装・レビューの受け入れ条件にする。
 
-呼び出し導線は、対象となる作業シーンとiOSの公開API、権限、extensionの制約から設計する。呼び出し、内容の取り込み、他アプリへの挿入、作業への復帰を実機で確認し、提供できる範囲を仕様に記録する。
+呼び出し導線は、対象となる作業シーンとiOSの公開API、権限、extensionの制約から設計する。呼び出し、内容の取り込み、他アプリでの利用、作業への復帰を対象環境で確認し、提供できる範囲を仕様に記録する。MVPの採用構成は[製品設計](docs/decisions/0002-mvp-app.md)、評価状態は[MVPの検証結果](docs/mvp-validation.md)を正とする。
 
 開発者のセットアップは [README](README.md)、実行手順は [ローカル iOS 検証](docs/ios-verification.md)、構成と採用理由は [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) を参照する。
 
@@ -69,6 +69,8 @@ nix flake check --no-update-lock-file --print-build-logs
 
 ## ローカルとクラウドの責務
 
+MVPの実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。以下の実機・配布の責務は、それらを評価対象とする場合の実施場所を示す。Simulatorの結果だけで実機性能・保護・配布可否を保証しない。
+
 | 検証対象 | ローカルMac / Xcode / Simulator / 実機 | GitHub Actions |
 | --- | --- | --- |
 | workflow・Nix・検証スクリプト | 共通検査で事前確認 | Ubuntuで共通検査を実行 |
@@ -122,7 +124,7 @@ UI/UXに影響する変更は、内部実装の変更も含めて対象導線を
 
 モダンな技術を候補として評価し、プロダクトの体験と継続的な開発を支える適性で判断する。OS/API制約、性能、保守・運用、移行の負担を比較し、新しさだけを採用理由にしない。
 
-製品の候補にはSwiftUI・UIKit、Observation、Swift Concurrency、Swift Testing、保存方式、App Intents、Share Extension、キーボード等がある。[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
+製品MVPはSwiftUI・Observation・Swift Concurrency・Swift Testing・Apple同梱SQLite・Share Extensionを採用する。App Intents、キーボード、保存・同期方式等を見直す場合は[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
 
 変更負担の大きい選択は、小さな試作で比較し、`docs/decisions/NNNN-短い名前.md` に設計判断（ADR）を記録する。
 
