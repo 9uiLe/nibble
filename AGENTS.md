@@ -23,12 +23,13 @@
 
 | 検証対象 | 責務 | 設定・手順 |
 | --- | --- | --- |
+| `Nibble` / `NibbleShare` | 製品MVP。本体と共有拡張のデータ・画面・操作 | `app/project.json`、[MVP手順](docs/mvp.md) |
 | `VerificationApp` | 基盤用fixture。入力・操作・テスト・撮影の成立を試験する | `validation/project.json`、[共通手順](docs/ios-verification.md) |
 | `ResearchProbe` | 製品技術の比較用アプリ。保存・検索・復旧・UI・OS連携を評価する | `validation/research-project.json`、[研究用の設計と手順](validation/RESEARCH.md) |
 
-projectは各々`validation/<名前>.xcodeproj`、shared schemeは対象名と同じ。`scripts/ios.py smoke`はVerificationApp専用、ResearchProbeの画面操作は`validation/check-research-ui.py`を使う。
+製品は`app/Nibble.xcodeproj`・shared scheme `Nibble`。比較・基盤用projectは各々`validation/<名前>.xcodeproj`、shared schemeは対象名と同じ。`scripts/ios.py smoke`はVerificationApp専用、ResearchProbeの画面操作は`validation/check-research-ui.py`を使う。
 
-製品本体のUI・保存・呼び出し方式は[研究と検証計画](research/README.md)に基づいて選ぶ。比較用の構成を採用済みの製品設計と扱わない。製品のtargetには設定・手順・期待結果を用意する。共通基盤の責務は[設計文書](docs/decisions/0001-local-ios-verification.md)を参照する。
+MVPの採用構成は[ADR 0002](docs/decisions/0002-mvp-app.md)、追加の製品判断は[研究と検証計画](research/README.md)に基づく。比較用の構成を採用済みの製品設計と扱わない。製品のtargetには設定・手順・期待結果を用意する。共通基盤の責務は[設計文書](docs/decisions/0001-local-ios-verification.md)を参照する。
 
 ## レビューと証跡
 

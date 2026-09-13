@@ -21,6 +21,8 @@ ResearchProbeの比較条件・追加コマンドは[設計と実行手順](../v
 
 [READMEのセットアップ](../README.md#セットアップ) を完了し、Xcodeのライセンス・追加コンポーネントと対象runtimeを用意する。NixはXcodeをインストールしない。コマンドはリポジトリルートで実行する。
 
+製品MVPのprojectは`app/Nibble.xcodeproj`、shared schemeは`Nibble`、設定は`app/project.json`。操作と期待結果は[MVP手順](mvp.md)を参照する。設定の`simulator_signing: "ad-hoc"`で、Xcodeによるローカルのad hoc署名を指定する。App GroupのentitlementをSimulatorへ渡すために必要で、Developer Teamや署名証明書は使わない。省略時は基盤・研究用fixtureと同じ未署名ビルドになる。
+
 ## 環境の確認
 
 Xcodeは `xcode-select` の選択先を使用する。シェル単位で選ぶ場合は、実際のインストール先に合わせて `DEVELOPER_DIR` を設定する。

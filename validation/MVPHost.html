@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nibble 検証フォーム</title>
+<style>
+body { font: 17px system-ui; margin: 24px; color: #222; background: #faf9f5; }
+textarea { box-sizing: border-box; width: 100%; min-height: 140px; font: inherit; padding: 12px; }
+button, a { display: block; margin: 14px 0; padding: 12px; font: inherit; }
+output { overflow-wrap: anywhere; }
+</style>
+<h1>nibble 検証フォーム</h1>
+<p>共有・ペーストの検証専用ダミーデータです。</p>
+<label for="source">共有する本文</label>
+<textarea id="source">  ご確認ありがとうございます。
+日本語 が 👩🏽‍💻  </textarea>
+<button id="share" onclick="navigator.share({text: document.getElementById('source').value}).catch(error => document.getElementById('status').textContent = error.name)">テキストを共有</button>
+<p id="status" aria-live="polite"></p>
+<label for="destination">ペースト先</label>
+<textarea id="destination"></textarea>
+<button onclick="document.getElementById('bytes').textContent = JSON.stringify(Array.from(new TextEncoder().encode(document.getElementById('destination').value)))">本文のUTF-8を表示</button>
+<output id="bytes"></output>
+<a href="nibble://library">nibbleの一覧を開く</a>
+<a href="nibble://new">新しいスニペットを作成</a>
+</html>

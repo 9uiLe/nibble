@@ -47,7 +47,9 @@ Python標準ライブラリで各CLIを呼び出し、Appleのproject・scheme�
 | 画面の自動操作 | `scripts/ios.py smoke` | `validation/check-research-ui.py` |
 | 設計・手順 | [共通コマンド](../ios-verification.md) | [研究用の構成と手順](../../validation/RESEARCH.md) |
 
-両targetのdeployment targetは26.0、Swift language modeは6とする。project設定は`--project-config`で選ぶ。fixtureは標準UIKitの入力・反映・リセット・結果表示を持つ。ResearchProbeは独立した保存領域にダミーデータを置き、明示保存、下書き、削除復元、検索・コピーの比較を行う。
+製品MVPは`app/Nibble.xcodeproj`・scheme `Nibble`・設定`app/project.json`を使い、本体と共有拡張をビルドする。App GroupをSimulatorで有効にするため、設定`simulator_signing: "ad-hoc"`でXcodeのローカル署名を指定する。証明書・Developer Teamは不要。省略時の基盤・研究用fixtureは未署名でビルドする。[MVPの操作と検証](../mvp.md)に製品の期待結果を定義する。
+
+各targetのdeployment targetは26.0、Swift language modeは6とする。project設定は`--project-config`で選ぶ。fixtureは標準UIKitの入力・反映・リセット・結果表示を持つ。ResearchProbeは独立した保存領域にダミーデータを置き、明示保存、下書き、削除復元、検索・コピーの比較を行う。
 
 研究用アプリの画面・保存構成は実験条件として定義する。製品のUI、保存・共有方式、extension、同期の採用は、その目的に対応する検証結果で判断する。
 

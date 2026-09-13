@@ -4,14 +4,17 @@ nibble は iOS 26.0 以上向けのスニペットツールです。作業中に
 
 ## リポジトリの構成
 
-このリポジトリは、開発規約、製品設計の研究資料、Apple CLIとsim-useによるローカルiOS検証を管理します。実行対象は次の2つです。
+MVPは、作成・編集・日本語検索・ピン留め・コピー・削除と復元、下書き、共有シートからの取り込みを提供します。アカウントや通信を必要とせず、テキストをこの端末に保存します。
+
+このリポジトリは、製品アプリ、開発規約、研究資料、Apple CLIとsim-useによるローカルiOS検証を管理します。
 
 | アプリ | 目的 | 設定・手順 |
 | --- | --- | --- |
+| Nibble / NibbleShare | 本体と共有拡張。日常のスニペット作成・検索・利用 | [MVPの操作と検証](docs/mvp.md)、`app/project.json` |
 | VerificationApp | 検証コマンド、文字列反映、テスト、撮影の成立を確かめるfixture | [共通の検証手順](docs/ios-verification.md)、`validation/project.json` |
 | ResearchProbe | 保存3案、検索、入力、コピー、復旧、OS連携を同じダミーデータで比較する | [設計と実行手順](validation/RESEARCH.md)、`validation/research-project.json` |
 
-製品本体のUI・保存・共有・呼び出し・同期は[研究と検証計画](research/README.md)に基づいて選びます。比較試作の結果は、評価した条件と未実施条件を明示して利用します。
+MVPの採用構成と比較理由は[ADR 0002](docs/decisions/0002-mvp-app.md)に記録します。[研究と検証計画](research/README.md)は、拡張・同期・配布等の評価条件と一次資料を管理します。
 
 | 入口 | 内容 |
 | --- | --- |
@@ -32,7 +35,7 @@ nibble は iOS 26.0 以上向けのスニペットツールです。作業中に
 | macOS（Apple Silicon / Intel） | Nixの共通検査。iOSの検証にはXcodeと対象Simulator runtimeも必要 |
 | Linux（ARM64 / x86_64） | Nixの共通検査。Apple SDKを使うビルド・テストはローカルMacで実行 |
 | iOS検証の確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
-| 検証対象 | iOS 26.5のみ。`VerificationApp` / `ResearchProbe`、deployment target `26.0` |
+| 検証対象 | iOS 26.5のみ。`Nibble` / `VerificationApp` / `ResearchProbe`、deployment target `26.0` |
 | 研究用driver | Apple Silicon Mac。SDK型検査とSQLite workerはarm64を指定 |
 
 ### 1. GitとNixを用意する
@@ -101,6 +104,17 @@ nix develop --command python3 scripts/ios.py devices
 nix develop --command python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR"
 nix develop --command python3 scripts/ios.py smoke --device "$NIBBLE_SIMULATOR"
 ```
+
+製品アプリを起動するには、MVPの設定を指定します。共有拡張のApp Groupを使用するため、SimulatorでもXcodeのad hoc署名を行います。証明書やDeveloper Teamは不要です。
+
+```sh
+nix develop --command python3 scripts/ios.py test \
+  --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 scripts/ios.py run \
+  --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
+```
+
+MVPはiOS 26.5 Simulatorで検証します。実機検証はこの実装範囲では省略します。操作・確認範囲は[MVPの手順](docs/mvp.md)を参照してください。
 
 保存・検索などの比較は、ResearchProbeの設定と専用のUI driverを使います。
 
