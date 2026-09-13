@@ -2,9 +2,13 @@
   description = "nibble development and CI tools";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  inputs.sim-use = {
+    url = "file+https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz";
+    flake = false;
+  };
 
   outputs =
-    { nixpkgs, ... }:
+    { nixpkgs, sim-use, ... }:
     let
       systems = [
         "aarch64-darwin"
@@ -13,11 +17,36 @@
         "x86_64-linux"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
-      toolsFor = pkgs: [
-        (pkgs.python3.withPackages (pythonPackages: [ pythonPackages.pyyaml ]))
-        pkgs.actionlint
-        pkgs.shellcheck
-      ];
+      simUseFor =
+        pkgs:
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = "sim-use";
+          version = "0.14.0";
+          src = sim-use;
+          unpackPhase = ''tar -xzf "$src"'';
+          dontBuild = true;
+          # Preserve the upstream Mach-O signature and sibling resource bundles.
+          dontFixup = true;
+          installPhase = ''
+            mkdir -p "$out/bin"
+            cp -R sim-use SimUse_*.bundle "$out/bin/"
+            chmod +x "$out/bin/sim-use"
+          '';
+          meta = {
+            description = "Observe and operate iOS Simulators";
+            homepage = "https://github.com/lycorp-jp/sim-use";
+            license = pkgs.lib.licenses.asl20;
+            platforms = pkgs.lib.platforms.darwin;
+          };
+        };
+      toolsFor =
+        pkgs:
+        [
+          (pkgs.python3.withPackages (pythonPackages: [ pythonPackages.pyyaml ]))
+          pkgs.actionlint
+          pkgs.shellcheck
+        ]
+        ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ];
     in
     {
       devShells = forAllSystems (pkgs: {
@@ -29,6 +58,17 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
       checks = forAllSystems (pkgs: {
+        ios-tooling =
+          pkgs.runCommand "nibble-ios-tooling"
+            {
+              nativeBuildInputs = [ pkgs.python3 ];
+            }
+            ''
+              cp -R ${./scripts} scripts
+              chmod -R u+w scripts
+              python3 -m unittest discover -s scripts/tests -v
+              touch "$out"
+            '';
         workflow-policy =
           pkgs.runCommand "nibble-workflow-policy"
             {

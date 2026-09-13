@@ -16,7 +16,7 @@ nibble は iOS 向けのスニペットツール。作業中に必要なスニ�
 - iOS 26.0 と、採用する Xcode が対応する最新の正式版 iOS で影響範囲を検証する。ベータ版だけでの確認を完了条件にしない。
 - 最低対応 OS の引き上げは、対象ユーザーへの影響と理由を記録し、独立した変更としてレビューする。
 
-現在は Xcode プロジェクトがないため、deployment target はまだ設定されていない。プロジェクト作成時にこの条件を反映し、Xcode・Swift の採用バージョン、scheme、実行コマンドをこのガイドに追記する。
+現在は検証用の `validation/VerificationApp.xcodeproj` と shared scheme `VerificationApp` があり、deployment target は `26.0`、Swift language mode は `6`。本体のプロジェクトは未作成。検証基盤は Xcode 26.5 で確認し、コマンドと対応範囲を [ローカル iOS 検証](docs/ios-verification.md) に記載する。本体追加時にはその Xcode・Swift・scheme・実行手順を明記する。
 
 ## 開発ツールの管理
 
@@ -29,6 +29,7 @@ nibble は iOS 向けのスニペットツール。作業中に必要なスニ�
 | Python 3 + PyYAML | workflow の runner 方針を検査 |
 | actionlint + ShellCheck | GitHub Actions の構文・式・埋め込みシェルを検査 |
 | nixfmt（`nix fmt` 経由） | Nix 定義を整形 |
+| sim-use 0.14.0（macOS のみ） | Simulator の画面読取・操作。release archive を flake の入力として lock で固定 |
 
 nixpkgs は安定版 `nixos-26.05` を入力とし、実際に使用する revision と依存は lock で固定する。Apple Silicon / Intel の macOS と、ARM64 / x86_64 の Linux を対象にする。GitHub Actions の runner は引き続き `ubuntu-24.04` のみ。
 
@@ -87,11 +88,13 @@ Xcode、Apple の Swift ツールチェーン、iOS SDK、Simulator runtime、�
 - `Workflow policy / workflow-policy` は Nix で固定した依存を使い、runner 方針、workflow の構文・シェル、Nix 定義の書式を検査する。iOS のビルドやテストを保証しない。
 - この検査は workflow 起動前に runner を遮断する仕組みではない。workflow の変更は差分でも必ず確認する。GitHub のブランチ保護を設定する際は、このチェックを必須にする。
 
-ローカルと CI の共通コマンドは `nix flake check --no-update-lock-file --print-build-logs`。導入・更新方法は [開発ツールの管理](#開発ツールの管理) を参照する。
+ローカルと CI の共通コマンドは `nix flake check --no-update-lock-file --print-build-logs`。`ios-tooling` は driver の端末選択・失敗伝播・テスト結果判定・録画終了処理を Python で検査する。Simulator や Apple SDK は起動しない。導入・更新方法は [開発ツールの管理](#開発ツールの管理) を参照する。
 
 クラウド環境だけで作業した場合、必要なローカル検証を未実施として明記する。ローカルで検証できる開発者が対象コミットで確認し、結果と証跡がそろうまでマージしない。
 
 ## UI/UX と性能の確認
+
+ビルド・テスト・Simulator の操作・スクリーンショット・動画の取得は [ローカル iOS 検証](docs/ios-verification.md) のコマンドを使う。Apple CLI を基本とし、画面読取と操作は Nix の `sim-use` で行う。`artifacts/` の実行記録は Git へ追加せず、レビューで必要な画像・動画を PR に添付する。生成された `REVIEW.md` の画面確認・添付欄は、実際に確認・添付してから記入する。
 
 UI/UX に影響する変更は、内部実装のみの変更であっても、対象導線を操作し、スクリーンショットや画面録画を取得して内容を確認する。コードや Preview を見るだけで完了としない。
 
