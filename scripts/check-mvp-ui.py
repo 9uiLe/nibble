@@ -71,8 +71,12 @@ def main():
                 if row not in identifiers(wait_ui("searched", lambda data: row in identifiers(data))):
                     raise VerificationError("Japanese query did not find the saved snippet")
                 run.tap("library.search.clear")
+                run.tap("library.keyboard.dismiss")
+                wait_ui("search-dismissed", lambda data: row in identifiers(data)
+                        and "Return" not in identifiers(data) and "library.search.clear" not in identifiers(data))
+                time.sleep(0.35)
                 run.tap(row)
-                run.ui("reopened")
+                wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
                 run.tap("editor.close")
                 wait_ui("closed", lambda data: row in identifiers(data))
                 menu(row, "pin-menu")
