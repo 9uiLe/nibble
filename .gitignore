@@ -1,0 +1,48 @@
+# macOS metadata
+.DS_Store
+._*
+
+# Nix / direnv generated state and root build-result links
+.direnv/
+/result
+/result-*
+
+# Python generated files and local environments
+__pycache__/
+*.py[cod]
+.venv/
+
+# Xcode / SwiftPM build products and per-user settings
+/build/
+DerivedData/
+.build/
+xcuserdata/
+*.xcuserstate
+*.xcarchive/
+*.xcresult/
+*.ipa
+*.dSYM/
+*.dSYM.zip
+
+# Local environment values; share only example/template files
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.template
+!.env.*.template
+
+# Local signing credentials and provisioning profiles
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+
+# Keep flake.lock, Package.resolved, Xcode project/shared settings,
+# and UI screenshots/recordings eligible for version control.
