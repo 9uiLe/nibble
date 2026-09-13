@@ -1,12 +1,12 @@
 # データ・検索・同期・アプリ構成
 
-調査日: **2026-09-13**。対象: iOS 26.0 以上の nibble。状態: **技術選定のための調査。採用決定ではない**。
+対象は **iOS 26.0以上**。一次資料の確認日：2026-09-13。保存原文、検索、プロセス間共有、移行・復元、同期の設計条件を整理する。保存方式と製品のアプリ構成は比較・検証の対象とする。
 
-本書の「確認できた事実」は一次資料の本文または API 宣言に基づく。「設計上の推奨」は nibble の目的から導いた案であり、「未確認」は SDK・実機・試作による確認が残る。Apple の記事本文は現行 DocC の JSON を閲読した。Web 文書の更新と OS の実装は別なので、API が記事に登場するだけで iOS 26.0 で動くとは判定しない。
+「事実」は一次資料の本文・API宣言、「推奨」はnibbleへの適用案、「未確認」はSDK・実機・試作で確認すべき条件を示す。Apple DocCの参照範囲は公式JSONの本文とmetadata。APIの使用時には個別のavailabilityを確認する。
 
-## 1. このプロダクトで先に解く問題
+## 1. 保存と利用の受け入れ条件
 
-**設計上の推奨:** 永続化方式の名前より先に、次の体験を共通の受け入れ条件にする。
+**設計上の推奨:** 保存方式を比較するため、次の体験を共通の受け入れ条件とする。
 
 - 呼び出したら、ネットワーク待ちをせず最近使ったスニペットを読める。
 - 作成・編集・削除の完了後、アプリと呼び出し先で古い内容を使わない。
@@ -14,7 +14,7 @@
 - アプリ更新・強制終了・同期競合・インポートで本文を失わない。
 - 検索しやすい表記と、貼り付ける原文を分ける。コード、改行、空白を勝手に変えない。
 
-**調査結果:** SwiftData は SwiftUI との接続と保存を少ない記述で構成できる。一方、別プロセスからの変更反映、共有ストアの読み取り権限、CloudKit スキーマの制約、検索仕様は別途設計が必要である。`@Query` や App Groups を導入するだけでこれら全体が解決するとは読めない。[D01] [D06] [D09] [D10] [D20]
+**事実:** SwiftData は SwiftUI との接続と保存を少ない記述で構成できる。一方、別プロセスからの変更反映、共有ストアの読み取り権限、CloudKit スキーマの制約、検索仕様は別途設計が必要である。`@Query` や App Groups を導入するだけでこれら全体が解決するとは読めない。[D01] [D06] [D09] [D10] [D20]
 
 ## 2. iOS 26.0 と API の確認範囲
 
@@ -26,9 +26,9 @@
 | Core Data `NSPersistentCloudKitContainer` | API metadata は iOS 13.0 から | ローカルストアを CloudKit に同期する候補。[D11] |
 | `CKSyncEngine` | Swift API metadata は iOS 17.0 から | 独自ストアと CloudKit の同期を構成する候補。[D12] |
 | Foundation `NSString.folding(options:locale:)` | API metadata は iOS 2.0 から | 検索用の文字比較に使える。locale と比較仕様は別途固定する。[D18] |
-| App Groups / custom keyboard の読み取り権限 | 現行記事に動作説明があるが、記事自体に導入 OS の metadata はない | 今回、挙動の開始 OS は断定しない。iOS 26.0 実機で entitlement と権限を確認する。[D06] [D20] |
+| App Groups / custom keyboard の読み取り権限 | 現行記事に動作説明があるが、記事自体に導入 OS の metadata はない | 導入OSは文書から確定できない。iOS 26.5の実機でentitlementと権限を確認する。[D06] [D20] |
 | Swift の isolation / `Sendable` | 言語仕様。iOS の deployment target とコンパイラ設定は別の軸 | Xcode・Swift language mode・isolation 関連設定を採用時に記録する。[D04] |
-| SQLite / FTS5 / trigram tokenizer | SQLite 公式仕様を確認。iOS 26.0 同梱 SQLite の版・ビルドオプションは未確認 | 実機でライブラリの版と実際の tokenizer 作成・検索を確認し、利用可能と推測しない。[D14] [D15] |
+| SQLite / FTS5 / trigram tokenizer | SQLite 公式仕様を確認。検証対象iOS 26.5の同梱SQLiteの版・ビルドオプションは未確認 | 実機でライブラリの版と実際の tokenizer 作成・検索を確認し、利用可能と推測しない。[D14] [D15] |
 
 ## 3. 保存方式を比較する
 
@@ -38,13 +38,13 @@
 | Core Data | context の queue 分離、永続履歴、軽量移行、CloudKit に対応するストアを持つ。[D07] [D08] [D11] [D19] | managed object の queue 制約、モデルの版、履歴 token、context への merge を明示的に扱う。SwiftUI への接続方法も一貫させる。 | 履歴・競合・移行を細かく制御する必要があり、その実装負担より製品上の便益が大きい。 |
 | SQLite を直接扱う構成 | WAL のトランザクション、FTS5 の全文検索、オンライン backup API がある。[D14] [D15] [D16] | モデルの符号化、SQL と schema migration、観測・変更通知、競合、同期、検索 index の整合性をアプリ側で設計する。使用する Swift ラッパーも別の依存選定。 | 独自検索・取得範囲・ストア操作の制御が不可欠であり、実機で得た効果が保守負担を上回る。 |
 
-右の 2 列は**設計上の評価軸**であり、今回のベンチマーク結果ではない。採用に先立ち同じデータと操作で比較する。「新しいから SwiftData」「軽いはずだから SQLite」のどちらも根拠にしない。
+比較表の「評価する点・負担」と「採用を後押しする条件」は評価軸であり、ベンチマーク結果は未取得。採用候補は同じデータと操作で比較し、機能、測定結果、保守負担を根拠に判断する。
 
-**設計上の推奨:** 最初の比較試作は SwiftData を含める。iOS 26.0 が下限なら、ここで確認した基本 API のための旧 OS 向け代替実装を持たずに評価できる。一方で、その選択に共有・移行・検索の条件を合わせて後退させない。Core Data/SwiftData が管理する内部ストアへ独自 SQL や FTS テーブルを書き足すことは、本調査で公式に支持された統合方法を確認できていないため、候補の標準構成として扱わない。
+**設計上の推奨:** 比較試作にSwiftDataを含める。表に挙げた基本APIはiOS 26.0の候補となる。共有・移行・検索の受け入れ条件を共通にして比較する。Core Data/SwiftData が管理する内部ストアへ独自 SQL や FTS テーブルを書き足すことは、参照した公式資料に統合方法の裏付けがないため、検証を要する構成とする。
 
 ## 4. 状態と並行処理の境界
 
-### 確認できた事実
+### APIの契約
 
 SwiftUI は `body` が読み取った observable なプロパティへの依存を記録する。読んでいないプロパティだけが変わった場合、その依存による view 更新は起こらない。モデルを画面から分けることは Apple が modularity と testability の利点として説明している。[D03]
 
@@ -56,7 +56,7 @@ Core Data の managed object は context と同じ queue に結び付く。Apple
 
 ### 設計上の推奨
 
-機能数に応じて、次の責務だけを分けた小さな構成から始める。ディレクトリ・protocol・package をこの図どおり大量に作る指示ではない。
+画面、操作、保存、検索索引、同期・入出力の責務を分ける。次の図は候補となる責務の関係を示す。実際のmodule・protocol・packageの境界は、採用機能とテストの必要性から決める。
 
 ```mermaid
 flowchart LR
@@ -78,7 +78,7 @@ flowchart LR
 
 ## 5. App Groups と複数プロセスの共有
 
-### 共有できることと、整合性は分ける
+### 共有領域と更新の整合性
 
 App Groups は同じ開発チームのアプリ・extension が共有 container にアクセスする仕組みである。Apple は、少量の設定なら `UserDefaults(suiteName:)`、ファイルなら `containerURL(forSecurityApplicationGroupIdentifier:)` を入口として示している。単に同じ場所へアクセスできることと、競合解決・キャッシュ更新が行われることは別である。[D06]
 
@@ -88,13 +88,13 @@ SQLite WAL では読み手と書き手が並行できるが、同時に書ける
 
 **設計上の推奨:** プロセスごとに context / DB 接続と変更取り込み位置を持つ。通知は再読み込みの契機とし、再開時・再呼び出し時にも履歴または版を確認する。履歴を消す担当と、全利用者が取り込んだと判断する条件を設計する。token が失効した場合は全体の再読み出し・検索 index 再構築へ戻れるようにする。共有 defaults をスニペット全件の DB や同時更新のロック代わりにしない。
 
-### 読み取り専用のキーボードという条件
+### キーボードからの読取専用アクセス
 
 現行 Apple 記事では、Full Access を許可していない custom keyboard も、containing app の shared group container を**読み取り専用でアクセス可能**としている。書き込みとネットワークアクセスには open access の設定およびユーザーによる許可が必要である。この記事自体は、この読み取り仕様の導入 OS を示していない。[D20]
 
 SQLite は read-only WAL の可否に `-shm` / `-wal` の存在・読み取り権限等の条件を持つ。したがって「ファイルの read 権限がある」から「任意の SwiftData/Core Data/SQLite ストアをそのまま開ける」とは断定できない。[D14]
 
-**未確認:** iOS 26.0 の Full Access なしキーボードから、選んだ保存方式の初期化・schema 検査・sidecar 読み取り・再読み込みが成功するか。読み取り中にアプリが保存・移行した場合の挙動も未確認。
+**未確認:** iOS 26.5のFull Accessなしキーボードから、選んだ保存方式の初期化・schema 検査・sidecar 読み取り・再読み込みが成功するか。読み取り中にアプリが保存・移行した場合の挙動も未確認。
 
 **設計上の候補:** 権限と実測が許せば共有ストアを読む構成、難しければ containing app が用途を限定した読み取り用 snapshot を発行する構成を比べる。snapshot 案では版・原子的な公開・更新反映・含める項目を設計し、別の正本を作らない。変更されるライブ DB を `immutable` と偽って開いて権限問題を回避しない。
 
@@ -114,21 +114,23 @@ Foundation の folding は大小・幅・ダイアクリティカルマーク等
 
 **設計上の推奨:** 保存・コピー・export は入力された原文を保つ。必要なら検索専用の派生列を作り、変換規則と版を記録して再構築可能にする。タイトル、本文、タグ、ショートカットのどこを検索するか、完全一致・前方一致・部分一致の順位を先に定義する。locale を変えたときに既存 index と新規検索で異なる規則を使わない。
 
-### FTS を付けるだけでは日本語検索にならない
+### 日本語の部分一致とFTS5の制約
 
 FTS5 の `unicode61` tokenizer は Unicode 6.1 の文字種で separator と token を区別し、連続した token 文字を 1 token にする。日本語の形態素解析をする仕様ではない。この規則から、空白のない日本語文中の任意部分が、語の完全一致と同じように見つかるとは期待できない。`porter` は英語用の stemming と明記される。[D15]
 
 FTS5 の trigram tokenizer は部分一致を支援するが、全文検索 query で 3 Unicode 文字未満の部分文字列は一致しない。`LIKE` / `GLOB` の index 利用にも条件があり、常に index だけで短い検索が済むわけではない。external-content FTS は本文テーブルとの整合性を利用側が保つ責任を持ち、不整合時の結果は予想外になり得る。[D15]
 
-**設計上の推奨:** まず小規模で正しい部分一致検索と並び順を作り、必要なデータ量・実測に応じて index を比較する。trigram のみで 1〜2 文字の日本語検索を済ませない。FTS の検索構文と SQL の parameter binding は別なので、利用者が入力した引用符・記号等をどこまで検索式として扱うかを定義する。本文と index の更新、削除、import 後の再構築を一緒に検証する。
+**設計上の推奨:** 部分一致と並び順の正答集合を定義し、必要なデータ量・実測に応じてindexを比較する。trigram のみで 1〜2 文字の日本語検索を済ませない。FTS の検索構文と SQL の parameter binding は別なので、利用者が入力した引用符・記号等をどこまで検索式として扱うかを定義する。本文と index の更新、削除、import 後の再構築を一緒に検証する。
 
 **最低限の検索コーパス案（未実測）:** `が` と結合濁点、`ｶﾞ` と `ガ`、全角英数・半角英数、ひらがな・カタカナ、絵文字と ZWJ、英大文字・小文字、空白・改行・タブ、URL、`_`・引用符・括弧を含むコード、1〜2 文字の検索、非常に長い本文。ひらがなとカタカナの同一視は Unicode 正規化で自動的に済む仕様ではなく、別の製品上の選択にする。
 
 ## 7. ローカルを基本にした任意同期
 
-### 確認できた事実
+### APIの契約
 
-SwiftData は CloudKit entitlement から自動同期を構成し、`NSPersistentCloudKitContainer` を利用する。自動同期を無効にするには `ModelConfiguration(cloudKitDatabase: .none)` を明示できる。CloudKit を有効にした SwiftData の schema には unique constraint と nonoptional relationship の制約がある。また CloudKit の production schema は加算的で、公開済みの型を削除したり既存属性を変更したりする設計には制約がある。[D10]
+SwiftData は CloudKit entitlement から自動同期を構成し、`NSPersistentCloudKitContainer` を利用する。自動同期を無効にするには `ModelConfiguration(cloudKitDatabase: .none)` を明示できる。[D10]
+
+CloudKit を有効にした SwiftData の schema には unique constraint と nonoptional relationship の制約がある。また CloudKit の production schema は加算的で、公開済みの型を削除したり既存属性を変更したりする設計には制約がある。[D10]
 
 Core Data の CloudKit 構成は、ローカル専用ストアと同期するストアを別々に設定できる。必要な entitlement / capability は iCloud、CloudKit、push、background の remote notifications を含む。[D11]
 
@@ -165,7 +167,7 @@ WAL は DB の永続状態の一部である。開いたままの DB 本体だ�
 6. import の読み込みから保存まで原文が変わらず、export → import で往復できることを確かめる。検索用の派生 index は再生成可能にし、利用者向け正本にしない。
 7. 削除は本文、検索 index、snapshot、履歴、バックアップ、同期先でそれぞれ何が残るかを整理する。削除履歴が必要でも本文まで無条件に保持しない。UI から消えたことを物理的な完全消去と同一視しない。
 
-SwiftData/Core Data の内部 DB を SQLite の backup API で直接扱う構成は、本調査では採用を裏付けていない。framework 管理の移行・保存と整合する方法を確認するまでは、モデルを経由する export を別の候補として扱う。
+SwiftData/Core Dataの内部DBへSQLiteのbackup APIを直接使う構成には、frameworkの移行・保存と整合する公式の裏付けが必要となる。モデルを経由するexportも比較対象とする。
 
 ## 9. 避けたい失敗と検証条件
 
@@ -181,7 +183,7 @@ SwiftData/Core Data の内部 DB を SQLite の backup API で直接扱う構成
 
 ### ローカル Mac / iOS 実機で行う比較試作
 
-すべて**未実施**。まだアプリ・scheme がないため、存在しない build/test コマンドは記載しない。iOS 26.0 と採用 Xcode が対応する最新正式版、Release 構成で、対象端末・OS・件数・本文長・検索内容・反復回数を固定して記録する。
+以下の保存・共有・検索・同期の試作は **未実施**。試作のprojectとshared schemeを [検証基盤](../docs/ios-verification.md) の設定へ登録する。iOS 26.5のみを対象に、実機のRelease構成で、端末・OS・件数・本文長・検索内容・反復回数をそろえて比較する。
 
 | 試作 | 観察・測定すること | 判断に使う結果 |
 | --- | --- | --- |

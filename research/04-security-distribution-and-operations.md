@@ -1,10 +1,10 @@
 # セキュリティ・プライバシー・配布・運用
 
-調査日：2026-09-13。対象：iOS 26.0 以上。アプリと Xcode プロジェクトは未作成。
+対象は **iOS 26.0以上**。一次資料の確認日：2026-09-13。製品のデータ保護、権限、プライバシー、審査、配布・更新の設計条件をまとめる。
 
-**読み方：**「確認した事実」は引用元で確認した仕様・要件、「設計への示唆」は nibble への提案、「未確認」は実機・実装・審査で確認すべき事項。ここでは技術や配布方式の採用を決定しない。Apple の現行 Web 文書は更新されるため、公開前にも再確認する。
+「事実」は引用元の仕様・要件、「設計への示唆」は製品への適用案、「未確認」は実機・実装・審査で確認すべき条件を示す。製品の保護・配布方式は採用前に検証し、Appleの要件は提出直前にも再確認する。
 
-## 先に押さえること
+## 保護と運用の境界
 
 - 保存データの暗号化、端末ロック中のアクセス制御、クリップボードへの持ち出し、ログへの露出は別の問題として扱う。Data Protection の既定クラスだけで「ロックすれば読めない」とは判断できない。[^S06][^S13]
 - キーボード拡張には App Review 独自の要件がある。API で可能に見える操作でも、審査上許されるとは限らない。[^S01]
@@ -15,13 +15,15 @@
 
 ### 確認した事実
 
-Apple の Data Protection はファイル単位の保護クラスと鍵階層でアクセス可能な状態を制御する。サードパーティアプリのデータにも適用される。`NSFileProtectionComplete` と `NSFileProtectionCompleteUntilFirstUserAuthentication` は挙動が異なり、後者は初回認証後に端末を再ロックしてもクラス鍵をメモリから除去しない。特に指定されないサードパーティアプリのデータは後者が既定である。[^S06][^S13]
+Apple の Data Protection はファイル単位の保護クラスと鍵階層でアクセス可能な状態を制御する。サードパーティアプリのデータにも適用される。[^S06]
+
+`NSFileProtectionComplete` と `NSFileProtectionCompleteUntilFirstUserAuthentication` は挙動が異なり、後者は初回認証後に端末を再ロックしてもクラス鍵をメモリから除去しない。特に指定されないサードパーティアプリのデータは後者が既定である。[^S06][^S13]
 
 Keychain services はパスワード・鍵などの小さな秘密情報を暗号化されたデータベースに保存する API である。`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` はアンロック中だけアクセスでき、別端末へのバックアップ復元では移行されない。安全性だけでなく復元時の体験にも影響するため、この属性を全データへ機械的に適用する根拠にはならない。[^S04][^S05]
 
 ### 設計への示唆
 
-スニペットは定型挨拶から個人情報まで含み得る。ユーザーが何を保存するかをアプリ側で完全には予測できないため、次のコピー先も含めたデータフロー図を最初に作る。
+スニペットは定型挨拶から個人情報まで含み得る。ユーザーが何を保存するかをアプリ側で完全には予測できないため、次の保存先・コピー先を含むデータフローと保護範囲を定義する。
 
 | 境界 | 決めること | 確認方法 |
 | --- | --- | --- |
@@ -32,11 +34,11 @@ Keychain services はパスワード・鍵などの小さな秘密情報を暗�
 | エクスポート・バックアップ・同期先 | 書式、暗号化の有無、読み戻し、削除後の残存データ | 移行・削除・復元の往復試験 |
 | ログ・クラッシュ資料・PR の画像 | 本文・検索語・貼り付け先が混入しないか | ダミーデータでログと画像を検査 |
 
-これは脅威モデルを作るための提案であり、各境界での実装済み保護を示すものではない。DB とバックアップ方式の選択は [データとアーキテクチャ](02-data-and-architecture.md) と合わせて判断する。
+表は脅威モデルの評価項目を示す。各境界の保護は、採用する実装での検証を要する。DB とバックアップ方式の選択は [データとアーキテクチャ](02-data-and-architecture.md) と合わせて判断する。
 
 **未確認：** App Group 内の DB、本体と extension の同時アクセス、WAL 等の付随ファイル、ロック画面からの Intent 実行における保護クラスの実効性。端末ロックによる読取失敗を「データが存在しない」と解釈して空データで上書きしない設計が必要。
 
-## 2. ログと画面にもデータが残る
+## 2. ログと画面の情報露出
 
 ### 確認した事実
 
@@ -87,29 +89,33 @@ Privacy Manifest は target の resources に含める。Swift Package ではフ
 
 **設計への示唆：** 最初のローカル CRUD・呼び出し検証に、アカウントや分析 SDK を必須にしない。Apple は重要なアカウント機能がなければログインなしで利用可能にすることを求め、アカウント作成を提供するならアプリ内のアカウント削除も求める。[^S01] クラウド同期や外部 AI によるスニペット加工は、データフロー・同意・保存・削除を再評価してから検討する。第三者 AI への個人データ共有にも明示的な説明と許可の要件がある。[^S01]
 
-**未確認：** nibble が実際に使う required reason API の種類と理由コード、採用 SDK の manifest、診断・同期を含めた最終的な App Privacy 回答。API をまだ実装していない段階で完成済みとは扱わない。
+**未確認：** nibble が実際に使う required reason API の種類と理由コード、採用 SDK の manifest、診断・同期を含めた最終的な App Privacy 回答。使用するAPI・SDKとデータフローに基づいて宣言を確定する。
 
 ## 5. 開発環境とテストの責務
 
 ### 確認した事実
 
-XCTest の現行資料は、新しい単体テストに Swift Testing の使用を検討し、UI と performance test には XCTest を継続利用するよう案内している。両者を同一 target に置けるが、1つのテスト内で API を混ぜない。WWDC24 の説明では Swift Testing は Linux を含む複数プラットフォームを対象とする。これは iOS の UI / SDK テストが Linux で可能になるという意味ではない。[^S07][^S08]
+XCTest の現行資料は、新しい単体テストに Swift Testing の使用を検討し、UI と performance test には XCTest を継続利用するよう案内している。両者を同一 target に置けるが、1つのテスト内で API を混ぜない。[^S07]
+
+WWDC24 の説明では Swift Testing は Linux を含む複数プラットフォームを対象とする。これは iOS の UI / SDK テストが Linux で可能になるという意味ではない。[^S07][^S08]
 
 Xcode のアプリ依存では、解決した Git commit とバイナリ依存の checksum を含む `Package.resolved` を Git に含め、チーム内で同じ解決結果を使うよう案内されている。[^S11]
 
-### nibble の開発ルールへの対応
+### 検証基盤と製品検証の責務
 
-以下の責務は [CONTRIBUTING.md](../CONTRIBUTING.md) で既に決定済み。今回の調査で新しい CI やテストを実装したものではない。
+[開発ガイド](../CONTRIBUTING.md) に従い、ローカルMacとUbuntu CIで次の検証を分担する。Simulatorのビルド・Swift Testing・操作・撮影は [検証基盤](../docs/ios-verification.md) の共通コマンドを使う。
 
-| 検証対象 | 担当 | 将来追加する条件 |
+| 検証対象 | 担当 | 条件 |
 | --- | --- | --- |
-| workflow 方針・構文・Nix 書式 | Ubuntu CI とローカルで `nix flake check` | 現在の flake / lock を使用 |
-| 純粋なデータ処理・移行ロジック | まずローカル。Apple SDK から独立した部分のみ将来 Linux も検討 | 実際に portable な module とテストができてから導入 |
+| workflow方針・構文・Nix書式・検証スクリプト | Ubuntu CIとローカルで `nix flake check --no-update-lock-file --print-build-logs` | 同じflake / lockで実行 |
+| 製品のデータ処理・移行ロジック | ローカル。Apple SDKから独立した部分はLinuxも候補 | portableなmoduleとテストであることを確認してCIへ登録 |
 | アプリ・extension の build、署名、SDK 統合 | ローカル Mac / Xcode | 本体・extension の各 target と共有コードを確認 |
-| UI・性能・権限・OS連携 | Simulator と実機。性能の基準は実機の Release 構成 | 実際の導線、最低対応 OS、最新正式版、データ量を記録 |
+| UI・性能・権限・OS連携 | Simulator と実機。性能の基準は実機の Release 構成 | iOS 26.5のみを対象とし、実際の導線、OS build、データ量を記録 |
 | 配布物・復元・更新 | ローカルで archive、TestFlight で確認 | 既存データからの更新、移行、権限拒否の検証 |
 
-**設計への示唆：** Xcode の版、SDK、Swift language mode、deployment target、scheme、端末 / runtime、データセットを記録する。補助ツールを固定する `flake.lock` と、アプリ依存の `Package.resolved` を混同しない。証明書・署名鍵・実スニペットを公開 Git / CI ログへ入れない。プロジェクト生成ツールや追加 lint ツールは、必要性と保守コストを確認してから Nix 管理へ追加する。
+**設計への示唆：** Xcode の版、SDK、Swift language mode、deployment target、scheme、端末 / runtime、データセットを記録する。補助ツールを固定する `flake.lock` と、アプリ依存の `Package.resolved` を混同しない。証明書・署名鍵・実スニペットを公開 Git / CI ログへ入れない。
+
+プロジェクト生成ツールや追加 lint ツールは、必要性と保守コストを確認してから Nix 管理へ追加する。
 
 ## 6. ベータ配布から公開後まで
 
@@ -117,9 +123,9 @@ Xcode のアプリ依存では、解決した Git commit とバイナリ依存�
 
 Xcode は archive を作り、Organizer から Validate App、TestFlight / App Store への配布・署名処理を行う。Validate App は限定的な自動初期検証であり、審査や実機試験の代替ではない。診断用 symbol のアップロードも配布設定に含まれる。[^S15]
 
-TestFlight はテスター・ビルド・フィードバックを管理できる。ビルドは最長90日利用でき、外部テスターへの配布には review が必要になる場合がある。最初に group に追加するビルドは review に送られる。公開リポジトリの外部投稿禁止と、招待した利用者によるベータテストは別の運用判断である。[^S09]
+TestFlightはテスター・ビルド・フィードバックを管理する。ビルドは最長90日利用でき、外部テスターのgroupへ最初に追加するビルドはreviewに送られる。ベータテストの対象者・フィードバック経路は、コード公開用リポジトリの投稿権限とは独立して決める。[^S09]
 
-調査時点の Upcoming Requirements は、2026-04-28 以降の App Store Connect アップロードに Xcode 26 以降と iOS 26 等の SDK を要求している。**SDK の提出条件とアプリの最低対応 OS は別**であり、nibble の deployment target 26.0 はプロジェクトの方針として扱う。提出直前に最新の要件を再確認する。[^S16]
+2026-09-13確認のUpcoming Requirements は、2026-04-28 以降の App Store Connect アップロードに Xcode 26 以降と iOS 26 等の SDK を要求している。**SDK の提出条件とアプリの最低対応 OS は別**であり、nibble の deployment target 26.0 はプロジェクトの方針として扱う。提出直前に最新の要件を再確認する。[^S16]
 
 ### 設計への示唆
 
@@ -134,9 +140,11 @@ TestFlight はテスター・ビルド・フィードバックを管理できる
 
 GitHub が運営する Choose a License は、license を付けないコードは既定の著作権の対象であり、Public repository にすることで GitHub の規約に基づく閲覧・fork 等の権利は生じるが、一般的な再配布・変更許諾とは別だと説明している。[^S10]
 
-**設計への示唆：** nibble のコード公開、外部 contribution の受付、アプリの配布、コードの再利用許諾を別々に決める。第三者依存を採用する際はその license と配布時の通知義務を確認する。この調査では新しい license や contribution 受付方針を追加しない。
+nibbleのリポジトリはコード公開用とし、外部からの投稿は受け付けない。[開発ガイド](../CONTRIBUTING.md#コード公開の運用) の方針に従ってGitHubの権限を管理する。Public repositoryでの閲覧・fork等と、コードの一般的な再利用許諾は区別する。
 
-## 実装前に解消する問い
+第三者依存の採用時は、ライセンスと配布時の通知義務を確認する。製品の配布方法とコードの再利用許諾は、それぞれの条件を明示して判断する。
+
+## 製品の採用前に確認する事項
 
 - 「機密スニペット」を機能として扱うか。扱うならロック画面・検索・キーボード・export を含め、何を保護できると説明するか。
 - Full Access なしで利用できるキーボードの最小機能は何か。編集・保存の権限がない場合にも価値を提供できるか。
@@ -146,7 +154,7 @@ GitHub が運営する Choose a License は、license を付けないコード�
 
 ## 出典台帳
 
-下記は一次情報。DocC は Apple が配信する JSON 本文を読み、リンクは通常の文書ページに戻している。HTML 文書は記載した関連節を読解した。動画は録画を視聴したという意味ではなく、公開 transcript を読んだ。URL を知っているだけの資料は根拠に含めていない。
+一次資料のURL、確認日、閲読範囲を示す。DocCはAppleの公式JSON本文を参照し、引用には通常の文書URLを使用する。HTML文書は記載した関連節、動画資料は公開transcriptを閲読範囲とする。
 
 [^S01]: Apple, **App Review Guidelines**, 現行版、確認 2026-09-13。[本文](https://developer.apple.com/app-store/review/guidelines/)。閲読：2.5.1–2.5.2、2.5.16、3.1、4.4–4.4.1、5.1.1–5.1.2 の関連節。審査の個別結果や将来の改定は保証しない。
 [^S02]: Apple, **App privacy details on the App Store**, 現行版、確認 2026-09-13。[本文](https://developer.apple.com/app-store/app-privacy-details/)。閲読：Data collection、第三者 SDK、Privacy policy、Additional guidance の on-device / CloudKit / diagnostics の関連説明。個別アプリの最終回答を確定する資料ではない。

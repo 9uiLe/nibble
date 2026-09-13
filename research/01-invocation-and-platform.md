@@ -1,14 +1,14 @@
 # 呼び出し導線と iOS の境界
 
-調査日: **2026-09-13**。対象: **iOS 26.0 以上**。これは一次資料から設計の選択肢と検証項目を整理した調査であり、各導線の採用決定や、実機での動作保証ではない。
+対象は **iOS 26.0以上**。一次資料の確認日：2026-09-13。nibbleを呼び出し、テキストを取り込み、他アプリで利用するための公開APIと設計候補を整理する。各導線の採用には、対象host（連携先アプリ）と実機での検証を必要とする。
 
-## 先に押さえること
+## 呼び出し・取り込み・挿入の境界
 
 **「呼び出せる」「内容を受け取れる」「相手アプリの入力欄に挿入できる」は別の能力である。** iOS は第三者アプリを sandbox に隔離し、他アプリの情報へのアクセスには OS が明示的に提供するサービスを要求する。nibble の本体から、任意のアプリの画面・選択範囲・入力欄を読み書きできる設計は前提にできない。[I18]
 
 入力中の別アプリへ公開 API で文字列を挿入する有力な候補は Custom Keyboard の `textDocumentProxy.insertText(_:)` だが、利用者による有効化と切り替えが必要で、secure text field、電話番号用の一部入力欄、第三者キーボードを拒否するアプリでは使えない。したがって「全シーンで直接挿入」を単一の導線で保証せず、呼び出し・取り込み・挿入・復帰を場面ごとに評価する必要がある。[I07] [I08] [I10]
 
-**見落としやすい現行仕様:** Full Access を許可しないキーボードでも、本体アプリの shared group container は**読み取り専用で利用可能**と現行 UIKit 文書に明記されている。共有領域への書き込みとネットワークには Full Access が必要である。「キーボードで既存スニペットを読むだけでも Full Access 必須」と決めつけない。iOS 26.0 で実際に採用する保存形式・更新方法・保護設定を使った検証は別途必要。[I09]
+UIKit文書は、Full Access（キーボードの追加アクセス許可）がない場合も、本体アプリと共有するgroup containerを読み取り専用で利用できると定める。書き込みとネットワークにはFull Accessが必要。採用する保存形式・更新方法・保護設定での動作はiOS 26.5の実機で確認する。[I09]
 
 ## 導線の比較
 
@@ -26,47 +26,55 @@
 | Custom Keyboard | 入力中にキーボードを切り替える | 自分のスニペット、proxy が返す選択文字列・周辺文脈 | 対応入力欄の現在位置へ文字列を挿入・後方削除できる | 設定で有効化 → 入力欄を選ぶ → 切り替え → スニペット選択 → 元のキーボードへ | secure / phonePad / namePhonePad / host の拒否。別プロセス・メモリ制限。Full Access なしの共有領域は読取専用。Settings 以外の他アプリ起動を審査規約が禁止。[I07] [I08] [I09] [I10] [I20] | 高。キーボード設定・切り替え・信頼の説明が必要 |
 | Universal Links / custom URL scheme | 他アプリやリンクから指定画面へ | URL に明示的に含められた ID や引数 | リンクを開くだけで呼び出し元の入力欄は操作できない | リンクを選ぶ → nibble 内の該当画面 → 利用者が復帰 | Universal Links は関連ドメインの運用が必要。custom scheme は他アプリと衝突し得る。入力検証と危険な action の制限が必要。[I16] [I17] [I18] | 利用者は低、Universal Links の開発・運用側は中 |
 
-## 事実として確認できた設計上の境界
+## 公開APIの契約と設計候補
 
-### App Intents は共通の action 表現であり、万能の他アプリ操作 API ではない
+### App Intentsによる操作の公開
 
-App Intents はアプリの action とデータを構造化して、Siri、Spotlight、Shortcuts、Widget、Controls、Action Button 等へ公開する仕組みである。本体の「検索」「特定スニペットを開く」「文字列から新規作成」などを、入口ごとに重複実装しないための候補になる。ただし後半は nibble への**設計提案**で、採用決定ではない。[I01]
+App Intents はアプリの action とデータを構造化して、Siri、Spotlight、Shortcuts、Widget、Controls、Action Button 等へ公開する仕組みである。本体の「検索」「特定スニペットを開く」「文字列から新規作成」などを、入口ごとに重複実装しないための候補になる。共通化する操作の範囲は、各入口での実行条件を比較して決める。[I01]
 
 App Shortcuts はアプリのインストール後に利用者のショートカット作成なしで利用できると WWDC22 で説明されている。そこで紹介される「本体の初回起動前にも action が実行され得る」という条件は、データ未初期化時の扱いを検討する根拠になる。**2022 年当時の Spotlight の掲載条件・Siri の UI 制約を、iOS 26 の現行仕様として転用しない。** 現行の発見性・言語・実行条件は実機で確認する。[I02]
 
-`AppIntent.supportedModes` は DocC の availability metadata で **iOS 26.0 導入**を確認した。前景・背景での実行希望を表すが、実際の実行先はコードを配置した bundle、intent の型、システム状態にも依存する。App Intents extension は背景実行であり、「画面を開く action」を extension に置くだけでは成立しない。特定の新 API を採用する際は、その型・各 member の availability を個別に確認する。[I03] [I21]
+`AppIntent.supportedModes` は DocC の availability metadata で **iOS 26.0 導入**を確認した。前景・背景での実行希望を表すが、実際の実行先はコードを配置した bundle、intent の型、システム状態にも依存する。
+
+App Intents extension は背景実行であり、「画面を開く action」を extension に置くだけでは成立しない。特定の新 API を採用する際は、その型・各 member の availability を個別に確認する。[I03] [I21]
 
 `authenticationPolicy` の既定値は `alwaysAllowed` で、端末がロック中でも認証なしの実行を許す。**推奨:** 本文表示、共有・コピー、変更・削除はそれぞれ情報露出と誤操作の影響を評価し、認証・確認・Undo の方針を決める。Widget のロック時制約だけを見て、Siri や他の intent 入口も自動的に保護されると思わない。[I04] [I06]
 
-### Controls と Widget は短い action と入口に適する
+### Controls・Widgetの実行と表示
 
-Controls は widget extension で提供する定型の button / toggle で、Control Center・Lock Screen・Action Button から action または本体の特定画面を開ける。`OpenIntent` による起動には intent の target membership を本体と widget extension の両方に置く必要があると公式手順に記載されている。`ControlWidget` 自体は metadata で iOS 18.0 導入を確認した。[I05] [I22]
+Controls は widget extension で提供する定型の button / toggle で、Control Center・Lock Screen・Action Button から action または本体の特定画面を開ける。`OpenIntent` による起動には intent の target membership を本体と widget extension の両方に置く必要があると公式手順に記載されている。[I05]
+
+`ControlWidget` 自体は metadata で iOS 18.0 導入を確認した。[I05] [I22]
 
 Widget は別プロセスで view の表現を保存し、timeline を通じて表示する。画面を表示する瞬間に通常アプリのようにコード実行や binding 更新をする仕組みではない。action の完了に必要な保存を `perform()` の返却前に終わらせ、更新後の値を timeline が読めるようにする必要がある。[I06]
 
-**推奨:** 「新規作成を開く」「よく使う項目を開く」など、短く説明できる入口を先に比較する。Control や Widget からのクリップボード操作は、背景実行・データ保護・完了フィードバックを含めた実機検証が必要であり、「タップだけで常にコピーできる」とはまだ約束しない。
+**推奨:** 「新規作成を開く」「よく使う項目を開く」など、短く説明できる入口を先に比較する。Control や Widget からのクリップボード操作は、背景実行・データ保護・完了フィードバックを含めた実機検証が必要であり、対応条件と失敗時の表示を仕様に含める。
 
-### Share / Action Extension は host が渡す内容に限定される
+### Share / Action Extensionの受け渡し
 
 Share / Action の詳細な公式ガイドは **Documentation Archive、2017-10-19 更新**である。Share は共有 UI から渡された内容を扱い、Action は表示・変換を行う。iOS の Action が得るのは host が明示的に供給した内容であり、選択範囲の自動取得は保証されない。[I11] [I12]
 
-現行 `NSExtensionContext` も、host が送るデータは `inputItems` にあると説明している。現行 `completeRequest(returningItems:completionHandler:)` は結果 item を host に返し、最終的に extension の view controller を閉じる。この照合から維持できるのは**受け渡しの契約**であり、古いガイドの UI 外観やコード断片のまま現行 Xcode で動くとはしていない。[I13]
+現行 `NSExtensionContext` も、host が送るデータは `inputItems` にあると説明している。現行 `completeRequest(returningItems:completionHandler:)` は結果 item を host に返し、最終的に extension の view controller を閉じる。[I13]
+
+受け渡しの契約は現行APIでも定義されている。アーカイブのUI外観やサンプルのビルド互換性は、使用するXcodeと対象hostで別途確認する。[I13]
 
 **推奨:** 「選択内容を nibble に保存」について Share と Action を小さく比較し、Notes、Safari、メッセージ系の代表的な host から実際に届く型と内容を観察して一方を選ぶ。対応していない型、複数 item、長文、キャンセルを扱う。両方を同時採用して共有 UI に似た項目を増やすことは初期状態にしない。
 
-### キーボードには読取専用の案と編集可能な案で大きな差がある
+### Custom Keyboardの権限と機能
 
 現行 UIKit ガイドは、独立プロセスのキーボードが `UITextDocumentProxy` 経由で選択文字列・前後の文脈を読み、文字列挿入・後方削除・挿入位置調整を行えることを説明している。これは入力対象の view 自体や別アプリの全データへのアクセスではない。得られる文脈を文書全文として扱わない。[I07] [I10]
 
 `RequestsOpenAccess = false`、または利用者が Full Access を拒否した場合でも shared group container を読める一方、共有領域への書き込みとネットワークは許可されない。したがって、**本体で作成・編集・削除し、キーボードは検索・選択・挿入を担当する案**を、Full Access を要求しない最小候補として検証できる。キーボードから共有データを変更する案は、権限要求と保存競合を追加する。[I09]
 
-ただし、App Review Guidelines 4.4.1 は、キーボードに入力機能、次のキーボードへの切り替え、ネットワークや Full Access がなくても機能することを要求し、**Settings 以外の他アプリを起動することを禁止**している。キーボードから URL で本体の編集画面へ飛ぶ案を API の可否だけで採用しない。また、スニペット選択・挿入だけの UI が要求する「keyboard input functionality」を十分に満たすかは、この調査では確定していない。[I20]
+ただし、App Review Guidelines 4.4.1 は、キーボードに入力機能、次のキーボードへの切り替え、ネットワークや Full Access がなくても機能することを要求し、**Settings 以外の他アプリを起動することを禁止**している。[I20]
+
+キーボードから URL で本体の編集画面へ飛ぶ案を API の可否だけで採用しない。また、スニペット選択・挿入だけの UI が要求する「keyboard input functionality」を十分に満たすかは、採用候補のUIと審査要件を照合して確認する必要がある。[I20]
 
 キーボードのメモリ上限は端末ごとに異なり、超えるとプロセスが終了する。非表示になっても終了するとは限らない。固定の「全端末で何 MB」という値を設計基準として引用せず、対象実機で測る。[I07]
 
 **未確認:** read-only 共有領域を、選定する DB がロック・journal・migration の書き込みなしに開けるかは未検証。キーボード用に本体が生成する小さな読み取り用 snapshot も比較対象になる。Full Access を途中で切った場合、アプリ更新直後、本体で編集中、端末のロック・再起動直後の整合性も実験する。
 
-### コピーとペーストを明示的な操作として設計する
+### 明示的なコピーとペースト
 
 `UIPasteControl` は iOS 16.0 以降で、利用者が押すことで本体アプリに pasteboard の内容を取り込むための control である。公式文書は、プログラムによる pasteboard 読取には許可 alert が出る一方、この control の明示的なペーストではその prompt が不要と説明している。これは**nibble の中への取り込み**であり、別アプリに勝手にペーストする機能ではない。[I14]
 
@@ -76,13 +84,19 @@ Share / Action の詳細な公式ガイドは **Documentation Archive、2017-10-
 
 ### Clipboard の端末間転送と期限を区別する
 
-個別 API を照合した結果、`localOnly` は **`true` でこの端末だけ、`false` で Handoff 経由の他端末での利用を許す**。`UIPasteboard.OptionsKey.localOnly` は「他端末で利用不可にする Boolean」と説明し、`setItemProviders(_:localOnly:expirationDate:)` の引数説明が true / false の意味を明記している。`setItems(_:options:)` は `OptionsKey` で全 pasteboard item の privacy options を指定する。親ページ I15 の「Handoff を除外するには false」という一文はこの個別 API と矛盾しており、設定値の根拠には採用しない。**API の設定方向は照合できたが、Apple による親ページの訂正は確認していない。**[I23] [I25] [I26]
+`localOnly` は **`true` でこの端末だけ、`false` で Handoff 経由の他端末での利用を許す**。`UIPasteboard.OptionsKey.localOnly` は「他端末で利用不可にする Boolean」と説明し、`setItemProviders(_:localOnly:expirationDate:)` の引数説明が true / false の意味を明記している。[I23] [I26]
+
+`setItems(_:options:)` は `OptionsKey` で全 pasteboard item の privacy options を指定する。親ページ I15 の「Handoff を除外するには false」という一文はこの個別 API と矛盾しており、設定値の根拠には採用しない。設定は個別APIの契約に従い、対象実機でも転送条件を検証する。[I23] [I25] [I26]
 
 `localOnly` は Handoff / Universal Clipboard による端末間転送の制御であり、同じ端末での他アプリによる正当なペーストや、利用者がその後に共有することまで禁止する仕組みではない。**推奨:** 通常コピーで端末間転送を許すか、機密用の「この端末のみ」操作を設けるかは利用シーンから決め、名称と実際の設定を一致させる。「安全なコピー」のように保護範囲が分からない表現は避ける。[I15] [I23] [I26]
 
-`expirationDate` の公式な契約は「指定日時に pasteboard から item を取り除くようシステムへ指定する」ことである。期限を指定した元データの**pasteboard 上の寿命**を扱う API であり、期限前に他アプリへペースト・保存されたコピーの回収や、その後の情報流通の停止を保証するとは記載されていない。正確な削除時刻の許容誤差、転送先端末での保持期間や切断中の動作についても、確認した個別 API 文書には保証がない。これらを「期限になればどこからも消える」と説明しない。[I24] [I26]
+`expirationDate` の公式な契約は「指定日時に pasteboard から item を取り除くようシステムへ指定する」ことである。期限を指定した元データの**pasteboard 上の寿命**を扱う API であり、期限前に他アプリへペースト・保存されたコピーの回収や、その後の情報流通の停止を保証するとは記載されていない。[I24] [I26]
 
-**新しいコピーを消さない配慮:** アプリ独自の timer で後から `UIPasteboard.general` を空にすると、途中で別アプリがコピーした内容を消す危険がある。`changeCount` は内容の追加・変更・削除で増えるが、イベントループ終端まで更新を待って通知がまとめられる場合があり、他アプリによる更新はアプリ再開時にも反映され、端末再起動で 0 に戻る。したがって値の一致は永続的な所有権 token ではなく、「値を確認してから消す」を原子的に実行する compare-and-clear の保証も、この API 文書にはない。書込直後の値を無条件に保存する実装も、更新タイミングの検証が必要である。[I27]
+正確な削除時刻の許容誤差、転送先端末での保持期間や切断中の動作についても、確認した個別 API 文書には保証がない。これらを「期限になればどこからも消える」と説明しない。[I24] [I26]
+
+**新しいコピーを消さない配慮:** アプリ独自の timer で後から `UIPasteboard.general` を空にすると、途中で別アプリがコピーした内容を消す危険がある。`changeCount` は内容の追加・変更・削除で増えるが、イベントループ終端まで更新を待って通知がまとめられる場合があり、他アプリによる更新はアプリ再開時にも反映され、端末再起動で 0 に戻る。[I27]
+
+したがって値の一致は永続的な所有権 token ではなく、「値を確認してから消す」を原子的に実行する compare-and-clear の保証も、この API 文書にはない。書込直後の値を無条件に保存する実装も、更新タイミングの検証が必要である。[I27]
 
 **推奨:** 期限はコピー時に OS の `expirationDate` へ渡す案を先に検証し、後追いの全消去 timer を標準動作にしない。`changeCount` は内容が変わった場合にアプリ独自の消去を中止するための追加の手掛かりとしては使えるが、競合がないことの証明にはしない。確認した文書だけでは、後続コピーによって以前の期限がどう更新されるかまで明記されていないため、次の実機検証が必要である。[I24] [I25] [I27]
 
@@ -90,7 +104,7 @@ Share / Action の詳細な公式ガイドは **Documentation Archive、2017-10-
 - A の期限前 / 後、nibble の背景化・終了・端末ロック・再起動後の pasteboard 状態。期限後のアプリ独自処理が不要かも観察する。
 - 自分の別端末で Handoff を有効にし、`localOnly: true` と `false` の転送結果を比較する。オフライン・再接続と、期限前に別アプリへ保存した内容が残ることも確認する。
 
-### Deep link と背景実行を別アプリ操作の抜け道にしない
+### Deep linkと背景実行の制約
 
 Universal Links はドメインとアプリの関連付けを検証して指定内容へ到達する仕組みで、未インストール時は Web に fallback する。同じドメインの Safari 内遷移など、常にアプリが開くわけではない条件も公式に記載されている。ドメインを運用する負担と利用シーンを比較する。[I16]
 
@@ -102,7 +116,7 @@ custom URL scheme は登録競合時にどのアプリへ届くかが未定義�
 
 ## iOS 26.0 の availability 点検
 
-親 framework の対応 OS から下位 API の対応を推定せず、重要な型・member は以下の**個別 DocC metadata**を確認した。「導入 OS が 26.0 以下」は API 候補を絞る根拠であり、対象 SDK でのコンパイル、extension での利用可否、権限、端末・言語条件、実際の体験を確認したことにはならない。[I03] [I04] [I13] [I14] [I22] [I23] [I24] [I25] [I26] [I27] [I28]
+主要な型・memberの導入OSを個別DocC metadataに基づいて示す。親frameworkの対応OSとは分けて確認する。「導入 OS が 26.0 以下」は API 候補を絞る根拠であり、対象 SDK でのコンパイル、extension での利用可否、権限、端末・言語条件、実際の体験を確認したことにはならない。[I03] [I04] [I13] [I14] [I22] [I23] [I24] [I25] [I26] [I27] [I28]
 
 | 個別 API | metadata にある iOS 導入バージョン | 確認資料 |
 | --- | --- | --- |
@@ -111,18 +125,18 @@ custom URL scheme は登録競合時にどのアプリへ届くかが未定義�
 | `ControlWidget` | 18.0 | I22。Action Button の機器条件や全 control initializer の対応とは区別する |
 | `UIInputViewController.textDocumentProxy` | 8.0 | [textDocumentProxy](https://developer.apple.com/documentation/uikit/uiinputviewcontroller/textdocumentproxy) [I28] |
 | `UITextDocumentProxy.selectedText` / `UIInputViewController.hasFullAccess` | いずれも 11.0 | [selectedText](https://developer.apple.com/documentation/uikit/uitextdocumentproxy/selectedtext)、[hasFullAccess](https://developer.apple.com/documentation/uikit/uiinputviewcontroller/hasfullaccess) [I28] |
-| `UIKeyInput.insertText(_:)` / `deleteBackward()` | iOS 対象の記載はあるが、導入バージョン欄はない | [insertText](https://developer.apple.com/documentation/uikit/uikeyinput/inserttext(_:))、[deleteBackward](https://developer.apple.com/documentation/uikit/uikeyinput/deletebackward()) [I28]。現行 keyboard ガイド I10 は利用例を示すが、導入年を推定しない。26.0 SDK でのコンパイルは未確認 |
+| `UIKeyInput.insertText(_:)` / `deleteBackward()` | iOS 対象の記載はあるが、導入バージョン欄はない | [insertText](https://developer.apple.com/documentation/uikit/uikeyinput/inserttext(_:))、[deleteBackward](https://developer.apple.com/documentation/uikit/uikeyinput/deletebackward()) [I28]。現行 keyboard ガイド I10 は利用例を示すが、導入年を推定しない。deployment target 26.0でのコンパイルは未確認 |
 | `NSExtensionContext` / `completeRequest(returningItems:completionHandler:)` | いずれも 8.0 | I13。host が結果をどう利用するかは API availability の範囲外 |
 | `UIPasteControl` / `UIPasteboard.hasStrings` | 16.0 / 10.0 | I14 / [hasStrings](https://developer.apple.com/documentation/uikit/uipasteboard/hasstrings) [I28] |
 | `OptionsKey.localOnly` / `OptionsKey.expirationDate` / `setItems(_:options:)` | いずれも 10.0 | I23 / I24 / I25 |
 | `setItemProviders(_:localOnly:expirationDate:)` / `changeCount` | 11.0 / 3.0 | I26 / I27 |
 | `BGProcessingTask` / `BGAppRefreshTask` | いずれも 13.0 | [BGProcessingTask](https://developer.apple.com/documentation/backgroundtasks/bgprocessingtask)、[BGAppRefreshTask](https://developer.apple.com/documentation/backgroundtasks/bgapprefreshtask) [I28] |
 
-Universal Links、Share / Action、Widget の導線は複数の API・設定・host の組み合わせである。ガイド記事の説明を単一の availability と見なしていない。採用する実装の全 member と deployment target 26.0 の整合は prototype で確認する。特に現行資料へ後から追加された API を、その親型が使えるという理由だけで取り込まない。
+Universal Links、Share / Action、Widget の導線は複数の API・設定・host の組み合わせである。ガイド記事の説明を単一の availability と見なしていない。採用する実装の全 member と deployment target 26.0 の整合は prototype で確認する。使用する型だけでなく各memberのavailabilityを確認する。
 
-## 最小の実機検証と判断の順番
+## 導線を選ぶ実機検証
 
-以下は**推奨する実験計画であり、すべて未実施**。本体と extension の最低 OS を 26.0 にそろえ、iOS 26.0 と採用 Xcode が対応する最新の正式版 iOS をローカル Mac で検証する。使用 API の availability と extension-safe な利用可否を実際の SDK で確認する。クラウドの静的検査はこれらを代替しない。
+以下の製品導線の実験は **未実施**。本体とextensionのdeployment targetを26.0にそろえ、実行検証はiOS 26.5のみを対象とする。使用 API の availability と extension-safe な利用可否を実際の SDK で確認する。クラウドの静的検査はこれらを代替しない。
 
 | 順番 | 小さな検証 | 観測すること | この結果で決めること |
 | --- | --- | --- | --- |
@@ -140,7 +154,7 @@ Universal Links、Share / Action、Widget の導線は複数の API・設定・h
 
 - どの入口を初期版に含めるか。全候補の採用は決めていない。
 - Share / Action の適合性と実際の host 別データ。アーカイブ記載だけで現行の全 host の動作は保証できない。
-- Full Access なしのキーボードで選定 DB を直接読めるか、snapshot が必要か。旧ガイドから permission を推定せず、現行資料と実機で確認する。
+- Full Access なしのキーボードで選定 DB を直接読めるか、snapshot が必要か。権限の契約と、DBやsnapshotの読取条件を実機で確認する。
 - スニペット選択専用キーボードの審査要件への適合、日常の日本語入力を妨げない UI の最小範囲。
 - 各 action の背景実行時に clipboard 書込と分かりやすい完了表示を両立できるか。
 - Spotlight / Siri に公開するタイトル・本文・引数の範囲、更新・削除の反映、ロック時の情報露出。
@@ -148,7 +162,7 @@ Universal Links、Share / Action、Widget の導線は複数の API・設定・h
 
 ## 資料台帳
 
-すべて一次資料。閲覧日は 2026-09-13。DocC は公式本文の JSON 表現を取得して本文・metadata を読んだ。公開／更新年が本文にないものは「記載なし」とし、OS 導入バージョンを更新年の代わりにしていない。資料中の code sample をビルドしたわけではない。外部本文全文はこのリポジトリに保存していない。
+一次資料の確認日：2026-09-13。DocCの閲読範囲は公式JSON本文とmetadata。公開・更新年の記載がない場合は「記載なし」とする。資料のサンプルはビルド未検証。外部本文は転載せず、URL、閲読範囲、適用限界を記録する。
 
 | ID | 組織・著者 / title / 年・更新 | URL | 実際に読めた範囲と制約 |
 | --- | --- | --- | --- |

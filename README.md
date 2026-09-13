@@ -1,34 +1,45 @@
 # nibble
 
-nibble は、さまざまな作業シーンから素早く呼び出せる iOS 向けスニペットツールです。
-スニペットの作成・編集・削除を少ない操作で行え、日々の作業を妨げないことを目指します。
+nibble は iOS 26.0 以上向けのスニペットツールです。作業中に必要なテキストを素早く呼び出し、作成・編集・削除を少ない操作で行える体験を目指します。使いやすさ、シンプルさ、描画と応答の速さを設計の判断基準にします。
 
-- **対応 OS：iOS 26.0 以上**
-- **優先する価値：使いやすさ、シンプルさ、描画と応答の速さ**
-- **開発方針：モダンな技術を検討し、保守・運用を含めた長期的な適性で判断する**
+## リポジトリの構成
 
-現在は開発ルール、設計の調査資料、ローカルの iOS 検証基盤を用意しています。検証用の Xcode プロジェクトはありますが、アプリ本体と技術スタックの最終決定はまだありません。
+このリポジトリは、開発規約、製品設計の研究資料、ローカルの iOS 検証基盤を管理します。実行対象の `VerificationApp` は、入力・操作・テスト・撮影を確かめる検証用アプリです。製品本体の機能、画面、保存方式、呼び出し導線は [研究と検証計画](research/README.md) の評価対象です。
+
+| 入口 | 内容 |
+| --- | --- |
+| [開発ガイド](CONTRIBUTING.md) | 対応OS、依存管理、ローカルとCIの責務、UI/UX・性能、PRの規約 |
+| [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) | Apple CLI・sim-use・Nixの役割、構成、採用理由、対応範囲 |
+| [ローカル iOS 検証](docs/ios-verification.md) | Simulatorの準備、ビルド・テスト・操作・画面記録、証跡の確認 |
+| [研究資料](research/README.md) | 論文・一次資料による仕様の根拠、設計候補、製品の検証計画 |
+| [AGENTS.md](AGENTS.md) | AIエージェント向けの規約の入口 |
+| [PRテンプレート](.github/pull_request_template.md) | 目的・背景、アウトカム、コミット表、画像・動画、検証結果の記載形式 |
 
 ## セットアップ
 
-補助ツールは Nix で構築し、`flake.lock` で固定します。Python や検査ツールを Homebrew・pip で個別に導入する必要はありません。
+補助ツールは [flake.nix](flake.nix) に宣言し、[flake.lock](flake.lock) で固定します。AppleのツールチェーンはローカルのXcodeを使用します。
 
-### 1. Git と Nix を用意する
+| 環境 | 用途・前提 |
+| --- | --- |
+| macOS（Apple Silicon / Intel） | Nixの共通検査。iOSの検証にはXcodeと対象Simulator runtimeも必要 |
+| Linux（ARM64 / x86_64） | Nixの共通検査。Apple SDKを使うビルド・テストはローカルMacで実行 |
+| iOS検証の確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
+| 検証対象 | iOS 26.5のみ。`VerificationApp` scheme、deployment target `26.0` |
 
-macOS または Linux の環境で、Git と [Nix](https://nixos.org/download/) をインストールしてください。Nix のインストール後はターミナルを開き直し、次のコマンドで利用できることを確認します。
+### 1. GitとNixを用意する
+
+Gitと [Nix](https://nixos.org/download/) をインストールし、ターミナルを開き直して確認します。
 
 ```sh
 git --version
 nix --version
 ```
 
-Nix の `nix-command` / `flakes` を有効にします。まだ有効でない場合は `~/.config/nix/nix.conf` を作成または編集し、次の設定を追加してください。既存の `experimental-features` 設定がある場合は、既存の機能を残して値を統合します。
+Nixの `nix-command` / `flakes` を有効にします。機能が無効な場合は `~/.config/nix/nix.conf` に次の設定を追加します。`experimental-features` に設定済みの値がある場合は、その値を残して統合してください。
 
 ```conf
 experimental-features = nix-command flakes
 ```
-
-補助ツールは Apple Silicon / Intel の macOS と、ARM64 / x86_64 の Linux に対応しています。iOS アプリの開発・動作確認には Mac と Xcode が必要です。
 
 ### 2. リポジトリを取得する
 
@@ -37,31 +48,24 @@ git clone https://github.com/9uiLe/nibble.git
 cd nibble
 ```
 
-以降のコマンドは、リポジトリルートで実行します。
+以降のコマンドはリポジトリルートで実行します。
 
-### 3. 開発環境を起動する
+### 3. 補助ツールを起動・検査する
 
 ```sh
 nix develop
-```
-
-初回は lock に固定された依存を取得します。開発シェルでは Python 3・PyYAML・actionlint・ShellCheck が利用でき、macOS では `sim-use` 0.14.0 も利用できます。シェルを終了するときは `exit` を実行してください。
-
-### 4. セットアップを検証する
-
-```sh
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-このコマンドは開発シェルの内外から実行できます。`workflow-policy`・`nix-format`・`ios-tooling` が成功すれば、補助ツールのセットアップは完了です。runner 方針、workflow の構文・シェル、Nix 定義の書式と、iOS 検証 driver の失敗処理を検査します。Apple SDK や Simulator は起動しません。
+初回はlockで固定した依存を取得します。開発シェルではPython 3・PyYAML・actionlint・ShellCheckが使え、macOSではsim-use 0.14.0も使えます。終了は `exit` です。Homebrewやpipによる個別導入は不要です。
 
-GitHub Actions も `ubuntu-24.04` 上で同じ lock とコマンドを使います。macOS runner は使用しません。
+共通検査は `workflow-policy`・`nix-format`・`ios-tooling` の3つです。workflowのrunner・構文・シェル、Nix書式、iOS検証スクリプトの失敗処理を検査します。GitHub Actionsも `ubuntu-24.04` で同じlockとコマンドを使います。Apple SDKやSimulatorを使う検証は次の手順で行います。
 
-### 5. iOS 開発用の Xcode を準備する
+### 4. Xcodeを準備する
 
-iOS 開発を行う Mac では、[Xcode](https://developer.apple.com/xcode/) の正式版をインストールして一度起動し、初期設定と追加コンポーネントの導入を完了してください。iOS 26.0 以降の SDK を含む Xcode が必要です。プロジェクトで採用する Xcode・Swift の具体的なバージョンは、アプリ作成時に決定します。
+iOSを検証するMacに [Xcode](https://developer.apple.com/xcode/) をインストールし、一度起動してライセンス確認と追加コンポーネントの導入を完了します。検証基盤の確認環境はXcode 26.5です。使用するSDKはiOS 26.0以上のdeployment targetに対応している必要があります。
 
-Xcode の Settings → Locations → Command Line Tools で使用する Xcode を選択し、次のコマンドで選択先と SDK を確認します。
+Xcodeの Settings → Locations → Command Line Tools で使用するXcodeを選び、確認します。
 
 ```sh
 xcode-select -p
@@ -69,39 +73,36 @@ xcodebuild -version
 xcodebuild -showsdks
 ```
 
-アプリの検証に向けて、iOS 26.0 と検証対象の最新正式版を実行できる Simulator または実機を用意します。必要な Simulator runtime は Xcode の設定から追加してください。Xcode・Apple の Swift ツールチェーン・iOS SDK・Simulator・署名情報はローカル Mac 側で管理します。
+Xcodeの設定からiOS 26.5のSimulator runtimeを導入します。ビルド・テスト・操作・性能の実行検証は26.5のみを対象とし、検証記録には実際のversionとbuildを残します。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認します。
 
-続いて [ローカル iOS 検証](docs/ios-verification.md) に従い、環境確認、専用 Simulator の作成、検証用アプリのビルド・テスト・動作確認を行います。現在の検証環境は Xcode 26.5、Swift language mode 6、scheme `VerificationApp`、deployment target 26.0 です。
+Xcode・AppleのSwift・SDK・runtime・署名情報はMac側で管理します。シェルごとにXcodeを選ぶ場合は `DEVELOPER_DIR` を設定します。設定例と対応範囲は [ローカル iOS 検証](docs/ios-verification.md) を参照してください。
+
+### 5. Simulatorで検証する
+
+環境と利用可能な端末を確認します。
 
 ```sh
 nix develop --command python3 scripts/ios.py doctor
 nix develop --command python3 scripts/ios.py devices
 ```
 
-対象の UDID を `NIBBLE_SIMULATOR` に設定したら、次のコマンドでテストと操作・画面記録を実行できます。作成手順と成果物の確認方法は上記ガイドに記載しています。
+[Simulatorの作成・選択手順](docs/ios-verification.md#simulatorの作成と選択) に従って専用端末を用意し、そのUDID（端末の一意な識別子）を `NIBBLE_SIMULATOR` に設定します。テストと操作・撮影は次のコマンドで実行します。
 
 ```sh
 nix develop --command python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR"
 nix develop --command python3 scripts/ios.py smoke --device "$NIBBLE_SIMULATOR"
 ```
 
+結果はGit管理対象外の `artifacts/` に保存されます。画像と動画を開いて内容を確認し、生成された `REVIEW.md` に確認結果とPRの添付先を記録します。
+
 ## よく使うコマンド
 
 | 操作 | コマンド |
 | --- | --- |
 | 開発シェルを起動 | `nix develop` |
-| CI と同じ検証 | `nix flake check --no-update-lock-file --print-build-logs` |
-| runner 方針だけを検査 | `nix develop --command python3 scripts/check_workflows.py` |
-| Nix 定義を整形 | `nix fmt flake.nix` |
+| CIと同じ検証 | `nix flake check --no-update-lock-file --print-build-logs` |
+| runner方針だけを検査 | `nix develop --command python3 scripts/check_workflows.py` |
+| Nix定義を整形 | `nix fmt flake.nix` |
+| iOS検証環境を確認 | `nix develop --command python3 scripts/ios.py doctor` |
 
-依存を更新する場合は [開発ツールの管理](CONTRIBUTING.md#開発ツールの管理) に従ってください。セットアップ時に lock を更新する必要はありません。
-
-## 開発ルール
-
-開発・レビュー時は [開発ガイド](CONTRIBUTING.md) を参照してください。iOS のビルド・テスト・画面・性能の検証はローカルで行い、結果と必要な画像・動画を PR に記録します。
-
-AI エージェント向けの入口は [AGENTS.md](AGENTS.md)、PR の記載形式は [PR テンプレート](.github/pull_request_template.md) にあります。
-
-## 設計のための調査資料
-
-呼び出し導線、データ保存・共有、UI/UX・性能、セキュリティ・配布に関する論文・一次資料の調査は [research](research/README.md) にまとめています。技術選定の前に、確認した仕様と実機検証が必要な点を参照してください。
+依存の追加・更新は [開発ツールの管理](CONTRIBUTING.md#開発ツールの管理)、実装とレビューは [開発ガイド](CONTRIBUTING.md) に従います。セットアップ時にlockを更新する必要はありません。

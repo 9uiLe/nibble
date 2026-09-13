@@ -1,36 +1,39 @@
 # ローカル iOS 検証
 
-ビルド・テスト・Simulator の操作・画面記録を、[scripts/ios.py](../scripts/ios.py) から実行する。補助ツールは Nix、Apple のツールチェーンはローカル Xcode が担当する。
+[scripts/ios.py](../scripts/ios.py) は、iOS Simulatorに対するビルド・テスト・操作・画面記録の共通コマンドを提供する。Apple CLIでビルドと実行管理・撮影を行い、Nixで固定したsim-useで画面を読み取り操作する。構成と採用理由は [検証基盤の設計](decisions/0001-local-ios-verification.md) に記載する。
 
-最初の実行対象は [VerificationApp](../validation/VerificationApp.xcodeproj/project.pbxproj)。入力したダミー文字列を画面へ反映する**基盤の検証用アプリ**であり、nibble 本体の機能・UI・保存方式を決めるものではない。
+## 検証対象と前提
 
-## ツールと責務
+標準の対象は `VerificationApp`。ダミーテキストを入力欄から結果表示へ反映するfixture（検証用アプリ）で、検証コマンドと証跡取得の成立を確認する。製品の保存・検索・呼び出し導線は [製品の検証計画](../research/05-decisions-and-validation.md) に従って評価する。
 
-| 用途 | 使用するもの |
+| 項目 | 設定・確認範囲 |
 | --- | --- |
-| ビルド・Swift Testing | Apple `xcodebuild`。共有 scheme と明示した Simulator destination を使用 |
-| runtime・端末の作成／起動・アプリのインストール／起動 | Apple `xcrun simctl` |
-| 画面の読取・タップ・テキストの貼り付け | Nix で固定した `sim-use` 0.14.0 |
-| スクリーンショット・動画 | Apple `xcrun simctl io screenshot / recordVideo`。動画は SIGINT で確定 |
-| テスト結果・添付ファイル | Apple `xcrun xcresulttool` |
-| 動画のデコード確認・代表フレーム | Apple の Swift / AVFoundation / AppKit |
-| 実行条件、ログ、成否の保存 | 既存の Nix Python と標準ライブラリ |
-| Ubuntu CI | driver の失敗処理テスト、workflow 方針、Nix 書式。iOS は実行しない |
+| project | `validation/VerificationApp.xcodeproj` |
+| shared scheme | `VerificationApp` |
+| bundle ID | `dev.nibble.VerificationApp` |
+| 設定ファイル | [validation/project.json](../validation/project.json) |
+| 最低対応OS / Swift language mode | iOS 26.0 / Swift 6 |
+| 確認済みツールチェーン | Xcode 26.5、Apple Swift 6.3.2、Simulator SDK 26.5 |
+| 検証対象Simulator runtime | iOS 26.5のみ（確認済みbuild：23F77） |
+| 補助ツール | NixのPythonとsim-use 0.14.0 |
 
-判断の背景・依存の固定方法は [ADR 0001](decisions/0001-local-ios-verification.md) を参照する。
+[READMEのセットアップ](../README.md#セットアップ) を完了し、Xcodeのライセンス・追加コンポーネントと対象runtimeを用意する。NixはXcodeをインストールしない。コマンドはリポジトリルートで実行する。
 
-## 初回セットアップ
+## 環境の確認
 
-1. [README のセットアップ](../README.md#セットアップ)を完了する。Xcode 初回起動時のライセンス・追加コンポーネントを準備し、iOS runtime を導入する。Nix は Xcode 自体をインストールしない。
-2. 必要なら、このシェルだけで `DEVELOPER_DIR` を設定する。未指定なら `xcode-select` の選択先を使う。例：`export DEVELOPER_DIR=/Applications/Xcode-26.5.0.app/Contents/Developer`。実際のインストール先に合わせる。
-3. 次のコマンドで Xcode、Swift、sim-use、runtime、共有 scheme を確認する。
+Xcodeは `xcode-select` の選択先を使用する。シェル単位で選ぶ場合は、実際のインストール先に合わせて `DEVELOPER_DIR` を設定する。
 
 ```sh
+export DEVELOPER_DIR=/Applications/Xcode-26.5.0.app/Contents/Developer
 nix develop --command python3 scripts/ios.py doctor
 nix develop --command python3 scripts/ios.py devices
 ```
 
-専用 Simulator を作る。`--runtime` と `--device-type` はローカルで利用可能な識別子を使う。利用可能な device type は `xcrun simctl list devicetypes` で確認できる。次の例は該当 runtime が導入済みの場合に実行する。
+`doctor` はツール・runtime・shared scheme、`devices` は利用可能なSimulatorを確認する。runtimeの `version` がiOS 26.5であることを確認し、`buildversion` と合わせて検証条件に記録する。
+
+## Simulatorの作成と選択
+
+iOS 26.5の検証専用Simulatorを用意する。`--runtime` は `devices` の出力から26.5を選び、`--device-type` は `xcrun simctl list devicetypes` で利用可能な値を選ぶ。次は26.5のruntimeが導入済みの場合の例。
 
 ```sh
 nix develop --command python3 scripts/ios.py create \
@@ -39,42 +42,42 @@ nix develop --command python3 scripts/ios.py create \
   --name 'nibble Verification 26.5'
 ```
 
-出力された UDID を設定する。同じ名前でも端末は区別されるため、名前や暗黙の `booted` は操作対象に使わない。`create` は実行ごとに新しい端末を作るので、2回目からは既存の UDID を使う。
+`create` は実行ごとに新しい端末を作る。出力されたUDIDを保存し、再利用時は同じUDIDを指定する。UDIDは端末の一意な識別子であり、同名のSimulatorも区別できる。名前や暗黙の `booted` を操作対象に使わない。
 
 ```sh
-export NIBBLE_SIMULATOR='作成時に出力されたUDID'
+export NIBBLE_SIMULATOR='対象SimulatorのUDID'
 nix develop --command python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
 ```
 
-必要なら `open -a Simulator` で Apple の Simulator ウィンドウを表示する。CLI は Simulator 内のタップに座標の推測を使わず、`sim-use` で観測した accessibility identifier を使用する。
+必要なら `open -a Simulator` でSimulatorウィンドウを表示する。CLIによる操作はsim-useが観測したaccessibility identifierを使用する。
 
 ## ビルド・テスト・動作確認
 
 ```sh
-# Simulator 向けにビルド。署名アカウントは不要
+# Simulator向けビルド。署名アカウントは不要
 nix develop --command python3 scripts/ios.py build --device "$NIBBLE_SIMULATOR"
 
-# ビルドして Swift Testing を実行。xcresult と summary を保存
+# ビルドとSwift Testing。xcresultとsummaryを保存
 nix develop --command python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR"
 
-# ビルド → インストール → 起動 → 画面を読み出す
+# ビルド、インストール、起動、画面読取
 nix develop --command python3 scripts/ios.py run --device "$NIBBLE_SIMULATOR"
 
-# 検証用アプリを操作し、日本語・絵文字・改行の反映、画像・動画を確認
+# fixtureの操作・期待結果の照合・静止画と動画の取得
 nix develop --command python3 scripts/ios.py smoke --device "$NIBBLE_SIMULATOR"
 
-# 最適化した構成で同じ基盤を実行
+# Release構成での操作確認
 nix develop --command python3 scripts/ios.py smoke \
   --device "$NIBBLE_SIMULATOR" --configuration Release
 ```
 
-`smoke` は本体ビルドと、画面の読取 → リセット → 入力欄選択 → ダミーテキスト貼り付け → 反映 → 出力値の照合を実行する。Swift Testing は別の `test` コマンドで実行する。クリップボードの書き換えと fixture の入力リセットを伴うため、専用 Simulator とダミーデータを使う。
+`test` は `xcodebuild` の終了コードと `xcresulttool` のsummaryを確認する。成功したテストが1件以上必要で、0件・全skip・失敗を成功扱いしない。fixtureのSwift Testingはホストの識別・対応OSと、ViewControllerを経由するUnicode・空白の保持を検査する。
 
-操作後の静止画は録画を終了・確定してから撮影する。検証時に、録画中の静止画でボタン文字が欠け、動画フレームには正常に写るケースを観測したため、同時取得を避けている。画面の正しさは保存した画像も開いて確認する。
+`smoke` はビルド・起動後、画面読取 → リセット → 入力欄選択 → ダミーテキストの貼り付け → 反映 → 出力値の照合を実行する。入力は `日本語 👩🏽‍💻` と改行・`Hello, nibble!`。`--text` で変更できる。Swift Testingは別の `test` コマンドで実行する。
 
-テストは `xcodebuild` の終了コードに加え、`xcresulttool` の summary が成功か、実際に1件以上のテストが通ったかを確認する。0件・全 skip・失敗を成功と報告しない。失敗時にも取得できたログ・結果は保存する。
+smokeはSimulatorのクリップボードとfixtureの入力を書き換えるため、専用端末とダミーデータを使う。iOS 26.5のみで、変更の影響範囲を確認する。SimulatorのRelease実行と実機の性能測定は、それぞれ別の検証として記録する。
 
-## 個別の操作と記録
+## 個別の画面読取と操作
 
 ```sh
 nix develop --command python3 scripts/ios.py ui --device "$NIBBLE_SIMULATOR"
@@ -82,42 +85,55 @@ nix develop --command python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fi
 nix develop --command python3 scripts/ios.py paste --device "$NIBBLE_SIMULATOR" \
   --target-id fixture.input --text '日本語の確認 🧪'
 nix develop --command python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fixture.apply
+```
+
+`tap` / `paste` は操作前後の画面情報を保存する。任意のアプリの期待結果は呼出側で確認する。`smoke` の自動照合はfixture専用である。
+
+sim-useを直接使う場合も `nix develop` 内で実行する。`sim-use ui --json --no-raw` の `uniqueId` で要素を特定し、原文の比較には `value` を使う。表示用の `label` / outlineには空白・改行の整形が入る場合がある。
+
+`paste --via-menu` はメニュー操作を使い、Simulatorのハードウェアキーボード接続に依存しない。日本語の貼り付けはIMEの変換・未確定文字・候補選択を試験しないため、IMEは独立した操作で検証する。許可ダイアログや想定外の画面は読み取って対応する。検証スクリプトによる権限の一括許可は行わない。
+
+## スクリーンショットと画面録画
+
+```sh
 nix develop --command python3 scripts/ios.py screenshot --device "$NIBBLE_SIMULATOR"
 nix develop --command python3 scripts/ios.py record --device "$NIBBLE_SIMULATOR" --seconds 10
 ```
 
-`tap` / `paste` は操作前後の画面を保存する。任意のアプリの期待結果までは推測しないので、出力された画面を確認する。`smoke` の期待結果照合は fixture 固有である。
+静止画はAppleの `simctl io screenshot`、動画は `simctl io recordVideo` で取得する。録画は開始通知を待ち、SIGINTで確定する。`--seconds` は0より大きく60以下の値を指定する。動画の長さと代表フレーム3枚をSwift / AVFoundation / AppKitで取得する。
 
-独自の操作を録画する場合は `record` を一つのターミナルで実行し、もう一つで Nix 内の `sim-use ui` / `tap` / `gesture` 等を使う。driver 同士は同じ UDID の競合をロックするが、直接の `sim-use` や Xcode の操作まではロックしない。別の検証を同時に同じ端末へ流さない。
+smokeでは録画の確定後に操作後の静止画を撮影する。同時取得時に静止画のボタン文字が欠ける場合を避け、動画と静止画を独立してレビューできる順序にする。
 
-`sim-use paste --via-menu` はハードウェアキーボード接続に依存しないメニュー操作を使う。日本語の**貼り付け**が成功しても、日本語 IME の未確定文字・変換候補の動作を検証したことにはならない。許可ダイアログや想定外の画面が出た場合は、その画面を確認して対応する。driver は権限を一括で許可したり端末設定を変更したりしない。
-
-直接 `sim-use` を使う場合も、`nix develop` 内で実行する。`sim-use ui --json --no-raw` の出力では `uniqueId` で要素を特定し、値が必要な場合は `value` を読む。表示用の `label` / outline は空白や改行が整形される場合がある。
+任意の操作を記録する場合は、一つのターミナルで `record` を実行し、別のターミナルからNix内の `sim-use ui` / `tap` / `gesture` 等を使う。検証スクリプト同士は同じUDIDをロックするが、直接のsim-useやXcode操作はロックしない。同じ端末へ別の検証を同時に流さない。
 
 ## 成果物とレビュー
 
-毎回 `artifacts/ios/<UTC日時>-<コマンド>-<ID>/` を作り、既存の結果を上書きしない。ビルドキャッシュは `artifacts/ios/DerivedData/<UDID>/`。このディレクトリ全体は Git 管理対象外である。
+各実行は `artifacts/ios/<UTC日時>-<コマンド>-<ID>/` に結果を保存する。ビルドキャッシュは `artifacts/ios/DerivedData/<UDID>/` に置く。`artifacts/` 全体をGit管理対象外とする。
 
 | ファイル | 内容 |
 | --- | --- |
-| `manifest.json` | 実行成否、コミット、未コミット状態、対象ファイルの SHA-256、Xcode / Swift / sim-use、端末・runtime、実行したコマンド・終了コード |
-| `*.log` / `*.stderr.log` | stdout / stderr。ビルド・テスト失敗の原文も保持 |
-| `build.xcresult` / `test.xcresult` | Xcode が生成する結果 bundle。Xcode で開いて調べられる |
-| `test-summary.json` / `attachments/` | テスト件数・成否と、存在するテスト添付物。Swift Testing だけなら画像添付がない場合もある |
-| `before.json` / `after.json` 等 | sim-use の画面観測。文字列の照合に利用 |
-| `before.png` / `after.png` / `screenshot.png` | Apple CLI で撮影した画像 |
-| `recording.mp4` / `recording.log` | H.264 動画と録画ログ。開始を確認してから操作し、SIGINT で保存を確定 |
-| `video-frames/` | 動画の長さ、代表フレーム3枚。デコード成功は人による動画レビューの代替ではない |
-| `REVIEW.md` | 実行情報と、画像・動画の確認／PR 添付先の記入欄 |
+| `manifest.json` | 実行成否、コミット、未コミット状態、ファイルSHA-256、ツール・端末・runtime、コマンドと終了コード |
+| `*.log` / `*.stderr.log` | stdout / stderr。失敗時の出力も保存 |
+| `build.xcresult` / `test.xcresult` | Xcodeの結果bundle。Xcodeで開いて調査できる |
+| `test-summary.json` / `attachments/` | テスト件数・成否とテストに含まれる添付物。Swift Testingだけの場合は画像添付がないこともある |
+| `before.json` / `after.json` 等 | sim-useの画面観測。要素や文字列の照合に使用 |
+| `before.png` / `after.png` / `screenshot.png` | Apple CLIで撮影した静止画 |
+| `recording.mp4` / `recording.log` | H.264動画と録画ログ |
+| `video-frames/` | 動画の長さと代表フレーム3枚 |
+| `REVIEW.md` | 実行情報と、画像・動画の確認結果・PR添付先の記入欄 |
 
-画像と動画を開いて、表示・操作・時間経過を確認する。`REVIEW.md` に確認した内容・残る問題を追記し、PR に閲覧できる形で添付する。**コマンド成功・ファイル生成・ローカルパスの記載だけでは、UI レビューや PR 添付の完了にならない。** ログや画像にはダミーテキストを使い、公開するファイルを確認する。
+レビューでは画像と動画を開き、表示、操作、時間経過を確認する。確認した内容・残る問題・添付先を `REVIEW.md` に記録し、必要な証跡をPRへアップロードするか、レビュー担当者が閲覧できる保存先へ置く。
 
-## 本体への接続と対応範囲
+**コマンド成功、ファイル生成、動画のデコード、ローカルパスの記載だけでは、画面レビューとPR添付の完了にはならない。** 未実施の条件を記録し、公開するログ・画像・動画に個人情報や秘密情報が含まれないことを確認する。
 
-将来、本体の Xcode project と shared scheme を作成したら、`validation/project.json` と同じ形式の設定を追加し、`--project-config <設定のパス>` で選択する。project / scheme / bundle ID / app 名を実際のターゲットに合わせる。`build` / `test` / `run` / `ui` / 記録を共通利用できる。`smoke` は本体の公開された操作と期待結果に合わせて別途実装する。
+## 製品targetへの接続
 
-今回の driver は **iOS Simulator 用**。実機の検出は Apple `xcrun devicectl list devices`、署名・インストール・起動は選んだ実機と署名設定で別途構成する。実機が未接続・未信頼の場合や、署名 Team が未指定の場合に代替のSimulator結果で実機確認済みとしない。
+製品のXcode projectとshared schemeに対し、`validation/project.json` と同じ形式の設定を用意する。`project` / `scheme` / `bundle_id` / `app_name` / `minimum_ios` を実際のtargetに合わせ、`--project-config <設定ファイル>` で選択する。
 
-iOS 26.0 と最新の正式版で影響範囲を確認する。runtime の表示名だけで版を判断せず、manifest の実際の `version` / build を使う。例えば `iOS-26-0` という識別子でも導入済みの実体が 26.0.1 の場合があり、厳密な 26.0.0 の結果とは区別する。
+ビルド・テスト・起動・画面読取・操作・撮影を共通利用できる。`smoke` は `VerificationApp` 専用のため、製品の操作と期待結果に対応する検証フローを実装する。
 
-実機性能、VoiceOver・Dynamic Type 等の網羅的な使いやすさ、キーボード extension、権限、保存・同期・配布の成立は、この fixture の成功では保証しない。[研究の検証計画](../research/05-decisions-and-validation.md)の各試作で、この基盤を使って個別に確認する。
+## 実機と製品固有の検証
+
+このスクリプトの対象はiOS Simulator。製品固有の実機検証もiOS 26.5を使用する。実機の検出はAppleの `xcrun devicectl list devices`、ビルド・署名・インストール・起動は対象端末と署名設定に合わせて構成する。未接続・未信頼・署名未設定の場合は、その実機条件を未実施として記録する。
+
+実機性能、VoiceOver・Dynamic Type、IME、キーボードextension、権限、保存・同期・配布は製品ごとの検証を行う。fixtureの合格をこれらの実施結果へ置き換えず、[製品の検証計画](../research/05-decisions-and-validation.md) の条件・期待結果と対応する証跡を残す。
