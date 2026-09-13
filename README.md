@@ -4,14 +4,21 @@ nibble は iOS 26.0 以上向けのスニペットツールです。作業中に
 
 ## リポジトリの構成
 
-このリポジトリは、開発規約、製品設計の研究資料、ローカルの iOS 検証基盤を管理します。実行対象の `VerificationApp` は、入力・操作・テスト・撮影を確かめる検証用アプリです。製品本体の機能、画面、保存方式、呼び出し導線は [研究と検証計画](research/README.md) の評価対象です。
+このリポジトリは、開発規約、製品設計の研究資料、Apple CLIとsim-useによるローカルiOS検証を管理します。実行対象は次の2つです。
+
+| アプリ | 目的 | 設定・手順 |
+| --- | --- | --- |
+| VerificationApp | 検証コマンド、文字列反映、テスト、撮影の成立を確かめるfixture | [共通の検証手順](docs/ios-verification.md)、`validation/project.json` |
+| ResearchProbe | 保存3案、検索、入力、コピー、復旧、OS連携を同じダミーデータで比較する | [設計と実行手順](validation/RESEARCH.md)、`validation/research-project.json` |
+
+製品本体のUI・保存・共有・呼び出し・同期は[研究と検証計画](research/README.md)に基づいて選びます。比較試作の結果は、評価した条件と未実施条件を明示して利用します。
 
 | 入口 | 内容 |
 | --- | --- |
 | [開発ガイド](CONTRIBUTING.md) | 対応OS、依存管理、ローカルとCIの責務、UI/UX・性能、PRの規約 |
 | [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) | Apple CLI・sim-use・Nixの役割、構成、採用理由、対応範囲 |
 | [ローカル iOS 検証](docs/ios-verification.md) | Simulatorの準備、ビルド・テスト・操作・画面記録、証跡の確認 |
-| [研究用の実行検証](validation/RESEARCH.md) | 保存・検索・移行・コピーの比較試作と再現コマンド |
+| [研究用の実行検証](validation/RESEARCH.md) | ResearchProbeの構成、データ・操作の契約、再現コマンド |
 | [研究資料](research/README.md) | 論文・一次資料による仕様の根拠、設計候補、製品の検証計画 |
 | [AGENTS.md](AGENTS.md) | AIエージェント向けの規約の入口 |
 | [PRテンプレート](.github/pull_request_template.md) | 目的・背景、アウトカム、コミット表、画像・動画、検証結果の記載形式 |
@@ -25,7 +32,8 @@ nibble は iOS 26.0 以上向けのスニペットツールです。作業中に
 | macOS（Apple Silicon / Intel） | Nixの共通検査。iOSの検証にはXcodeと対象Simulator runtimeも必要 |
 | Linux（ARM64 / x86_64） | Nixの共通検査。Apple SDKを使うビルド・テストはローカルMacで実行 |
 | iOS検証の確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
-| 検証対象 | iOS 26.5のみ。`VerificationApp` scheme、deployment target `26.0` |
+| 検証対象 | iOS 26.5のみ。`VerificationApp` / `ResearchProbe`、deployment target `26.0` |
+| 研究用driver | Apple Silicon Mac。SDK型検査とSQLite workerはarm64を指定 |
 
 ### 1. GitとNixを用意する
 
@@ -87,11 +95,20 @@ nix develop --command python3 scripts/ios.py doctor
 nix develop --command python3 scripts/ios.py devices
 ```
 
-[Simulatorの作成・選択手順](docs/ios-verification.md#simulatorの作成と選択) に従って専用端末を用意し、そのUDID（端末の一意な識別子）を `NIBBLE_SIMULATOR` に設定します。テストと操作・撮影は次のコマンドで実行します。
+[Simulatorの作成・選択手順](docs/ios-verification.md#simulatorの作成と選択) に従って専用端末を用意し、そのUDID（端末の一意な識別子）を `NIBBLE_SIMULATOR` に設定します。共通検証処理を試験するVerificationAppのテストと操作・撮影は、次のコマンドで実行します。
 
 ```sh
 nix develop --command python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR"
 nix develop --command python3 scripts/ios.py smoke --device "$NIBBLE_SIMULATOR"
+```
+
+保存・検索などの比較は、ResearchProbeの設定と専用のUI driverを使います。
+
+```sh
+nix develop --command python3 scripts/ios.py test \
+  --project-config validation/research-project.json \
+  --configuration Release --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
 結果はGit管理対象外の `artifacts/` に保存されます。画像と動画を開いて内容を確認し、生成された `REVIEW.md` に確認結果とPRの添付先を記録します。

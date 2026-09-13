@@ -1,17 +1,36 @@
-# iOS 26.5での研究項目の実行検証
+# ResearchProbe：iOS 26.5の検証結果
 
-状態は **一部実施済み**。公開APIのコンパイルと、保存・検索・復旧・画面操作の試作を実行した。実機・署名・利用者・配布構成が必要な項目は未実施として残す。V0〜V8全体の合格や製品構成の採用を意味しない。
+ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を比較する研究用アプリである。この記録は、公開APIの型検査、Simulator上のデータ検査、実際の画面操作から得られた観測と、その適用条件を示す。構成と再現手順は[ResearchProbeの設計と実行手順](../../validation/RESEARCH.md)を参照する。
 
-- 実施日：2026-09-13
-- 基点：`e7f39a4862413fded9928432a0a21407dbbaf6cd`、`research/validate-foundations`の作業ファイル。各`manifest.json`に対象ソースのSHA-256を記録。
-- macOS 26.2 / Apple Silicon、Xcode 26.5 (17F42)、Apple Swift 6.3.2、Swift language mode 6、strict concurrency complete、default isolation nonisolated。
-- iPhone 17 Pro Simulator `114E57E6-E37D-4F50-907A-8B0B6B03C92E`、iOS 26.5 (23F77)。実行OSは26.5のみ。deployment targetは26.0。
-- 対象：`validation/ResearchProbe.xcodeproj` / `ResearchProbe`。製品の保存方式・UIを確定するアプリではない。
-- 実機：`devicectl list devices`のiPhone 17は`unavailable`。有効なDeveloper Team、CloudKit試験用の2端末・アカウントは未提供。
-- 小画面：iPhone SE (3rd generation) Simulator `A1E0BB4A-A327-47C0-B9FB-42863D2A51D8`、同じ26.5 runtime。確認後にshutdown。
-- 再現手順：[研究用の実行検証](../../validation/RESEARCH.md)。公開文書・論文で答えられる問いは [P01〜P13](primary-source-validation.md) を参照。
+## 評価範囲と主要な判定
 
-## 実行して確認した範囲
+E01〜E25は実行した比較条件の識別子、V0〜V8は[製品の検証計画](../05-decisions-and-validation.md)の評価領域である。文書や原著の根拠は[一次資料検証P01〜P13](primary-source-validation.md)に記録する。
+
+- SwiftData・Core Data・SQLiteの基本CRUD、再読込、原文保持は、記載した接続条件で成立する。
+- trigram MATCHによる1〜2文字の日本語検索は一致しない。短い検索に対応する構成が必要である。
+- 本体の作成・検索・コピー・削除復元、SafariへのOSペースト、日本語かな入力の候補確定は、それぞれの比較条件で成立する。
+- 小画面・最大Dynamic Type・キーボード併用時は、本文の上下が切れる。比較用の縦配置は製品の表示要件を満たさない。
+- Shortcutsは一覧への登録に成功するが、前景アクションの実行に失敗する。原因は未特定である。
+
+製品の全導線・性能・保護・同期・配布については検証未完了。以下の結果を、評価していない環境や製品構成の合格として扱わない。
+
+## 実験条件
+
+| 項目 | 条件 |
+| --- | --- |
+| 実施日 | 2026-09-13 |
+| 対象 | `validation/ResearchProbe.xcodeproj` / shared scheme `ResearchProbe` |
+| ソース | [85955db0c22c7403d82efcd34f1436b2bf32b802](https://github.com/9uiLe/nibble/commit/85955db0c22c7403d82efcd34f1436b2bf32b802)の研究用実装。画面比較の構成差は「証跡の対象ソース」に定義 |
+| Mac / Xcode | macOS 26.2 / Apple Silicon、Xcode 26.5 (17F42)、Apple Swift 6.3.2 |
+| コンパイラ | Swift language mode 6、strict concurrency complete、default isolation nonisolated、Release `-O`・testability有効 |
+| OS | iOS 26.5 (23F77)のみ。deployment targetは26.0 |
+| 主端末 | iPhone 17 Pro Simulator、402×874 pt、UDID `114E57E6-E37D-4F50-907A-8B0B6B03C92E` |
+| 小画面 | iPhone SE第3世代Simulator、375×667 pt、UDID `A1E0BB4A-A327-47C0-B9FB-42863D2A51D8`、同じ26.5 runtime |
+| データ | 日本語、結合濁点、半角カナ、空白・改行・タブ、絵文字、記号を含むダミーテキスト |
+| 操作と撮影 | Apple CLIでビルド・実行管理・記録、Nixのsim-useで画面読取・操作 |
+| 実機・署名・同期 | `devicectl list devices`のiPhone 17は`unavailable`。Developer Team・CloudKit container・2端末の試験アカウント構成は未設定 |
+
+## 比較条件ごとの結果
 
 | ID / 計画 | 期待・条件 | 観測結果 | 適用限界 |
 | --- | --- | --- | --- |
@@ -43,7 +62,7 @@
 
 SDK probeは`AppIntent.supportedModes`、`AppShortcutsProvider`、`ControlWidgetButton`、`StaticControlConfiguration`、`Widget`、`TimelineProvider`、`Button(intent:)`、`widgetURL`、`containerBackground`、`systemSmall/accessoryRectangular`、`ControlCenter`/`WidgetCenter`のreload、`UIInputViewController`の挿入・削除・切替・Full Access照会、App Group URL、`NSExtensionContext`の完了・cancel、pasteboard options、Observation、`ModelActor`、`MXMetricManager`/subscriber、`CKSyncEngine`のfetch/sendとstate updateのserializationを含む。これ以外の全API・全Widget familyの確認結果ではない。
 
-## 計測値の使い方
+## 計測条件と観測値
 
 同じ短いダミー本文で0・20・1,000・10,000件を試した。各ストアの新規作成後の保存・全件取得は各1回、全件正規化を含む検索は30回。SimulatorのRelease（`-O`、テスト可能設定）であり、cold launch、実機のCPU・メモリ・電源条件をそろえた性能比較ではない。保存には各frameworkの管理処理と履歴の差も含まれる。
 
@@ -56,9 +75,9 @@ SDK probeは`AppIntent.supportedModes`、`AppShortcutsProvider`、`ControlWidget
 
 個々のraw値はテストアプリの`Documents/results/simulator-timing.json`。この試作はMainActor上で全件を処理するため、観測値を製品の性能予算として採用しない。index・取得範囲・背景処理の必要性を判断するための実機測定へ進む材料とする。
 
-## 未実施条件の全体対応
+## 製品採用に必要な検証
 
-下表は01〜04の未確認事項とV0〜V8のうち、上の実行やP01〜P13では完了しない条件をまとめる。「未決定」は製品の選択であり、テストの成功で自動的に決定されるものではない。
+以下は、実行結果E01〜E25と一次資料P01〜P13では完了しない条件である。未実施の実験と、製品として決める仕様を区別する。表中の01〜05はresearch内の領域別文書を指す。
 
 | 計画 / 関連章 | 未実施・未確定の内容 | 完了に必要な条件と確認手順 |
 | --- | --- | --- |
@@ -81,28 +100,44 @@ SDK probeは`AppIntent.supportedModes`、`AppShortcutsProvider`、`ControlWidget
 | V8 / 04 | 署名/export、TestFlight更新、最終manifest/API用途・App Privacy・privacy policy、ライセンス・サポート先、審査 | 製品target、Team・証明書・profile、配布方法・データフローを確定。最終archiveを点検し配布更新を実行。審査承認は提出結果で判断 |
 | 文献 / 03 | KLM/Jotaの原著本文 | 出版社が本文取得を許すアクセスか合法公開全文が必要。P01/P02の取得不能記録を参照。Altmann原著はP03で照合済み |
 
-保存・呼び出し方式、検索規則、機密項目、同期、rich text/画像/変数、アカウント/AI/課金、配布・運用担当は引き続き製品の判断項目。試作の便宜上の選択を採用ADRへ昇格しない。
+保存・呼び出し方式、検索規則、機密項目、同期、rich text・画像・変数、アカウント・AI・課金、配布・運用担当は製品の判断項目である。比較用の実装条件は採用決定を表さない。
 
-## 証跡と検証コマンドの結果
+## 証跡の対象ソース
 
-生成物はGit管理対象外。下のパスは当日のローカル証跡の識別子であり、PRへの添付を代替しない。新規の比較試作なので製品画面の変更前画像はない。確認に使ったダミーデータと再現コマンドはソースに含める。
+コミットは研究用実装の識別に使い、各実行のmanifestは実際のファイルSHA-256を保持する。異なる構成の証跡を同一ソースの実行とみなさない。
 
-最終テストとCRUD録画は同じアプリ・テストソースで取得した。Safari・日本語IME・最大文字・小画面・最初のShortcuts録画は`20260913T052747Z-research-ui`で使った版に対応し、その後にeditorのclosureをweak参照へ変更し、Shortcutsの明示的な登録更新を追加した。補足録画を最終ソースの再実行と扱わない。操作の追試結果、画像・抽出フレームの確認範囲、ファイルhashは`artifacts/research/REVIEW.md`と`evidence-index.json`に記録する。
+| 構成 | 対象と設定 | ソースの同定 |
+| --- | --- | --- |
+| 標準構成 | Swift Testing、CRUD操作、SDK検査、unsigned archive。editorのコールバックはweak参照、起動時にApp Shortcutsの登録更新を呼ぶ | コミット85955dbのアプリ・テスト実装。テスト実行`20260913T054738Z-test-5dc7a9`とUI実行`20260913T054807Z-research-ui-35b334`のmanifestにあるアプリ・テスト・driver等16ファイルのhashが一致 |
+| 画面比較構成 | Safari、日本語IME、dark/最大文字、小画面、Shortcuts録画。標準構成との差はeditorコールバックの強参照と起動時の明示的な登録更新なし | `artifacts/ios/20260913T052747Z-research-ui-109e07/manifest.json`のhash。画面配置と本文処理は共通 |
+| Shortcutsの実行条件比較 | 標準構成、アプリ/Shortcutsの再起動、ad hoc署名の条件でも実行エラーを観測 | `shortcuts-retry.json`、`shortcuts-adhoc-result.json`、`shortcuts-os.log`。E25の失敗条件を記録 |
 
-| 検証 | 結果・証跡 |
+Safariフォームの比較条件はUTF-8宣言と表示配列の折り返しを含む。`validation/HostForm.html`は同じ内容を保持する。本文のAX値が外側空白を省く条件では、完全一致の判定にコピー結果のbytesを使う。画面の検索中もnavigation barを表示し、削除の復元操作に到達できる構成とする。
+
+## 画像・動画と実行記録
+
+画像・動画は次のリンクから閲覧できる。新規の研究用画面と比較条件を記録した証跡である。[PR #5](https://github.com/9uiLe/nibble/pull/5)にも同じ画像7枚・動画4本を添付する。
+
+| 対象 | 画像 | 動画と確認範囲 |
+| --- | --- | --- |
+| 本体の編集・復元 | [編集画面](https://github.com/user-attachments/assets/8da4167c-4b67-484f-8de4-ee9892bd7c63)、[検索中の復元](https://github.com/user-attachments/assets/d14253d3-f418-41e5-9cc9-b93db4df7770) | [CRUD操作、21.252秒](https://github.com/user-attachments/assets/10ab278d-07ae-4ecb-8df5-df1c7a183556)。0 / 10.140 / 19.338秒の抽出フレームを確認 |
+| Safariへのペースト | [本文とUTF-8配列](https://github.com/user-attachments/assets/5c225071-2d98-4abc-b8fa-40147b6db2ec) | [ペースト操作、163.043秒](https://github.com/user-attachments/assets/2d6797ea-87b0-47e9-818b-f43a789752cd)。53.987 / 113.983秒の抽出フレームを確認。長い静止区間を含む |
+| 日本語入力 | [候補確定](https://github.com/user-attachments/assets/1290d9d0-21e9-4935-abcb-a68c0d17ad47) | [かな入力・候補確定、64.348秒](https://github.com/user-attachments/assets/64955be7-03c9-4dfc-b859-d2e34a8a8f94)。31.302 / 53.010秒の抽出フレームを確認 |
+| 表示条件 | [dark・最大文字](https://github.com/user-attachments/assets/2d91588b-099a-4ad4-82cd-721caf2590cd)、[小画面の文字切れ](https://github.com/user-attachments/assets/aa564e5c-7a8a-4a87-8241-8baf287aabe7) | 表示状態の静止画を確認。支援技術の操作性判定は未実施 |
+| Shortcuts | [実行エラー](https://github.com/user-attachments/assets/4fd2fee0-35f2-49cc-a6a2-12f3e5d90f51) | [実行失敗、21.575秒](https://github.com/user-attachments/assets/cab0b96f-1743-4663-a4c7-946fa598ece9)。4.080秒の抽出フレームを確認 |
+
+画像と抽出フレームの確認は、全編のリアルタイム再生、人間の利用者試験、hitchや応答時間の計測とは区別する。録画の復号時刻は各`video.json`を正とし、要求した時刻から推測しない。
+
+| 検証 | 結果・ローカル記録 |
 | --- | --- |
-| Release Swift Testing | `artifacts/ios/20260913T054738Z-test-5dc7a9/`。14テスト、パラメータ違いを含む16ケース成功、失敗0・skip0 |
-| 最終CRUD操作 | `artifacts/ios/20260913T054807Z-research-ui-35b334/`。manifest、UI JSON、clipboard、assertions、PNG、MP4と抽出フレーム |
-| SDK | `artifacts/research/sdk/`、4構成exit 0 |
+| Release Swift Testing | 14テスト、パラメータ違いを含む16ケース成功、失敗0・skip0。`artifacts/ios/20260913T054738Z-test-5dc7a9/` |
+| CRUD操作 | copy全UTF-8一致、削除ID不在、復元ID一致。`artifacts/ios/20260913T054807Z-research-ui-35b334/` |
+| SDK | 4構成exit 0。`artifacts/research/sdk/` |
 | 別プロセスSQLite | `artifacts/research/processes/3d2b3f84-e9f2-4892-9922-8f0cbb6e66ee/results.json` |
-| 詳細JSON | `artifacts/research/final-results/`。runtime・SQLite source ID/compile options・履歴・移行・snapshot・文字列・timing |
-| Safari | `artifacts/research/safari-pasted-final.png`、`safari-paste-final.mp4`、`safari-pasted.json`、`safari-assertion.json`、`safari-return.json` |
-| 日本語IME | `artifacts/research/japanese-ime.mp4`、`japanese-composing.json`、`japanese-confirmed.json`/PNG、`japanese-copy.txt` |
-| 表示条件 | `artifacts/research/dark-large-editor.png`、`dark-large-keyboard.png`、`compact-large.png`/JSON。compactは不合格の証拠 |
-| Shortcuts | `artifacts/research/shortcuts-open.png`/MP4、`shortcuts-os.log`、`shortcuts-retry.json`、`shortcuts-adhoc-result.json`。実行失敗の証拠 |
-| unsigned archive | `artifacts/research/ResearchProbe-final.xcarchive`、`archive-final.log`。配布未検証 |
-| 共通検査 | `nix flake check --no-update-lock-file --print-build-logs`の3検査成功。Python基盤テスト12件成功。今回の実行hostはaarch64-darwinであり、Linuxでの実行結果ではない |
+| 詳細JSON | `artifacts/research/final-results/`。SQLite source ID/compile options、移行、履歴、snapshot、文字列、計測値 |
+| 手動比較 | `artifacts/research/`の`safari-assertion.json`・`safari-return.json`、`japanese-composing.json`・`japanese-confirmed.json`・`japanese-copy.txt`、`compact-large.json`、Shortcutsの各記録 |
+| unsigned archive | `artifacts/research/ResearchProbe-final.xcarchive`、`archive-final.log`。署名配布は未検証 |
+| ローカル共通検査 | `nix flake check --no-update-lock-file --print-build-logs`。aarch64-darwinで3検査成功、基盤のPythonテスト12件成功 |
+| Ubuntu CI | [Workflow policy、85955db](https://github.com/9uiLe/nibble/actions/runs/34742394347)。`ubuntu-24.04`で共通検査成功。iOSの実行結果は含まない |
 
-UIのAX値は外側の空白を省く場合があったため、本文の完全一致はcopyしたbytesで確認した。画面操作では検索中のnavigation barが隠れて復元へ到達できない問題を確認し、試作は検索中もnavigation barを表示する。UIKitの通常表示、操作録画の抽出フレーム、Safariペースト、日本語候補確定、最大文字、小画面での文字切れ、Shortcutsのエラー画面を確認した。録画の取得・復号確認と視覚確認を区別し、各REVIEWに確認範囲を残す。
-
-研究の主要な結論は、短い日本語検索をtrigram MATCHだけでは実現できないこと、保存方式3案の基本機能は成立する一方で共有権限・性能・移行の採用判断には追加条件があること、単純な縦配置が小画面の最大文字で破綻すること、Shortcutsの登録成功が実行成功を意味しないことである。未実施条件を満たすまでは、製品の全導線や性能・保護・同期を検証済みにしない。
+生成物はGit管理対象外であり、新しいcheckoutには含まれない。再現コマンドは[実行手順](../../validation/RESEARCH.md)、ファイルhashと確認範囲はローカルの`artifacts/research/evidence-index.json`・`REVIEW.md`および各共通driver実行のmanifest・REVIEWで管理する。添付画像・動画と、再実行に必要なソース・条件を合わせて検証する。

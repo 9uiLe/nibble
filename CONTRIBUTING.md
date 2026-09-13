@@ -17,7 +17,9 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 - 検証対象のruntime識別子、実際のOSバージョン、buildを記録する。
 - 最低対応OSの引き上げは、対象ユーザーへの影響と理由を記録し、独立した変更としてレビューする。
 
-検証用projectは `validation/VerificationApp.xcodeproj`、shared schemeは `VerificationApp`。deployment targetは26.0、Swift language modeは6、確認環境はXcode 26.5とする。製品のtargetを登録する場合も、project、scheme、Xcode・Swift、実行手順を明記する。
+検証対象は、基盤を試験する`VerificationApp`と製品技術を比較する`ResearchProbe`。それぞれ`validation/<名前>.xcodeproj`と同名のshared schemeを持ち、deployment targetは26.0、Swift language modeは6、確認環境はXcode 26.5とする。`--project-config`で設定を選ぶ。
+
+[共通手順](docs/ios-verification.md)はビルド・実行管理・撮影を定義し、[研究用の設計と手順](validation/RESEARCH.md)は比較するデータ・操作・判定を定義する。製品のtargetにもproject・scheme・Xcode・Swift・設定・操作の期待結果を明記する。
 
 ## 開発ツールの管理
 

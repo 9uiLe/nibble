@@ -40,7 +40,7 @@
 
 比較表の「評価する点・負担」と「採用を後押しする条件」は評価軸であり、Simulatorの単発保存・全件取得と30反復の検索結果は [実行検証](experiments/ios-26-5-validation.md) に記録する。実機のベンチマークは未取得。採用候補は同じデータと操作で比較し、機能、測定結果、保守負担を根拠に判断する。
 
-**設計上の推奨:** 比較試作にSwiftDataを含める。表に挙げた基本APIはiOS 26.0の候補となる。共有・移行・検索の受け入れ条件を共通にして比較する。Core Data/SwiftData が管理する内部ストアへ独自 SQL や FTS テーブルを書き足すことは、参照した公式資料に統合方法の裏付けがないため、検証を要する構成とする。
+**比較条件:** ResearchProbeはSwiftData・Core Data・SQLiteを同じID・タイトル・本文・revisionで評価する。3方式の独立接続と明示保存を基準にし、共有・移行・検索の受け入れ条件を照合する。構成は[研究用アプリの設計](../validation/RESEARCH.md#保存と検索)に定義する。表の基本APIはiOS 26.0の候補となる。Core Data/SwiftData が管理する内部ストアへ独自 SQL や FTS テーブルを書き足すことは、参照した公式資料に統合方法の裏付けがないため、検証を要する構成とする。
 
 ## 4. 状態と並行処理の境界
 
@@ -122,7 +122,7 @@ FTS5 の trigram tokenizer は部分一致を支援するが、全文検索 quer
 
 **設計上の推奨:** 部分一致と並び順の正答集合を定義し、必要なデータ量・実測に応じてindexを比較する。trigram のみで 1〜2 文字の日本語検索を済ませない。FTS の検索構文と SQL の parameter binding は別なので、利用者が入力した引用符・記号等をどこまで検索式として扱うかを定義する。本文と index の更新、削除、import 後の再構築を一緒に検証する。
 
-**検索コーパス:** 結合濁点・半角カナ・英字大小幅・かな/カナ・絵文字・記号は [E10〜E12](experiments/ios-26-5-validation.md) で部分検証した。拡張するコーパスは次のとおり。 `が` と結合濁点、`ｶﾞ` と `ガ`、全角英数・半角英数、ひらがな・カタカナ、絵文字と ZWJ、英大文字・小文字、空白・改行・タブ、URL、`_`・引用符・括弧を含むコード、1〜2 文字の検索、非常に長い本文。ひらがなとカタカナの同一視は Unicode 正規化で自動的に済む仕様ではなく、別の製品上の選択にする。
+**検索コーパス:** ResearchProbeは結合濁点・半角カナ・英字大小幅・かな/カナ・絵文字・記号を比較し、期待集合と結果を[E10〜E12](experiments/ios-26-5-validation.md)に定義する。製品の検索評価には次の条件を含める。 `が` と結合濁点、`ｶﾞ` と `ガ`、全角英数・半角英数、ひらがな・カタカナ、絵文字と ZWJ、英大文字・小文字、空白・改行・タブ、URL、`_`・引用符・括弧を含むコード、1〜2 文字の検索、非常に長い本文。ひらがなとカタカナの同一視は Unicode 正規化で自動的に済む仕様ではなく、別の製品上の選択にする。
 
 ## 7. ローカルを基本にした任意同期
 
@@ -183,7 +183,7 @@ SwiftData/Core Dataの内部DBへSQLiteのbackup APIを直接使う構成には�
 
 ### ローカル Mac / iOS 実機で行う比較試作
 
-保存・検索・軽量移行・履歴・SQLite別プロセスの試作結果は [E01〜E15](experiments/ios-26-5-validation.md) に記録する。以下の比較条件のうち実extension・実機・同期・長期利用は未実施。試作のprojectとshared schemeを [検証基盤](../docs/ios-verification.md) の設定へ登録する。iOS 26.5のみを対象に、実機のRelease構成で、端末・OS・件数・本文長・検索内容・反復回数をそろえて比較する。
+保存・検索・軽量移行・履歴・SQLite別プロセスの試作結果は [E01〜E15](experiments/ios-26-5-validation.md) に記録する。実extension・実機・同期・長期利用は未実施。ResearchProbeは`validation/research-project.json`で[共通基盤](../docs/ios-verification.md)へ接続し、実際のextensionと製品のtargetにも対応する設定を用意する。iOS 26.5のみを対象に、実機のRelease構成で、端末・OS・件数・本文長・検索内容・反復回数をそろえて比較する。
 
 | 試作 | 観察・測定すること | 判断に使う結果 |
 | --- | --- | --- |
@@ -203,7 +203,7 @@ SwiftData/Core Dataの内部DBへSQLiteのbackup APIを直接使う構成には�
 
 | ID | 著者・組織 / 資料・URL | 年・更新 / 実際の閲読範囲 | 制約 |
 | --- | --- | --- | --- |
-| D01 | Apple, [Preserving your app’s model data across launches](https://developer.apple.com/documentation/swiftdata/preserving-your-apps-model-data-across-launches) | 更新日不明。本文: `@Model`、属性、保存構成、App Group、自動/明示保存、取得。 | 現行の説明。サンプルを 26.0 で実行していない。 |
+| D01 | Apple, [Preserving your app’s model data across launches](https://developer.apple.com/documentation/swiftdata/preserving-your-apps-model-data-across-launches) | 更新日不明。本文: `@Model`、属性、保存構成、App Group、自動/明示保存、取得。 | 現行の説明。掲載サンプル自体の実行結果ではない。ResearchProbeの実行結果は26.5に限定する。 |
 | D02 | Apple, [ModelContainer](https://developer.apple.com/documentation/swiftdata/modelcontainer) | 更新日不明。本文・宣言・iOS availability metadata。 | 自動移行と migration plan の存在を確認。任意の schema 変更の安全性は保証しない。 |
 | D03 | Apple, [Managing model data in your app](https://developer.apple.com/documentation/swiftui/managing-model-data-in-your-app) | 更新日不明。本文: Overview、observable model、view の依存追跡、collection と個別 view の例。availability metadata。 | 本文の該当部分を閲読。画面・性能の実測ではない。 |
 | D04 | Apple / Swift project authors, [The Swift Programming Language — Concurrency](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/) | 更新日不明。本文: async/await、task、cancellation、isolation、MainActor、actor、Sendable。 | 言語説明。採用予定の Xcode・language mode・ビルド設定を確定するものではない。 |

@@ -21,9 +21,14 @@
 
 ## 検証対象と設計資料
 
-`validation/VerificationApp.xcodeproj` とshared scheme `VerificationApp` は、検証基盤を試験するfixture（検証用アプリ）。入力・操作・テスト・撮影の成立を確認する。製品本体のUI・保存・呼び出し方式は [研究と検証計画](research/README.md) で評価する。
+| 検証対象 | 責務 | 設定・手順 |
+| --- | --- | --- |
+| `VerificationApp` | 基盤用fixture。入力・操作・テスト・撮影の成立を試験する | `validation/project.json`、[共通手順](docs/ios-verification.md) |
+| `ResearchProbe` | 製品技術の比較用アプリ。保存・検索・復旧・UI・OS連携を評価する | `validation/research-project.json`、[研究用の設計と手順](validation/RESEARCH.md) |
 
-製品のprojectとschemeを登録するときは、利用可能な検証設定と手順を用意する。基盤の構成と対象範囲は [設計文書](docs/decisions/0001-local-ios-verification.md) を参照する。
+projectは各々`validation/<名前>.xcodeproj`、shared schemeは対象名と同じ。`scripts/ios.py smoke`はVerificationApp専用、ResearchProbeの画面操作は`validation/check-research-ui.py`を使う。
+
+製品本体のUI・保存・呼び出し方式は[研究と検証計画](research/README.md)に基づいて選ぶ。比較用の構成を採用済みの製品設計と扱わない。製品のtargetには設定・手順・期待結果を用意する。共通基盤の責務は[設計文書](docs/decisions/0001-local-ios-verification.md)を参照する。
 
 ## レビューと証跡
 

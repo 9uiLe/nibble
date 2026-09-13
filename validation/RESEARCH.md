@@ -1,75 +1,159 @@
-# 研究用の実行検証
+# ResearchProbeの設計と実行手順
 
-`ResearchProbe` は保存・検索・移行・コピー・画面操作を比較する使い捨てデータ用のアプリ。製品のUIや保存方式の採用を表すものではない。基盤を試験する `VerificationApp` とはproject・bundle ID・保存領域を分ける。
+ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品構成の採用条件は[製品の検証計画](../research/05-decisions-and-validation.md)、観測結果は[iOS 26.5の検証結果](../research/experiments/ios-26-5-validation.md)に定義する。
 
-## セットアップと実行
+## 構成と責務
 
-[READMEのセットアップ](../README.md#セットアップ)でNix、Xcode 26.5、iOS 26.5 Simulatorを用意する。`scripts/ios.py devices`で選んだ専用SimulatorのUDIDを `NIBBLE_SIMULATOR` に設定する。
+| 構成 | 責務 |
+| --- | --- |
+| [ResearchProbe.xcodeproj](ResearchProbe.xcodeproj/project.pbxproj) / shared scheme `ResearchProbe` | 研究用アプリとSwift Testingのホストをビルドする |
+| [research-project.json](research-project.json) | 共通driverにproject・scheme・bundle ID・最低対応OSを渡す |
+| [App.swift](ResearchProbe/App.swift) | UIKitによる一覧・検索・編集・コピー・削除・復元、下書き、URL遷移を提供する |
+| [Stores.swift](ResearchProbe/Stores.swift) | 保存方式3案、検索用文字列、版付きJSONの比較条件を定義する |
+| [HostedTests.swift](ResearchProbeTests/HostedTests.swift) | 原文保持、保存・再読込、移行、履歴、検索、コピー期限、復旧を検査し、詳細JSONを出力する |
+| [SDKCompileProbe.swift](ResearchProbe/SDKCompileProbe.swift) / [check-research-sdk.py](check-research-sdk.py) | App Intents、WidgetKit、Keyboard等のAPIを26.0 targetで型検査する |
+| [SQLiteWorker.swift](SQLiteWorker.swift) / [check-research-processes.py](check-research-processes.py) | Simulatorの別プロセスでSQLiteの競合・強制終了・読取専用接続を比較する |
+| [check-research-ui.py](check-research-ui.py) | 作成から削除・復元までをsim-useで操作し、Apple CLIで記録する |
+| [HostForm.html](HostForm.html) | Safariのペースト先とUTF-8照合画面を提供する |
+
+bundle IDは`dev.nibble.ResearchProbe`。検証コマンド自体を試験する`dev.nibble.VerificationApp`とは保存領域を分ける。全データを使い捨てのダミーデータとし、実際のスニペットや秘密情報を入れない。
+
+## データと操作の契約
+
+### 保存と検索
+
+比較用の値`ProbeValue`はID・タイトル・本文・revisionを持つ。保存・コピー・JSON出力では、前後空白、改行、タブ、結合文字、絵文字を含む原文を保持する。`ProbeStore`の共通操作は全件置換とID順の全件取得とする。
+
+| 保存方式 | 比較用の構成 |
+| --- | --- |
+| SwiftData | CloudKitを無効化し、autosaveを使わず明示saveする。更新・削除・挿入を1回のsaveにまとめ、失敗時にrollbackする |
+| Core Data | 永続履歴を有効化し、context内で全件を入れ替えて明示saveする。失敗時にrollbackする |
+| SQLite | WALを使用し、全件置換を`BEGIN IMMEDIATE`から`COMMIT`までのtransactionにまとめる。失敗時にrollbackする |
+
+保存処理は比較条件をそろえるためMainActorに隔離する。画面の保存・再読込にはSwiftDataを使い、3方式の比較はSwift Testingで行う。MainActorでの全件処理、contextの生成頻度、全件取得を製品の性能設計として採用するものではない。
+
+検索用文字列はNFCと`ja_JP`のcase/width foldingで生成し、タイトルと本文の部分一致を調べる。かなとカナ、清音と濁音は区別する。本文自体は正規化しない。非同期検索の世代管理は独立した試験で評価し、画面の検索は同期的な全件検索である。
+
+### 編集と復旧
+
+画面は明示保存を使う。編集中のタイトルと本文をアプリ内の下書きJSONへatomicに保存し、editorを開くと対応する下書きを読み込む。保存成功時に下書きを削除し、保存失敗時には本文とエラー表示を保持する。容量不足はテストから保存直前にエラーを注入して比較する。
+
+削除の復元対象は、現在のアプリプロセスで直前に削除した1件とする。復元情報は永続化しない。版付きJSONはversion 1、重複IDなし、4,000,000 bytes以下を読込条件とし、不正入力を保存前に拒否する。これらは研究用の比較条件であり、製品の保持期間・import時の統合方針・容量上限は別に定義する。
+
+### 呼び出しと保護
+
+`nibble-probe://list`、`nibble-probe://create`、`nibble-probe://item/<UUID>`を許可する。query・fragment・不正なID・削除操作を含むURLは拒否する。コピーには`localOnly: true`を指定する。
+
+App Shortcutsには前景実行の`ProbeOpenIntent`を登録する。アプリ起動時に`updateAppShortcutParameters()`を呼ぶ。Widget・Control・Keyboard・Shareの独立したextension targetは含まないため、型検査の成功とextensionの登録・動作は別の検証になる。
+
+scene非アクティブ時の画面coverと、下書き・snapshotの`.completeFileProtection`指定を持つ。アプリ切替画面での隠蔽と、実機のロック時の保護は実行結果で判定する。Privacy Manifestは収集・tracking・第三者SDKのない研究用アプリの宣言とし、テストbundleを配布しない。
+
+## 実行環境
+
+[READMEのセットアップ](../README.md#セットアップ)に従ってNix、Xcode 26.5、iOS 26.5 Simulatorを用意する。実行OSは**26.5のみ**、deployment targetは**26.0**、Swift language modeは6、strict concurrencyはcomplete、default isolationはnonisolatedとする。
+
+研究用driverはarm64のSimulatorを前提とするため、Apple Silicon Macで実行する。Releaseは`-O`を使い、Swift Testingから内部実装を呼べるよう`ENABLE_TESTABILITY=YES`とする。Simulator検証とunsigned archiveにはDeveloper Teamを必要としない。実機、App Group、CloudKit、配布には対象に合う署名・権限設定を用意する。
+
+すべてのコマンドはリポジトリルートで実行する。[専用Simulatorの作成・選択](../docs/ios-verification.md#simulatorの作成と選択)で得たUDIDを指定する。
 
 ```sh
-# Swift Testing。ResearchProbeだけはReleaseにもENABLE_TESTABILITYを設定している
+export NIBBLE_SIMULATOR='対象SimulatorのUDID'
+nix develop --command python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 scripts/ios.py doctor \
+  --project-config validation/research-project.json
+```
+
+同じ端末で検証を同時に実行しない。テストとUI driverは共通driverのUDID単位のロックを使う。SDK検査・SQLite別プロセス検査・手動操作にはこのロックがない。
+
+## 自動検証
+
+```sh
+# 保存・検索・移行・復旧のSwift Testing
 nix develop --command python3 scripts/ios.py test \
   --project-config validation/research-project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
 
-# 個別APIの26.0 availabilityとextension-safeな利用を両SDKで確認
+# Simulator / device SDK × app / extensionの4条件の型検査
 nix develop --command python3 validation/check-research-sdk.py
 
-# Apple Silicon Macでの別プロセスSQLite・強制終了・読取専用ディレクトリ
-nix develop --command python3 validation/check-research-processes.py --device "$NIBBLE_SIMULATOR"
+# 起動済み26.5 Simulator内のSQLite別プロセス検査
+nix develop --command python3 validation/check-research-processes.py \
+  --device "$NIBBLE_SIMULATOR"
 
-# 作成→検索→再読込→コピー→削除→復元をsim-useで操作し、Apple CLIで録画
-nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_SIMULATOR"
+# 作成→検索→再読込→コピー→削除→復元、録画と静止画の取得
+nix develop --command python3 validation/check-research-ui.py \
+  --device "$NIBBLE_SIMULATOR"
 ```
 
-UI手順は研究用アプリの新規項目用下書き `Documents/draft-new.json` だけを準備時に削除する。保存済み項目は残し、各実行でダミーの項目を1件追加する。実データをこのアプリに入れない。`sim-use paste`はIMEを経由しないため、UI手順の成功を日本語変換の確認とはしない。
+UI driverは準備時に`Documents/draft-new.json`を削除し、保存済み項目を保持したまま1件のダミー項目を作成する。削除したIDが一覧から消え、復元後に同じIDが現れることと、コピーした全UTF-8 bytesの一致を検査する。AX値が本文の外側空白を省く条件では、画面値とコピー結果を別々に照合する。`sim-use paste`はIMEを経由しない。
 
-実行ログ・xcresult・録画・画像は `artifacts/ios/`、SDK検査・別プロセスの結果は `artifacts/research/` に保存する。Swift Testingの詳細JSONはテストアプリの `Documents/results/` にある。
+SQLite別プロセス検査は自分で起動したworkerのPIDだけを停止する。writer競合と終了前後の値を検査し、読取専用ディレクトリの成否は`results.json`へ観測値として記録する。POSIX権限の結果をextensionのsandbox権限へ一般化しない。
+
+## 画面操作の比較
+
+### Safariへのペーストと本体復帰
+
+ローカルのダミーフォームを配信する。
 
 ```sh
-# このコマンドが返すcontainerのDocuments/resultsを証跡ディレクトリへコピーする
-xcrun simctl get_app_container "$NIBBLE_SIMULATOR" dev.nibble.ResearchProbe data
+nix develop --command python3 -m http.server 8765 \
+  --bind 127.0.0.1 --directory validation
 ```
 
-画像と動画を実際に開いて `REVIEW.md` へ確認結果を記録する。PRには画像・動画を閲覧可能な形で添付する。`artifacts/`はGitへ追加しない。
-
-## 試作の意味と限界
-
-| 対象 | 実装・比較条件 | 保証しないこと |
-| --- | --- | --- |
-| 3保存方式 | 同じ値の作成・全件取得・更新・削除・再open、読取専用接続。SwiftData/Core Dataは明示save | 製品の最適方式、App Groupの実権限、あらゆる移行・障害の安全性 |
-| 移行 | SwiftDataのVersionedSchema/軽量移行、Core Dataの属性追加 | 未定義の製品スキーマの版飛ばしや破壊的変更 |
-| SQLite worker | Simulatorの別プロセス、共有ファイル、コミット前SIGKILL、writer競合、readerのsnapshot | extension sandboxやApple派生SQLiteの全不具合修正。作業用プロセス自身が返したPIDだけを停止する |
-| 検索 | NFC・case/width folding。かな/カナ、濁音/清音は区別。本文を正規化しない | 製品の最終検索仕様、IME・描画速度 |
-| UI | UIKitでローカルの往復と保存失敗時の下書きを試す | 完成UI、全アクセシビリティ要件、復元情報の永続保存。削除復元は起動中の直前1件のみ |
-| SDKCompileProbe | AppIntent/Shortcutsをアプリへ含める。Control/Widget等の型・memberをコンパイル | Control/Widget/Keyboard/Shareのextension登録・実行。別extension targetは含まない |
-| Privacy Manifest | この研究アプリは収集・tracking・第三者SDKなし。テストbundleを配布しない | 製品のApp Privacy回答や必要理由コードの確定 |
-
-保存は比較用にMainActorへ隔離している。10,000件を毎回全件読み込み・検索する構成を製品へ採用する根拠にはしない。保存方式の測定は単発、検索は30反復で、端末性能の保証値ではない。
-
-結果と未実施条件は [検証結果](../research/experiments/ios-26-5-validation.md)、公開資料の照合は [一次資料検証](../research/experiments/primary-source-validation.md) を参照する。
-
-## Safari・日本語入力・表示設定の手動比較
-
-`HostForm.html`はダミー本文のペースト先。localhostでのみ配信する。
+別のターミナルでSafariを開く。
 
 ```sh
-nix develop --command python3 -m http.server 8765 --bind 127.0.0.1 --directory validation
-# 別のターミナル
 xcrun simctl openurl "$NIBBLE_SIMULATOR" http://127.0.0.1:8765/HostForm.html
 ```
 
-本体でコピーしてからSafariの「ペースト先」をタップ・長押しし、OSの「ペースト」を選ぶ。「本文のUTF-8を表示」の配列を原文のbytesと照合する。Safari側で`sim-use paste`を使うとpasteboardを上書きするため、この比較には使わない。リンクから本体へ戻る際にはOSの確認ダイアログも記録する。サーバーは確認後にCtrl+Cで終了する。
+本体で本文をコピーし、Safariの「ペースト先」をsim-useで長押ししてOSの「ペースト」を選ぶ。「本文のUTF-8を表示」の配列を原文のbytesと照合し、「研究用アプリへ戻る」リンクとOSの確認ダイアログを経て一覧へ戻る。Safari側で`sim-use paste`を使うとpasteboardを書き換えるため、この比較では使わない。サーバーは確認後にCtrl+Cで終了する。
 
-日本語入力は`sim-use`でシステムのかなキー「か」「な」を押し、候補「カナ」を選ぶ。元の本文と確定文字列をコピーして照合する。`setMarkedText`による単体テストと区別する。
+### 日本語入力、表示条件、Shortcuts
+
+システムの日本語かなキーボードを選び、sim-useで「か」「な」を入力して候補「カナ」を選ぶ。変換中の下線・候補、確定後の本文、コピー結果を記録する。本文編集、検索変換中の更新、programmaticな`setMarkedText`は独立した条件として扱う。
+
+外観と文字サイズは次のコマンドで切り替える。開始時の設定を記録し、検証後に元へ戻す。
 
 ```sh
 xcrun simctl ui "$NIBBLE_SIMULATOR" appearance dark
 xcrun simctl ui "$NIBBLE_SIMULATOR" content_size accessibility-extra-extra-extra-large
-# sim-useで本文・ボタン・キーボードを操作し、simctl ioで撮影する
-# 検証前の設定へ戻す（今回の初期値はlight/large）
+# light / largeを基準とする専用端末の復帰例
 xcrun simctl ui "$NIBBLE_SIMULATOR" appearance light
 xcrun simctl ui "$NIBBLE_SIMULATOR" content_size large
 ```
 
-小画面はSE第3世代の同じ26.5 runtimeを用いる。本文viewportの高さ・文字の切れ・キーや保存ボタンへの到達を確認する。Shortcutsの「nibble Research」欄から「研究用一覧」を実行し、登録と実行を別に判定する。Control/Widgetの型がアプリにあるだけでは、それらのextensionはインストールされない。
+iPhone SE第3世代の26.5 Simulatorでは、最大文字サイズとキーボードの併用時に本文の表示領域・文字の切れ・ボタンへの到達を確認する。Shortcutsでは「nibble Research」欄の「研究用一覧」を実行し、一覧への登録と前景アクションの実行を別々に判定する。
+
+操作前に[共通の録画コマンド](../docs/ios-verification.md#スクリーンショットと画面録画)を開始し、操作終了後に録画を確定して静止画を取得する。ファイルの復号確認と、表示・遷移・応答のレビューをそれぞれ記録する。
+
+## archiveの点検
+
+```sh
+xcodebuild -project validation/ResearchProbe.xcodeproj \
+  -scheme ResearchProbe -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -derivedDataPath artifacts/research/ArchiveDerivedData \
+  -archivePath artifacts/research/ResearchProbe.xcarchive \
+  CODE_SIGNING_ALLOWED=NO archive
+
+plutil -lint artifacts/research/ResearchProbe.xcarchive/Products/Applications/ResearchProbe.app/PrivacyInfo.xcprivacy
+```
+
+unsigned archiveで確認する対象はビルドとmanifestの配置・構文である。署名検証、export、TestFlight更新、App Store Connectへの提出は配布構成を用意して別に実施する。
+
+## 証跡と判定
+
+| 保存先 | 内容 |
+| --- | --- |
+| `artifacts/ios/<実行ID>/` | 共通driverのmanifest・ログ・xcresult・UI JSON・画像・動画・REVIEW |
+| `artifacts/research/sdk/` | 4構成の型検査ログと結果。再実行で更新される |
+| `artifacts/research/processes/<UUID>/` | SQLite workerと操作ごとの終了コード・結果 |
+| テストアプリの`Documents/results/` | 文字列、移行、履歴、snapshot、SQLite環境、計測値のJSON。再実行で同名ファイルが更新される |
+
+テストアプリの保存領域は次のコマンドで取得する。詳細JSONは実行直後に対応する証跡ディレクトリへコピーして保管する。
+
+```sh
+xcrun simctl get_app_container "$NIBBLE_SIMULATOR" dev.nibble.ResearchProbe data
+```
+
+生成物は`artifacts/`に置き、Gitへ追加しない。`REVIEW.md`には対象ソース・端末・OS・操作・確認した画像と動画の範囲・失敗・PR添付先を記載する。検証結果は期待条件ごとに成功・失敗・未実施を判定し、[実行結果](../research/experiments/ios-26-5-validation.md)へ対応付ける。公開APIや原著の根拠は[一次資料検証](../research/experiments/primary-source-validation.md)を参照する。
