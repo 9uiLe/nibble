@@ -17,4 +17,6 @@
 - 最新技術は候補として評価し、OS/API 制約、性能、保守・運用、移行容易性を根拠に採否を決める。未決定の構成を既定として扱わない。
 - 新しいアプリ・extension ターゲットには iOS deployment target 26.0 を設定する。最低対応 OS を変更する場合は、影響を明記した別の意思決定が必要。
 
-このリポジトリには、まだアプリや Xcode の scheme がない。存在しないビルド・テストコマンドを推測で追加せず、プロジェクト作成時に実際に使える手順を開発ガイドへ記載する。
+ビルド・テスト・画面記録・動作確認は [ローカル iOS 検証](docs/ios-verification.md) に従う。Apple CLI を基本とし、Simulator の画面読取・操作は Nix の `sim-use` を使う。対象 UDID を明示し、生成物は `artifacts/` に保存する。
+
+`validation/VerificationApp.xcodeproj` と shared scheme `VerificationApp` は検証基盤の fixture。本体の UI・保存・呼び出し方式の採用決定として扱わない。本体のプロジェクト・scheme を追加するときは、実際に使える検証設定と手順を更新する。

@@ -1,0 +1,7 @@
+{
+  "project": "validation/VerificationApp.xcodeproj",
+  "scheme": "VerificationApp",
+  "bundle_id": "dev.nibble.VerificationApp",
+  "app_name": "VerificationApp",
+  "minimum_ios": "26.0"
+}

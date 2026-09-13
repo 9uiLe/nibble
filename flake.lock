@@ -18,7 +18,20 @@
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "sim-use": "sim-use"
+      }
+    },
+    "sim-use": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-QsO6Of0E3wjfnc8XZ/6oBViog6fl/DooaFC/ZE3f0Es=",
+        "type": "file",
+        "url": "https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz"
       }
     }
   },
