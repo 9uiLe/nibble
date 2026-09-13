@@ -89,7 +89,7 @@ Privacy Manifest は target の resources に含める。Swift Package ではフ
 
 **設計への示唆：** 最初のローカル CRUD・呼び出し検証に、アカウントや分析 SDK を必須にしない。Apple は重要なアカウント機能がなければログインなしで利用可能にすることを求め、アカウント作成を提供するならアプリ内のアカウント削除も求める。[^S01] クラウド同期や外部 AI によるスニペット加工は、データフロー・同意・保存・削除を再評価してから検討する。第三者 AI への個人データ共有にも明示的な説明と許可の要件がある。[^S01]
 
-**未確認：** nibble が実際に使う required reason API の種類と理由コード、採用 SDK の manifest、診断・同期を含めた最終的な App Privacy 回答。使用するAPI・SDKとデータフローに基づいて宣言を確定する。
+現行のrequired reason APIの5カテゴリと用途別の候補コードは [P10〜P12](experiments/primary-source-validation.md) で照合した。ResearchProbeのunsigned archiveとmanifest配置は [E19](experiments/ios-26-5-validation.md) で確認した。**未確認：** 製品が実際に使うAPI・理由コード、採用SDKのmanifest、診断・同期を含めた最終的なApp Privacy回答。使用するAPI・SDKとデータフローに基づいて宣言を確定する。
 
 ## 5. 開発環境とテストの責務
 

@@ -11,6 +11,7 @@ nibble は iOS 26.0 以上向けのスニペットツールです。作業中に
 | [開発ガイド](CONTRIBUTING.md) | 対応OS、依存管理、ローカルとCIの責務、UI/UX・性能、PRの規約 |
 | [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) | Apple CLI・sim-use・Nixの役割、構成、採用理由、対応範囲 |
 | [ローカル iOS 検証](docs/ios-verification.md) | Simulatorの準備、ビルド・テスト・操作・画面記録、証跡の確認 |
+| [研究用の実行検証](validation/RESEARCH.md) | 保存・検索・移行・コピーの比較試作と再現コマンド |
 | [研究資料](research/README.md) | 論文・一次資料による仕様の根拠、設計候補、製品の検証計画 |
 | [AGENTS.md](AGENTS.md) | AIエージェント向けの規約の入口 |
 | [PRテンプレート](.github/pull_request_template.md) | 目的・背景、アウトカム、コミット表、画像・動画、検証結果の記載形式 |

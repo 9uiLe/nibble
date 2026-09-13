@@ -28,7 +28,7 @@
 | Foundation `NSString.folding(options:locale:)` | API metadata は iOS 2.0 から | 検索用の文字比較に使える。locale と比較仕様は別途固定する。[D18] |
 | App Groups / custom keyboard の読み取り権限 | 現行記事に動作説明があるが、記事自体に導入 OS の metadata はない | 導入OSは文書から確定できない。iOS 26.5の実機でentitlementと権限を確認する。[D06] [D20] |
 | Swift の isolation / `Sendable` | 言語仕様。iOS の deployment target とコンパイラ設定は別の軸 | Xcode・Swift language mode・isolation 関連設定を採用時に記録する。[D04] |
-| SQLite / FTS5 / trigram tokenizer | SQLite 公式仕様を確認。検証対象iOS 26.5の同梱SQLiteの版・ビルドオプションは未確認 | 実機でライブラリの版と実際の tokenizer 作成・検索を確認し、利用可能と推測しない。[D14] [D15] |
+| SQLite / FTS5 / trigram tokenizer | SQLite 公式仕様を確認。iOS 26.5 SimulatorではSQLite 3.51.0・ENABLE_FTS5・trigramを実測。実機は未確認 | 実機でライブラリの版と実際の tokenizer 作成・検索を確認し、利用可能と推測しない。[D14] [D15] |
 
 ## 3. 保存方式を比較する
 
@@ -38,7 +38,7 @@
 | Core Data | context の queue 分離、永続履歴、軽量移行、CloudKit に対応するストアを持つ。[D07] [D08] [D11] [D19] | managed object の queue 制約、モデルの版、履歴 token、context への merge を明示的に扱う。SwiftUI への接続方法も一貫させる。 | 履歴・競合・移行を細かく制御する必要があり、その実装負担より製品上の便益が大きい。 |
 | SQLite を直接扱う構成 | WAL のトランザクション、FTS5 の全文検索、オンライン backup API がある。[D14] [D15] [D16] | モデルの符号化、SQL と schema migration、観測・変更通知、競合、同期、検索 index の整合性をアプリ側で設計する。使用する Swift ラッパーも別の依存選定。 | 独自検索・取得範囲・ストア操作の制御が不可欠であり、実機で得た効果が保守負担を上回る。 |
 
-比較表の「評価する点・負担」と「採用を後押しする条件」は評価軸であり、ベンチマーク結果は未取得。採用候補は同じデータと操作で比較し、機能、測定結果、保守負担を根拠に判断する。
+比較表の「評価する点・負担」と「採用を後押しする条件」は評価軸であり、Simulatorの単発保存・全件取得と30反復の検索結果は [実行検証](experiments/ios-26-5-validation.md) に記録する。実機のベンチマークは未取得。採用候補は同じデータと操作で比較し、機能、測定結果、保守負担を根拠に判断する。
 
 **設計上の推奨:** 比較試作にSwiftDataを含める。表に挙げた基本APIはiOS 26.0の候補となる。共有・移行・検索の受け入れ条件を共通にして比較する。Core Data/SwiftData が管理する内部ストアへ独自 SQL や FTS テーブルを書き足すことは、参照した公式資料に統合方法の裏付けがないため、検証を要する構成とする。
 
@@ -122,7 +122,7 @@ FTS5 の trigram tokenizer は部分一致を支援するが、全文検索 quer
 
 **設計上の推奨:** 部分一致と並び順の正答集合を定義し、必要なデータ量・実測に応じてindexを比較する。trigram のみで 1〜2 文字の日本語検索を済ませない。FTS の検索構文と SQL の parameter binding は別なので、利用者が入力した引用符・記号等をどこまで検索式として扱うかを定義する。本文と index の更新、削除、import 後の再構築を一緒に検証する。
 
-**最低限の検索コーパス案（未実測）:** `が` と結合濁点、`ｶﾞ` と `ガ`、全角英数・半角英数、ひらがな・カタカナ、絵文字と ZWJ、英大文字・小文字、空白・改行・タブ、URL、`_`・引用符・括弧を含むコード、1〜2 文字の検索、非常に長い本文。ひらがなとカタカナの同一視は Unicode 正規化で自動的に済む仕様ではなく、別の製品上の選択にする。
+**検索コーパス:** 結合濁点・半角カナ・英字大小幅・かな/カナ・絵文字・記号は [E10〜E12](experiments/ios-26-5-validation.md) で部分検証した。拡張するコーパスは次のとおり。 `が` と結合濁点、`ｶﾞ` と `ガ`、全角英数・半角英数、ひらがな・カタカナ、絵文字と ZWJ、英大文字・小文字、空白・改行・タブ、URL、`_`・引用符・括弧を含むコード、1〜2 文字の検索、非常に長い本文。ひらがなとカタカナの同一視は Unicode 正規化で自動的に済む仕様ではなく、別の製品上の選択にする。
 
 ## 7. ローカルを基本にした任意同期
 
@@ -147,7 +147,7 @@ Core Data の CloudKit 構成は、ローカル専用ストアと同期するス
 - 削除と編集の競合、長期間オフラインの端末からの再送、アカウント切替、同期の無効化・再有効化を仕様に含める。別アカウントへ以前のローカルデータを自動送信しない。
 - SwiftData/Core Data の自動同期と `CKSyncEngine` の自前同期を同じデータに重ねない。まず、どちらが同期を所有するかを一つに決める。
 
-**未確認:** nibble が要求する conflict UX を、SwiftData/Core Data の自動同期の公開 API だけでどこまで制御できるか。`CKSyncEngine` が柔軟な代わりに必要になる実装・運用量。どの案も実装・通信・復旧の試験はしていない。
+自動同期からclient/server/ancestor recordを直接受け取る競合callbackは、確認した公開API一覧には見つからなかった。[P08〜P09](experiments/primary-source-validation.md)に制御範囲を記録する。**未確認:** 製品のconflict UXを満たすモデル、`CKSyncEngine`で必要になる実装・運用量。どの案も2端末の通信・復旧試験はしていない。
 
 ## 8. モデル変更・移行・export/import・削除
 
@@ -183,7 +183,7 @@ SwiftData/Core Dataの内部DBへSQLiteのbackup APIを直接使う構成には�
 
 ### ローカル Mac / iOS 実機で行う比較試作
 
-以下の保存・共有・検索・同期の試作は **未実施**。試作のprojectとshared schemeを [検証基盤](../docs/ios-verification.md) の設定へ登録する。iOS 26.5のみを対象に、実機のRelease構成で、端末・OS・件数・本文長・検索内容・反復回数をそろえて比較する。
+保存・検索・軽量移行・履歴・SQLite別プロセスの試作結果は [E01〜E15](experiments/ios-26-5-validation.md) に記録する。以下の比較条件のうち実extension・実機・同期・長期利用は未実施。試作のprojectとshared schemeを [検証基盤](../docs/ios-verification.md) の設定へ登録する。iOS 26.5のみを対象に、実機のRelease構成で、端末・OS・件数・本文長・検索内容・反復回数をそろえて比較する。
 
 | 試作 | 観察・測定すること | 判断に使う結果 |
 | --- | --- | --- |
@@ -217,10 +217,10 @@ SwiftData/Core Dataの内部DBへSQLiteのbackup APIを直接使う構成には�
 | D12 | Apple, [CKSyncEngine](https://developer.apple.com/documentation/cloudkit/cksyncengine-5sie5) | 更新日不明。本文: scheduling、state、send/fetch、error handling、accounts。宣言・availability metadata。 | 現行 API。本文にある全メソッドの導入 OS を個別に確認したわけではない。 |
 | D13 | Apple, [CKError.Code.serverRecordChanged](https://developer.apple.com/documentation/cloudkit/ckerror/code/serverrecordchanged) | 更新日不明。本文: client/server/ancestor record と再保存。 | CloudKit の直接利用の説明。SwiftData 自動同期で同じ制御が公開されると推定しない。 |
 | D14 | SQLite project, [Write-Ahead Logging](https://www.sqlite.org/wal.html) | 2026-08-25 更新。本文: §§1–6、9、11。並行性、checkpoint、sidecar、read-only、BUSY、WAL-reset bug。 | upstream SQLite の仕様と修正情報。Apple 同梱版の修正有無は未確認。 |
-| D15 | SQLite project, [SQLite FTS5 Extension](https://www.sqlite.org/fts5.html) | 更新日不明。本文: Overview、§4.3 tokenizers、§4.4 external/contentless tables と不整合・rebuild。 | 文書全体の全 API を調査したわけではない。iOS の FTS5/tokenizer 可用性は未確認。 |
+| D15 | SQLite project, [SQLite FTS5 Extension](https://www.sqlite.org/fts5.html) | 更新日不明。本文: Overview、§4.3 tokenizers、§4.4 external/contentless tables と不整合・rebuild。 | 文書全体の全 API を調査したわけではない。26.5 Simulatorのunicode61/trigramはE10で確認、実機は未確認。 |
 | D16 | SQLite project, [SQLite Backup API](https://www.sqlite.org/backup.html) | 更新日不明。本文: §§1、1.1、3、3.1。online backup、snapshot、並行更新と lock。 | 直接 SQLite を扱う場合の参考。framework 管理ストアへの直接適用は未検証。 |
 | D17 | Unicode Consortium / editor Ken Whistler, [Unicode Standard Annex #15: Unicode Normalization Forms, revision 57](https://www.unicode.org/reports/tr15/tr15-57.html) | Unicode 17.0.0、2025-07-30。本文: header/status、§1.1–1.3、正準/互換等価、NFKC/NFKD の注意。 | 正規化仕様であり、検索順位・日本語分かち書きの仕様ではない。閲読時の latest はこの版。 |
-| D18 | Apple, [NSString.folding(options:locale:)](https://developer.apple.com/documentation/foundation/nsstring/folding(options:locale:)) | 更新日不明。本文・宣言・availability metadata。 | locale と option に依存。日本語の期待結果は実測が必要。 |
+| D18 | Apple, [NSString.folding(options:locale:)](https://developer.apple.com/documentation/foundation/nsstring/folding(options:locale:)) | 更新日不明。本文・宣言・availability metadata。 | locale と option に依存。E11の試作用期待集合は実測済み。製品の最終仕様は未決定。 |
 | D19 | Apple, [Migrating your data model automatically](https://developer.apple.com/documentation/coredata/migrating-your-data-model-automatically) | 更新日不明。本文全節: 可能な変更、改名、source/destination model、推論可否。 | Core Data のガイド。SwiftData に個々の移行条件をそのまま当てはめない。 |
 | D20 | Apple, [Configuring open access for a custom keyboard](https://developer.apple.com/documentation/uikit/configuring-open-access-for-a-custom-keyboard) | 更新日不明。本文: open access、read-only shared container、Full Access、利用者の信頼。 | 現行説明。読み取り仕様の開始 OS と DB ライブラリの実動作は未確認。 |
 

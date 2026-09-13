@@ -125,7 +125,7 @@ custom URL scheme は登録競合時にどのアプリへ届くかが未定義�
 | `ControlWidget` | 18.0 | I22。Action Button の機器条件や全 control initializer の対応とは区別する |
 | `UIInputViewController.textDocumentProxy` | 8.0 | [textDocumentProxy](https://developer.apple.com/documentation/uikit/uiinputviewcontroller/textdocumentproxy) [I28] |
 | `UITextDocumentProxy.selectedText` / `UIInputViewController.hasFullAccess` | いずれも 11.0 | [selectedText](https://developer.apple.com/documentation/uikit/uitextdocumentproxy/selectedtext)、[hasFullAccess](https://developer.apple.com/documentation/uikit/uiinputviewcontroller/hasfullaccess) [I28] |
-| `UIKeyInput.insertText(_:)` / `deleteBackward()` | iOS 対象の記載はあるが、導入バージョン欄はない | [insertText](https://developer.apple.com/documentation/uikit/uikeyinput/inserttext(_:))、[deleteBackward](https://developer.apple.com/documentation/uikit/uikeyinput/deletebackward()) [I28]。現行 keyboard ガイド I10 は利用例を示すが、導入年を推定しない。deployment target 26.0でのコンパイルは未確認 |
+| `UIKeyInput.insertText(_:)` / `deleteBackward()` | iOS 対象の記載はあるが、導入バージョン欄はない | [insertText](https://developer.apple.com/documentation/uikit/uikeyinput/inserttext(_:))、[deleteBackward](https://developer.apple.com/documentation/uikit/uikeyinput/deletebackward()) [I28]。現行 keyboard ガイド I10 は利用例を示すが、導入年を推定しない。deployment target 26.0の両SDK・extension条件でコンパイル成功（[E18](experiments/ios-26-5-validation.md)） |
 | `NSExtensionContext` / `completeRequest(returningItems:completionHandler:)` | いずれも 8.0 | I13。host が結果をどう利用するかは API availability の範囲外 |
 | `UIPasteControl` / `UIPasteboard.hasStrings` | 16.0 / 10.0 | I14 / [hasStrings](https://developer.apple.com/documentation/uikit/uipasteboard/hasstrings) [I28] |
 | `OptionsKey.localOnly` / `OptionsKey.expirationDate` / `setItems(_:options:)` | いずれも 10.0 | I23 / I24 / I25 |
@@ -136,7 +136,7 @@ Universal Links、Share / Action、Widget の導線は複数の API・設定・h
 
 ## 導線を選ぶ実機検証
 
-以下の製品導線の実験は **未実施**。本体とextensionのdeployment targetを26.0にそろえ、実行検証はiOS 26.5のみを対象とする。使用 API の availability と extension-safe な利用可否を実際の SDK で確認する。クラウドの静的検査はこれらを代替しない。
+本体のCRUD・コピー・URL判定、Safariへのペーストと本体復帰を [実行検証](experiments/ios-26-5-validation.md) の部分試作で確認した。Shortcutsは一覧への登録に成功したが、アクション実行は失敗した（E25、原因未特定）。以下の全入口・権限・実機条件の比較は未完了。本体とextensionのdeployment targetを26.0にそろえ、実行検証はiOS 26.5のみを対象とする。使用 API の availability と extension-safe な利用可否を実際の SDK で確認する。クラウドの静的検査はこれらを代替しない。
 
 | 順番 | 小さな検証 | 観測すること | この結果で決めること |
 | --- | --- | --- | --- |
