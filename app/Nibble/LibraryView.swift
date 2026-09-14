@@ -143,7 +143,6 @@ struct LibraryView: View {
         .detectAnimationLeaks()
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
-        .onDisappear { model.endScreen() }
         .sensoryFeedback(.success, trigger: model.feedback)
         .onAppear { model.reload() }
         .onChange(of: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { model.reload() }
@@ -151,6 +150,7 @@ struct LibraryView: View {
         .onChange(of: model.filter) { model.limit = 100 }
         .onChange(of: scenePhase) {
             if scenePhase == .active { model.reload() }
+            else if scenePhase == .background { model.endScreen() }
         }
         .onOpenURL { url in
             guard let route = AppRoute(url: url) else { return }

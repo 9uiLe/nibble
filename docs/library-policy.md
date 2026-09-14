@@ -45,12 +45,12 @@ func reload() {
 | `LibraryModel`の編集開始 | screenBound / ignoreNew | 二重に下書きを作らない。開始前のキャンセルで開かず、受理済みDB処理は完了させる |
 | `LibraryModel`のコピー | sceneBound / cancelExisting | 最新のコピーを優先。DB読込後にもキャンセルを確認してからpasteboardへ反映 |
 | `LibraryModel`のピン・削除・復元・完全削除 | sceneBound / ignoreNew | 操作種別と項目UUIDでIDを分ける。同じ項目の同じ処理だけ重複を抑制し、受理済みの書込は完了させる |
-| `LibraryModel`の通知消去 | screenBound / cancelExisting | 新しい通知で期限を更新。一覧終了時にキャンセルし、通知と取り消し操作を消去 |
+| `LibraryModel`の通知消去 | screenBound / cancelExisting | 新しい通知で期限を更新。sceneがbackgroundになったらキャンセルし、通知と取り消し操作を消去 |
 | `EditorModel`の下書き書込 | screenBound / allowConcurrent | 入力snapshotをすべて受理。SQLiteのsequence比較で最新を保持し、保存・破棄後の下書きを再生成しない |
 | `SnippetEditor`の保存・閉じる・破棄 | screenBound / ignoreNew | 共通IDで終了処理の二重実行を防止。画面終了時にキャンセルし、成功した永続化に対応する終了通知を返す |
 | `ShareViewController`のprovider読込 | screenBound / ignoreNew | viewDidDisappearでキャンセル。provider読込の前後で確認し、キャンセルを業務エラー表示にしない |
 
-一覧のsceneBound処理は、シート表示や一時的な非active化で中断しない有限の操作とする。所有者の解放時はstoreが残る処理をキャンセルする。下書き書込も入力snapshotを保持し、受理済みのSQLite処理を完了させる。業務エラーはmodelの表示状態へ変換する。storeへ流出した非キャンセルエラーはDebug assertionの対象なので、空のcatchで消さない。
+一覧の所有者はsceneに保持する。SwiftUIのview再生成では終了させず、sceneがbackgroundになると編集開始と通知をキャンセルする。sceneBound処理は、シート表示や一時的な非active化で中断しない有限の操作とする。所有者の解放時はstoreが残る処理をキャンセルする。下書き書込も入力snapshotを保持し、受理済みのSQLite処理を完了させる。業務エラーはmodelの表示状態へ変換する。storeへ流出した非キャンセルエラーはDebug assertionの対象なので、空のcatchで消さない。
 
 `async/await`、`async let`、task group、SwiftUIの`.task(id:)`は構造化された処理・OSによる寿命管理として使う。Taskingの[設計方針](https://github.com/9uiLe/swift-tasking/blob/0.3.0/README.md)に従い、これらを非構造化タスクに置き換えない。actor、continuation、`CancellationError`も利用できる。`Task.sleep`・`yield`・`checkCancellation`・`isCancelled`・`currentPriority`は既存タスクの協調用に限って許可する。
 

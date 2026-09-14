@@ -206,12 +206,12 @@ struct SnippetTests {
 @Suite("Owned UI actions", .serialized)
 @MainActor
 struct OwnedActionTests {
-    @Test func viewReplacementDoesNotCancelTheSceneReload() async throws {
+    @Test func backgroundDoesNotCancelTheSceneReload() async throws {
         let store = SnippetStore(location: try location())
         let id = try await create(store, body: "起動後も表示する本文")
         let library = LibraryModel(store: store)
         library.reload()
-        // SwiftUI can deliver an old view's disappearance after the new view appears.
+        // Transient presentation actions stop in background; an admitted scene read can finish.
         library.endScreen()
         await library.waitForIdle()
         #expect(library.items.map(\.id) == [id])
