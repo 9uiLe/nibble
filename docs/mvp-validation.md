@@ -1,5 +1,7 @@
 # MVPの検証結果
 
+Tasking・ScopedAnimationを採用した構成の検証は[ライブラリ規約の検証結果](library-policy-validation.md)を参照する。この文書はMVPの保存・表示・呼び出しに対する基準の検証記録として保持する。
+
 検証日：2026-09-13。対象はiPhoneアプリNibbleと共有拡張NibbleShare。実行評価はiOS 26.5 Simulatorに限定し、実機検証は対象外とする。最低対応OSは26.0。操作手順は[MVPの操作と検証](mvp.md)、採用構成は[ADR 0002](decisions/0002-mvp-app.md)を参照する。
 
 ## 対象と環境
