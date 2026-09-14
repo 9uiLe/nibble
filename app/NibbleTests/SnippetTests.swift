@@ -206,6 +206,19 @@ struct SnippetTests {
 @Suite("Owned UI actions", .serialized)
 @MainActor
 struct OwnedActionTests {
+    @Test func viewReplacementDoesNotCancelTheSceneReload() async throws {
+        let store = SnippetStore(location: try location())
+        let id = try await create(store, body: "起動後も表示する本文")
+        let library = LibraryModel(store: store)
+        library.reload()
+        // SwiftUI can deliver an old view's disappearance after the new view appears.
+        library.endScreen()
+        await library.waitForIdle()
+        #expect(library.items.map(\.id) == [id])
+        #expect(!library.loading)
+        #expect(library.error == nil)
+    }
+
     @Test func repeatedOpenCreatesOnlyOneDraft() async throws {
         let store = SnippetStore(location: try location())
         let library = LibraryModel(store: store)

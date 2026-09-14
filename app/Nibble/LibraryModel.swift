@@ -35,7 +35,7 @@ final class LibraryModel {
     init(store: SnippetStore = .shared) { self.store = store }
 
     func reload() {
-        tasks.start(id: Action.refresh, lifetime: .screenBound, policy: .cancelExisting) { [weak self] cancellation in
+        tasks.start(id: Action.refresh, lifetime: .sceneBound, policy: .cancelExisting) { [weak self] cancellation in
             try cancellation.check()
             await self?.refresh()
         }
