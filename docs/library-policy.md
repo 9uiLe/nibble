@@ -60,7 +60,7 @@ func reload() {
 
 一覧の通知は`Library.Notice` scopeで表示・消去を0.16秒のopacity遷移として扱う。Reduce Motion有効時はdurationを0にする。編集の入力領域にはbarrierを置く。標準のシート・メニュー・キーボード等、OS部品自身の遷移はその部品の動作に従う。
 
-画面の根には`.detectAnimationLeaks()`を置き、Debug実行時に診断を確認する。検知できるのはmodifierの位置に届いたtransactionであり、子孫のすべての変化やUIKitを自動検査する機能ではない。scopeも同じ状態更新に付随する変更を自動で分離しないため、小さく配置し、スクリーンショットと録画を確認する。
+画面の外側には`.animationBarrier(warnsOnLeaks: false)`を置き、OSのシート開閉に伴うtransactionをアプリの内容へ伝えない。その内側に`.detectAnimationLeaks()`、入力領域には警告付きのbarrierを置き、アプリ内部の診断をDebug実行で確認する。ローカルのscopeは自分のアニメーションだけを復元する。検知できるのはmodifierの位置に届いたtransactionであり、子孫のすべての変化やUIKitを自動検査する機能ではない。scopeも同じ状態更新に付随する変更を自動で分離しないため、小さく配置し、スクリーンショットと録画を確認する。
 
 ## Lintと禁止する直接使用
 
@@ -86,6 +86,8 @@ nix flake check --no-update-lock-file --print-build-logs
 検査はリポジトリ内のSwiftファイルを再帰的に読む。新しいsourceディレクトリも対象とし、`artifacts`、`.build`、`DerivedData`等の生成物は除外する。依存コードは`artifacts`以下に取得し、ライブラリ内部の標準API実装を製品コードの違反にしない。Swift sourceとsource directoryのsymlink、読めない入力、対象0件はエラーにする。
 
 コメント・通常/raw/複数行文字列・regexの本文を読み飛ばし、実行される文字列補間は検査する。改行・コメントを挟んだ呼出し、修飾名、backtick、型の別名宣言も規則の対象になる。型解決やmacro展開を行うSwiftコンパイラではなく、予約した名前を検査する字句Lintである。独自macro、型aliasを通じた動的な呼出し、未知のAPIまで網羅する保証はない。Lint自体の変更と新しい非同期・アニメーション入口はレビューし、規則と回帰テストを一緒に更新する。
+
+実施したテスト・操作・画像と動画・測定の範囲は[検証結果](library-policy-validation.md)に記録する。
 
 ## 選定と保守
 

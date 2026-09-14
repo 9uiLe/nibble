@@ -110,6 +110,8 @@ struct SnippetEditor: View {
         }
         .tint(.nibbleAccent)
         .detectAnimationLeaks()
+        // Keep native presentation transactions outside app content; local scopes own its animation.
+        .animationBarrier(warnsOnLeaks: false)
         .onDisappear { tasks.cancel(lifetime: .screenBound) }
         .interactiveDismissDisabled()
         .privacySensitive()

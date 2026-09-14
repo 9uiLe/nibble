@@ -141,6 +141,8 @@ struct LibraryView: View {
         }
         .tint(.nibbleAccent)
         .detectAnimationLeaks()
+        // Keep native presentation transactions outside app content; local scopes own its animation.
+        .animationBarrier(warnsOnLeaks: false)
         .onDisappear { model.endScreen() }
         .sensoryFeedback(.success, trigger: model.feedback)
         .task(id: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { await model.refresh() }
