@@ -1,17 +1,28 @@
 # nibble
 
-nibble は iOS 26.0 以上向けのスニペットツールです。作業中に必要なテキストを素早く呼び出し、作成・編集・削除を少ない操作で行える体験を目指します。使いやすさ、シンプルさ、描画と応答の速さを設計の判断基準にします。
+nibbleは、よく使うテキストを保存し、必要なときに探してコピーするiPhone向けのスニペットツールです。最低対応OSはiOS 26.0。使いやすさ、シンプルさ、描画と応答の速さを設計の判断基準にします。
 
-## リポジトリの構成
+## MVPでできること
 
-このリポジトリは、開発規約、製品設計の研究資料、Apple CLIとsim-useによるローカルiOS検証を管理します。実行対象は次の2つです。
+- 作成・編集、日本語1文字からの検索、ピン留め、本文のコピー。
+- 削除と復元、確認付きの完全削除、下書きの保存・再開。
+- 共有シートからテキスト・URLを取り込み、標準ショートカットから一覧・作成画面を呼び出し。
+
+日本語UIの本体と共有拡張は、アカウントや通信を必要とせず、テキストを端末内へ保存します。入力先のアプリへの復帰とペーストは利用者が行います。同期・独自バックアップ・キーボード拡張は提供しません。
+
+## 設計資料とリポジトリの構成
+
+製品を理解するには、[製品設計](docs/decisions/0002-mvp-app.md)で提供範囲・画面・データの契約と採用理由を読み、[操作と検証手順](docs/mvp.md)、[検証結果と制約](docs/mvp-validation.md)を参照してください。実施済みの検証はiOS 26.5 Simulatorを対象とし、実機検証はMVPの受け入れ範囲に含みません。
+
+このリポジトリは、製品アプリ、開発規約、研究資料、Apple CLIとsim-useによるローカルiOS検証を管理します。
 
 | アプリ | 目的 | 設定・手順 |
 | --- | --- | --- |
+| Nibble / NibbleShare | 本体と共有拡張。日常のスニペット作成・検索・利用 | [MVPの操作と検証](docs/mvp.md)、`app/project.json` |
 | VerificationApp | 検証コマンド、文字列反映、テスト、撮影の成立を確かめるfixture | [共通の検証手順](docs/ios-verification.md)、`validation/project.json` |
 | ResearchProbe | 保存3案、検索、入力、コピー、復旧、OS連携を同じダミーデータで比較する | [設計と実行手順](validation/RESEARCH.md)、`validation/research-project.json` |
 
-製品本体のUI・保存・共有・呼び出し・同期は[研究と検証計画](research/README.md)に基づいて選びます。比較試作の結果は、評価した条件と未実施条件を明示して利用します。
+本体と共有拡張はSwiftUI・Observation・Swift Concurrency・Apple同梱SQLiteで構成します。[研究資料](research/README.md)は、採用理由の根拠と比較候補を管理します。ResearchProbeの結果と製品MVPの検証結果は、それぞれの対象に限って解釈します。
 
 | 入口 | 内容 |
 | --- | --- |
@@ -32,7 +43,7 @@ nibble は iOS 26.0 以上向けのスニペットツールです。作業中に
 | macOS（Apple Silicon / Intel） | Nixの共通検査。iOSの検証にはXcodeと対象Simulator runtimeも必要 |
 | Linux（ARM64 / x86_64） | Nixの共通検査。Apple SDKを使うビルド・テストはローカルMacで実行 |
 | iOS検証の確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
-| 検証対象 | iOS 26.5のみ。`VerificationApp` / `ResearchProbe`、deployment target `26.0` |
+| 検証対象 | iOS 26.5のみ。`Nibble` / `VerificationApp` / `ResearchProbe`、deployment target `26.0` |
 | 研究用driver | Apple Silicon Mac。SDK型検査とSQLite workerはarm64を指定 |
 
 ### 1. GitとNixを用意する
@@ -95,7 +106,23 @@ nix develop --command python3 scripts/ios.py doctor
 nix develop --command python3 scripts/ios.py devices
 ```
 
-[Simulatorの作成・選択手順](docs/ios-verification.md#simulatorの作成と選択) に従って専用端末を用意し、そのUDID（端末の一意な識別子）を `NIBBLE_SIMULATOR` に設定します。共通検証処理を試験するVerificationAppのテストと操作・撮影は、次のコマンドで実行します。
+[Simulatorの作成・選択手順](docs/ios-verification.md#simulatorの作成と選択)に従って専用端末を用意し、そのUDID（端末の一意な識別子）を`NIBBLE_SIMULATOR`に設定します。製品アプリは`app/project.json`で指定します。共有拡張のApp Groupを使用するため、SimulatorでもXcodeのad hoc署名を行います。証明書やDeveloper Teamは不要です。
+
+```sh
+export NIBBLE_SIMULATOR='対象SimulatorのUDID'
+nix develop --command python3 scripts/ios.py test \
+  --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 scripts/ios.py run \
+  --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
+```
+
+基本の操作と撮影を自動で確認するには、専用driverを使います。共有・ペースト・日本語入力の手順は[MVPの操作と検証](docs/mvp.md)を参照してください。
+
+```sh
+nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
+```
+
+共通検証処理を試験するVerificationAppには、標準設定の`test`と`smoke`を使います。`smoke`はfixture専用で、製品アプリの操作検証は行いません。
 
 ```sh
 nix develop --command python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR"

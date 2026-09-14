@@ -49,6 +49,13 @@ class DeviceSelectionTests(unittest.TestCase):
 
 
 class ResultTests(unittest.TestCase):
+    def test_simulator_signing_never_uses_a_developer_identity(self):
+        self.assertEqual(ios.simulator_signing_arguments({}), ["CODE_SIGNING_ALLOWED=NO"])
+        self.assertEqual(ios.simulator_signing_arguments({"simulator_signing": "ad-hoc"}),
+                         ["CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "DEVELOPMENT_TEAM="])
+        with self.assertRaises(ios.VerificationError):
+            ios.simulator_signing_arguments({"simulator_signing": "distribution"})
+
     def test_executed_passing_tests_accepted(self):
         ios.validate_summary({"result": "Passed", "passedTests": 2, "failedTests": 0, "totalTestCount": 2})
 

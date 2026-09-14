@@ -1,5 +1,7 @@
 # ResearchProbe：iOS 26.5の検証結果
 
+本書は研究の対象・資料・条件に対する記録である。製品Nibble / NibbleShareの採用仕様は[製品設計](../../docs/decisions/0002-mvp-app.md)、実施済みの製品確認と未検証項目は[MVPの検証結果](../../docs/mvp-validation.md)で管理する。本書の比較候補・未実施条件を、製品の未決定事項や実施結果として扱わない。
+
 ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を比較する研究用アプリである。この記録は、公開APIの型検査、Simulator上のデータ検査、実際の画面操作から得られた観測と、その適用条件を示す。構成と再現手順は[ResearchProbeの設計と実行手順](../../validation/RESEARCH.md)を参照する。
 
 ## 評価範囲と主要な判定
@@ -41,7 +43,7 @@ E01〜E25は実行した比較条件の識別子、V0〜V8は[製品の検証計
 | E05 / V3 | checkpoint後のSQLiteを書込不可のディレクトリから開く | read-only open・取得成功 | POSIX権限の試験。live WALの全sidecar条件やApp Group権限を保証しない |
 | E06 / V3,V5 | 稼働中DBをOnline Backup APIで複製、DB本体だけのcopyとも比較 | Backup APIは本文一致・`integrity_check=ok`。WALを欠く本体だけのcopyはread失敗 | 直接SQLiteのみ。SwiftData/Core Data内部DBへこのbackup方法を適用していない |
 | E07 / V3,V5 | SwiftData VersionedSchemaとCore Dataに属性を追加して軽量移行 | ID・本文保持。SwiftDataの新optional titleはnil、Core Dataのtitleは指定defaultの空文字 | 各1→2の単純なschema変更。製品の全既存版、rename、破壊的変更は未定義 |
-| E08 / V3 | SwiftData/Core Dataの保存履歴を取得。SwiftData履歴削除後に古いtokenを使用 | 履歴取得成功。古いtokenは`historyTokenExpired`、全件再読込は可能 | token失効時の製品UIや全プロセスへの再構築通知は未実装 |
+| E08 / V3 | SwiftData/Core Dataの保存履歴を取得。SwiftData履歴削除後に古いtokenを使用 | 履歴取得成功。古いtokenは`historyTokenExpired`、全件再読込は可能 | token失効時のUI復旧や全プロセスへの再構築通知は、この比較実装に含まない |
 | E09 / V3,V5 | JSON snapshotをatomic置換し、置換前に開いたreaderと新readerで取得 | 旧readerは旧版全体、新readerは新版全体 | 同一プロセスのファイルハンドル比較。採用extensionでの切替は別条件 |
 | E10 / V4 | FTS5 unicode61/trigram、1・2・3文字の日本語 | 作成成功。trigram `MATCH`は「東」「東京」0件、「東京都」1件。`LIKE '%東京%'`は1件 | LIKEの成功は短文index効率を保証しない。unicode61は単語単位で任意部分一致ではない |
 | E11 / V4 | 検索用NFC+case/width foldingと期待集合 | 結合濁点／合成済、半角／全角カナ、全角／半角英字大小は一致。かな／カナ、清音／濁音は区別 | 試験で選んだ比較仕様。製品の検索仕様は利用シーンと合わせて決める |

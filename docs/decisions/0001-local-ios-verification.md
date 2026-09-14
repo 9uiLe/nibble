@@ -13,14 +13,14 @@
 
 ## 全体構成
 
-検証は、共通driver、基盤用fixture、研究用の比較試作で構成する。製品のtargetも同じ設定形式を使い、目的に合う操作・期待結果を定義する。
+検証は、共通driverと、製品・基盤・研究の3種類のtargetで構成する。各targetは同じ設定形式を使い、固有の操作・期待結果をdriverで定義する。
 
 | 層 | 構成 | 責務 |
 | --- | --- | --- |
 | 共通driver | [scripts/ios.py](../../scripts/ios.py) | 引数、project設定、端末選択、プロセス、UDID単位の排他、結果保存を管理する |
 | 基盤の試験 | `VerificationApp`と`smoke` | ツールチェーン、ホスト識別、文字列反映、画面操作・撮影の成立を検査する |
 | 研究用比較 | `ResearchProbe`、Swift Testing、研究用driver | 保存3案、検索・復旧、UI、API、SQLite別プロセスを比較する |
-| 製品の評価 | [V0〜V8の検証計画](../../research/05-decisions-and-validation.md) | 実際のhost・入口・権限・データ・実機で採用条件を評価する |
+| 製品の評価 | `Nibble` / `NibbleShare`、Swift Testing、製品用driver | [MVPの契約](../mvp.md)に対して保存・検索・下書き・共有・URL・画面操作を評価する |
 | クラウド検査 | `ubuntu-24.04`、Nix | workflow方針、Nix書式、共通driverのPythonテストを検査する |
 
 Python標準ライブラリで各CLIを呼び出し、Appleのproject・scheme・結果bundleを直接扱う。
@@ -37,19 +37,21 @@ Python標準ライブラリで各CLIを呼び出し、Appleのproject・scheme�
 
 ## 検証対象と設定
 
-| 項目 | VerificationApp | ResearchProbe |
-| --- | --- | --- |
-| 目的 | 共通検証処理を試験するfixture | 製品技術の比較試作 |
-| project | `validation/VerificationApp.xcodeproj` | `validation/ResearchProbe.xcodeproj` |
-| shared scheme | `VerificationApp` | `ResearchProbe` |
-| bundle ID | `dev.nibble.VerificationApp` | `dev.nibble.ResearchProbe` |
-| 設定 | [project.json](../../validation/project.json) | [research-project.json](../../validation/research-project.json) |
-| 画面の自動操作 | `scripts/ios.py smoke` | `validation/check-research-ui.py` |
-| 設計・手順 | [共通コマンド](../ios-verification.md) | [研究用の構成と手順](../../validation/RESEARCH.md) |
+| 項目 | Nibble / NibbleShare | VerificationApp | ResearchProbe |
+| --- | --- | --- | --- |
+| 目的 | 製品の本体と共有拡張 | 共通検証処理を試験するfixture | 製品技術の比較試作 |
+| project | `app/Nibble.xcodeproj` | `validation/VerificationApp.xcodeproj` | `validation/ResearchProbe.xcodeproj` |
+| shared scheme | `Nibble` | `VerificationApp` | `ResearchProbe` |
+| bundle ID | `dev.nibble.app` / `dev.nibble.app.share` | `dev.nibble.VerificationApp` | `dev.nibble.ResearchProbe` |
+| 設定 | [app/project.json](../../app/project.json) | [validation/project.json](../../validation/project.json) | [validation/research-project.json](../../validation/research-project.json) |
+| 画面の自動操作 | `scripts/check-mvp-ui.py` | `scripts/ios.py smoke` | `validation/check-research-ui.py` |
+| 設計・手順 | [MVPの操作と検証](../mvp.md) | [共通コマンド](../ios-verification.md) | [研究用の構成と手順](../../validation/RESEARCH.md) |
 
-両targetのdeployment targetは26.0、Swift language modeは6とする。project設定は`--project-config`で選ぶ。fixtureは標準UIKitの入力・反映・リセット・結果表示を持つ。ResearchProbeは独立した保存領域にダミーデータを置き、明示保存、下書き、削除復元、検索・コピーの比較を行う。
+製品はApp GroupのentitlementをSimulatorへ渡すため、設定`simulator_signing: "ad-hoc"`でXcodeのローカル署名を指定する。証明書・Developer Teamは不要。基盤・研究用fixtureはこの設定を省略し、未署名でビルドする。
 
-研究用アプリの画面・保存構成は実験条件として定義する。製品のUI、保存・共有方式、extension、同期の採用は、その目的に対応する検証結果で判断する。
+各targetのdeployment targetは26.0、Swift language modeは6とする。project設定は`--project-config`で選ぶ。fixtureは標準UIKitの入力・反映・リセット・結果表示を持つ。ResearchProbeは独立した保存領域にダミーデータを置き、明示保存、下書き、削除復元、検索・コピーの比較を行う。
+
+研究用アプリの画面・保存構成は実験条件として定義する。製品のUI・保存・共有・呼び出しは[ADR 0002](0002-mvp-app.md)を正とし、[MVPの検証結果](../mvp-validation.md)で評価状態を管理する。
 
 ## 依存と実行環境
 

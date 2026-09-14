@@ -30,6 +30,16 @@ class VerificationError(Exception):
     pass
 
 
+def simulator_signing_arguments(config):
+    """Local ad hoc signing enables Simulator entitlements without a Developer Team."""
+    mode = config.get("simulator_signing", "disabled")
+    if mode == "disabled":
+        return ["CODE_SIGNING_ALLOWED=NO"]
+    if mode == "ad-hoc":
+        return ["CODE_SIGNING_ALLOWED=YES", "CODE_SIGN_IDENTITY=-", "DEVELOPMENT_TEAM="]
+    raise VerificationError("simulator_signing must be disabled or ad-hoc")
+
+
 def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
 
@@ -159,7 +169,7 @@ class Run:
         command = [XCODEBUILD, "-project", ROOT / self.config["project"], "-scheme", self.config["scheme"],
                    "-configuration", self.args.configuration, "-destination", f"platform=iOS Simulator,id={self.args.device}",
                    "-derivedDataPath", derived, "-resultBundlePath", result_path,
-                   "-parallel-testing-enabled", "NO", "CODE_SIGNING_ALLOWED=NO", action]
+                   "-parallel-testing-enabled", "NO", *simulator_signing_arguments(self.config), action]
         try:
             self.command(command, "xcodebuild-" + action, timeout=900)
         finally:

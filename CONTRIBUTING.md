@@ -4,7 +4,7 @@
 
 nibbleはiOS向けのスニペットツール。作業中に必要なスニペットを素早く呼び出せ、作成・編集・削除を迷わず行えることを価値とする。操作の少なさ、理解しやすさ、入力や描画を待たせないことを優先し、UI/UXと性能を設計・実装・レビューの受け入れ条件にする。
 
-呼び出し導線は、対象となる作業シーンとiOSの公開API、権限、extensionの制約から設計する。呼び出し、内容の取り込み、他アプリへの挿入、作業への復帰を実機で確認し、提供できる範囲を仕様に記録する。
+呼び出し導線は、対象となる作業シーンとiOSの公開API、権限、extensionの制約から設計する。呼び出し、内容の取り込み、他アプリでの利用、作業への復帰を対象環境で確認し、提供できる範囲を仕様に記録する。MVPの採用構成は[製品設計](docs/decisions/0002-mvp-app.md)、評価状態は[MVPの検証結果](docs/mvp-validation.md)を正とする。
 
 開発者のセットアップは [README](README.md)、実行手順は [ローカル iOS 検証](docs/ios-verification.md)、構成と採用理由は [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) を参照する。
 
@@ -17,7 +17,9 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 - 検証対象のruntime識別子、実際のOSバージョン、buildを記録する。
 - 最低対応OSの引き上げは、対象ユーザーへの影響と理由を記録し、独立した変更としてレビューする。
 
-検証対象は、基盤を試験する`VerificationApp`と製品技術を比較する`ResearchProbe`。それぞれ`validation/<名前>.xcodeproj`と同名のshared schemeを持ち、deployment targetは26.0、Swift language modeは6、確認環境はXcode 26.5とする。`--project-config`で設定を選ぶ。
+製品の検証対象は`app/Nibble.xcodeproj`・shared scheme `Nibble`（設定`app/project.json`、[MVP手順](docs/mvp.md)）。本体と共有拡張のApp Groupを扱うSimulator検証ではad hoc署名を指定し、Developer Teamは使わない。
+
+基盤・研究用の検証対象は、`VerificationApp`と`ResearchProbe`。それぞれ`validation/<名前>.xcodeproj`と同名のshared schemeを持ち、deployment targetは26.0、Swift language modeは6、確認環境はXcode 26.5とする。`--project-config`で設定を選ぶ。
 
 [共通手順](docs/ios-verification.md)はビルド・実行管理・撮影を定義し、[研究用の設計と手順](validation/RESEARCH.md)は比較するデータ・操作・判定を定義する。製品のtargetにもproject・scheme・Xcode・Swift・設定・操作の期待結果を明記する。
 
@@ -66,6 +68,8 @@ nix flake check --no-update-lock-file --print-build-logs
 - アプリのSwift Package依存を使用する場合は `Package.resolved` を共有する。Nixの補助ツール管理とは責務を分ける。
 
 ## ローカルとクラウドの責務
+
+MVPの実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。以下の実機・配布の責務は、それらを評価対象とする場合の実施場所を示す。Simulatorの結果だけで実機性能・保護・配布可否を保証しない。
 
 | 検証対象 | ローカルMac / Xcode / Simulator / 実機 | GitHub Actions |
 | --- | --- | --- |
@@ -120,7 +124,7 @@ UI/UXに影響する変更は、内部実装の変更も含めて対象導線を
 
 モダンな技術を候補として評価し、プロダクトの体験と継続的な開発を支える適性で判断する。OS/API制約、性能、保守・運用、移行の負担を比較し、新しさだけを採用理由にしない。
 
-製品の候補にはSwiftUI・UIKit、Observation、Swift Concurrency、Swift Testing、保存方式、App Intents、Share Extension、キーボード等がある。[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
+製品MVPはSwiftUI・Observation・Swift Concurrency・Swift Testing・Apple同梱SQLite・Share Extensionを採用する。App Intents、キーボード、保存・同期方式等を見直す場合は[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
 
 変更負担の大きい選択は、小さな試作で比較し、`docs/decisions/NNNN-短い名前.md` に設計判断（ADR）を記録する。
 
