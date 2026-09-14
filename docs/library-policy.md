@@ -41,7 +41,7 @@ func reload() {
 
 | 所有者・処理 | lifetime / 重複方針 | 終了と整合性 |
 | --- | --- | --- |
-| `LibraryModel`の再取得 | screenBound / cancelExisting | 一覧終了時にキャンセル。検索結果は世代とキャンセル状態を確認して反映 |
+| `LibraryModel`の再取得 | screenBound / cancelExisting | 表示・検索条件変更・scene再開の読込を同じActionIDに統一し、一覧終了時にキャンセル。検索結果は世代とキャンセル状態を確認して反映 |
 | `LibraryModel`の編集開始 | screenBound / ignoreNew | 二重に下書きを作らない。開始前のキャンセルで開かず、受理済みDB処理は完了させる |
 | `LibraryModel`のコピー | sceneBound / cancelExisting | 最新のコピーを優先。DB読込後にもキャンセルを確認してからpasteboardへ反映 |
 | `LibraryModel`のピン・削除・復元・完全削除 | sceneBound / ignoreNew | 操作種別と項目UUIDでIDを分ける。同じ項目の同じ処理だけ重複を抑制し、受理済みの書込は完了させる |

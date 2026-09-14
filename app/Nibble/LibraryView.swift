@@ -145,7 +145,8 @@ struct LibraryView: View {
         .animationBarrier(warnsOnLeaks: false)
         .onDisappear { model.endScreen() }
         .sensoryFeedback(.success, trigger: model.feedback)
-        .task(id: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { await model.refresh() }
+        .onAppear { model.reload() }
+        .onChange(of: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { model.reload() }
         .onChange(of: model.query) { model.limit = 100 }
         .onChange(of: model.filter) { model.limit = 100 }
         .onChange(of: scenePhase) {
