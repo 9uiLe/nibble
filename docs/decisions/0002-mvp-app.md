@@ -70,6 +70,8 @@ Swift language modeは6、strict concurrencyはcomplete、default isolationはno
 
 一覧は表示時、検索・フィルタ・取得上限の変更時、本体がactiveになった時、編集画面を閉じた時に再取得する。共有拡張からの変更も本体の再取得で取り込む。古い検索結果が遅れて返っても最新の要求を上書きしない。コピー時には一覧のプレビューではなくDBから本文を読む。
 
+非構造化処理の所有者・キャンセル・重複実行方針はTaskingで宣言する。一覧・編集・共有の所有者が`ViewTaskStore`を保持し、構造化された検索・保存APIはasyncのまま扱う。通知の表示・消去はScopedAnimationの`AnimationScope`、入力領域への伝播防止は`animationBarrier`で定義する。寿命とLintの具体的な契約は[非同期処理とアニメーションの実装規約](../library-policy.md)を参照する。
+
 ## 保存・検索・下書きの契約
 
 保存先はApp Group `group.dev.nibble.app`の`Library/snippets.sqlite`。Apple同梱SQLiteを使い、WAL、`synchronous=FULL`、2秒のbusy timeoutを設定する。schema version 1は`snippets`と`drafts`で構成し、起動時に`user_version`を確認する。未知の新しい版や破損DBはエラーとし、既存データを削除して空のストアを作り直さない。
@@ -95,6 +97,7 @@ Swift language modeは6、strict concurrencyはcomplete、default isolationはno
 | 採用 | 比較と理由 | 見直す条件 |
 | --- | --- | --- |
 | SwiftUI + Observation | 標準の一覧・入力・シートと明示的なUI状態を組み合わせる。UIKit全面実装より表示と状態管理の記述を小さく保ち、extensionの入口だけUIKitで扱う | IME・フォーカス・表示の問題を標準部品で解決できない場合 |
+| Tasking + ScopedAnimation | 画面ごとの生のTask・transaction管理と比較し、処理の所有者・寿命・重複方針と表示の適用範囲を共通APIで宣言する。exact versionとLintで入口を統一する | 保守停止、対応条件の不適合、測定した応答・描画の悪化、scopeで必要な表現を扱えない場合 |
 | Apple同梱SQLite | revision付き更新、共有ストア、下書きとのatomicな確定を直接検査できる。SwiftData/Core Dataの履歴・移行機能と比較し、SQLとmigrationを自前で管理する負担を引き受ける | 同期やschema変更が複雑になり、手動管理の負担が増す場合 |
 | 保存済み検索キー + `instr` | 1〜2文字を含む日本語の部分一致を原文保持と両立する。FTS5 trigram MATCHの短い語句の制約や派生index管理を持ち込まない | 想定データで検索が遅い、ランキングや高度な検索が必要な場合 |
 | Share Extension | hostの共有シート内で内容を確認・保存できる。キーボード切替や入力欄の制御を必要としない | 対応host・共有形式・取り込み件数を増やす場合 |
@@ -107,7 +110,7 @@ Swift language modeは6、strict concurrencyはcomplete、default isolationはno
 
 保存先ディレクトリとDBにData Protectionのcompleteを指定する。本体は非activeの一覧とbackgroundの編集画面に本文を隠す表示を重ねる。共有拡張は独立したapp sceneを持たないため、このscene状態による隠蔽を適用しない。ロック中のアクセス制御やアプリ切替画面の実際の露出は、設定・実装だけで保証しない。
 
-pasteboardの読み取りは利用者による標準ペースト操作と`PasteButton`に限定し、監視・自動取り込みをしない。本文や検索語をログ、システム検索、analyticsへ送らない。本体と共有拡張に、データ収集・tracking・第三者SDKなしのPrivacy Manifestを含める。アプリのパッケージ依存はなく、Apple SDKのみでビルドする。
+pasteboardの読み取りは利用者による標準ペースト操作と`PasteButton`に限定し、監視・自動取り込みをしない。本文や検索語をログ、システム検索、analyticsへ送らない。本体と共有拡張に、データ収集・trackingなしのPrivacy Manifestを含める。TaskingとScopedAnimationはexact versionと共有lockで固定し、両bundleにMITライセンス通知を含める。依存更新時はAPI・データフローとPrivacy Manifestの整合性を確認する。
 
 schemaを変更する場合はトランザクション内の明示的なmigrationと旧版fixtureを用意する。保存層を置き換える場合も、UUID・本文・下書き・削除状態の移行結果を照合する。WALを欠くDB本体のコピーをバックアップとして扱わない。独自のexport/import・バックアップ復旧は提供せず、アプリ削除後のデータ復旧はMVPの保証範囲外とする。
 

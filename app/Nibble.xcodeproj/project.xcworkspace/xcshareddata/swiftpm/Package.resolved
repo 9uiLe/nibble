@@ -1,0 +1,24 @@
+{
+  "originHash" : "9d0162019dbe79354e965dc492507c34203db4aa9d21093205228309a21c6bb0",
+  "pins" : [
+    {
+      "identity" : "swift-scoped-animation",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/9uiLe/swift-scoped-animation.git",
+      "state" : {
+        "revision" : "8c25b8b8eb9afdece1a7dc5b4151f65406ed80e4",
+        "version" : "0.2.1"
+      }
+    },
+    {
+      "identity" : "swift-tasking",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/9uiLe/swift-tasking.git",
+      "state" : {
+        "revision" : "4a3eeeedf37e291a7effeba08cad0cd24224d50c",
+        "version" : "0.3.0"
+      }
+    }
+  ],
+  "version" : 3
+}

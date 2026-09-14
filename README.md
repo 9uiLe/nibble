@@ -22,7 +22,7 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 | VerificationApp | 検証コマンド、文字列反映、テスト、撮影の成立を確かめるfixture | [共通の検証手順](docs/ios-verification.md)、`validation/project.json` |
 | ResearchProbe | 保存3案、検索、入力、コピー、復旧、OS連携を同じダミーデータで比較する | [設計と実行手順](validation/RESEARCH.md)、`validation/research-project.json` |
 
-本体と共有拡張はSwiftUI・Observation・Swift Concurrency・Apple同梱SQLiteで構成します。[研究資料](research/README.md)は、採用理由の根拠と比較候補を管理します。ResearchProbeの結果と製品MVPの検証結果は、それぞれの対象に限って解釈します。
+本体と共有拡張はSwiftUI・Observation・Swift Concurrency・Apple同梱SQLiteで構成します。非構造化タスクにはswift-tasking、アニメーションにはswift-scoped-animationを使い、[実装規約](docs/library-policy.md)をLintで検査します。[研究資料](research/README.md)は、採用理由の根拠と比較候補を管理します。ResearchProbeの結果と製品MVPの検証結果は、それぞれの対象に限って解釈します。
 
 | 入口 | 内容 |
 | --- | --- |
@@ -79,7 +79,7 @@ nix flake check --no-update-lock-file --print-build-logs
 
 初回はlockで固定した依存を取得します。開発シェルではPython 3・PyYAML・actionlint・ShellCheckが使え、macOSではsim-use 0.14.0も使えます。終了は `exit` です。Homebrewやpipによる個別導入は不要です。
 
-共通検査は `workflow-policy`・`nix-format`・`ios-tooling` の3つです。workflowのrunner・構文・シェル、Nix書式、iOS検証スクリプトの失敗処理を検査します。GitHub Actionsも `ubuntu-24.04` で同じlockとコマンドを使います。Apple SDKやSimulatorを使う検証は次の手順で行います。
+共通検査は `workflow-policy`・`nix-format`・`ios-tooling`・`swift-library-policy` の4つです。workflowのrunner・構文・シェル、Nix書式、iOS検証スクリプトの失敗処理、Tasking・ScopedAnimationを経由しない直接APIの使用を検査します。GitHub Actionsも `ubuntu-24.04` で同じlockとコマンドを使います。Apple SDKやSimulatorを使う検証は次の手順で行います。
 
 ### 4. Xcodeを準備する
 
@@ -96,6 +96,14 @@ xcodebuild -showsdks
 Xcodeの設定からiOS 26.5のSimulator runtimeを導入します。ビルド・テスト・操作・性能の実行検証は26.5のみを対象とし、検証記録には実際のversionとbuildを残します。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認します。
 
 Xcode・AppleのSwift・SDK・runtime・署名情報はMac側で管理します。シェルごとにXcodeを選ぶ場合は `DEVELOPER_DIR` を設定します。設定例と対応範囲は [ローカル iOS 検証](docs/ios-verification.md) を参照してください。
+
+アプリのSwift Packageはswift-tasking 0.3.0とswift-scoped-animation 0.2.1を使用し、exact versionと共有`Package.resolved`で固定します。初回はネットワーク接続のあるMacで次を実行します。ライセンス・更新方針は[依存とビルド](docs/library-policy.md#依存とビルド)を参照してください。
+
+```sh
+xcodebuild -resolvePackageDependencies \
+  -project app/Nibble.xcodeproj -scheme Nibble \
+  -clonedSourcePackagesDirPath artifacts/SourcePackages
+```
 
 ### 5. Simulatorで検証する
 
@@ -147,6 +155,7 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 | 開発シェルを起動 | `nix develop` |
 | CIと同じ検証 | `nix flake check --no-update-lock-file --print-build-logs` |
 | runner方針だけを検査 | `nix develop --command python3 scripts/check_workflows.py` |
+| Swiftライブラリ規約だけを検査 | `nix develop --command python3 scripts/check_swift_policy.py` |
 | Nix定義を整形 | `nix fmt flake.nix` |
 | iOS検証環境を確認 | `nix develop --command python3 scripts/ios.py doctor` |
 

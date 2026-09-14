@@ -1,9 +1,11 @@
 import SwiftUI
+import ScopedAnimation
 
 struct LibraryView: View {
     @State private var model = LibraryModel()
     @State private var permanentDeletion: SnippetSummary?
     @State private var showsAbout = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -47,7 +49,7 @@ struct LibraryView: View {
                 if let error = model.error {
                     Section {
                         Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.red)
-                        Button("再試行") { Task { await model.refresh() } }
+                        Button("再試行") { model.reload() }
                     }
                 }
 
@@ -107,24 +109,27 @@ struct LibraryView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                if let notice = model.notice {
-                    HStack(spacing: 16) {
-                        Label(notice, systemImage: "checkmark.circle.fill").font(.subheadline.weight(.medium))
-                            .accessibilityIdentifier("library.notice")
-                        Spacer(minLength: 0)
-                        if let id = model.undoID {
-                            Button("元に戻す") { model.restore(id) }
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 44)
-                                .accessibilityIdentifier("library.undo")
+                AnimationScope(.easeOut(duration: reduceMotion ? 0 : 0.16), value: model.notice != nil, name: "Library.Notice") {
+                    if let notice = model.notice {
+                        HStack(spacing: 16) {
+                            Label(notice, systemImage: "checkmark.circle.fill").font(.subheadline.weight(.medium))
+                                .accessibilityIdentifier("library.notice")
+                            Spacer(minLength: 0)
+                            if let id = model.undoID {
+                                Button("元に戻す") { model.restore(id) }
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(minHeight: 44)
+                                    .accessibilityIdentifier("library.undo")
+                            }
                         }
+                        .padding(.horizontal, 20).padding(.vertical, 6)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 20))
+                        .padding(.horizontal, 16).padding(.bottom, 8)
+                        .transition(.opacity)
                     }
-                    .padding(.horizontal, 20).padding(.vertical, 6)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 20))
-                    .padding(.horizontal, 16).padding(.bottom, 8)
                 }
             }
-            .sheet(item: $library.editor, onDismiss: { Task { await model.refresh() } }) { draft in
+            .sheet(item: $library.editor, onDismiss: { model.reload() }) { draft in
                 SnippetEditor(draft: draft, store: model.store)
             }
             .sheet(isPresented: $showsAbout) { AboutView() }
@@ -135,12 +140,14 @@ struct LibraryView: View {
             } message: { Text("この項目と対応する下書きは元に戻せません。") }
         }
         .tint(.nibbleAccent)
+        .detectAnimationLeaks()
+        .onDisappear { model.endScreen() }
         .sensoryFeedback(.success, trigger: model.feedback)
         .task(id: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { await model.refresh() }
         .onChange(of: model.query) { model.limit = 100 }
         .onChange(of: model.filter) { model.limit = 100 }
         .onChange(of: scenePhase) {
-            if scenePhase == .active { Task { await model.refresh() } }
+            if scenePhase == .active { model.reload() }
         }
         .onOpenURL { url in
             guard let route = AppRoute(url: url) else { return }

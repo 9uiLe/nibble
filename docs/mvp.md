@@ -43,7 +43,7 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 | 本体 / Share Extension | `dev.nibble.app` / `dev.nibble.app.share` |
 | App Group | `group.dev.nibble.app` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
-| アプリ依存 | Apple SDK。外部パッケージ依存なし |
+| アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.1（[実装規約](library-policy.md)） |
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
@@ -57,7 +57,7 @@ nix develop --command python3 scripts/ios.py run \
   --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
-Swift Testingは使い捨てのDBで、原文保持、検索、復元、競合、下書き順序、同時書込、入力エラー、未知schema、破損DB、URLの許可範囲を検査する。製品の保存層を直接呼び、利用者の保存データを使わない。
+Swift Testingは使い捨てのDBで、原文保持、検索、復元、競合、下書き順序、同時書込、入力エラー、未知schema、破損DB、URLの許可範囲、操作の重複・キャンセル、入力直後の保存・閉じる操作を検査する。製品の保存層を直接呼び、利用者の保存データを使わない。
 
 ## 基本操作の自動検証
 

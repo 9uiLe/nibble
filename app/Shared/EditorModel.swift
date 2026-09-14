@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Tasking
 
 @MainActor @Observable
 final class EditorModel {
@@ -9,6 +10,8 @@ final class EditorModel {
     var error: String?
     private(set) var conflict = false
     private let store: SnippetStore
+    @ObservationIgnored private let draftTasks = ViewTaskStore()
+    private static let persistDraft: ActionID = "editor.persistDraft"
 
     init(draft: Draft, store: SnippetStore) {
         self.draft = draft
@@ -30,11 +33,17 @@ final class EditorModel {
     private func persistChange() {
         draft.sequence += 1
         let snapshot = draft
-        Task {
+        let store = store
+        draftTasks.start(id: Self.persistDraft, lifetime: .screenBound, policy: .allowConcurrent) { [weak self] _ in
+            // Every admitted write may finish; sequence checks in SQLite select the newest one.
             do { try await store.updateDraft(snapshot) }
-            catch { if !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription } }
+            catch {
+                if let self, !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription }
+            }
         }
     }
+
+    func waitForDraftWrites() async { await draftTasks.waitForIdle() }
 
     func save(asNew: Bool = false) async -> Bool {
         guard !busy else { return false }

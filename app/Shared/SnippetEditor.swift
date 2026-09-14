@@ -1,8 +1,13 @@
 import SwiftUI
+import Tasking
+import ScopedAnimation
 
 struct SnippetEditor: View {
     @State private var model: EditorModel
     @State private var confirmsDiscard = false
+    @State private var tasks = ViewTaskStore()
+    private static var finishAction: ActionID { "editor.finish" }
+    private enum FinishOperation { case save, saveAsNew, keep, discard }
     private enum Field { case title, body }
     @FocusState private var focus: Field?
     @Environment(\.dismiss) private var dismiss
@@ -61,6 +66,7 @@ struct SnippetEditor: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding(24)
+                .animationBarrier()
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Color.nibbleCanvas)
@@ -97,12 +103,14 @@ struct SnippetEditor: View {
             .disabled(model.busy)
             .confirmationDialog("この下書きを破棄しますか？", isPresented: $confirmsDiscard, titleVisibility: .visible) {
                 Button("下書きを破棄", role: .destructive) {
-                    Task { if await model.discard() { finish() } }
+                    perform(.discard)
                 }
                 .accessibilityIdentifier("editor.confirmDiscard")
             } message: { Text("保存済みのスニペットは変わりません。") }
         }
         .tint(.nibbleAccent)
+        .detectAnimationLeaks()
+        .onDisappear { tasks.cancel(lifetime: .screenBound) }
         .interactiveDismissDisabled()
         .privacySensitive()
         .overlay {
@@ -113,11 +121,29 @@ struct SnippetEditor: View {
         }
     }
 
-    private func finish() {
-        if let complete { complete() } else { dismiss() }
+    private func perform(_ operation: FinishOperation) {
+        let editor = model
+        let completion = complete
+        let dismiss = dismiss
+        tasks.start(id: Self.finishAction, lifetime: .screenBound, policy: .ignoreNew) { cancellation in
+            try cancellation.check()
+            let succeeded: Bool
+            switch operation {
+            case .save: succeeded = await editor.save()
+            case .saveAsNew: succeeded = await editor.save(asNew: true)
+            case .keep: succeeded = await editor.keepForLater()
+            case .discard: succeeded = await editor.discard()
+            }
+            // A completed persistence operation must finish the editor even if cancellation arrived meanwhile.
+            if succeeded {
+                if let completion { completion() } else { dismiss() }
+            }
+        }
     }
-    private func close() { Task { if await model.keepForLater() { finish() } } }
-    private func save(asNew: Bool = false) { Task { if await model.save(asNew: asNew) { finish() } } }
+
+    private func close() { perform(.keep) }
+    private func save(asNew: Bool = false) { perform(asNew ? .saveAsNew : .save) }
+
 }
 
 extension Color {

@@ -58,6 +58,15 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
       checks = forAllSystems (pkgs: {
+        swift-library-policy =
+          pkgs.runCommand "nibble-swift-library-policy"
+            {
+              nativeBuildInputs = [ pkgs.python3 ];
+            }
+            ''
+              python3 ${./scripts/check_swift_policy.py} --root ${./.}
+              touch "$out"
+            '';
         ios-tooling =
           pkgs.runCommand "nibble-ios-tooling"
             {

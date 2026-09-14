@@ -29,7 +29,7 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 
 | ツール | 用途 |
 | --- | --- |
-| Python 3 | workflow方針の検査、iOS検証スクリプト、スクリプトのテスト |
+| Python 3 | workflow・Swiftライブラリ方針の検査、iOS検証スクリプト、スクリプトのテスト |
 | PyYAML | workflowのYAML読込 |
 | actionlint + ShellCheck | GitHub Actionsの構文・式・埋め込みシェルの検査 |
 | nixfmt（`nix fmt`経由） | Nix定義の整形 |
@@ -55,6 +55,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
+| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation利用、直接APIの禁止 |
 | `ios-tooling` | 端末選択、失敗伝播、テスト結果判定、録画終了処理などのPythonテスト |
 
 共通検査はApple SDKやSimulatorを起動しない。iOSの検証は [ローカル iOS 検証](docs/ios-verification.md) のコマンドを使う。
@@ -66,6 +67,12 @@ nix flake check --no-update-lock-file --print-build-logs
 - nixpkgsの更新は `nix flake update nixpkgs` を使い、lock差分、ツール互換性、macOSとLinuxの検証結果をPRに記録する。通常のCIとセットアップではlockを更新しない。
 - Nix定義を変更したら `nix fmt flake.nix` と共通検査を実行する。依存更新は単一目的のPRにし、定義とlockを一緒に戻せる状態にする。
 - アプリのSwift Package依存を使用する場合は `Package.resolved` を共有する。Nixの補助ツール管理とは責務を分ける。
+
+## 非同期処理とアニメーション
+
+非構造化タスクの開始・保持はswift-tasking、アプリで指定するアニメーションはswift-scoped-animationに統一する。`ViewTaskStore` / `TaskSlot`で所有者・寿命・重複実行を定義し、`AnimationScope` / `animationBarrier`で適用範囲を定義する。[実装規約](docs/library-policy.md)を本体・共有拡張・テスト・研究用Swiftに適用する。
+
+生のTask生成、DispatchQueue等の別scheduler、`withAnimation`・`.animation`・直接のtransaction操作はLintで禁止する。構造化されたasync/await・task group・SwiftUI `.task`と協調用のTask APIは許可する。抑制コメントで回避せず、新しい入口を追加する場合は規則と回帰テストを更新する。
 
 ## ローカルとクラウドの責務
 
@@ -124,7 +131,7 @@ UI/UXに影響する変更は、内部実装の変更も含めて対象導線を
 
 モダンな技術を候補として評価し、プロダクトの体験と継続的な開発を支える適性で判断する。OS/API制約、性能、保守・運用、移行の負担を比較し、新しさだけを採用理由にしない。
 
-製品MVPはSwiftUI・Observation・Swift Concurrency・Swift Testing・Apple同梱SQLite・Share Extensionを採用する。App Intents、キーボード、保存・同期方式等を見直す場合は[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
+製品MVPはSwiftUI・Observation・Swift Concurrency・Tasking・ScopedAnimation・Swift Testing・Apple同梱SQLite・Share Extensionを採用する。App Intents、キーボード、保存・同期方式等を見直す場合は[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
 
 変更負担の大きい選択は、小さな試作で比較し、`docs/decisions/NNNN-短い名前.md` に設計判断（ADR）を記録する。
 
