@@ -46,7 +46,7 @@ nix develop --command python3 scripts/ios.py create \
   --name 'nibble Verification 26.5'
 ```
 
-`create` は実行ごとに新しい端末を作る。出力されたUDIDを保存し、再利用時は同じUDIDを指定する。UDIDは端末の一意な識別子であり、同名のSimulatorも区別できる。名前や暗黙の `booted` を操作対象に使わない。
+`create` は実行ごとに新しい端末を作る。作成・実行とも共通CLIがruntime 26.5以外を拒否する。出力されたUDIDを保存し、再利用時は同じUDIDを指定する。UDIDは端末の一意な識別子であり、同名のSimulatorも区別できる。名前や暗黙の `booted` を操作対象に使わない。
 
 ```sh
 export NIBBLE_SIMULATOR='対象SimulatorのUDID'
@@ -119,6 +119,7 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 | ファイル | 内容 |
 | --- | --- |
 | `manifest.json` | 実行成否、コミット、未コミット状態、ファイルSHA-256、ツール・端末・runtime、コマンドと終了コード |
+| `review.json` | 確認した媒体のhash、目視の方法・観測・限界、安定した添付URL、ブラウザーでの閲覧確認の申告 |
 | `*.log` / `*.stderr.log` | stdout / stderr。失敗時の出力も保存 |
 | `build.xcresult` / `test.xcresult` | Xcodeの結果bundle。Xcodeで開いて調査できる |
 | `test-summary.json` / `attachments/` | テスト件数・成否とテストに含まれる添付物。Swift Testingだけの場合は画像添付がないこともある |
@@ -129,6 +130,8 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 | `REVIEW.md` | 実行情報と、画像・動画の確認結果・PR添付先の記入欄 |
 
 レビューでは画像と動画を開き、表示、操作、時間経過を確認する。確認した内容・残る問題・添付先を `REVIEW.md` に記録し、必要な証跡をPRへアップロードするか、レビュー担当者が閲覧できる保存先へ置く。
+
+runは開始・終了時の検証入力と媒体のSHA-256を保存し、実行中のソース変更を失敗として扱う。[証跡とPRの検査](review-evidence.md)に従い、`check_evidence.py`でコミット・媒体とレビュー申告を照合し、`review.json`から`REVIEW.md`を生成する。
 
 **コマンド成功、ファイル生成、動画のデコード、ローカルパスの記載だけでは、画面レビューとPR添付の完了にはならない。** 未実施の条件を記録し、公開するログ・画像・動画に個人情報や秘密情報が含まれないことを確認する。
 

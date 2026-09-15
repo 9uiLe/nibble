@@ -83,7 +83,7 @@ nix develop
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、tree-sitter-language-pack、actionlint、ShellCheckが入り、macOSではsim-use 0.14.0も使えます。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
+以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLIが入り、macOSではsim-use 0.14.0も使えます。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
 
 | 共通検査 | 確認する内容 |
 | --- | --- |
@@ -91,6 +91,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | 端末選択、失敗処理、テスト判定、録画終了処理、Swift規約の回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
+| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、実装規約のSwift記載例 |
 
 GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。
 
@@ -173,7 +174,11 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 | CIと同じ検査 | `nix flake check --no-update-lock-file --print-build-logs` |
 | runner方針の検査 | `nix develop --command python3 scripts/check_workflows.py` |
 | Swift規約の検査 | `nix develop --command python3 scripts/check_swift_policy.py` |
+| 文書の検査 | `nix develop --command python3 scripts/check_docs.py` |
+| PRのコミット表生成 | `nix develop --command python3 scripts/check_pr.py commits --base origin/main` |
 | Nix定義の整形 | `nix fmt flake.nix` |
 | iOS検証環境の確認 | `nix develop --command python3 scripts/ios.py doctor` |
 
 依存の追加・更新は[開発ツールの管理](CONTRIBUTING.md#開発ツールの管理)、実装・証跡・PRは[開発ガイド](CONTRIBUTING.md)に従います。
+
+runのソースと画像・動画の照合、レビュー記録、PR本文の検査は[証跡とPRの検査](docs/review-evidence.md)を参照してください。GitHubを使う場合はNix内の`gh auth status`で認証状態を確認します。通常の共通検査にGitHub認証は不要です。エージェント向けの判断基準は[AGENTS.md](AGENTS.md)、検証・PRの手順は[共有Skill](.agents/skills/nibble-verification/SKILL.md)にまとめています。

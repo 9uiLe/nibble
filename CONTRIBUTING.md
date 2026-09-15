@@ -31,6 +31,8 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 | --- | --- |
 | Python 3 | workflow・Swiftライブラリ方針の検査、iOS検証スクリプト、スクリプトのテスト |
 | PyYAML | workflowのYAML読込 |
+| markdown-it-py | Markdownのリンク・見出し・コードブロックを解析する文書検査 |
+| Git / GitHub CLI | 検証ソースの照合、PRの全コミット・本文・現在headの確認 |
 | tree-sitter-language-pack | Swift構文木によるタスク開始・View比較境界の検査 |
 | actionlint + ShellCheck | GitHub Actionsの構文・式・埋め込みシェルの検査 |
 | nixfmt（`nix fmt`経由） | Nix定義の整形 |
@@ -58,8 +60,11 @@ nix flake check --no-update-lock-file --print-build-logs
 | `nix-format` | Nix定義の書式 |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros利用、直接APIの禁止、開始・比較境界の構文検査 |
 | `ios-tooling` | 端末選択、失敗伝播、テスト結果判定、録画終了処理、Swift規約のPython回帰テスト |
+| `documentation` | Markdownの相対リンクと見出し、共有Skillのメタデータ、実装規約のSwift記載例 |
 
 共通検査はApple SDKやSimulatorを起動しない。iOSの検証は [ローカル iOS 検証](docs/ios-verification.md) のコマンドを使う。
+
+ローカルのrun・媒体・レビュー記録は`check_evidence.py`、PR本文と全コミットは`check_pr.py`で照合する。[証跡とPRの検査](docs/review-evidence.md)を参照する。PRイベントのCIは本文も検査し、本文編集で再実行する。共通のNix検査はネットワークやPRを必要としない。
 
 ### 依存の追加・更新
 
@@ -109,7 +114,7 @@ Apple SDKから独立した検査を追加する場合は、Linuxで動作する
 - Actionやスクリプトから別のmacOSジョブを起動する迂回も禁止する。
 - 外部ActionはコミットSHAで固定し、更新時に実行内容と互換性を確認する。
 - `Workflow policy / workflow-policy` の結果は共通検査の保証範囲に限定する。iOSのビルド・テストを保証するものではない。
-- 方針検査はworkflow起動前にrunnerを遮断する仕組みではないため、workflowの差分を必ずレビューする。ブランチ保護を設定する際は、このチェックを必須にする。
+- 方針検査はworkflow起動前にrunnerを遮断する仕組みではないため、workflowの差分を必ずレビューする。mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`成功を必須とし、バイパスを設けない。[実効ルールの確認](docs/review-evidence.md#githubの必須チェック)も行う。
 
 ## UI/UXと性能の確認
 
@@ -170,3 +175,5 @@ UI/UXに影響する変更は、内部実装の変更も含めて対象導線を
 - アウトカムは利用者・開発者に可能になることと達成条件、検証結果は対象コミット・環境・コマンド・結果を記す。未実施や対象外には理由を書く。
 - UI/UX・性能に影響する修正後は再検証し、証跡を更新する。証跡取得後に関連しない変更だけを行った場合は、その範囲を記録する。
 - マージ前にCI成功、必要なローカル検証、閲覧可能な証跡、PR本文と最終差分の一致を確認する。
+
+PR本文は`check_pr.py commits`で生成した全コミット表を基に作成し、`local --complete`で照合する。公開後は`remote --complete --check-ci`で現在headを確認する。CIの成功は必要条件であり、証跡の閲覧や未実施条件の判断はレビューで行う。エージェントの再利用手順は[共有Skill](.agents/skills/nibble-verification/SKILL.md)に定義する。
