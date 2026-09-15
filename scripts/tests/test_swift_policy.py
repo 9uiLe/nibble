@@ -153,6 +153,7 @@ class SwiftPolicyTests(unittest.TestCase):
         source = '@MainActor class ExampleTaskOwner { private let taskSlot = TaskSlot(); func save() async { await taskSlot.replace { await work() } } }'
         self.assertTrue(violations(source))
         self.assertEqual(violations('func replace(_ value: Int) {}\nfunc save() { store.replace(1) }'), [])
+        self.assertTrue(violations('@MainActor class BothTaskOwner { private let tasks = ViewTaskStore(); private let taskSlot = TaskSlot(); func startTask() async { tasks.start(id: id) { await work() } } }'))
 
     def test_task_boundaries_in_interpolations_are_not_ignored(self):
         for body in [r'func save() { let x = "value \(startTask())" }',
@@ -164,8 +165,9 @@ class SwiftPolicyTests(unittest.TestCase):
         self.assertTrue(violations('actor Database { isolated deinit { owner.startTask() } }'))
 
     def test_unsupported_or_malformed_syntax_fails_closed(self):
-        with self.assertRaises(ValueError):
-            violations('struct Broken: View { func load( { }')
+        for source in ['struct Broken: View { func load( { }', 'struct Broken {']:
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                violations(source)
 
     def test_comments_strings_raw_strings_and_regex_are_not_code(self):
         source = r'''

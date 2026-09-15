@@ -21,7 +21,7 @@ def text(node):
 
 def walk(node):
     yield node
-    for child in node.named_children:
+    for child in node.children:
         yield from walk(child)
 
 
@@ -113,7 +113,7 @@ def event_closure(node):
     return callee in {"sheet", "fullScreenCover"} and label == "onDismiss"
 
 
-def start_context(node):
+def start_context(node, storage=None):
     scope = ancestor(node, SCOPES)
     if not scope:
         return False
@@ -125,7 +125,7 @@ def start_context(node):
         return owner_kind(node) in {"view", "controller"} and event_closure(scope)
     if scope.type == "function_declaration":
         if name(scope) == "startTask":
-            return True
+            return storage != "tasks" or not is_async(scope)
         return (owner_kind(node) == "controller" and name(scope) in {"viewDidLoad", "viewDidAppear", "viewWillAppear"}
                 and "override" in text(scope).split("func", 1)[0].split() and not is_async(scope))
     return False
@@ -188,7 +188,7 @@ def boundary_violations(source, tokens):
             call = navigation.parent
             if call.type != "call_expression" or call.named_children[0] != navigation or member not in MEMBERS[value]:
                 reject(node, "Use direct supported Tasking calls; method references and aliases are prohibited.")
-            elif member in {"start", "replace"} and not start_context(node):
+            elif member in {"start", "replace"} and not start_context(node, storage=value):
                 reject(node, "Task creation is allowed only at explicit startTask, UI event/lifecycle, or @Test boundaries; operations must await their work.")
         elif value == "startTask":
             if node.parent.type == "function_declaration" and node == node.parent.child_by_field_name("name"):
