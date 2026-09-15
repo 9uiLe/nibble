@@ -239,10 +239,10 @@ struct HostedTests {
 
     @Test func staleSearchAndDatasetTiming() async throws {
         let search = SearchProbe()
-        let older = Task { await search.search("古い", values: [sample], delay: .milliseconds(80)) }
+        async let older: Void = search.search("古い", values: [sample], delay: .milliseconds(80))
         while search.generation == 0 { await Task.yield() }
         await search.search("定型", values: [sample], delay: .zero)
-        await older.value
+        await older
         #expect(search.ids == [sample.id])
         var timings: [String: [Double]] = [:]
         for count in [0, 20, 1_000, 10_000] {

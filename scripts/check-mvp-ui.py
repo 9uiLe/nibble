@@ -5,6 +5,7 @@ import argparse
 import json
 import time
 from types import SimpleNamespace
+from uuid import uuid4
 
 from ios import Run, XCRUN, VerificationError
 
@@ -16,6 +17,7 @@ def main():
     run = Run(SimpleNamespace(command="mvp-ui", device=args.device, configuration="Release",
                               project_config="app/project.json"))
     body = "  日本語 か\u3099\n\t👩🏽‍💻 <code>  "
+    title = "日本語コピー " + uuid4().hex[:8]
     error = None
 
     def label(text):
@@ -49,31 +51,38 @@ def main():
         with run.device_lock():
             run.launch()
             before = run.ui("before")
-            existing = identifiers(before)
             run.screenshot("before")
             with run.recording():
                 run.tap("library.add")
                 run.ui("new-editor")
-                paste("editor.title", "本文をそのままコピー")
+                paste("editor.title", title)
                 paste("editor.body", body)
                 run.tap("editor.save")
-                data = wait_ui("saved", lambda data: any(v.startswith("snippet.") for v in identifiers(data) - existing))
-                added = [value for value in identifiers(data) - existing if value.startswith("snippet.")]
+                wait_ui("saved", lambda data: "library.search" in identifiers(data))
+                # Identify this run's item through a unique Japanese search term.
+                # A visible-row difference can mistake an older, newly revealed row
+                # for the saved item when the keyboard or existing pins change layout.
+                paste("library.search", title)
+                data = wait_ui("searched", lambda data: any(
+                    e.get("uniqueId", "").startswith("snippet.") and e.get("label") == title
+                    for e in data["entries"]))
+                added = [e["uniqueId"] for e in data["entries"]
+                         if e.get("uniqueId", "").startswith("snippet.") and e.get("label") == title]
                 if len(added) != 1:
-                    raise VerificationError("Expected one new snippet; close/discard any existing new-item draft first")
+                    raise VerificationError("Expected exactly one item for this run's unique search term")
                 row = added[0]
                 snippet_id = row.removeprefix("snippet.")
                 run.tap("copy." + snippet_id)
                 copied = run.command([XCRUN, "simctl", "pbpaste", args.device], "copied")
                 if copied != body:
                     raise VerificationError("Copied UTF-8 text differs from input")
-                paste("library.search", "日本")
-                if row not in identifiers(wait_ui("searched", lambda data: row in identifiers(data))):
-                    raise VerificationError("Japanese query did not find the saved snippet")
                 run.tap("library.search.clear")
+                wait_ui("search-cleared", lambda data: "library.search.clear" not in identifiers(data))
+                paste("library.search", title)
+                wait_ui("searched-again", lambda data: row in identifiers(data))
                 run.tap("library.keyboard.dismiss")
                 wait_ui("search-dismissed", lambda data: row in identifiers(data)
-                        and "Return" not in identifiers(data) and "library.search.clear" not in identifiers(data))
+                        and "Return" not in identifiers(data))
                 time.sleep(0.35)
                 run.tap(row)
                 wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
@@ -103,7 +112,7 @@ def main():
             run.tap("editor.confirmDiscard")
             run.ui("finished")
             run.manifest["assertions"] = {
-                "created_id": snippet_id, "copy_utf8_exact": True, "japanese_search": True,
+                "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "data": "Dummy text only; existing snippets are retained",
             }

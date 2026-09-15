@@ -17,27 +17,28 @@ final class EditorModel {
 
     var title: String {
         get { draft.title }
-        set { draft.title = newValue; persistChange() }
+        set { draft.title = newValue; draft.sequence += 1 }
     }
 
     var body: String {
         get { draft.body }
-        set { draft.body = newValue; persistChange() }
+        set { draft.body = newValue; draft.sequence += 1 }
     }
 
     var canSave: Bool { !busy && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    private func persistChange() {
-        draft.sequence += 1
-        let snapshot = draft
-        Task {
-            do { try await store.updateDraft(snapshot) }
-            catch { if !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription } }
+    func persist(_ snapshot: Draft) async {
+        guard !finished, snapshot.id == draft.id else { return }
+        // An admitted SQLite write finishes even when the view task is cancelled.
+        // Sequence checks choose the latest snapshot and never recreate a removed draft.
+        do { try await store.updateDraft(snapshot) }
+        catch {
+            if !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription }
         }
     }
 
     func save(asNew: Bool = false) async -> Bool {
-        guard !busy else { return false }
+        guard !Task.isCancelled, !busy, !finished else { return false }
         busy = true
         defer { busy = false }
         do {
@@ -52,7 +53,7 @@ final class EditorModel {
     }
 
     func keepForLater() async -> Bool {
-        guard !busy else { return false }
+        guard !Task.isCancelled, !busy, !finished else { return false }
         busy = true
         defer { busy = false }
         do {
@@ -66,7 +67,7 @@ final class EditorModel {
     }
 
     func discard() async -> Bool {
-        guard !busy else { return false }
+        guard !Task.isCancelled, !busy, !finished else { return false }
         busy = true
         defer { busy = false }
         do {

@@ -43,7 +43,7 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 | 本体 / Share Extension | `dev.nibble.app` / `dev.nibble.app.share` |
 | App Group | `group.dev.nibble.app` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
-| アプリ依存 | Apple SDK。外部パッケージ依存なし |
+| アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.1（[実装規約](library-policy.md)） |
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
@@ -57,7 +57,15 @@ nix develop --command python3 scripts/ios.py run \
   --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
-Swift Testingは使い捨てのDBで、原文保持、検索、復元、競合、下書き順序、同時書込、入力エラー、未知schema、破損DB、URLの許可範囲を検査する。製品の保存層を直接呼び、利用者の保存データを使わない。
+Swift Testingでは使い捨てのDBと製品のモデル・保存層を使用する。利用者の保存データを試験へ流用しない。
+
+| 検査する契約 | 確認方法 |
+| --- | --- |
+| 保存と検索 | 原文保持、日本語・記号の検索、復元、競合、同時書込、入力上限、未知schema・破損DBを照合 |
+| 操作の完了 | モデルのasync APIを直接awaitし、戻った時点のDB・表示状態を照合 |
+| 入力と下書き | setterがDBを書き換えないこと、不変snapshotとsequenceの順序、入力直後の保存・閉じる、保存・破棄後の遅延書込を照合 |
+| UIのタスク所有 | `LibraryTaskOwner`で重複抑止・寿命・キャンセルを検査。所有者の終了待ちを使用 |
+| 通知と入口 | コピーと独立した通知期限、キャンセル・IDの不一致、URLの許可範囲を検査 |
 
 ## 基本操作の自動検証
 
@@ -67,7 +75,7 @@ Swift Testingは使い捨てのDBで、原文保持、検索、復元、競合�
 nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-driverはダミー項目を作成し、コピー・日本語検索・編集画面・ピン留め・削除・復元・下書き破棄を操作する。コピーのUTF-8と復元後のUUIDを照合する。既存の項目は削除しない。行を開く前にキーボードを閉じ、一覧の配置が確定してから操作する。
+driverはダミー項目を作成し、コピー・日本語検索・編集画面・ピン留め・削除・復元・下書き破棄を操作する。実行ごとに一意な日本語タイトルを使い、検索で対象行を特定してコピーのUTF-8と復元後のUUIDを照合する。既存の項目は削除しない。行を開く前にキーボードを閉じ、一覧の配置が確定してから操作する。
 
 ## 共有とペーストの検証
 
@@ -100,6 +108,18 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 | 共有 | Safariからテキスト・URLを取り込み、本体でコピーして入力先へペーストできる |
 | 呼び出し | 標準URLアクションから一覧・作成画面を開き、編集中の内容を置き換えない |
 
+### タスクの寿命とアニメーション
+
+一覧・編集・共有の所有者と重複方針は[製品設計](decisions/0002-mvp-app.md#操作の寿命と整合性)、禁止APIと診断の使い方は[実装規約](library-policy.md)に従う。以下の手順ではTaskingとScopedAnimationを使う製品の境界を確認する。
+
+1. 保存済み項目のある状態で本体プロセスを終了・再起動し、同じUUIDの項目が一覧に出ることを確認する。シートの開閉とbackgroundからの復帰でも一覧を確認する。
+2. 同じ操作の連打と別項目への連続操作を行い、重複する編集画面や下書きができず、別項目の操作は受理されることを確認する。入力直後に保存・閉じる操作を行い、最新本文と下書きを照合する。
+3. Settingsの「視差効果を減らす」を無効・有効にしてselected状態を確認する。それぞれでコピー通知の表示と消去、編集の開閉を撮影する。最後のコピーから2秒で通知が消える設計に対し、自動操作では2.3秒後の表示状態を照合する。通知の遷移指定は通常0.16秒、有効時0秒とする。
+4. Debug実行では、内部の`detectAnimationLeaks`・入力barrierと、Taskingの未処理エラーの診断を確認する。OSのシートtransactionは画面外側のbarrierで遮断する。診断が届く位置と実行した導線を記録する。
+5. 検証終了後に表示設定を実行前の状態へ戻す。操作・画像・録画・診断の対象ソースと実施範囲を記録する。[非同期API境界の検証記録](async-policy-validation.md)に結果の記載例がある。
+
+## 証跡と検証範囲
+
 画面読取・入力・操作はNixのsim-use、撮影はAppleの`simctl io screenshot / recordVideo`を使う。[共通手順](ios-verification.md#スクリーンショットと画面録画)に従い、ログ・画像・動画をGit管理対象外の`artifacts/`へ保存する。`REVIEW.md`へ実際の確認範囲を記入し、対象コミット・端末・OS・手順を付けてPRへ添付する。
 
-MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含めない。実機のロック時保護・性能・触覚・Handoff・署名配布は個別の評価が必要である。VoiceOver、横向き、Reduce Motion、長時間利用、1 MB本文の入力追従などの未検証項目は[検証結果の制約](mvp-validation.md#検証範囲の制約)を参照する。
+MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含めない。実機のロック時保護・性能・触覚・Handoff・署名配布は個別の評価が必要である。VoiceOver、横向き、長時間利用、1 MB本文の入力追従の未検証条件と、Reduce Motionの確認済み範囲は[検証結果の制約](mvp-validation.md#検証範囲の制約)を参照する。

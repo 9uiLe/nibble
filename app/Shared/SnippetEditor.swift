@@ -1,8 +1,13 @@
 import SwiftUI
+import Tasking
+import ScopedAnimation
 
 struct SnippetEditor: View {
     @State private var model: EditorModel
     @State private var confirmsDiscard = false
+    @State private var tasks = ViewTaskStore()
+    private static var finishAction: ActionID { "editor.finish" }
+    private enum FinishOperation { case save, saveAsNew, keep, discard }
     private enum Field { case title, body }
     @FocusState private var focus: Field?
     @Environment(\.dismiss) private var dismiss
@@ -16,6 +21,7 @@ struct SnippetEditor: View {
 
     var body: some View {
         @Bindable var editor = model
+        let snapshot = model.draft
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -53,7 +59,7 @@ struct SnippetEditor: View {
                             .foregroundStyle(.red).font(.callout)
                             .accessibilityIdentifier("editor.error")
                         if model.conflict {
-                            Button("新しい項目として保存") { save(asNew: true) }
+                            Button("新しい項目として保存") { startTask(.saveAsNew) }
                                 .buttonStyle(.borderedProminent)
                         }
                     }
@@ -61,6 +67,7 @@ struct SnippetEditor: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding(24)
+                .animationBarrier()
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Color.nibbleCanvas)
@@ -68,11 +75,11 @@ struct SnippetEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる", systemImage: "xmark") { close() }
+                    Button("閉じる", systemImage: "xmark") { startTask(.keep) }
                         .accessibilityIdentifier("editor.close")
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存", systemImage: "checkmark") { save() }
+                    Button("保存", systemImage: "checkmark") { startTask(.save) }
                         .fontWeight(.semibold)
                         .disabled(!model.canSave)
                         .accessibilityIdentifier("editor.save")
@@ -97,12 +104,19 @@ struct SnippetEditor: View {
             .disabled(model.busy)
             .confirmationDialog("この下書きを破棄しますか？", isPresented: $confirmsDiscard, titleVisibility: .visible) {
                 Button("下書きを破棄", role: .destructive) {
-                    Task { if await model.discard() { finish() } }
+                    startTask(.discard)
                 }
                 .accessibilityIdentifier("editor.confirmDiscard")
             } message: { Text("保存済みのスニペットは変わりません。") }
         }
         .tint(.nibbleAccent)
+        .detectAnimationLeaks()
+        // Keep native presentation transactions outside app content; local scopes own its animation.
+        .animationBarrier(warnsOnLeaks: false)
+        .task(id: snapshot.sequence) {
+            if snapshot.sequence > 0 { await model.persist(snapshot) }
+        }
+        .onDisappear { tasks.cancel(lifetime: .screenBound) }
         .interactiveDismissDisabled()
         .privacySensitive()
         .overlay {
@@ -113,11 +127,27 @@ struct SnippetEditor: View {
         }
     }
 
-    private func finish() {
-        if let complete { complete() } else { dismiss() }
+    private func startTask(_ operation: FinishOperation) {
+        let editor = model
+        let completion = complete
+        let dismiss = dismiss
+        tasks.start(id: Self.finishAction, lifetime: .screenBound, policy: .ignoreNew) { cancellation in
+            try cancellation.check()
+            let succeeded: Bool
+            switch operation {
+            case .save: succeeded = await editor.save()
+            case .saveAsNew: succeeded = await editor.save(asNew: true)
+            case .keep: succeeded = await editor.keepForLater()
+            case .discard: succeeded = await editor.discard()
+            }
+            // A completed persistence operation must finish the editor even if cancellation arrived meanwhile.
+            if succeeded {
+                if let completion { completion() } else { dismiss() }
+            }
+        }
     }
-    private func close() { Task { if await model.keepForLater() { finish() } } }
-    private func save(asNew: Bool = false) { Task { if await model.save(asNew: asNew) { finish() } } }
+
+
 }
 
 extension Color {

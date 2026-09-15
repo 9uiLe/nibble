@@ -94,7 +94,7 @@ actor SnippetStore {
         let db = try database()
         let id = asNew ? UUID() : (draft.snippetID ?? UUID())
         let key = SnippetText.searchKey(draft.title + "\n" + draft.body)
-        try db.transaction {
+        try db.writeTransaction {
             guard try !db.rows("SELECT id FROM drafts WHERE id=?", [.text(draft.id.uuidString)], map: { $0.text(0) }).isEmpty else {
                 throw StoreError.missing
             }
@@ -126,7 +126,7 @@ actor SnippetStore {
 
     func permanentlyDelete(_ id: UUID) throws {
         let db = try database()
-        try db.transaction {
+        try db.writeTransaction {
             try db.execute("DELETE FROM snippets WHERE id=? AND deleted=1", [.text(id.uuidString)])
             guard db.changes == 1 else { throw StoreError.missing }
             try db.execute("DELETE FROM drafts WHERE snippet_id=?", [.text(id.uuidString)])
@@ -160,7 +160,7 @@ private final class Database {
         try execute("PRAGMA journal_mode=WAL")
         try execute("PRAGMA synchronous=FULL")
         if version == 0 {
-            try transaction {
+            try writeTransaction {
                 try execute("CREATE TABLE IF NOT EXISTS snippets(id TEXT PRIMARY KEY,title TEXT NOT NULL,body TEXT NOT NULL,search_key TEXT NOT NULL,pinned INTEGER NOT NULL,revision INTEGER NOT NULL,updated REAL NOT NULL,deleted INTEGER NOT NULL)")
                 try execute("CREATE INDEX IF NOT EXISTS snippets_order ON snippets(deleted,pinned DESC,updated DESC,id)")
                 try execute("CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY,snippet_id TEXT NOT NULL,base_revision INTEGER NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,sequence INTEGER NOT NULL,updated REAL NOT NULL)")
@@ -172,7 +172,7 @@ private final class Database {
 
     deinit { sqlite3_close_v2(handle) }
 
-    func transaction<T>(_ work: () throws -> T) throws -> T {
+    func writeTransaction<T>(_ work: () throws -> T) throws -> T {
         try execute("BEGIN IMMEDIATE")
         do {
             let result = try work()

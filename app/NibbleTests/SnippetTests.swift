@@ -1,5 +1,7 @@
 import Foundation
+import UIKit
 import Testing
+import Tasking
 import SQLite3
 @testable import Nibble
 
@@ -200,5 +202,220 @@ struct SnippetTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: measurements, options: [.prettyPrinted, .sortedKeys])
             .write(to: directory.appending(path: "mvp-search-timing.json"))
+    }
+}
+
+@Suite("Owned UI actions", .serialized)
+@MainActor
+struct OwnedActionTests {
+    @Test func backgroundDoesNotCancelTheSceneReload() async throws {
+        let store = SnippetStore(location: try location())
+        let id = try await create(store, body: "起動後も表示する本文")
+        let library = LibraryModel(store: store)
+        let owner = LibraryTaskOwner()
+        owner.startTask(.refresh, on: library)
+        // Transient presentation actions stop in background; an admitted scene read can finish.
+        owner.endScreen()
+        await owner.waitForIdle()
+        #expect(library.items.map(\.id) == [id])
+        #expect(!library.loading)
+        #expect(library.error == nil)
+    }
+
+    @Test func repeatedOpenCreatesOnlyOneDraft() async throws {
+        let store = SnippetStore(location: try location())
+        let library = LibraryModel(store: store)
+        let owner = LibraryTaskOwner()
+        let first = owner.startTask(.open(nil), on: library)
+        let duplicate = owner.startTask(.open(nil), on: library)
+        #expect(first.run != nil)
+        #expect(duplicate.skipReason == .alreadyRunning)
+        await owner.waitForIdle()
+        #expect(library.editor != nil)
+        #expect(try await store.drafts().count == 1)
+    }
+
+    @Test func cancelledScreenOpenDoesNotBlockTheNextOpen() async throws {
+        let store = SnippetStore(location: try location())
+        let library = LibraryModel(store: store)
+        let owner = LibraryTaskOwner()
+        owner.startTask(.open(nil), on: library)
+        owner.endScreen()
+        await owner.waitForIdle()
+        #expect(library.editor == nil)
+        #expect(try await store.drafts().isEmpty)
+        owner.startTask(.open(nil), on: library)
+        await owner.waitForIdle()
+        #expect(library.editor != nil)
+        #expect(try await store.drafts().count == 1)
+    }
+
+    @Test func duplicatePolicyDoesNotDropActionsForDifferentItems() async throws {
+        let store = SnippetStore(location: try location())
+        _ = try await create(store, body: "first")
+        _ = try await create(store, body: "second")
+        let items = try await store.search()
+        let library = LibraryModel(store: store)
+        let owner = LibraryTaskOwner()
+        owner.startTask(.pin(items[0]), on: library)
+        owner.startTask(.pin(items[0]), on: library)
+        owner.startTask(.pin(items[1]), on: library)
+        await owner.waitForIdle()
+        #expect(try await store.search(filter: .pinned).count == 2)
+        #expect(library.error == nil)
+    }
+
+    @Test func rapidInputAndSaveKeepLatestTextWithoutResurrectingDraft() async throws {
+        let store = SnippetStore(location: try location())
+        let draft = try await store.beginDraft()
+        let editor = EditorModel(draft: draft, store: store)
+        for number in 0..<30 { editor.body = "日本語 \(number)" }
+        #expect(await editor.save())
+        let item = try #require(try await store.search().first)
+        #expect(try await store.snippet(item.id).body == "日本語 29")
+        #expect(try await store.drafts().isEmpty)
+    }
+
+    @Test func rapidInputCanResumeAfterClose() async throws {
+        let url = try location()
+        let store = SnippetStore(location: url)
+        let draft = try await store.beginDraft()
+        let editor = EditorModel(draft: draft, store: store)
+        for number in 0..<30 { editor.body = "下書き \(number)" }
+        #expect(await editor.keepForLater())
+        let reopened = SnippetStore(location: url)
+        #expect(try await reopened.drafts().first?.body == "下書き 29")
+        #expect(try await reopened.search().isEmpty)
+    }
+}
+
+@Suite("Awaitable operations", .serialized)
+@MainActor
+struct AwaitableOperationTests {
+    @Test func directAwaitCompletesEachLibraryOperation() async throws {
+        let store = SnippetStore(location: try location())
+        let library = LibraryModel(store: store)
+        await library.open()
+        let draft = try #require(library.editor)
+        let editor = EditorModel(draft: draft, store: store)
+        editor.title = "直接待機"
+        editor.body = "  日本語\n👩🏽‍💻  "
+        #expect(await editor.save())
+        await library.refresh()
+        let item = try #require(library.items.first)
+        await library.copy(item.id)
+        #expect(UIPasteboard.general.string == editor.body)
+        #expect(library.notice == "コピーしました") // Copy does not wait for notice expiry.
+        await library.pin(item)
+        #expect(library.items.first?.pinned == true)
+        await library.delete(item.id)
+        #expect(library.items.isEmpty)
+        #expect(library.undoID == item.id)
+        await library.restore(item.id)
+        #expect(library.items.first?.id == item.id)
+        await library.delete(item.id)
+        await library.permanentlyDelete(item.id)
+        #expect(try await store.search(filter: .trash).isEmpty)
+        #expect(library.error == nil)
+    }
+
+    @Test func settersOnlyChangeMemoryAndPersistenceIsAwaitable() async throws {
+        let store = SnippetStore(location: try location())
+        let editor = EditorModel(draft: try await store.beginDraft(), store: store)
+        editor.body = "最初"
+        let older = editor.draft
+        editor.body = "最新"
+        let newest = editor.draft
+        #expect(try await store.drafts().first?.body == "")
+        await editor.persist(newest)
+        await editor.persist(older)
+        #expect(try await store.drafts().first?.body == "最新")
+    }
+
+    @Test func admittedAutosaveAndImmediateSaveCannotResurrectDraft() async throws {
+        let store = SnippetStore(location: try location())
+        let editor = EditorModel(draft: try await store.beginDraft(), store: store)
+        editor.body = "途中"
+        let snapshot = editor.draft
+        async let autosave: Void = editor.persist(snapshot)
+        editor.body = "保存する最新値"
+        #expect(await editor.save())
+        await autosave
+        await editor.persist(snapshot)
+        #expect(try await store.drafts().isEmpty)
+        let item = try #require(try await store.search().first)
+        #expect(try await store.snippet(item.id).body == "保存する最新値")
+    }
+
+    @Test func discardCompletesAndRejectsLateAutosave() async throws {
+        let store = SnippetStore(location: try location())
+        let editor = EditorModel(draft: try await store.beginDraft(), store: store)
+        editor.body = "破棄する入力"
+        let snapshot = editor.draft
+        async let autosave: Void = editor.persist(snapshot)
+        #expect(await editor.discard())
+        await autosave
+        await editor.persist(snapshot)
+        #expect(try await store.drafts().isEmpty)
+        #expect(try await store.search().isEmpty)
+    }
+
+    @Test func cancelledCallerCannotBeginAnOperation() async throws {
+        let store = SnippetStore(location: try location())
+        let id = try await create(store, body: "維持する本文")
+        let library = LibraryModel(store: store)
+        // Cancel synchronously before the MainActor operation can start. The
+        // closure still calls the model, so the model's own contract is tested.
+        let tasks = ViewTaskStore()
+        tasks.start(id: "cancelled.operations", lifetime: .screenBound) { _ in
+            await library.open()
+            await library.delete(id)
+            await library.copy(id)
+        }
+        tasks.cancelAll()
+        await tasks.waitForIdle()
+        #expect(library.editor == nil)
+        #expect(library.notice == nil)
+        #expect(library.feedback == 0)
+        #expect(try await store.drafts().isEmpty)
+        #expect(try await store.snippet(id).deleted == false)
+    }
+
+    @Test func supersededRefreshPublishesTheLatestQuery() async throws {
+        let store = SnippetStore(location: try location())
+        _ = try await create(store, body: "first")
+        let last = try await create(store, body: "second")
+        let library = LibraryModel(store: store)
+        let owner = LibraryTaskOwner()
+        library.query = "first"
+        owner.startTask(.refresh, on: library)
+        library.query = "second"
+        owner.startTask(.refresh, on: library)
+        await owner.waitForIdle()
+        #expect(library.items.map(\.id) == [last])
+        #expect(!library.loading)
+    }
+
+    @Test func noticeExpiryIsSeparateAndCancellationPreservesNotice() async throws {
+        let store = SnippetStore(location: try location())
+        let id = try await create(store, body: "copy")
+        let library = LibraryModel(store: store)
+        await library.copy(id)
+        let first = try #require(library.noticeID)
+        let tasks = ViewTaskStore()
+        tasks.start(id: "notice.expiry", lifetime: .screenBound) { _ in
+            await library.expireNotice(id: first)
+        }
+        tasks.cancelAll()
+        await tasks.waitForIdle()
+        #expect(library.noticeID == first)
+        await library.copy(id)
+        #expect(library.noticeID != first)
+        // A stale ID is ignored without clearing the replacement notice.
+        await library.expireNotice(id: first)
+        #expect(library.notice != nil)
+        await library.expireNotice(id: try #require(library.noticeID))
+        #expect(library.notice == nil)
+        #expect(library.undoID == nil)
     }
 }

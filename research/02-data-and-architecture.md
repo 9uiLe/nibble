@@ -143,7 +143,7 @@ Core Data の CloudKit 構成は、ローカル専用ストアと同期するス
 ### 設計上の推奨
 
 - 呼び出し・検索・編集はローカル保存だけで成立させ、同期成功を操作完了の条件にしない。同期が未完了であることとローカル保存失敗を区別する。
-- 同期は採用の有無から未決定とする。導入するなら、同期する本文・同期しない端末設定・機微なスニペットの扱いを先に決める。
+- MVPは同期を提供しない。複数端末対応を検討する場合は、同期する本文・同期しない端末設定・機微なスニペットの扱いを先に決める。
 - 安定したアプリ独自 ID、更新の版、削除の識別方法を考える。端末時計の `updatedAt` だけで本文の勝者を選ぶ方針を、無損失と呼ばない。
 - 同じ本文の同時編集は、競合した内容を別候補として保持する方式と merge 方式を比較する。編集中の画面を無言で書き換えない。
 - 削除と編集の競合、長期間オフラインの端末からの再送、アカウント切替、同期の無効化・再有効化を仕様に含める。別アカウントへ以前のローカルデータを自動送信しない。
@@ -222,7 +222,7 @@ SwiftData/Core Dataの内部DBへSQLiteのbackup APIを直接使う構成には�
 | D15 | SQLite project, [SQLite FTS5 Extension](https://www.sqlite.org/fts5.html) | 更新日不明。本文: Overview、§4.3 tokenizers、§4.4 external/contentless tables と不整合・rebuild。 | 文書全体の全 API を調査したわけではない。26.5 Simulatorのunicode61/trigramはE10で確認、実機は未確認。 |
 | D16 | SQLite project, [SQLite Backup API](https://www.sqlite.org/backup.html) | 更新日不明。本文: §§1、1.1、3、3.1。online backup、snapshot、並行更新と lock。 | 直接 SQLite を扱う場合の参考。framework 管理ストアへの直接適用は未検証。 |
 | D17 | Unicode Consortium / editor Ken Whistler, [Unicode Standard Annex #15: Unicode Normalization Forms, revision 57](https://www.unicode.org/reports/tr15/tr15-57.html) | Unicode 17.0.0、2025-07-30。本文: header/status、§1.1–1.3、正準/互換等価、NFKC/NFKD の注意。 | 正規化仕様であり、検索順位・日本語分かち書きの仕様ではない。閲読時の latest はこの版。 |
-| D18 | Apple, [NSString.folding(options:locale:)](https://developer.apple.com/documentation/foundation/nsstring/folding(options:locale:)) | 更新日不明。本文・宣言・availability metadata。 | locale と option に依存。E11の試作用期待集合は実測済み。製品の最終仕様は未決定。 |
+| D18 | Apple, [NSString.folding(options:locale:)](https://developer.apple.com/documentation/foundation/nsstring/folding(options:locale:)) | 更新日不明。本文・宣言・availability metadata。 | localeとoptionに依存。E11は試作用の期待集合を実測。MVPのNFC・日本語localeのcase/width foldingと文字の区別は[製品設計](../docs/decisions/0002-mvp-app.md#検索と一覧の性能)で定義する。 |
 | D19 | Apple, [Migrating your data model automatically](https://developer.apple.com/documentation/coredata/migrating-your-data-model-automatically) | 更新日不明。本文全節: 可能な変更、改名、source/destination model、推論可否。 | Core Data のガイド。SwiftData に個々の移行条件をそのまま当てはめない。 |
 | D20 | Apple, [Configuring open access for a custom keyboard](https://developer.apple.com/documentation/uikit/configuring-open-access-for-a-custom-keyboard) | 更新日不明。本文: open access、read-only shared container、Full Access、利用者の信頼。 | 現行説明。読み取り仕様の開始 OS と DB ライブラリの実動作は未確認。 |
 

@@ -11,7 +11,7 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 ## 対応 OS
 
 - 最低対応バージョンは **iOS 26.0**。
-- アプリとextensionのdeployment targetは `26.0` にそろえる。Swift Packageにも同じ最低対応条件を適用する。
+- アプリとextensionのdeployment targetは `26.0` にそろえる。所有するSwift Packageにも同じ条件を適用し、外部パッケージはiOS 26.0で利用可能な版とAPIを選ぶ。
 - 26.0より新しいAPIを使う場合はavailabilityを扱い、26.0で主要な体験を維持する。
 - ビルド・テスト・UI/UX・性能・OS連携の実行検証は **iOS 26.5のみ** を対象とする。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認する。
 - 検証対象のruntime識別子、実際のOSバージョン、buildを記録する。
@@ -29,8 +29,9 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 
 | ツール | 用途 |
 | --- | --- |
-| Python 3 | workflow方針の検査、iOS検証スクリプト、スクリプトのテスト |
+| Python 3 | workflow・Swiftライブラリ方針の検査、iOS検証スクリプト、スクリプトのテスト |
 | PyYAML | workflowのYAML読込 |
+| tree-sitter-language-pack | Swift構文木によるタスク開始境界の検査 |
 | actionlint + ShellCheck | GitHub Actionsの構文・式・埋め込みシェルの検査 |
 | nixfmt（`nix fmt`経由） | Nix定義の整形 |
 | sim-use 0.14.0（macOSのみ） | Simulatorの画面読取・操作。release archiveをflake入力として固定 |
@@ -55,7 +56,8 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
-| `ios-tooling` | 端末選択、失敗伝播、テスト結果判定、録画終了処理などのPythonテスト |
+| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation利用、直接APIの禁止、タスク開始境界の構文検査 |
+| `ios-tooling` | 端末選択、失敗伝播、テスト結果判定、録画終了処理、Swift規約のPython回帰テスト |
 
 共通検査はApple SDKやSimulatorを起動しない。iOSの検証は [ローカル iOS 検証](docs/ios-verification.md) のコマンドを使う。
 
@@ -67,9 +69,19 @@ nix flake check --no-update-lock-file --print-build-logs
 - Nix定義を変更したら `nix fmt flake.nix` と共通検査を実行する。依存更新は単一目的のPRにし、定義とlockを一緒に戻せる状態にする。
 - アプリのSwift Package依存を使用する場合は `Package.resolved` を共有する。Nixの補助ツール管理とは責務を分ける。
 
+## 非同期処理とアニメーション
+
+モデルは受理した処理と結果反映を待ってから戻る`async`操作APIを提供し、呼出元がタスクとして開始するかを選ぶ。UIの`startTask`は開始の受理を表し、モデルの操作を直接awaitする。モデルはタスク所有者や開始用closureを持たない。入力setterは値とsequenceだけを更新し、viewが不変snapshotの書込をawaitする。保存・閉じるは最新入力を直接永続化し、コピーと通知期限は別の操作とする。
+
+同期メソッド・setterの隠れた開始と、操作APIが非構造化タスクを開始して完了前に戻る形は禁止する。Lintは開始できる所有者・イベント・予約名を構文で検査する。型解決や外部APIの副作用は保証範囲外のため、操作テストはモデルのAPIを直接awaitして結果を検査し、所有者のテストは寿命・重複・キャンセルを検査する。
+
+非構造化タスクの開始・保持はswift-tasking、アプリで指定するアニメーションはswift-scoped-animationに統一する。`ViewTaskStore` / `TaskSlot`で所有者・寿命・重複実行を定義し、`AnimationScope` / `animationBarrier`で適用範囲を定義する。[実装規約](docs/library-policy.md)を本体・共有拡張・テスト・研究用Swiftに適用する。
+
+生のTask生成、DispatchQueue等の別scheduler、`withAnimation`・`.animation`・直接のtransaction操作はLintで禁止する。構造化されたasync/await・task group・SwiftUI `.task`と協調用のTask APIは許可する。抑制コメントで回避せず、新しい入口を追加する場合は規則と回帰テストを更新する。
+
 ## ローカルとクラウドの責務
 
-MVPの実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。以下の実機・配布の責務は、それらを評価対象とする場合の実施場所を示す。Simulatorの結果だけで実機性能・保護・配布可否を保証しない。
+MVPの実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。実機性能・ロック時の保護・署名配布を評価する場合は、ローカルMacと実機が担当する。Simulatorの結果だけで実機性能・保護・配布可否を保証しない。
 
 | 検証対象 | ローカルMac / Xcode / Simulator / 実機 | GitHub Actions |
 | --- | --- | --- |
@@ -77,8 +89,8 @@ MVPの実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入�
 | iOSアプリ・extensionのビルド、署名 | 変更したtargetを確認 | 実行しない |
 | Apple SDKを使う単体・統合・UIテスト | 変更の影響範囲を確認 | 実行しない |
 | 見た目・操作・アクセシビリティ | 操作し、画像・動画を確認 | PRに添付された証跡をレビュー |
-| 起動・入力応答・描画・メモリ | Release構成を実機で測定。必要に応じてInstrumentsを使用 | iOSの性能を判定しない |
-| OS・他アプリ連携、実機固有の挙動 | 公開APIの制約を含め実機で確認 | 実行しない |
+| 起動・入力応答・描画・メモリ | MVPはSimulatorで条件と観測を記録。実機性能を評価する場合はRelease・Instruments等で測定 | iOSの性能を判定しない |
+| OS・他アプリ連携、実機固有の挙動 | MVPはSimulatorの対象hostで確認。ロック・Handoff等は実機評価の条件を定義 | 実行しない |
 
 Apple SDKから独立した検査を追加する場合は、Linuxで動作することを確認してCIへ組み込む。クラウドだけで作業した場合は、必要なローカル検証を未実施と記載する。対象コミットの検証結果と証跡がそろうまでマージしない。
 
@@ -116,7 +128,7 @@ UI/UXに影響する変更は、内部実装の変更も含めて対象導線を
 
 ### 性能の評価
 
-性能に関係する変更は、同じ実機・OS・ビルド構成・データ件数・操作条件で変更前後を比較する。起動・呼び出し時間、入力から表示までの遅延、スクロールのhitch、メモリなど、対象の体験に対応する指標を選び、測定回数と集計方法を記録する。
+性能に関係する変更は、同じ端末・OS・ビルド構成・データ件数・操作条件で比較する。MVPではiOS 26.5 Simulatorの観測条件と限界を記録し、実機性能を評価する場合は同じ実機のRelease構成で測定する。起動・呼び出し時間、入力から表示までの遅延、スクロールのhitch、メモリなど、対象の体験に対応する指標を選び、測定回数と集計方法を記録する。
 
 導線の実装時に基準値を測り、受け入れ可能な応答時間やデータ量の性能予算を決める。メインスレッドの重い処理、不要な再描画、全件読み込みを測定に基づいて見直す。体感や動画だけで改善を断定せず、悪化があれば原因と対策を示し、合意した基準を満たすまで完了としない。
 
@@ -124,7 +136,7 @@ UI/UXに影響する変更は、内部実装の変更も含めて対象導線を
 
 モダンな技術を候補として評価し、プロダクトの体験と継続的な開発を支える適性で判断する。OS/API制約、性能、保守・運用、移行の負担を比較し、新しさだけを採用理由にしない。
 
-製品MVPはSwiftUI・Observation・Swift Concurrency・Swift Testing・Apple同梱SQLite・Share Extensionを採用する。App Intents、キーボード、保存・同期方式等を見直す場合は[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
+製品MVPはSwiftUI・Observation・Swift Concurrency・Tasking・ScopedAnimation・Swift Testing・Apple同梱SQLite・Share Extensionを採用する。App Intents、キーボード、保存・同期方式等を見直す場合は[研究資料](research/README.md) の事実・推奨・未確認を区別し、対象シーンと公開APIの制約を検証して選ぶ。
 
 変更負担の大きい選択は、小さな試作で比較し、`docs/decisions/NNNN-短い名前.md` に設計判断（ADR）を記録する。
 

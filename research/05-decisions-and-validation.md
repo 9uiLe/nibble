@@ -25,6 +25,7 @@ MVPの実行評価はSimulatorに限定し、実機検証は受け入れ範囲�
 | 入口 | 本体、Share Extension、標準ショートカットの一覧・作成URL | App Intents・Controls・Keyboard・Widgetの設定負担、権限、利用可能な入力先 |
 | 探し方 | タイトル・本文の部分一致、ピン留め、安定した一覧順 | 想定件数、日本語検索の期待集合、分類・ランキングの必要性 |
 | 編集と削除 | 明示保存、永続下書き、revision競合検出、削除と復元 | 中断・保存失敗・同時操作からの回復、使いやすさとデータ保持 |
+| 非同期処理と表示変化 | 完了までawaitできるモデルAPI、UIによるTasking開始・所有・寿命、ScopedAnimationのscope・barrier、直接APIと隠れた開始を拒否するLint | 完了・入力直後の保存、連打、キャンセルと確定済み書込、sceneの変化、入力への伝播、Reduce Motion、構文検査・診断の範囲と処理コスト |
 | データ保護 | App Group内のSQLiteとcompleteの保護指定、端末内コピー | 各保存先・表示先の保護の実効性、機密項目の区別、バックアップと復旧 |
 | 同期 | 提供しない | 複数端末の需要、通信に依存しない操作、競合と運用負担 |
 | 配布 | Simulator評価用の構成。配布方法・審査は未確定 | 署名、更新、プライバシー回答、サポート運用 |
@@ -77,7 +78,7 @@ UI/UX は対象コミット・端末・OS・到達手順を付けたスクリー
 
 ### ローカルとクラウド
 
-iOSビルド、SDK統合、権限、UI、性能、署名・配布はローカルMac / Xcode / Simulator / 実機が担当する。Ubuntu CIはworkflow方針・Nix書式・検証スクリプトのテストを担当し、macOS runnerは使用しない。補助ツールはNixで宣言・固定する。
+iOSビルド、SDK統合、権限、UI、性能、署名・配布はローカルMac / Xcode / Simulator / 実機が担当する。Ubuntu CIはworkflow方針・Nix書式・Swiftライブラリ規約・検証スクリプトとLintのテストを担当し、macOS runnerは使用しない。補助ツールはNixで宣言・固定する。
 
 Simulatorでのビルド・テスト・画面記録は [共通コマンド](../docs/ios-verification.md) を使う。試作のproject・shared schemeを設定ファイルへ登録し、`--project-config` と対象UDIDを指定する。fixture専用のsmokeを製品の検証に転用せず、試作の操作と期待結果を定義する。実機の署名・配布・計測は対象端末に合わせて構成する。
 

@@ -39,10 +39,16 @@
             platforms = pkgs.lib.platforms.darwin;
           };
         };
+      pythonFor =
+        pkgs:
+        pkgs.python3.withPackages (ps: [
+          ps.pyyaml
+          ps.tree-sitter-language-pack
+        ]);
       toolsFor =
         pkgs:
         [
-          (pkgs.python3.withPackages (pythonPackages: [ pythonPackages.pyyaml ]))
+          (pythonFor pkgs)
           pkgs.actionlint
           pkgs.shellcheck
         ]
@@ -58,10 +64,19 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
       checks = forAllSystems (pkgs: {
+        swift-library-policy =
+          pkgs.runCommand "nibble-swift-library-policy"
+            {
+              nativeBuildInputs = [ (pythonFor pkgs) ];
+            }
+            ''
+              python3 ${./scripts}/check_swift_policy.py --root ${./.}
+              touch "$out"
+            '';
         ios-tooling =
           pkgs.runCommand "nibble-ios-tooling"
             {
-              nativeBuildInputs = [ pkgs.python3 ];
+              nativeBuildInputs = [ (pythonFor pkgs) ];
             }
             ''
               cp -R ${./scripts} scripts
