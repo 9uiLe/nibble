@@ -2,6 +2,8 @@
 
 対象はswift-tasking 0.3.0とswift-scoped-animation 0.2.1を使う`Nibble`・`NibbleShare`、およびSwiftライブラリ規約のLintである。[実装規約](library-policy.md)に定義したタスクの所有・寿命・重複方針と、アニメーションの適用範囲を評価する。製品全体の観測と未検証条件は[MVPの検証結果](mvp-validation.md)で管理する。
 
+待機可能な操作APIとタスク開始境界の構文検査は、[2026-09-15の検証結果](async-policy-validation.md)に記載する。この文書の数値・画像・動画は、以下に示す2026-09-14のソースに対する結果である。
+
 ## 対象と結果
 
 実施日は2026-09-14。環境はXcode 26.5、Swift 6.3.2、iOS 26.5（23F77）Simulator。実機検証と署名配布はMVPの受け入れ範囲に含めない。

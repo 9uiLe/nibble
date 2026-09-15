@@ -4,7 +4,7 @@
 
 nibbleは、非構造化タスクをswift-tasking、アプリが指定するアニメーションをswift-scoped-animationで管理する。本体、共有拡張、テスト、研究用アプリ、検証用Swiftコードに同じ規約を適用する。処理の所有者・終了条件・重複実行方針と、表示変化の適用範囲をコードから判断できることを目的とする。
 
-製品の画面・データ・操作ごとの契約は[製品設計](decisions/0002-mvp-app.md)、実施した確認は[Tasking・ScopedAnimationの検証結果](library-policy-validation.md)に記載する。この文書は実装に使う入口、禁止API、依存管理、規約の検査方法を定義する。
+製品の画面・データ・操作ごとの契約は[製品設計](decisions/0002-mvp-app.md)、実施した確認は[非同期API境界の検証結果](async-policy-validation.md)と[Tasking・ScopedAnimationの検証結果](library-policy-validation.md)に記載する。この文書は実装に使う入口、禁止API、依存管理、規約の検査方法を定義する。
 
 ## 依存とビルド
 
@@ -120,6 +120,8 @@ nix develop --command python3 scripts/check_swift_policy.py
 # Lintの回帰テストを含む共通検査
 nix flake check --no-update-lock-file --print-build-logs
 ```
+
+開始箇所だけの名前検査では、setterや任意closureに隠れた開始を判別できないため、構文木で呼出境界を検査する。parser依存はNixに固定し、互換処理を小さく保つ。
 
 `swift-library-policy`はNixのPythonとtree-sitter-language-pack（lockされたnixpkgsの1.4.1）で動き、ローカルとUbuntu CIで同じ規則を使う。違反にはファイル・行・列を表示し、終了コード1で失敗させる。抑制コメントやファイル単位の例外は設けない。
 

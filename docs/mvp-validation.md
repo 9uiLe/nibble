@@ -16,13 +16,16 @@
 
 | ソース | 対応する評価 |
 | --- | --- |
+| `16868e6` | 待機可能な操作APIとUI側の明示的なTasking開始。26テスト、基本操作、即時closeからの再開・保存、共有、通知、再起動を2026-09-15に確認 |
 | `9686f3afea431bdb570adce9b538340bfd9caca6` | Tasking・ScopedAnimationを使う製品構成。19テスト、Debug実行、archive、基本操作、テキスト共有、通知、再起動 |
 | `8473b3632f06fe2781909a30406b3a56c3af2e99` | SQLite actorの検索測定。保存層と検索SQLは`9686f3a`と同じ |
 | `a498ba4462aa8b7f0835791804710616a3bf4830` | SQLite actorの検索比較用測定。2026-09-13の保存層・URLテスト13件とgeneric iOS archiveの対象 |
 | `667566c2372f3f809b4a6957776a5bd28476174f` | 2026-09-13の基本操作・IME・下書きのrunに対応するソース |
 | `873eda6136cb64f075e989f694aab4b7ce5fdd70` | 2026-09-13の一覧・編集・検索表示、URL共有、一覧URLの対象 |
 
-採用構成のテスト・操作・診断の詳細と画像4点・動画5点は[Tasking・ScopedAnimationの検証記録](library-policy-validation.md)と[PR #7](https://github.com/9uiLe/nibble/pull/7)で確認できる。2026-09-13の表示・入力・OS連携の画像6点・動画6本は[PR #6](https://github.com/9uiLe/nibble/pull/6)に添付している。ローカルの生ログ・画像・動画はGit管理対象外であり、新しいcheckoutには含まれない。
+非同期API境界の26テスト・最新の画像5点と動画6本は[2026-09-15の検証記録](async-policy-validation.md)を参照する。
+
+2026-09-14の構成のテスト・操作・診断の詳細と画像4点・動画5点は[Tasking・ScopedAnimationの検証記録](library-policy-validation.md)と[PR #7](https://github.com/9uiLe/nibble/pull/7)で確認できる。2026-09-13の表示・入力・OS連携の画像6点・動画6本は[PR #6](https://github.com/9uiLe/nibble/pull/6)に添付している。ローカルの生ログ・画像・動画はGit管理対象外であり、新しいcheckoutには含まれない。
 
 ## ビルドと自動テスト
 
