@@ -57,7 +57,7 @@ nix develop --command python3 scripts/ios.py run \
   --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
-Swift Testingは使い捨てのDBで、原文保持、検索、復元、競合、下書き順序、同時書込、入力エラー、未知schema、破損DB、URLの許可範囲、操作の重複・キャンセル、入力直後の保存・閉じる操作を検査する。製品の保存層を直接呼び、利用者の保存データを使わない。
+Swift Testingは使い捨てのDBで、原文保持、検索、復元、競合、下書き順序、同時書込、入力エラー、未知schema、破損DB、URLの許可範囲、操作の重複・キャンセル、入力直後の保存・閉じる操作を検査する。操作テストはモデルのasync APIを直接awaitして完了・結果を検査し、重複・寿命の試験では専用所有者を使用する。入力setterがDBを書き換えないこと、明示的なsnapshot保存、通知の独立した期限、保存・破棄後の遅延書込も検査する。使い捨てのDBを使用し、利用者の保存データを使わない。
 
 ## 基本操作の自動検証
 

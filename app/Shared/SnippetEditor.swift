@@ -21,6 +21,7 @@ struct SnippetEditor: View {
 
     var body: some View {
         @Bindable var editor = model
+        let snapshot = model.draft
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -58,7 +59,7 @@ struct SnippetEditor: View {
                             .foregroundStyle(.red).font(.callout)
                             .accessibilityIdentifier("editor.error")
                         if model.conflict {
-                            Button("新しい項目として保存") { save(asNew: true) }
+                            Button("新しい項目として保存") { startTask(.saveAsNew) }
                                 .buttonStyle(.borderedProminent)
                         }
                     }
@@ -74,11 +75,11 @@ struct SnippetEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる", systemImage: "xmark") { close() }
+                    Button("閉じる", systemImage: "xmark") { startTask(.keep) }
                         .accessibilityIdentifier("editor.close")
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存", systemImage: "checkmark") { save() }
+                    Button("保存", systemImage: "checkmark") { startTask(.save) }
                         .fontWeight(.semibold)
                         .disabled(!model.canSave)
                         .accessibilityIdentifier("editor.save")
@@ -103,7 +104,7 @@ struct SnippetEditor: View {
             .disabled(model.busy)
             .confirmationDialog("この下書きを破棄しますか？", isPresented: $confirmsDiscard, titleVisibility: .visible) {
                 Button("下書きを破棄", role: .destructive) {
-                    perform(.discard)
+                    startTask(.discard)
                 }
                 .accessibilityIdentifier("editor.confirmDiscard")
             } message: { Text("保存済みのスニペットは変わりません。") }
@@ -112,6 +113,9 @@ struct SnippetEditor: View {
         .detectAnimationLeaks()
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
+        .task(id: snapshot.sequence) {
+            if snapshot.sequence > 0 { await model.persist(snapshot) }
+        }
         .onDisappear { tasks.cancel(lifetime: .screenBound) }
         .interactiveDismissDisabled()
         .privacySensitive()
@@ -123,7 +127,7 @@ struct SnippetEditor: View {
         }
     }
 
-    private func perform(_ operation: FinishOperation) {
+    private func startTask(_ operation: FinishOperation) {
         let editor = model
         let completion = complete
         let dismiss = dismiss
@@ -143,8 +147,6 @@ struct SnippetEditor: View {
         }
     }
 
-    private func close() { perform(.keep) }
-    private func save(asNew: Bool = false) { perform(asNew ? .saveAsNew : .save) }
 
 }
 

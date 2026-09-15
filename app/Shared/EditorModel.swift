@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import Tasking
 
 @MainActor @Observable
 final class EditorModel {
@@ -10,8 +9,6 @@ final class EditorModel {
     var error: String?
     private(set) var conflict = false
     private let store: SnippetStore
-    @ObservationIgnored private let draftTasks = ViewTaskStore()
-    private static let persistDraft: ActionID = "editor.persistDraft"
 
     init(draft: Draft, store: SnippetStore) {
         self.draft = draft
@@ -20,33 +17,28 @@ final class EditorModel {
 
     var title: String {
         get { draft.title }
-        set { draft.title = newValue; persistChange() }
+        set { draft.title = newValue; draft.sequence += 1 }
     }
 
     var body: String {
         get { draft.body }
-        set { draft.body = newValue; persistChange() }
+        set { draft.body = newValue; draft.sequence += 1 }
     }
 
     var canSave: Bool { !busy && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    private func persistChange() {
-        draft.sequence += 1
-        let snapshot = draft
-        let store = store
-        draftTasks.start(id: Self.persistDraft, lifetime: .screenBound, policy: .allowConcurrent) { [weak self] _ in
-            // Every admitted write may finish; sequence checks in SQLite select the newest one.
-            do { try await store.updateDraft(snapshot) }
-            catch {
-                if let self, !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription }
-            }
+    func persist(_ snapshot: Draft) async {
+        guard !finished, snapshot.id == draft.id else { return }
+        // An admitted SQLite write finishes even when the view task is cancelled.
+        // Sequence checks choose the latest snapshot and never recreate a removed draft.
+        do { try await store.updateDraft(snapshot) }
+        catch {
+            if !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription }
         }
     }
 
-    func waitForDraftWrites() async { await draftTasks.waitForIdle() }
-
     func save(asNew: Bool = false) async -> Bool {
-        guard !busy else { return false }
+        guard !Task.isCancelled, !busy, !finished else { return false }
         busy = true
         defer { busy = false }
         do {
@@ -61,7 +53,7 @@ final class EditorModel {
     }
 
     func keepForLater() async -> Bool {
-        guard !busy else { return false }
+        guard !Task.isCancelled, !busy, !finished else { return false }
         busy = true
         defer { busy = false }
         do {
@@ -75,7 +67,7 @@ final class EditorModel {
     }
 
     func discard() async -> Bool {
-        guard !busy else { return false }
+        guard !Task.isCancelled, !busy, !finished else { return false }
         busy = true
         defer { busy = false }
         do {

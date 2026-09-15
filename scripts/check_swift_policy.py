@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Reject unmanaged task/animation entry points in repository-owned Swift sources.
 
-This is a lexical policy check, not Swift type resolution. Reserved API names
-are checked in executable string interpolations too. See docs/library-policy.md.
+Lexical API checks and tree-sitter task-boundary checks are not Swift type
+resolution. See docs/library-policy.md for the enforced syntax and limitations.
 """
 
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+from swift_task_boundary import boundary_violations
 import re
 
 
@@ -169,7 +170,7 @@ def violations(source):
             line = source.count("\n", 0, token.offset) + 1
             column = token.offset - source.rfind("\n", 0, token.offset)
             found.append((line, column, message))
-    return found
+    return found if found else boundary_violations(source, tokens)
 
 
 def swift_files(root):

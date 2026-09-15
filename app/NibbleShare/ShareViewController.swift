@@ -11,8 +11,12 @@ final class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        tasks.start(id: Self.load, lifetime: .screenBound, policy: .ignoreNew) { [weak self] cancellation in
-            await self?.presentEditor(cancellation: cancellation)
+        startTask()
+    }
+
+    private func startTask() {
+        tasks.start(id: Self.load, lifetime: .screenBound, policy: .ignoreNew) { [weak self] _ in
+            await self?.presentEditor()
         }
     }
 
@@ -21,15 +25,15 @@ final class ShareViewController: UIViewController {
         tasks.cancel(lifetime: .screenBound)
     }
 
-    private func presentEditor(cancellation: CancellationContext) async {
+    private func presentEditor() async {
         do {
-            try cancellation.check()
+            try Task.checkCancellation()
             let providers = (extensionContext?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
             guard let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) || $0.hasItemConformingToTypeIdentifier(UTType.url.identifier) }) else {
                 throw ShareError.unsupported
             }
             let body = try await Self.read(provider)
-            try cancellation.check()
+            try Task.checkCancellation()
             try SnippetText.validate(title: "", body: body)
             let draft = try await SnippetStore.shared.beginDraft(body: body)
             let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: .shared) { [weak self] in

@@ -22,7 +22,7 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 | VerificationApp | 検証コマンド、文字列反映、テスト、撮影の成立を確かめるfixture | [共通の検証手順](docs/ios-verification.md)、`validation/project.json` |
 | ResearchProbe | 保存3案、検索、入力、コピー、復旧、OS連携を同じダミーデータで比較する | [設計と実行手順](validation/RESEARCH.md)、`validation/research-project.json` |
 
-本体と共有拡張は、SwiftUI・Observationによる画面、Taskingによる非構造化タスクの所有、ScopedAnimationによる表示変化の範囲、Swift Concurrencyのactor内で扱うApple同梱SQLiteで構成します。2つのプロセスはApp Groupの保存先を共有します。Tasking・ScopedAnimationを経由しない直接APIはLintで禁止します。[研究資料](research/README.md)は採用理由の根拠と比較候補を管理し、試作の結果は記録した構成に限って解釈します。
+本体と共有拡張は、SwiftUI・Observationによる画面、Taskingによる非構造化タスクの所有、ScopedAnimationによる表示変化の範囲、Swift Concurrencyのactor内で扱うApple同梱SQLiteで構成します。2つのプロセスはApp Groupの保存先を共有します。モデルは完了まで待機可能な`async` APIを公開し、UI側がタスク開始を選びます。隠れたタスク開始、開始APIの別名化、Tasking・ScopedAnimationを経由しない直接APIはLintで禁止します。[研究資料](research/README.md)は採用理由の根拠と比較候補を管理し、試作の結果は記録した構成に限って解釈します。
 
 | 入口 | 内容 |
 | --- | --- |

@@ -11,6 +11,7 @@
 
 ## 非同期処理とアニメーション
 
+- 非同期操作は完了まで待機できる`async` APIにする。同期メソッド・setter内の隠れた開始と、asyncメソッドからタスクを開始して戻る形は禁止。モデルは処理を担い、UIの`startTask`・イベント境界が開始を選ぶ。
 - 非構造化タスクはswift-tasking（`ViewTaskStore` / `TaskSlot`）、アニメーションはswift-scoped-animation（`AnimationScope` / `animationBarrier`）を使う。所有者・寿命・重複方針を明示する。
 - 生の`Task`生成、別scheduler、直接の`withAnimation`・`.animation`・transaction操作は禁止。構造化されたasync/await・task group・SwiftUI `.task`と協調用のTask APIは許可する。詳しくは[実装規約](docs/library-policy.md)に従う。
 - 本体・拡張・テスト・研究用Swiftを`swift-library-policy`で検査する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。

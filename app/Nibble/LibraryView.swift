@@ -1,8 +1,10 @@
 import SwiftUI
+import Tasking
 import ScopedAnimation
 
 struct LibraryView: View {
     @State private var model = LibraryModel()
+    @State private var taskOwner = LibraryTaskOwner()
     @State private var permanentDeletion: SnippetSummary?
     @State private var showsAbout = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -49,7 +51,7 @@ struct LibraryView: View {
                 if let error = model.error {
                     Section {
                         Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.red)
-                        Button("再試行") { model.reload() }
+                        Button("再試行") { startTask(.refresh) }
                     }
                 }
 
@@ -96,7 +98,7 @@ struct LibraryView: View {
                     .accessibilityIdentifier("library.menu")
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("新しいスニペット", systemImage: "plus") { openEditor() }
+                    Button("新しいスニペット", systemImage: "plus") { startTask(.open(nil)) }
                         .accessibilityIdentifier("library.add")
                         .keyboardShortcut("n", modifiers: .command)
                 }
@@ -116,7 +118,7 @@ struct LibraryView: View {
                                 .accessibilityIdentifier("library.notice")
                             Spacer(minLength: 0)
                             if let id = model.undoID {
-                                Button("元に戻す") { model.restore(id) }
+                                Button("元に戻す") { startTask(.restore(id)) }
                                     .font(.subheadline.weight(.semibold))
                                     .frame(minHeight: 44)
                                     .accessibilityIdentifier("library.undo")
@@ -129,13 +131,13 @@ struct LibraryView: View {
                     }
                 }
             }
-            .sheet(item: $library.editor, onDismiss: { model.reload() }) { draft in
+            .sheet(item: $library.editor, onDismiss: { startTask(.refresh) }) { draft in
                 SnippetEditor(draft: draft, store: model.store)
             }
             .sheet(isPresented: $showsAbout) { AboutView() }
             .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
                 if let item = permanentDeletion {
-                    Button("完全に削除", role: .destructive) { model.permanentlyDelete(item.id); permanentDeletion = nil }
+                    Button("完全に削除", role: .destructive) { startTask(.permanentlyDelete(item.id)); permanentDeletion = nil }
                 }
             } message: { Text("この項目と対応する下書きは元に戻せません。") }
         }
@@ -144,20 +146,23 @@ struct LibraryView: View {
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
         .sensoryFeedback(.success, trigger: model.feedback)
-        .onAppear { model.reload() }
-        .onChange(of: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { model.reload() }
+        .task(id: model.noticeID) {
+            if let id = model.noticeID { await model.expireNotice(id: id) }
+        }
+        .onAppear { startTask(.refresh) }
+        .onChange(of: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { startTask(.refresh) }
         .onChange(of: model.query) { model.limit = 100 }
         .onChange(of: model.filter) { model.limit = 100 }
         .onChange(of: scenePhase) {
-            if scenePhase == .active { model.reload() }
-            else if scenePhase == .background { model.endScreen() }
+            if scenePhase == .active { startTask(.refresh) }
+            else if scenePhase == .background { taskOwner.endScreen(); model.clearNotice() }
         }
         .onOpenURL { url in
             guard let route = AppRoute(url: url) else { return }
             if model.editor != nil { return } // Never replace an in-progress edit.
             model.filter = .all
             model.query = ""
-            if route == .create { openEditor() }
+            if route == .create { startTask(.open(nil)) }
         }
         .privacySensitive()
         .overlay {
@@ -170,9 +175,9 @@ struct LibraryView: View {
         }
     }
 
-    private func openEditor(id: UUID? = nil) {
-        searchFocused = false
-        model.open(id: id)
+    private func startTask(_ action: LibraryTaskOwner.Action) {
+        if case .open = action { searchFocused = false }
+        taskOwner.startTask(action, on: model)
     }
 
     private var sectionTitle: String {
@@ -207,7 +212,7 @@ struct LibraryView: View {
             Text(model.filter == .trash ? "削除したスニペットはここから復元できます。" : (!model.query.isEmpty ? "別の言葉や、短い語句で探してみてください。" : (model.filter == .pinned ? "項目を長押ししてピン留めすると、すぐに見つかります。" : "よく使う言葉を保存して、\n次からはワンタップでコピー。")))
         } actions: {
             if model.query.isEmpty && model.filter == .all {
-                Button("最初のスニペットを作る") { openEditor() }
+                Button("最初のスニペットを作る") { startTask(.open(nil)) }
                     .buttonStyle(.borderedProminent).controlSize(.large)
                     .accessibilityIdentifier("library.createFirst")
             }
@@ -217,7 +222,7 @@ struct LibraryView: View {
 
     private func snippetRow(_ item: SnippetSummary) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Button { if model.filter != .trash { openEditor(id: item.id) } } label: {
+            Button { if model.filter != .trash { startTask(.open(item.id)) } } label: {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         if item.pinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(Color.nibbleAccent) }
@@ -237,11 +242,11 @@ struct LibraryView: View {
             .accessibilityHint(model.filter == .trash ? "" : "編集します")
 
             if model.filter == .trash {
-                Button("復元", systemImage: "arrow.uturn.backward") { model.restore(item.id) }
+                Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
                     .labelStyle(.iconOnly).buttonStyle(.borderless).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("restore.\(item.id)")
             } else {
-                Button { model.copy(item.id) } label: {
+                Button { startTask(.copy(item.id)) } label: {
                     Image(systemName: "doc.on.doc").font(.body.weight(.medium))
                         .frame(width: 44, height: 44)
                         .background(Color.nibbleAccent.opacity(0.09), in: .rect(cornerRadius: 14))
@@ -254,20 +259,20 @@ struct LibraryView: View {
         .padding(.vertical, 8)
         .contextMenu {
             if model.filter == .trash {
-                Button("復元", systemImage: "arrow.uturn.backward") { model.restore(item.id) }
+                Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
                 Button("完全に削除", systemImage: "trash", role: .destructive) { permanentDeletion = item }
             } else {
-                Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { model.pin(item) }
-                Button("編集", systemImage: "square.and.pencil") { openEditor(id: item.id) }
-                Button("削除", systemImage: "trash", role: .destructive) { model.delete(item.id) }
+                Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }
+                Button("編集", systemImage: "square.and.pencil") { startTask(.open(item.id)) }
+                Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if model.filter == .trash {
                 Button("完全に削除", role: .destructive) { permanentDeletion = item }
             } else {
-                Button("削除", role: .destructive) { model.delete(item.id) }
-                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { model.pin(item) }.tint(.nibbleAccent)
+                Button("削除", role: .destructive) { startTask(.delete(item.id)) }
+                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }.tint(.nibbleAccent)
             }
         }
     }
@@ -296,4 +301,60 @@ private struct AboutView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } } }
         }.tint(.nibbleAccent)
     }
+}
+
+/// Owns finite UI requests across presentation changes in the library scene.
+/// Business operations remain directly awaitable on LibraryModel.
+@MainActor
+final class LibraryTaskOwner {
+    private let tasks = ViewTaskStore()
+
+    enum Action {
+        case refresh, open(UUID?), copy(UUID), pin(SnippetSummary)
+        case delete(UUID), restore(UUID), permanentlyDelete(UUID)
+
+        var id: ActionID {
+            switch self {
+            case .refresh: "library.refresh"
+            case .open: "library.open"
+            case .copy: "library.copy"
+            case .pin(let item): ActionID("library.pin.\(item.id)")
+            case .delete(let id): ActionID("library.delete.\(id)")
+            case .restore(let id): ActionID("library.restore.\(id)")
+            case .permanentlyDelete(let id): ActionID("library.permanentlyDelete.\(id)")
+            }
+        }
+
+        var lifetime: ActionLifetime {
+            if case .open = self { return .screenBound }
+            return .sceneBound
+        }
+
+        var policy: TaskStartPolicy {
+            switch self {
+            case .refresh, .copy: .cancelExisting
+            default: .ignoreNew
+            }
+        }
+    }
+
+    @discardableResult
+    func startTask(_ action: Action, on model: LibraryModel) -> TaskStartOutcome {
+        tasks.start(id: action.id, lifetime: action.lifetime, policy: action.policy) { [weak model] cancellation in
+            try cancellation.check()
+            guard let model else { return }
+            switch action {
+            case .refresh: await model.refresh()
+            case .open(let id): await model.open(id: id)
+            case .copy(let id): await model.copy(id)
+            case .pin(let item): await model.pin(item)
+            case .delete(let id): await model.delete(id)
+            case .restore(let id): await model.restore(id)
+            case .permanentlyDelete(let id): await model.permanentlyDelete(id)
+            }
+        }
+    }
+
+    func endScreen() { tasks.cancel(lifetime: .screenBound) }
+    func waitForIdle() async { await tasks.waitForIdle() }
 }

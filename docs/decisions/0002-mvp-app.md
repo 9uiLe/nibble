@@ -14,7 +14,7 @@ nibbleは、メッセージの定型文やWebフォームに使うテキスト�
 | --- | --- |
 | 保存対象 | プレーンテキストの本文と任意のタイトル。アカウントと通信を必要としない端末内保存 |
 | 探す・使う | タイトルと本文の部分一致検索、ピン留め、保存済み本文のコピー |
-| 作成・編集 | 明示的な保存、入力ごとの下書き保存、下書きの再開と破棄、編集競合の通知 |
+| 作成・編集 | 明示的な保存、入力変更に応じた下書き保存、下書きの再開と破棄、編集競合の通知 |
 | 削除・回復 | 削除した項目の復元、確認付きの完全削除。削除項目の自動消去は行わない |
 | 取り込み | 他アプリの共有シートからテキストまたはURLを1件読み、編集・保存する |
 | 呼び出し | 本体の起動と、Appleの「ショートカット」の標準URLアクションによる一覧・作成画面の表示 |
@@ -69,10 +69,11 @@ flowchart LR
 
 | 所有者 | 責務 |
 | --- | --- |
-| `LibraryView` | `@State`で一覧modelを保持し、表示・フォーカス・シート・sceneイベント・通知scopeを接続する |
-| `LibraryModel` | MainActor上の一覧・検索・編集入口、検索世代、コピー、ピン・削除・復元、通知期限と対応するTasking操作 |
+| `LibraryView` | `@State`で一覧modelと専用タスク所有者を保持し、表示・フォーカス・シート・sceneイベント・通知scopeを接続する |
+| `LibraryModel` | MainActor上の一覧・検索・編集入口、検索世代、コピー、ピン・削除・復元、待機可能な通知期限処理 |
+| `LibraryTaskOwner` | UIから要求された有限操作のTasking開始・寿命・重複判定。LibraryViewの`@State`が保持 |
 | `SnippetEditor` | 編集model、入力・フォーカス、保存・閉じる・破棄をまとめた終了操作、完了通知 |
-| `EditorModel` | MainActor上の入力値、下書きsnapshotの書込要求、保存・競合・エラー状態 |
+| `EditorModel` | MainActor上の入力値、不変snapshotの待機可能な書込、保存・競合・エラー状態 |
 | `SnippetStore` actor | プロセスごとのSQLite接続、検索、同期的なトランザクション、競合判定、永続化 |
 | `Snippet` / `SnippetSummary` / `Draft` | 保存済み本文、一覧用要約、編集中の値を区別するデータ型 |
 | `ShareViewController` | UIKitのextension入口、provider読込の所有、共通編集画面の表示、共有元への完了通知 |
@@ -81,16 +82,18 @@ SQLiteの操作は専用actor内で行い、トランザクション中に中断
 
 ## 操作の寿命と整合性
 
+モデルは非同期の操作を`async`で公開し、戻った時点でその操作の処理・結果反映を終える。同期setterは入力とsequenceだけを変更する。UIの`startTask`は開始を表し、処理本体を直接awaitする。コピー通知の表示時間はコピーの完了に含めず、独立した期限処理で管理する。
+
 Taskingの`ActionID`は重複判定の単位、`ActionLifetime`は明示的に終了させる操作の分類とする。これらの値がsceneやviewの状態を自動監視するわけではない。所有者がイベントに応じて`cancel(lifetime:)`を呼ぶ。
 
 | 操作 | 所有と方針 | 結果の扱い |
 | --- | --- | --- |
-| 一覧の読込 | `LibraryModel`、sceneBound / cancelExisting | 表示、検索・フィルタ・取得上限の変更、active復帰、編集終了で同じActionIDから再取得。要求世代とキャンセル状態を確認して反映 |
-| 編集開始 | `LibraryModel`、screenBound / ignoreNew | 二重開始を抑止。開始前にキャンセルを確認し、受理済みの下書きDB処理は完了させる |
-| コピー | `LibraryModel`、sceneBound / cancelExisting | DBから保存済み本文を読み、読込の前後でキャンセルを確認してpasteboardへ書く |
-| ピン・削除・復元・完全削除 | `LibraryModel`、sceneBound / ignoreNew | 操作種別と項目UUIDをIDに含め、同じ項目の同じ操作だけ重複を抑止。受理済みDB書込は完了させる |
-| 通知の消去 | `LibraryModel`、screenBound / cancelExisting | 通知の発生ごとに期限を更新。background化時に登録済みの消去操作をキャンセルし、通知と取り消し操作を消す |
-| 下書き書込 | `EditorModel`、screenBound / allowConcurrent | 入力snapshotを受理し、SQLiteのsequence比較で最新の値を保持。保存・破棄済み下書きを再生成しない |
+| 一覧の読込 | `LibraryTaskOwner`、sceneBound / cancelExisting | 表示、検索・フィルタ・取得上限の変更、active復帰、編集終了で同じActionIDから再取得。要求世代とキャンセル状態を確認して反映 |
+| 編集開始 | `LibraryTaskOwner`、screenBound / ignoreNew | 二重開始を抑止。開始前にキャンセルを確認し、受理済みの下書きDB処理は完了させる |
+| コピー | `LibraryTaskOwner`、sceneBound / cancelExisting | DBから保存済み本文を読み、読込の前後でキャンセルを確認してpasteboardへ書く |
+| ピン・削除・復元・完全削除 | `LibraryTaskOwner`、sceneBound / ignoreNew | 操作種別と項目UUIDをIDに含め、同じ項目の同じ操作だけ重複を抑止。受理済みDB書込は完了させる |
+| 通知の消去 | `LibraryView`の`.task(id: noticeID)` | 通知の発生ごとに期限を更新。異なる通知IDとキャンセルでは消去しない。background化時に通知ID・本文・取り消し操作を消す |
+| 下書き書込 | `SnippetEditor`の`.task(id: snapshot.sequence)` | 不変snapshotの書込を直接await。SwiftUIによる入力更新の集約を許容し、SQLiteのsequence比較で最新値を保持。保存・閉じるは最新入力を直接永続化し、除去済み下書きを再生成しない |
 | 保存・閉じる・破棄 | `SnippetEditor`、screenBound / ignoreNew | 共通IDで終了操作を一つに制限。画面終了時にキャンセルし、永続化が成功した操作には完了通知を返す |
 | 共有provider読込 | `ShareViewController`、screenBound / ignoreNew | `viewDidDisappear`でキャンセル。provider読込の前後で確認し、キャンセルを業務エラーとして表示しない |
 
@@ -113,7 +116,7 @@ Taskingの`ActionID`は重複判定の単位、`ActionLifetime`は明示的に�
 
 検索キーは保存時に生成し、入力ごとに全本文を正規化しない。一覧へ渡す件数と本文プレビューを制限する。追加表示は取得上限を増やして先頭から再取得する方式である。下書き一覧は本文を含めて取得するため、件数と長文に対するメモリ評価をスニペット一覧と分ける。
 
-編集開始時に下書きのUUIDを作り、入力変更ごとに増加するsequenceを付けて保存する。既存項目に下書きがあれば再開し、作成ボタンは新しい下書きを作る。閉じる操作は下書きを保持する。タイトル・本文がともに空の入力と、変更していない保存済み項目の編集は、閉じる際に下書きを除去する。
+編集開始時に下書きのUUIDを作り、入力変更ごとにsequenceを増やし、viewが観測したsnapshotを保存する。既存項目に下書きがあれば再開し、作成ボタンは新しい下書きを作る。閉じる操作は下書きを保持する。タイトル・本文がともに空の入力と、変更していない保存済み項目の編集は、閉じる際に下書きを除去する。
 
 スニペットの保存と当該下書きの除去は1トランザクションで確定する。下書き更新はsequenceが新しい既存行だけに適用し、保存・破棄後の遅れた書込では再生成しない。永続化に失敗した場合はエラーを表示する。異常終了直前に永続化を終えていない入力の保持は保証しない。
 

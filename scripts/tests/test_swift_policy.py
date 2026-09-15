@@ -56,6 +56,7 @@ class SwiftPolicyTests(unittest.TestCase):
         import Tasking
         import TaskingCore
         import ScopedAnimation
+        @Test @MainActor func taskOwnership() async {
         let tasks = ViewTaskStore()
         tasks.start(id: Actions.save, lifetime: .screenBound, policy: .ignoreNew) { cancellation in
             try cancellation.check()
@@ -63,8 +64,9 @@ class SwiftPolicyTests(unittest.TestCase):
             await withTaskGroup(of: Void.self) { group in group.addTask { await work() } }
             await child
         }
-        let slot = TaskSlot()
-        await slot.replace { cancellation in try cancellation.check() }
+        let taskSlot = TaskSlot()
+        await taskSlot.replace { cancellation in try cancellation.check() }
+        }
         View().task(id: query) { await load() }
         try await Task.sleep(for: .seconds(1))
         try await Task<Never, Never>.sleep(for: .seconds(1))
@@ -78,6 +80,92 @@ class SwiftPolicyTests(unittest.TestCase):
         Content().animationBarrier().detectAnimationLeaks()
         '''
         self.assertEqual(violations(source), [])
+
+
+    def test_sync_async_operations_and_accessors_cannot_hide_starts(self):
+        bodies = [
+            'func reload() { tasks.start(id: id) { await work() } }',
+            'func reload() async { tasks.start(id: id) { await work() } }',
+            'init() { tasks.start(id: id) { await work() } }',
+            'var value: Int { get { tasks.start(id: id) { await work() }; return 0 } set { } }',
+            'var value = 0 { didSet { tasks.start(id: id) { await work() } } }',
+            'var value: Int { tasks.start(id: id) { await work() }; return 0 }',
+        ]
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertTrue(violations('struct Screen: View { private let tasks = ViewTaskStore(); ' + body + ' }'))
+
+    def test_explicit_start_boundaries_and_ui_events_are_allowed(self):
+        sources = [
+            'struct Screen: View { private let tasks = ViewTaskStore(); func startTask() { tasks.start(id: id) { await model.load() } }; var body: some View { Button { startTask() } label: { Text("Load") } } }',
+            'struct Screen: SwiftUI.View { private let tasks = Tasking.ViewTaskStore(); func startTask() { self.tasks.start(id: id) { await load() } }; var body: some View { Text("x").onAppear { startTask() }.onChange(of: x) { if x { startTask() } }.onOpenURL { _ in startTask() }.sheet(item: $x, onDismiss: { startTask() }) { _ in Text("x") } } }',
+            '@MainActor final class ExampleTaskOwner { private let tasks = ViewTaskStore(); func startTask() { tasks.start(id: id) { await work() } }; func cancel() { tasks.cancelAll() } }',
+            '@MainActor final class SlotTaskOwner { private let taskSlot = TaskSlot(); func startTask() async { await taskSlot.replace { await work() } } }',
+            'class Screen: UIViewController { private let tasks = ViewTaskStore(); override func viewDidLoad() { startTask() }; func startTask() { tasks.start(id: id) { await work() } } }',
+            '@Test func ownership() async { let tasks = ViewTaskStore(); tasks.start(id: id) { await work() }; tasks.cancelAll(); await tasks.waitForIdle() }',
+            'struct Screen: View { private let tasks = ViewTaskStore(); var body: some View { Button(action: { tasks.start(id: id) { await work() } }) { Text("x") } } }',
+        ]
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual(violations(source), [])
+
+    def test_models_cannot_own_or_accept_task_creation_capabilities(self):
+        for source in [
+            'class LibraryModel { private let tasks = ViewTaskStore(); func startTask() {} }',
+            '@Observable class StateTaskOwner { private let tasks = ViewTaskStore() }',
+            'struct Worker { private let tasks = ViewTaskStore() }',
+            'func load(tasks: ViewTaskStore) { }',
+            'typealias Store = ViewTaskStore',
+            'let factory = ViewTaskStore.init',
+            'let create = TaskSlot.init',
+            '@MainActor class ExampleTaskOwner { let tasks = ViewTaskStore() }',
+            '@MainActor class ExampleTaskOwner { private let other = ViewTaskStore() }',
+        ]:
+            with self.subTest(source=source):
+                self.assertTrue(violations(source))
+
+    def test_start_helpers_cannot_be_hidden_aliased_or_nested_in_async_work(self):
+        bodies = [
+            'func load() { startTask() }',
+            'func load() async { startTask() }',
+            'var value: Int { startTask(); return 0 }',
+            'var value = 0 { didSet { startTask() } }',
+            'func startTask() { let alias = tasks.start; alias() }',
+            'func startTask() { let alias = startTask; alias() }',
+            'func startTask() { let alias = tasks; alias.start(id: id) {} }',
+            'func startTask() { consume(tasks) }',
+            'func startTask() { tasks.start(id: id) { startTask() } }',
+            'func startTask() { tasks.start(id: id) { tasks.start(id: id) {} } }',
+            'func startTask() { withClosure { startTask() } }',
+            'func load() { let callback = { startTask() }; callback() }',
+            'func startTask() async { tasks.start(id: id) {} }',
+            'var body: some View { Text("x").task { startTask() } }',
+            'var body: some View { Button(action: {}) { startTask(); Text("x") } }',
+            'var body: some View { Button {} label: { startTask(); Text("x") } }',
+            'var body: some View { Text("x").sheet(item: $x) { _ in startTask(); Text("x") } }',
+            'var body: some View { Button { consume { startTask() } } label: { Text("x") } }',
+        ]
+        for body in bodies:
+            with self.subTest(body=body):
+                self.assertTrue(violations('struct Screen: View { private let tasks = ViewTaskStore(); ' + body + ' }'))
+
+    def test_slot_replace_is_checked_without_reserving_unrelated_replace(self):
+        source = '@MainActor class ExampleTaskOwner { private let taskSlot = TaskSlot(); func save() async { await taskSlot.replace { await work() } } }'
+        self.assertTrue(violations(source))
+        self.assertEqual(violations('func replace(_ value: Int) {}\nfunc save() { store.replace(1) }'), [])
+
+    def test_task_boundaries_in_interpolations_are_not_ignored(self):
+        for body in [r'func save() { let x = "value \(startTask())" }',
+                     r'func save() { let x = #"value \#(startTask())"# }']:
+            self.assertTrue(violations('struct Screen: View { ' + body + ' }'))
+
+    def test_isolated_deinit_is_parsed_and_still_checked(self):
+        self.assertEqual(violations('actor Database { isolated deinit { close() } }'), [])
+        self.assertTrue(violations('actor Database { isolated deinit { owner.startTask() } }'))
+
+    def test_unsupported_or_malformed_syntax_fails_closed(self):
+        with self.assertRaises(ValueError):
+            violations('struct Broken: View { func load( { }')
 
     def test_comments_strings_raw_strings_and_regex_are_not_code(self):
         source = r'''

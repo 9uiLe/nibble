@@ -31,6 +31,7 @@ nibbleはiOS向けのスニペットツール。作業中に必要なスニペ�
 | --- | --- |
 | Python 3 | workflow・Swiftライブラリ方針の検査、iOS検証スクリプト、スクリプトのテスト |
 | PyYAML | workflowのYAML読込 |
+| tree-sitter-language-pack | Swift構文木によるタスク開始境界の検査 |
 | actionlint + ShellCheck | GitHub Actionsの構文・式・埋め込みシェルの検査 |
 | nixfmt（`nix fmt`経由） | Nix定義の整形 |
 | sim-use 0.14.0（macOSのみ） | Simulatorの画面読取・操作。release archiveをflake入力として固定 |
@@ -69,6 +70,8 @@ nix flake check --no-update-lock-file --print-build-logs
 - アプリのSwift Package依存を使用する場合は `Package.resolved` を共有する。Nixの補助ツール管理とは責務を分ける。
 
 ## 非同期処理とアニメーション
+
+非同期の操作は完了まで待機できる`async` APIとして公開する。モデルの同期メソッドやsetterにタスク開始を隠さず、UIイベントと明示的な`startTask`境界で呼出元が開始を選ぶ。入力setterは値と世代番号だけを変更する。これらの境界・開始APIの別名化をLintで検査し、モデルの完了契約を直接awaitするテストで確認する。
 
 非構造化タスクの開始・保持はswift-tasking、アプリで指定するアニメーションはswift-scoped-animationに統一する。`ViewTaskStore` / `TaskSlot`で所有者・寿命・重複実行を定義し、`AnimationScope` / `animationBarrier`で適用範囲を定義する。[実装規約](docs/library-policy.md)を本体・共有拡張・テスト・研究用Swiftに適用する。
 
