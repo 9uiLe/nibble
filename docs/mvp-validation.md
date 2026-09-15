@@ -97,7 +97,7 @@ raw値は`artifacts/mvp/search-timing-final.json`（`a498ba4`）と`artifacts/li
 
 | 評価領域 | 詳細記録 | 閲覧可能な添付先 |
 | --- | --- | --- |
-| 一覧行の比較・表示反映 | [比較Viewの検証](app-macros-validation.md)。`81d9144`・`ba35eca` | PR添付は未実施 |
+| 一覧行の比較・表示反映 | [比較Viewの検証](app-macros-validation.md)。`81d9144`・`ba35eca` | [PR #8](https://github.com/9uiLe/nibble/pull/8)の画像5点・録画2本 |
 | 操作API・UI所有者・通知・共有 | [非同期APIの検証](async-policy-validation.md)。製品は`16868e6`、Lintと回帰テストは`89cf8ff` | [PR #7](https://github.com/9uiLe/nibble/pull/7)の画像5点・動画6本 |
 | タスク所有・アニメーションの比較資料 | [Tasking・ScopedAnimationの検証](library-policy-validation.md)。`9686f3a`の19テスト、操作と撮影 | [PR #7](https://github.com/9uiLe/nibble/pull/7)の画像4点・動画5点 |
 | 表示・日本語入力・OS連携 | この文書の入力・外観・OS連携の表。2026-09-13の各ソース | [PR #6](https://github.com/9uiLe/nibble/pull/6)の画像6点・動画6本 |
