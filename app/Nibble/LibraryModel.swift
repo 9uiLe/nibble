@@ -4,36 +4,55 @@ import Observation
 @MainActor @Observable
 final class LibraryModel {
     let store: SnippetStore
-    var query = ""
-    var filter = LibraryFilter.all
-    private(set) var items: [SnippetSummary] = []
-    private(set) var drafts: [Draft] = []
+    enum EditorSource { case new, snippet(UUID), draft(UUID) }
+
+    struct Notice: Identifiable, Equatable {
+        let id = UUID()
+        let message: String
+        let undoID: UUID?
+        var duration: Duration { undoID == nil ? .seconds(2) : .seconds(6) }
+    }
+
+    private(set) var request = LibraryRequest()
+    private(set) var page = LibraryPage()
     private(set) var loading = true
-    private(set) var hasMore = false
+    private(set) var notice: Notice?
+    private(set) var feedback = 0
     var error: String?
     var editor: Draft?
-    private(set) var notice: String?
-    private(set) var undoID: UUID?
-    var feedback = 0
-    var limit = 100
-    private var request = UUID()
+    private var refreshID = UUID()
     private var opening = false
-    private(set) var noticeID: UUID?
+
+    var query: String {
+        get { request.query }
+        set {
+            guard !newValue.utf8.elementsEqual(request.query.utf8) else { return }
+            request = LibraryRequest(query: newValue, filter: request.filter)
+        }
+    }
+    var filter: LibraryFilter {
+        get { request.filter }
+        set {
+            guard newValue != request.filter else { return }
+            request = LibraryRequest(query: request.query, filter: newValue)
+        }
+    }
+    var items: [SnippetSummary] { page.items }
+    var drafts: [DraftSummary] { page.drafts }
+    var hasMore: Bool { page.hasMore }
+
+    func showMore() { request = request.expanded }
 
     init(store: SnippetStore = .shared) { self.store = store }
 
-    func clearNotice() {
-        noticeID = nil
-        notice = nil
-        undoID = nil
-    }
+    func clearNotice() { notice = nil }
 
     func expireNotice(id: UUID) async {
-        guard noticeID == id else { return }
+        guard let notice, notice.id == id else { return }
         do {
-            try await Task.sleep(for: .seconds(undoID == nil ? 2 : 6))
+            try await Task.sleep(for: notice.duration)
             try Task.checkCancellation()
-            guard noticeID == id else { return }
+            guard self.notice?.id == id else { return }
             clearNotice()
         } catch is CancellationError { }
         catch { self.error = error.localizedDescription }
@@ -41,30 +60,35 @@ final class LibraryModel {
 
     func refresh() async {
         let token = UUID()
-        request = token
-        let query = query, filter = filter, limit = limit
+        refreshID = token
+        let requested = request
         loading = true
-        defer { if request == token { loading = false } }
+        defer { if refreshID == token { loading = false } }
         do {
-            let values = try await store.search(query, filter: filter, limit: limit + 1)
-            let drafts = try await store.drafts()
+            let page = try await store.library(requested)
             try Task.checkCancellation()
-            guard request == token else { return }
-            self.items = Array(values.prefix(limit))
-            self.hasMore = values.count > limit
-            self.drafts = drafts
+            guard refreshID == token, request == requested else { return }
+            self.page = page
             error = nil
         } catch is CancellationError { }
-        catch { if request == token { self.error = error.localizedDescription } }
+        catch {
+            if refreshID == token, request == requested { self.error = error.localizedDescription }
+        }
     }
 
-    func open(id: UUID? = nil) async {
+    func open(_ source: EditorSource = .new) async {
         guard !Task.isCancelled, editor == nil, !opening else { return }
         opening = true
         defer { opening = false }
         do {
-            if let id, let existing = drafts.first(where: { $0.snippetID == id }) { editor = existing }
-            else { editor = try await store.beginDraft(snippetID: id) }
+            // Read at the time of opening; library rows deliberately contain no editable snapshot.
+            let draft: Draft
+            switch source {
+            case .new: draft = try await store.beginDraft()
+            case .snippet(let id): draft = try await store.editingDraft(for: id)
+            case .draft(let id): draft = try await store.draft(id)
+            }
+            editor = draft
         } catch { self.error = error.localizedDescription }
     }
 
@@ -115,9 +139,7 @@ final class LibraryModel {
     }
 
     private func announce(_ text: String, undo: UUID? = nil) {
-        noticeID = UUID()
-        notice = text
-        undoID = undo
+        notice = Notice(message: text, undoID: undo)
         UIAccessibility.post(notification: .announcement, argument: text)
     }
 }

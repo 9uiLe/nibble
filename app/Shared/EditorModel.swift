@@ -3,11 +3,17 @@ import Observation
 
 @MainActor @Observable
 final class EditorModel {
+    enum Phase: Equatable { case editing, finishing, finished }
+    enum FinishOperation { case save, saveAsNew, keep, discard }
+
+    struct Failure: Equatable {
+        let message: String
+        let canSaveAsNew: Bool
+    }
+
     private(set) var draft: Draft
-    private(set) var busy = false
-    private(set) var finished = false
-    var error: String?
-    private(set) var conflict = false
+    private(set) var phase = Phase.editing
+    private(set) var failure: Failure?
     private let store: SnippetStore
 
     init(draft: Draft, store: SnippetStore) {
@@ -17,63 +23,53 @@ final class EditorModel {
 
     var title: String {
         get { draft.title }
-        set { draft.title = newValue; draft.sequence += 1 }
+        set { if phase == .editing { draft.title = newValue } }
     }
 
     var body: String {
         get { draft.body }
-        set { draft.body = newValue; draft.sequence += 1 }
+        set { if phase == .editing { draft.body = newValue } }
     }
 
-    var canSave: Bool { !busy && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var canSave: Bool {
+        phase == .editing && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     func persist(_ snapshot: Draft) async {
-        guard !finished, snapshot.id == draft.id else { return }
-        // An admitted SQLite write finishes even when the view task is cancelled.
-        // Sequence checks choose the latest snapshot and never recreate a removed draft.
+        guard phase == .editing, snapshot.id == draft.id else { return }
+        // An admitted write completes after cancellation. SQL ignores older and removed snapshots.
         do { try await store.updateDraft(snapshot) }
         catch {
-            if !finished { self.error = "下書きを保存できませんでした。\n" + error.localizedDescription }
+            // A previous input's failure must not overwrite a newer input or a finish result.
+            if phase == .editing && snapshot.sequence == draft.sequence {
+                failure = Failure(message: "下書きを保存できませんでした。\n" + error.localizedDescription,
+                                  canSaveAsNew: false)
+            }
         }
     }
 
-    func save(asNew: Bool = false) async -> Bool {
-        guard !Task.isCancelled, !busy, !finished else { return false }
-        busy = true
-        defer { busy = false }
+    /// Every exit freezes input, awaits persistence, then publishes exactly one terminal state.
+    func finish(_ operation: FinishOperation) async -> Bool {
+        guard !Task.isCancelled, phase == .editing else { return false }
+        let snapshot = draft
+        phase = .finishing
+        failure = nil
         do {
-            try await store.save(draft, asNew: asNew)
-            finished = true
+            switch operation {
+            case .save: try await store.save(snapshot)
+            case .saveAsNew: try await store.save(snapshot, asNew: true)
+            case .keep: try await store.keepDraft(snapshot)
+            case .discard: try await store.discardDraft(snapshot)
+            }
+            phase = .finished
             return true
         } catch {
-            conflict = (error as? StoreError) == .conflict
-            self.error = error.localizedDescription
+            phase = .editing
+            let storeError = error as? StoreError
+            failure = Failure(message: error.localizedDescription,
+                              canSaveAsNew: storeError == .conflict || storeError == .staleDraft || storeError == .missing)
             return false
         }
     }
-
-    func keepForLater() async -> Bool {
-        guard !Task.isCancelled, !busy, !finished else { return false }
-        busy = true
-        defer { busy = false }
-        do {
-            if (draft.title.isEmpty && draft.body.isEmpty) || (draft.snippetID != nil && draft.sequence == 0) {
-                try await store.discardDraft(draft.id)
-            }
-            else { try await store.updateDraft(draft) }
-            finished = true
-            return true
-        } catch { self.error = error.localizedDescription; return false }
-    }
-
-    func discard() async -> Bool {
-        guard !Task.isCancelled, !busy, !finished else { return false }
-        busy = true
-        defer { busy = false }
-        do {
-            try await store.discardDraft(draft.id)
-            finished = true
-            return true
-        } catch { self.error = error.localizedDescription; return false }
-    }
 }
+

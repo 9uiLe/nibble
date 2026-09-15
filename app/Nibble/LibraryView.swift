@@ -34,7 +34,7 @@ struct LibraryView: View {
                 if !model.drafts.isEmpty && model.filter != .trash && model.query.isEmpty {
                     Section {
                         ForEach(model.drafts) { draft in
-                            Button { model.editor = draft } label: {
+                            Button { startTask(.open(.draft(draft.id))) } label: {
                                 Label {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text("下書きを再開").font(.subheadline.weight(.semibold))
@@ -63,7 +63,7 @@ struct LibraryView: View {
                             snippetRow(item)
                         }
                         if model.hasMore {
-                            Button("さらに表示") { model.limit += 100 }
+                            Button("さらに表示") { model.showMore() }
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
                     } header: {
@@ -98,7 +98,7 @@ struct LibraryView: View {
                     .accessibilityIdentifier("library.menu")
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("新しいスニペット", systemImage: "plus") { startTask(.open(nil)) }
+                    Button("新しいスニペット", systemImage: "plus") { startTask(.open(.new)) }
                         .accessibilityIdentifier("library.add")
                         .keyboardShortcut("n", modifiers: .command)
                 }
@@ -114,10 +114,10 @@ struct LibraryView: View {
                 AnimationScope(.easeOut(duration: reduceMotion ? 0 : 0.16), value: model.notice != nil, name: "Library.Notice") {
                     if let notice = model.notice {
                         HStack(spacing: 16) {
-                            Label(notice, systemImage: "checkmark.circle.fill").font(.subheadline.weight(.medium))
+                            Label(notice.message, systemImage: "checkmark.circle.fill").font(.subheadline.weight(.medium))
                                 .accessibilityIdentifier("library.notice")
                             Spacer(minLength: 0)
-                            if let id = model.undoID {
+                            if let id = notice.undoID {
                                 Button("元に戻す") { startTask(.restore(id)) }
                                     .font(.subheadline.weight(.semibold))
                                     .frame(minHeight: 44)
@@ -146,13 +146,11 @@ struct LibraryView: View {
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
         .sensoryFeedback(.success, trigger: model.feedback)
-        .task(id: model.noticeID) {
-            if let id = model.noticeID { await model.expireNotice(id: id) }
+        .task(id: model.notice?.id) {
+            if let id = model.notice?.id { await model.expireNotice(id: id) }
         }
         .onAppear { startTask(.refresh) }
-        .onChange(of: "\(model.query)|\(model.filter.rawValue)|\(model.limit)") { startTask(.refresh) }
-        .onChange(of: model.query) { model.limit = 100 }
-        .onChange(of: model.filter) { model.limit = 100 }
+        .onChange(of: model.request) { startTask(.refresh) }
         .onChange(of: scenePhase) {
             if scenePhase == .active { startTask(.refresh) }
             else if scenePhase == .background { taskOwner.endScreen(); model.clearNotice() }
@@ -162,7 +160,7 @@ struct LibraryView: View {
             if model.editor != nil { return } // Never replace an in-progress edit.
             model.filter = .all
             model.query = ""
-            if route == .create { startTask(.open(nil)) }
+            if route == .create { startTask(.open(.new)) }
         }
         .privacySensitive()
         .overlay {
@@ -204,15 +202,27 @@ struct LibraryView: View {
         .background(.quaternary.opacity(0.6), in: .rect(cornerRadius: 16))
     }
 
+    private var emptyContent: (title: String, symbol: String, message: String) {
+        if model.filter == .trash {
+            return ("削除した項目はありません", "trash", "削除したスニペットはここから復元できます。")
+        }
+        if !model.query.isEmpty {
+            return ("見つかりませんでした", "magnifyingglass", "別の言葉や、短い語句で探してみてください。")
+        }
+        if model.filter == .pinned {
+            return ("よく使う言葉を、手前に。", "text.quote", "項目を長押ししてピン留めすると、すぐに見つかります。")
+        }
+        return ("言葉を、すぐ手元に。", "text.quote", "よく使う言葉を保存して、\n次からはワンタップでコピー。")
+    }
+
     private var emptyState: some View {
         ContentUnavailableView {
-            Label(model.filter == .trash ? "削除した項目はありません" : (!model.query.isEmpty ? "見つかりませんでした" : (model.filter == .pinned ? "よく使う言葉を、手前に。" : "言葉を、すぐ手元に。")),
-                  systemImage: model.filter == .trash ? "trash" : (model.query.isEmpty ? "text.quote" : "magnifyingglass"))
+            Label(emptyContent.title, systemImage: emptyContent.symbol)
         } description: {
-            Text(model.filter == .trash ? "削除したスニペットはここから復元できます。" : (!model.query.isEmpty ? "別の言葉や、短い語句で探してみてください。" : (model.filter == .pinned ? "項目を長押ししてピン留めすると、すぐに見つかります。" : "よく使う言葉を保存して、\n次からはワンタップでコピー。")))
+            Text(emptyContent.message)
         } actions: {
             if model.query.isEmpty && model.filter == .all {
-                Button("最初のスニペットを作る") { startTask(.open(nil)) }
+                Button("最初のスニペットを作る") { startTask(.open(.new)) }
                     .buttonStyle(.borderedProminent).controlSize(.large)
                     .accessibilityIdentifier("library.createFirst")
             }
@@ -222,7 +232,7 @@ struct LibraryView: View {
 
     private func snippetRow(_ item: SnippetSummary) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Button { if model.filter != .trash { startTask(.open(item.id)) } } label: {
+            Button { if model.filter != .trash { startTask(.open(.snippet(item.id))) } } label: {
                 SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
             }
             .buttonStyle(.plain)
@@ -253,7 +263,7 @@ struct LibraryView: View {
                 Button("完全に削除", systemImage: "trash", role: .destructive) { permanentDeletion = item }
             } else {
                 Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }
-                Button("編集", systemImage: "square.and.pencil") { startTask(.open(item.id)) }
+                Button("編集", systemImage: "square.and.pencil") { startTask(.open(.snippet(item.id))) }
                 Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
             }
         }
@@ -268,83 +278,3 @@ struct LibraryView: View {
     }
 }
 
-private struct AboutView: View {
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("言葉を、すぐ手元に。").font(.title2.weight(.semibold))
-                    Text("一覧のコピーボタンで本文をコピー。項目をタップすると編集、長押しするとピン留めや削除ができます。")
-                }
-                Section("ほかのアプリから") {
-                    Text("テキストやURLの共有メニューでnibbleを選ぶと、内容を保存できます。共有先に表示されない場合は「その他」から追加してください。")
-                    Text("ショートカットの「URLを開く」に、一覧は nibble://library、作成は nibble://new を指定できます。ホーム画面やコントロールセンターに置くと、すぐに呼び出せます。")
-                }
-                Section("データについて") {
-                    Text("スニペットと下書きはこの端末に保存します。コピーした本文はこの端末内で利用できます。")
-                    Text("削除した項目は自動で消えません。「削除した項目」から復元、または完全に削除できます。アプリを削除すると保存データも失われます。")
-                    Text("アカウント、広告、アクセス解析はありません。")
-                }
-            }
-            .navigationTitle("nibbleについて").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } } }
-        }.tint(.nibbleAccent)
-    }
-}
-
-/// Owns finite UI requests across presentation changes in the library scene.
-/// Business operations remain directly awaitable on LibraryModel.
-@MainActor
-final class LibraryTaskOwner {
-    private let tasks = ViewTaskStore()
-
-    enum Action {
-        case refresh, open(UUID?), copy(UUID), pin(SnippetSummary)
-        case delete(UUID), restore(UUID), permanentlyDelete(UUID)
-
-        var id: ActionID {
-            switch self {
-            case .refresh: "library.refresh"
-            case .open: "library.open"
-            case .copy: "library.copy"
-            case .pin(let item): ActionID("library.pin.\(item.id)")
-            case .delete(let id): ActionID("library.delete.\(id)")
-            case .restore(let id): ActionID("library.restore.\(id)")
-            case .permanentlyDelete(let id): ActionID("library.permanentlyDelete.\(id)")
-            }
-        }
-
-        var lifetime: ActionLifetime {
-            if case .open = self { return .screenBound }
-            return .sceneBound
-        }
-
-        var policy: TaskStartPolicy {
-            switch self {
-            case .refresh, .copy: .cancelExisting
-            default: .ignoreNew
-            }
-        }
-    }
-
-    @discardableResult
-    func startTask(_ action: Action, on model: LibraryModel) -> TaskStartOutcome {
-        tasks.start(id: action.id, lifetime: action.lifetime, policy: action.policy) { [weak model] cancellation in
-            try cancellation.check()
-            guard let model else { return }
-            switch action {
-            case .refresh: await model.refresh()
-            case .open(let id): await model.open(id: id)
-            case .copy(let id): await model.copy(id)
-            case .pin(let item): await model.pin(item)
-            case .delete(let id): await model.delete(id)
-            case .restore(let id): await model.restore(id)
-            case .permanentlyDelete(let id): await model.permanentlyDelete(id)
-            }
-        }
-    }
-
-    func endScreen() { tasks.cancel(lifetime: .screenBound) }
-    func waitForIdle() async { await tasks.waitForIdle() }
-}
