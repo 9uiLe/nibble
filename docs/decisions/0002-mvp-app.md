@@ -66,6 +66,7 @@ flowchart TB
 | 構成要素 | 責務 |
 | --- | --- |
 | `LibraryView` | `@State`で一覧モデルと`LibraryTaskOwner`を保持。画面・フォーカス・シート・sceneイベント・通知scopeを接続 |
+| `SnippetRowContent` | タイトル・本文プレビュー・ピン状態を値で受け取り、AppMacrosの比較ゲート内で表示する。操作と状態の所有はLibraryViewに置く |
 | `LibraryTaskOwner` | 一覧UIの非構造化タスクを所有し、明示的な`startTask`で開始。ID・寿命・重複方針・キャンセルを管理 |
 | `LibraryModel` | MainActor上の検索条件・一覧・編集入口・通知状態。読込、コピー、項目更新を待機可能な操作として提供 |
 | `SnippetEditor` | 編集モデルと終了操作のTasking storeを保持。入力snapshotの書込をSwiftUI `.task`で待ち、終了操作の成功後にdismissまたは共有元へ完了通知 |
@@ -158,6 +159,14 @@ Taskingの`ActionID`は重複判定の単位、`ActionLifetime`はキャンセ�
 
 `LibraryView`と`SnippetEditor`の外側には`animationBarrier(warnsOnLeaks: false)`を置き、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks`と、入力領域の警告付きbarrierでアプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボード自体の遷移はOS部品が管理する。診断だけで全表示変化の正しさを判定せず、対象導線を画像・録画で確認する。
 
+## 値による表示更新の制御
+
+一覧のタイトル・本文プレビュー・ピン表示は`SnippetRowContent`へまとめ、swift-app-macrosの`@Equatable`と`EquatableBodyView`を使用する。3つの`let`入力をすべて比較し、既定の`body`が比較ゲートを提供する。呼出側は通常のViewと同じように配置する。
+
+Button、アクセシビリティの操作ラベル、編集・コピー・復元・メニューのクロージャは`LibraryView`へ保持する。表示用Viewにクロージャ・参照モデル・DynamicPropertyを渡さず、比較から入力を除外しない。これにより、同じ表示値を再利用する場合も操作は現在のモデル・項目を参照する。
+
+状態や入力を持つ一覧全体・編集画面には通常のViewを使う。比較対象を少量の表示値に限定し、外観・文字サイズなど標準部品のenvironment更新はSwiftUIに委ねる。入力ごとの等価比較と、マウント済み画面の表示更新を製品テストで確認し、実際の導線を画像・録画で評価する。比較ゲートの導入だけで再描画削減や応答時間の改善を保証しない。
+
 ## 呼び出しと共有の契約
 
 | 入口 | 契約 |
@@ -178,12 +187,13 @@ Taskingの`ActionID`は重複判定の単位、`ActionLifetime`はキャンセ�
 | SwiftUI + Observation | 標準部品と明示的なUI状態で一覧・編集を構成。UIKitは共有拡張の入口で使用 | IME・フォーカス・表示の問題を標準部品で解決できない場合 |
 | swift-tasking 0.3.0 | 個別のTask handle管理に対し、所有・寿命・重複方針を共通APIで表現。モデルの操作は独立したasync APIとする | 保守停止、対応条件の不適合、測定した応答の悪化 |
 | swift-scoped-animation 0.2.1 | 個別のtransaction管理に対し、表示変化の範囲と伝播を共通APIで表現 | 保守停止、対応条件の不適合、描画の悪化、必要な表現を扱えない場合 |
+| swift-app-macros 0.2.0 | 表示入力から比較を生成し、View定義側にゲートを設ける。手書き比較の項目漏れと呼出側の付け忘れを防ぐ。Mac上のマクロ実行とswift-syntaxのビルドを必要とする | 比較コスト・ビルド時間の悪化、Swift / SDKとの不適合、保守停止 |
 | Apple同梱SQLite | SwiftData・Core Dataに対し、共有ストア、revision付き更新、下書きとのatomicな確定を直接検査可能。SQLとmigrationは手動管理 | 同期やschema変更で手動管理の負担が増す場合 |
 | 保存済み検索キー + `instr` | 日本語1〜2文字の部分一致を原文保持と両立。FTS5 trigram MATCHの短い検索語の制約を避ける | 対象データ量での遅延、高度な検索・ランキングの必要性 |
 | Share Extension + 標準URLアクション | host内での取り込みと、一覧・作成への呼び出しを公開APIで提供。利用者がショートカットを設定 | host・形式・件数の拡大、自動登録・音声操作・引数付きアクションの必要性 |
 | 端末内保存 | アカウント・通信・同期競合を要しない日常操作 | 複数端末での利用を提供する場合 |
 
-両Swift Packageはexact versionと共有`Package.resolved`で固定し、本体・共有拡張に同じ版をリンクする。MITライセンス通知を両bundleへ含める。補助ツールはNix、Xcode・SDK・runtimeはローカルのApple配布物で管理する。依存更新の手順は[実装規約](../library-policy.md#依存とビルド)に従う。
+Swift Packageはexact versionと共有`Package.resolved`で固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とそのテストにリンクする。AppMacrosのビルド依存swift-syntax 603.0.2もlockへ固定し、MITライセンス通知を両bundleへ含める。補助ツールはNix、Xcode・SDK・runtimeはローカルのApple配布物で管理する。依存更新の手順は[実装規約](../library-policy.md#依存とビルド)に従う。
 
 比較の根拠は[研究資料](../../research/README.md)に保存する。ResearchProbeの保存3方式やAPI試作は比較条件であり、製品の採用構成と区別する。
 
@@ -199,7 +209,7 @@ schema変更はトランザクション内の明示的なmigrationと旧版fixtu
 
 ## 機械検査と受け入れ条件
 
-`swift-library-policy`で所有するSwiftソースを検査する。生のTask生成・別scheduler・直接アニメーション、モデルや通常メソッド・setterに隠れたタスク開始、store・開始APIの別名化を拒否する。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task APIは利用できる。規則と適用限界は[実装規約](../library-policy.md)を正とする。
+`swift-library-policy`で所有するSwiftソースを検査する。生のTask生成・別scheduler・直接アニメーション、モデルや通常メソッド・setterに隠れたタスク開始、store・開始APIの別名化を拒否する。View比較では直接ゲート・手書き等価比較・入力の除外と、マクロやゲートの付け忘れを拒否する。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task APIは利用できる。規則と適用限界は[実装規約](../library-policy.md)を正とする。
 
 Swift Testingでは、モデルの操作を直接awaitして完了と状態を照合する。Taskingの所有者のテストでは寿命・重複・キャンセルを検査する。SQLiteの原文保持・競合・下書き順序・復旧条件も製品の保存層で確認する。
 

@@ -223,17 +223,7 @@ struct LibraryView: View {
     private func snippetRow(_ item: SnippetSummary) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Button { if model.filter != .trash { startTask(.open(item.id)) } } label: {
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        if item.pinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(Color.nibbleAccent) }
-                        Text(item.displayTitle).font(.headline).foregroundStyle(.primary).lineLimit(2)
-                    }
-                    if !item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(item.preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-                .contentShape(.rect)
+                SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
             }
             .buttonStyle(.plain)
             .disabled(model.filter == .trash)

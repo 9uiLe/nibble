@@ -13,7 +13,7 @@ nibbleは、必要なテキストを素早く探してコピーし、作成・�
 | 利用と呼び出し | 一覧からコピーし、利用者が入力先へ戻ってペースト。標準ショートカットで一覧・作成URLを開く | hostごとの制約、App Intents・Controls・Keyboard・Widgetの便益と設定負担 |
 | 取り込み | Share ExtensionでテキストまたはURLを1件保存 | hostが公開する形式、権限、共有元への復帰 |
 | UI | SwiftUI + Observation、日本語UI、一覧検索、明示保存、下書き、削除・復元 | 探索・入力・誤操作・アクセシビリティと実機性能 |
-| 非同期・アニメーション | モデルの操作をasyncで完了まで待ち、UI所有者が[Tasking](../docs/library-policy.md)で開始。ScopedAnimationで表示範囲を定義し、直接API・隠れた開始をLintで禁止 | 完了契約、キャンセル・重複操作・応答・アニメーション伝播 |
+| 非同期・アニメーション・View比較 | モデルの操作をasyncで完了まで待ち、UI所有者が[Tasking](../docs/library-policy.md)で開始。ScopedAnimationで表示範囲、AppMacrosで値だけを受け取る行の比較境界を定義し、直接API・隠れた開始・比較除外をLintで禁止 | 完了契約、キャンセル・重複操作・応答・アニメーション伝播 |
 | 保存 | Apple同梱SQLite、App Group、専用actor、WAL、revisionによる競合検出 | SwiftData・Core Dataとの比較、プロセス間の整合性、migrationと復旧 |
 | 検索 | 原文と検索キーを分離し、日本語1文字から部分一致 | 正規化、FTS5、件数と検索の正確さ・遅延 |
 | 保護 | completeのData Protection、端末内コピー、本文の自動収集なし | ロック・バックアップ・ログ・システム連携ごとの保護の実効性 |

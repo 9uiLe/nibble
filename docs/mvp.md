@@ -43,7 +43,7 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 | 本体 / Share Extension | `dev.nibble.app` / `dev.nibble.app.share` |
 | App Group | `group.dev.nibble.app` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
-| アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.1（[実装規約](library-policy.md)） |
+| アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.1、swift-app-macros 0.2.0（[実装規約](library-policy.md)） |
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
@@ -65,6 +65,7 @@ Swift Testingでは使い捨てのDBと製品のモデル・保存層を使用�
 | 操作の完了 | モデルのasync APIを直接awaitし、戻った時点のDB・表示状態を照合 |
 | 入力と下書き | setterがDBを書き換えないこと、不変snapshotとsequenceの順序、入力直後の保存・閉じる、保存・破棄後の遅延書込を照合 |
 | UIのタスク所有 | `LibraryTaskOwner`で重複抑止・寿命・キャンセルを検査。所有者の終了待ちを使用 |
+| Viewの比較境界 | 一覧行のタイトル・プレビュー・ピンが等価比較へ含まれ、マウント済み画面で変更・復元が反映されることを照合 |
 | 通知と入口 | コピーと独立した通知期限、キャンセル・IDの不一致、URLの許可範囲を検査 |
 
 ## 基本操作の自動検証
@@ -75,7 +76,7 @@ Swift Testingでは使い捨てのDBと製品のモデル・保存層を使用�
 nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-driverはダミー項目を作成し、コピー・日本語検索・編集画面・ピン留め・削除・復元・下書き破棄を操作する。実行ごとに一意な日本語タイトルを使い、検索で対象行を特定してコピーのUTF-8と復元後のUUIDを照合する。既存の項目は削除しない。行を開く前にキーボードを閉じ、一覧の配置が確定してから操作する。
+driverはダミー項目を作成し、コピー・日本語検索・タイトルと本文の編集・ピン留め・削除・復元・下書き破棄を操作する。実行ごとに一意な日本語タイトルを使い、検索で対象行を特定してコピーのUTF-8と復元後のUUIDを照合する。編集後は同じUUIDの行へ新タイトルが反映され、更新した本文をコピーできることも確認する。既存の項目は削除しない。行を開く前にキーボードを閉じ、一覧の配置が確定してから操作する。
 
 ## 共有とペーストの検証
 

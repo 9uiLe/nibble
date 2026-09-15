@@ -1,8 +1,8 @@
-# 非同期処理とアニメーションの実装規約
+# 非同期処理・アニメーション・View比較の実装規約
 
 状態：採用。決定日：2026-09-15。本体・共有拡張・テスト・研究用アプリ・検証用Swiftコードに適用する。
 
-非同期操作は完了まで待てるAPIで提供し、UIがタスクの開始・所有・寿命を決める。非構造化タスクにはswift-tasking、アプリが指定するアニメーションにはswift-scoped-animationを使う。この文書は、コードで表す契約と機械検査の条件を定義する。操作別の仕様は[製品設計](decisions/0002-mvp-app.md)、実施済みの確認は[製品の検証結果](mvp-validation.md)を参照する。
+非同期操作は完了まで待てるAPIで提供し、UIがタスクの開始・所有・寿命を決める。非構造化タスクにはswift-tasking、アプリが指定するアニメーションにはswift-scoped-animation、SwiftUIの比較による更新制御にはswift-app-macrosを使う。この文書は、コードで表す契約と機械検査の条件を定義する。操作別の仕様は[製品設計](decisions/0002-mvp-app.md)、実施済みの確認は[製品の検証結果](mvp-validation.md)を参照する。
 
 ## 操作APIと開始API
 
@@ -93,9 +93,37 @@ struct ExampleView: View {
 
 診断の対象はmodifierの位置へ届くtransactionである。子孫の全表示変化やUIKitを自動検査する機能ではなく、scopeも同じ状態更新に伴う変化を自動分離しない。Reduce Motion、入力・スクロール・遷移を画像と録画で確認する。
 
+## Viewの比較境界
+
+SwiftUIの比較による更新制御は`@Equatable`と`EquatableBodyView`を組み合わせる。`EquatableBodyView`の既定の`body`が比較ゲートを持つため、呼出側は通常のViewとして配置する。本体は同じstructの`equatableBody`に書く。手書きの`==`、`.equatable()`、`EquatableView`、`equatableBody`への直接アクセスは使わない。
+
+```swift
+import AppMacros
+import SwiftUI
+
+@Equatable
+struct CaptionContent: EquatableBodyView {
+    let text: String
+
+    var equatableBody: some View {
+        Text(text)
+    }
+}
+```
+
+製品の`SnippetRowContent`はタイトル・本文プレビュー・ピン状態だけを`let`で受け取る。Button、アクセシビリティの操作ラベル、コピー・編集・削除等のクロージャは`LibraryView`に保持する。比較対象が同じ場合も、呼出元の操作は現在の状態を参照する。タイトル・本文・ピンの変更は比較へ必ず含める。
+
+nibbleの比較Viewは、plainな`let`の値型入力だけで表示を決める。ライブラリが自動で比較から除外するクロージャやDynamicProperty、`@SkipEquatable`は使用しない。`@State`・`@Binding`・`@Bindable`・`@Environment`等の所有・注入や操作は通常のView側で扱う。標準部品へ伝わる外観・文字サイズ等のenvironment更新はSwiftUIが管理する。独自の参照型・global状態を読んで表示を変える設計は比較境界に入れない。
+
+通常の画面・編集UIには`View`を使い、全Viewへの比較ゲート適用は必須にしない。保存層などの値型・enumの`Equatable`自動合成、genericな`Equatable`制約、比較演算子の呼出しは使用できる。独自の`==`実装は設けず、値の比較は自動合成、Viewの比較はAppMacrosに統一する。
+
+Lintは、直接ゲート・手書きの等価比較・除外属性、マクロやゲートの付け忘れ、`body`による既定実装の上書き、格納クロージャ・wrapper・可変入力・入力のない比較Viewを拒否する。`View`・`Equatable`のtypealias、Viewの派生protocol、`EquatableBodyView`の別名・派生protocol・extension準拠も認めない。`body`・`equatableBody`をextensionへ移さず、比較準拠と本体を同じ型宣言に置く。これらは暗黙の比較境界を作らないためのリポジトリ規約であり、SwiftやAppMacros自体の制限とは区別する。
+
+比較対象型の`Equatable`・Sendable適合と生成コードはローカルのSwift compilerで検査する。構文Lintは型解決やmacro展開、global状態・外部型の比較意味までは検査しない。参照型やalias越しの入力を追加する場合は、値だけで表示が決まることをレビューする。入力変更後の画面反映と、通常のViewとの比較条件を製品テスト・Simulatorで確認し、再描画削減や速度改善をマクロの導入だけから断定しない。
+
 ## Lintと禁止する直接使用
 
-`swift-library-policy`は字句解析とSwift構文木を使い、直接APIと開始境界を検査する。ローカルとUbuntu CIは同じNixのPython環境とtree-sitter-language-pack 1.4.1を使用する。違反はファイル・行・列を表示して終了コード1で失敗する。
+`swift-library-policy`は字句解析とSwift構文木を使い、直接API、タスク開始境界、Viewの比較境界を検査する。ローカルとUbuntu CIは同じNixのPython環境とtree-sitter-language-pack 1.4.1を使用する。違反はファイル・行・列を表示して終了コード1で失敗する。
 
 ```sh
 # ソースの規約検査
@@ -135,6 +163,8 @@ nix flake check --no-update-lock-file --print-build-logs
 
 通常の同期/asyncメソッド、initializer、getter・setter・observer、任意のclosure、SwiftUI `.task`、Taskingのoperationからの開始を拒否する。予約名以外の任意の`.replace`を一律に禁止する規則ではない。
 
+[scripts/swift_equatable_policy.py](../scripts/swift_equatable_policy.py)は同じ構文木からViewの比較境界を検査する。字句検査と合わせて[Viewの比較境界](#viewの比較境界)の規則を適用する。
+
 ### 検査対象と保証範囲
 
 リポジトリ内のSwiftソースを再帰的に探索し、新しいsourceディレクトリも検査する。`artifacts`・`.build`・`DerivedData`等の生成物は除外する。依存コードは`artifacts`以下に取得し、ライブラリ内部実装は所有するソースの検査対象に含めない。Swift sourceとsource directoryのsymlink、読めない入力、対象0件はエラーとする。
@@ -149,8 +179,9 @@ Lintは構文の制限であり、Swiftの型解決・macro展開・全プログ
 | --- | --- | --- | --- |
 | [swift-tasking](https://github.com/9uiLe/swift-tasking/tree/0.3.0) | 0.3.0 | `Tasking`の`ViewTaskStore`、`TaskingCore`の`TaskSlot` | Swift tools 6.0、iOS 13以上 |
 | [swift-scoped-animation](https://github.com/9uiLe/swift-scoped-animation/tree/v0.2.1) | 0.2.1 | `ScopedAnimation` | Swift tools 6.2、iOS 17以上 |
+| [swift-app-macros](https://github.com/9uiLe/swift-app-macros/tree/0.2.0) | 0.2.0 | `AppMacros` | Swift tools 6.3、iOS / macOS 26以上 |
 
-製品のdeployment targetは26.0、検証ツールチェーンはXcode 26.5 / Swift 6.3.2とする。本体と共有拡張は同じ固定版をリンクする。構造化された処理だけを持つ研究・基盤targetには不要なproductをリンクしない。
+製品のdeployment targetは26.0、検証ツールチェーンはXcode 26.5 / Swift 6.3.2とする。本体と共有拡張はTasking・ScopedAnimationの同じ固定版をリンクする。AppMacrosは比較Viewを持つ本体とそのテストにリンクする。共有拡張・研究・基盤targetには未使用のproductをリンクしない。
 
 Xcode projectのexact versionと共有の`app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`でrevisionを固定する。初回はネットワーク接続のあるMacで解決する。通常のビルドでもXcodeが解決する。
 
@@ -160,12 +191,16 @@ xcodebuild -resolvePackageDependencies \
   -clonedSourcePackagesDirPath artifacts/SourcePackages
 ```
 
-両パッケージはMITライセンスで追加の外部パッケージを持たない。本体と共有拡張のbundleに`ThirdPartyNotices.txt`を含める。補助ツールはNix、アプリのSwift PackageはXcode / SwiftPMで管理する。
+3つのライブラリはMITライセンスで、本体と共有拡張のbundleに`ThirdPartyNotices.txt`を含める。AppMacrosが使用するswift-syntax 603.0.2も共有lockへ固定する。swift-syntaxはApache-2.0（Runtime Library Exception付き）で、Mac上のマクロコンパイラを構築する依存であり、アプリへリンクするruntimeではない。Tasking・ScopedAnimationは追加の外部パッケージを持たない。補助ツールはNix、アプリのSwift PackageはXcode / SwiftPMで管理する。
+
+初回はXcodeでprojectを開き、AppMacrosMacrosの実行を有効にする。確認する対象はswift-app-macros 0.2.0、revision `fc4e4623173a41fbde5a35bcf060ed79bfe51e4a`。マクロはビルド時にMac上で実行されるため、パッケージのソースとlockを確認する。全マクロの検証を無効にする設定は使用しない。更新時は対象revisionの確認とXcodeの信頼確認を行う。
 
 ## 採用理由と更新条件
 
 Taskingは処理の所有・寿命・重複方針、ScopedAnimationは表示変化の適用範囲を共通APIで表す。外部APIへの追従、Swift tools要件、操作ごとの管理コストを伴うため、モデルと保存層の操作を独立したasync APIにし、依存をUI所有者とscopeへ集中させる。
 
-依存更新ではexact version・共有lock・ライセンスを照合し、重複操作、キャンセル、入力直後の保存・閉じる、共有元への復帰、通知と入力への伝播をiOS 26.5で確認する。保守停止、対応OS・ツールチェーンの不適合、測定した応答・描画の悪化、必要な表現への不適合を見直し条件とする。
+AppMacrosは表示入力から比較を生成し、定義側にゲートを設ける。手書き比較の項目漏れと呼出側のゲート付け忘れを避ける一方、swift-syntaxのビルド時間、Swift tools 6.3とmacOS 26の要件、マクロ展開の保守を伴う。採用範囲は値だけを受け取る表示部分とし、比較が高価なデータや参照依存のある画面では通常のViewを使う。
+
+依存更新ではexact version・共有lock・ライセンスを照合し、比較項目の変更・外観と文字サイズ・ゲートによる表示反映、重複操作、キャンセル、入力直後の保存・閉じる、共有元への復帰、通知と入力への伝播をiOS 26.5で確認する。保守停止、対応OS・ツールチェーンの不適合、測定した応答・描画の悪化、必要な表現への不適合を見直し条件とする。
 
 [2026-09-15の非同期API境界の検証](async-policy-validation.md)と[2026-09-14のTasking・ScopedAnimationの検証](library-policy-validation.md)は、それぞれ記載したソースと条件の観測記録である。採用の根拠と適用限界を確認し、依存の更新時には対象ソースに対応する結果を記録する。

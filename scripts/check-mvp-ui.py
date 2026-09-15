@@ -24,8 +24,8 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "Button",
                      "--wait-timeout", "5", "--device", args.device])
 
-    def paste(identifier, text):
-        run.command(["sim-use", "paste", "--via-menu", "--target-id", identifier,
+    def paste(identifier, text, replace=False):
+        run.command(["sim-use", "paste", *(["--replace"] if replace else []), "--via-menu", "--target-id", identifier,
                      "--device", args.device, text])
 
     def identifiers(data):
@@ -86,6 +86,19 @@ def main():
                 time.sleep(0.35)
                 run.tap(row)
                 wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
+                edited_title = title + " 編集済み"
+                edited_body = "更新された本文\n" + body
+                paste("editor.title", edited_title, replace=True)
+                paste("editor.body", edited_body, replace=True)
+                run.tap("editor.save")
+                wait_ui("edited", lambda data: any(e.get("uniqueId") == row
+                        and e.get("label") == edited_title for e in data["entries"]))
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "edited-copy") != edited_body:
+                    raise VerificationError("The edited row copied stale or altered text")
+                run.screenshot("edited")
+                run.tap(row)
+                wait_ui("edited-reopened", lambda data: "editor.close" in identifiers(data))
                 run.tap("editor.close")
                 wait_ui("closed", lambda data: row in identifiers(data))
                 menu(row, "pin-menu")
@@ -113,6 +126,7 @@ def main():
             run.ui("finished")
             run.manifest["assertions"] = {
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
+                "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "data": "Dummy text only; existing snippets are retained",
             }

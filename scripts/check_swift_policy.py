@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Reject unmanaged task/animation entry points in repository-owned Swift sources.
+"""Enforce Tasking, ScopedAnimation and AppMacros entry points in repository-owned Swift sources.
 
-Lexical API checks and tree-sitter task-boundary checks are not Swift type
+Lexical API checks and tree-sitter boundary checks are not Swift type
 resolution. See docs/library-policy.md for the enforced syntax and limitations.
 """
 
@@ -166,6 +166,10 @@ def violations(source):
                 message = "Use AnimationScope or explicit AnimationTrigger.animation; raw animation/transaction modifiers are prohibited."
         elif previous == "." and receiver == "UIView" and token.text in UIKIT_ANIMATION_MEMBERS:
             message = "Use ScopedAnimation for product animation; raw UIKit animation entry points are prohibited."
+        elif token.text in {"EquatableView", "SkipEquatable"} or (previous == "." and token.text in {"equatable", "equatableBody"}):
+            message = "Use AppMacros @Equatable + EquatableBodyView with all value inputs compared; direct gates, aliases and comparison exclusions are prohibited."
+        elif token.text == "func" and following == ["=", "="]:
+            message = "Use generated equality (AppMacros for SwiftUI views); handwritten == witnesses are prohibited."
         if message:
             line = source.count("\n", 0, token.offset) + 1
             column = token.offset - source.rfind("\n", 0, token.offset)
@@ -215,7 +219,7 @@ def main():
     if errors:
         print("\n".join(errors))
         return 1
-    print(f"Swift library policy passed: {count} source files; Tasking and ScopedAnimation entry points enforced.")
+    print(f"Swift library policy passed: {count} source files; Tasking, ScopedAnimation and AppMacros entry points enforced.")
     return 0
 
 

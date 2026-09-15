@@ -14,7 +14,7 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 | --- | --- |
 | [開発ガイド](CONTRIBUTING.md) | 対応OS、Nix、ローカルとCIの責務、UI/UX・性能、PRの受け入れ条件 |
 | [製品設計](docs/decisions/0002-mvp-app.md) | 提供範囲、画面、ドメインの用語、保存・検索、非同期操作、採用理由 |
-| [非同期処理とアニメーションの実装規約](docs/library-policy.md) | 操作の完了契約、Taskingの開始・所有、ScopedAnimationの範囲、Lintと依存管理 |
+| [ライブラリの実装規約](docs/library-policy.md) | 操作の完了契約、Taskingの開始・所有、ScopedAnimationの範囲、AppMacrosのView比較、Lintと依存管理 |
 | [MVPの操作と検証](docs/mvp.md) | 日常操作、ショートカット設定、製品のビルド・操作・撮影手順 |
 | [製品の検証結果](docs/mvp-validation.md) | コミット・端末・OSごとのテスト、画面証跡、測定、未検証条件 |
 | [検証基盤の設計](docs/decisions/0001-local-ios-verification.md)・[実行手順](docs/ios-verification.md) | Apple CLI・sim-use・Nixの役割、Simulator、ログと画像・動画の記録 |
@@ -23,7 +23,7 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 
 ## アプリの構成
 
-SwiftUI・Observationで画面を構成し、MainActorのモデルが完了まで待機可能な`async` APIを提供します。UI所有者がswift-taskingで非構造化タスクを開始し、ID・寿命・重複実行を管理します。入力の下書き保存と通知期限はSwiftUI `.task`から操作を直接awaitします。表示変化の範囲はswift-scoped-animationで指定します。
+SwiftUI・Observationで画面を構成し、MainActorのモデルが完了まで待機可能な`async` APIを提供します。UI所有者がswift-taskingで非構造化タスクを開始し、ID・寿命・重複実行を管理します。入力の下書き保存と通知期限はSwiftUI `.task`から操作を直接awaitします。表示変化の範囲はswift-scoped-animationで指定します。一覧行の表示は値だけを受け取るswift-app-macrosの`EquatableBodyView`で構成し、操作は呼出元に保持します。
 
 本体と共有拡張はApp Group内のSQLiteを共有し、各プロセスのactorが接続を管理します。原文と検索キー、保存済み項目と下書きを分け、revisionとsequenceで競合・遅れた書込を扱います。モデル内部の隠れたタスク開始、生のTask、別scheduler、直接アニメーションはLintで禁止します。
 
@@ -80,7 +80,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | 端末選択、失敗処理、テスト判定、録画終了処理、Swift規約の回帰テスト |
-| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation使用、タスク開始の構文境界 |
+| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
 
 GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。
 
@@ -96,13 +96,15 @@ xcodebuild -showsdks
 
 Xcodeの設定からiOS 26.5 Simulator runtimeを導入します。シェルごとにXcodeを選ぶ場合の`DEVELOPER_DIR`設定は[ローカルiOS検証](docs/ios-verification.md)を参照してください。
 
-アプリはswift-tasking 0.3.0とswift-scoped-animation 0.2.1をexact versionと共有`Package.resolved`で固定します。ネットワーク接続のあるMacで依存を解決します。
+アプリはswift-tasking 0.3.0、swift-scoped-animation 0.2.1、swift-app-macros 0.2.0をexact versionと共有`Package.resolved`で固定します。AppMacrosのビルド依存swift-syntax 603.0.2も同じlockで管理します。ネットワーク接続のあるMacで依存を解決します。
 
 ```sh
 xcodebuild -resolvePackageDependencies \
   -project app/Nibble.xcodeproj -scheme Nibble \
   -clonedSourcePackagesDirPath artifacts/SourcePackages
 ```
+
+初回はXcodeで`app/Nibble.xcodeproj`を開き、Issue Navigatorに表示される「Macro “AppMacrosMacros” … must be enabled」を選びます。swift-app-macros 0.2.0の固定revisionを[依存表](docs/library-policy.md#依存とビルド)と照合し、確認画面の「Trust & Enable」で有効にしてからCLIのビルド・テストを実行します。マクロはMac上で動くため、AppMacrosのビルドにはmacOS 26以上とSwift 6.3以上が必要です。全マクロの検証を無効にする設定は使いません。
 
 ライセンスと更新条件は[依存とビルド](docs/library-policy.md#依存とビルド)を参照してください。通常のセットアップでlockを更新する必要はありません。
 
