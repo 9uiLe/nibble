@@ -145,7 +145,7 @@ unsigned archiveで確認する対象はビルドとmanifestの配置・構文�
 
 | 保存先 | 内容 |
 | --- | --- |
-| `artifacts/ios/<実行ID>/` | 共通driverのmanifest・ログ・xcresult・UI JSON・画像・動画・REVIEW |
+| `artifacts/ios/<実行ID>/` | 共通driverのmanifest・ログ・xcresult・UI JSON・画像・動画・レビュー記録 |
 | `artifacts/research/sdk/` | 4構成の型検査ログと結果。再実行で更新される |
 | `artifacts/research/processes/<UUID>/` | SQLite workerと操作ごとの終了コード・結果 |
 | テストアプリの`Documents/results/` | 文字列、移行、履歴、snapshot、SQLite環境、計測値のJSON。再実行で同名ファイルが更新される |
@@ -156,4 +156,6 @@ unsigned archiveで確認する対象はビルドとmanifestの配置・構文�
 xcrun simctl get_app_container "$NIBBLE_SIMULATOR" dev.nibble.ResearchProbe data
 ```
 
-生成物は`artifacts/`に置き、Gitへ追加しない。`REVIEW.md`には対象ソース・端末・OS・操作・確認した画像と動画の範囲・失敗・PR添付先を記載する。検証結果は期待条件ごとに成功・失敗・未実施を判定し、[実行結果](../research/experiments/ios-26-5-validation.md)へ対応付ける。公開APIや原著の根拠は[一次資料検証](../research/experiments/primary-source-validation.md)を参照する。
+生成物は`artifacts/`に置き、Gitへ追加しない。共通driverのrunは[証跡とPRの検査](../docs/review-evidence.md)に従い、開始・終了・対象コミットの入力と媒体を照合する。画像・動画の観測、確認範囲、添付先と閲覧条件は`review.json`へ記載し、検査後に`REVIEW.md`を生成する。
+
+検証結果は期待条件ごとに成功・失敗・未実施を判定し、対象ソース・端末・OS・操作とともに[実行結果](../research/experiments/ios-26-5-validation.md)へ対応付ける。共通driverを使わない測定やSDK検査も、固有の結果ファイルとログを残す。公開APIや原著の根拠は[一次資料検証](../research/experiments/primary-source-validation.md)を参照する。

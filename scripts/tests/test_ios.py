@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 spec = importlib.util.spec_from_file_location("ios", Path(__file__).parents[1] / "ios.py")
 ios = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ios)
@@ -18,8 +19,8 @@ spec.loader.exec_module(ios)
 
 class DeviceSelectionTests(unittest.TestCase):
     def setUp(self):
-        self.runtime = {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-0",
-                        "version": "26.0.1", "isAvailable": True}
+        self.runtime = {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5",
+                        "version": "26.5", "buildversion": "23F77", "isAvailable": True}
         self.row = {"udid": "selected", "isAvailable": True, "state": "Shutdown"}
         self.devices = {self.runtime["identifier"]: [self.row]}
 
@@ -34,8 +35,15 @@ class DeviceSelectionTests(unittest.TestCase):
         with self.assertRaises(ios.VerificationError):
             self.select("another")
 
-    def test_selected_patch_runtime_is_retained_in_evidence(self):
-        self.assertEqual(self.select()["runtime"]["version"], "26.0.1")
+    def test_selected_runtime_and_build_are_retained_in_evidence(self):
+        self.assertEqual(self.select()["runtime"]["version"], "26.5")
+        self.assertEqual(self.select()["runtime"]["buildversion"], "23F77")
+
+    def test_every_other_execution_version_is_rejected(self):
+        for version in ['26.0', '26.4', '26.5.1', '27.0']:
+            with self.subTest(version=version), self.assertRaises(ios.VerificationError):
+                self.runtime['version'] = version
+                self.select()
 
     def test_unavailable_runtime_rejected(self):
         self.runtime["isAvailable"] = False

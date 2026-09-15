@@ -43,6 +43,7 @@
         pkgs:
         pkgs.python3.withPackages (ps: [
           ps.pyyaml
+          ps.markdown-it-py
           ps.tree-sitter-language-pack
         ]);
       toolsFor =
@@ -51,6 +52,8 @@
           (pythonFor pkgs)
           pkgs.actionlint
           pkgs.shellcheck
+          pkgs.gh
+          pkgs.git
         ]
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ];
     in
@@ -64,6 +67,15 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
       checks = forAllSystems (pkgs: {
+        documentation =
+          pkgs.runCommand "nibble-documentation"
+            {
+              nativeBuildInputs = [ (pythonFor pkgs) ];
+            }
+            ''
+              python3 ${./scripts}/check_docs.py --root ${./.}
+              touch "$out"
+            '';
         swift-library-policy =
           pkgs.runCommand "nibble-swift-library-policy"
             {
@@ -76,7 +88,10 @@
         ios-tooling =
           pkgs.runCommand "nibble-ios-tooling"
             {
-              nativeBuildInputs = [ (pythonFor pkgs) ];
+              nativeBuildInputs = [
+                (pythonFor pkgs)
+                pkgs.git
+              ];
             }
             ''
               cp -R ${./scripts} scripts

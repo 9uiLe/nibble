@@ -34,6 +34,11 @@ def main():
                 except VerificationError as error:
                     if "Edit menu 'Select All' item did not appear" not in str(error):
                         raise
+                    run.manifest["commands"][-1]["handled_error"] = {
+                        "reason": "sim-use 0.14.0 cannot match the observed Japanese Select All menu; use the native menu",
+                        "assertion": "edited_copy_utf8_exact",
+                    }
+                    run.save()
                     current = run.ui(identifier + f"-replace-menu-{attempt}")
                     if any(entry.get("label") in ("すべてを選択", "Select All") for entry in current["entries"]):
                         break

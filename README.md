@@ -17,9 +17,11 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 | [ライブラリの実装規約](docs/library-policy.md) | 操作の完了契約、Taskingの開始・所有、ScopedAnimationの範囲、AppMacrosのView比較、Lintと依存管理 |
 | [MVPの操作と検証](docs/mvp.md) | 日常操作、ショートカット設定、製品のビルド・操作・撮影手順 |
 | [製品の検証結果](docs/mvp-validation.md) | コミット・端末・OSごとのテスト、画面証跡、測定、未検証条件 |
-| [検証基盤の設計](docs/decisions/0001-local-ios-verification.md)・[実行手順](docs/ios-verification.md) | Apple CLI・sim-use・Nixの役割、Simulator、ログと画像・動画の記録 |
+| [検証基盤の設計](docs/decisions/0001-local-ios-verification.md)・[実行手順](docs/ios-verification.md) | Apple CLI・sim-use・Nixの役割、検証対象、実行記録、ローカルとCIの責務 |
+| [証跡とPRの検査](docs/review-evidence.md) | ソースと媒体の照合、レビュー申告、全コミットとPR本文、GitHubの必須チェック |
+| [基盤の検証記録](docs/review-tooling-validation.md) | 共通検査・fixture・GitHub読取の実施結果と保証範囲 |
 | [研究資料](research/README.md) | 一次資料と比較実験。製品で採用する構成は製品設計を参照 |
-| [AGENTS.md](AGENTS.md)・[PRテンプレート](.github/pull_request_template.md) | エージェント向けの規約、レビューに必要な記載欄 |
+| [AGENTS.md](AGENTS.md)・[共有Skill](.agents/skills/nibble-verification/SKILL.md)・[PRテンプレート](.github/pull_request_template.md) | エージェントの判断基準、検証・PRの進め方、レビューに必要な記載欄 |
 
 ## アプリの構成
 
@@ -83,16 +85,17 @@ nix develop
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、tree-sitter-language-pack、actionlint、ShellCheckが入り、macOSではsim-use 0.14.0も使えます。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
+以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLIが入り、macOSではsim-use 0.14.0も使えます。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
 
 | 共通検査 | 確認する内容 |
 | --- | --- |
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
-| `ios-tooling` | 端末選択、失敗処理、テスト判定、録画終了処理、Swift規約の回帰テスト |
+| `ios-tooling` | driver、証跡、PR、文書、Swift規約のPython回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
+| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、実装規約のSwift記載例 |
 
-GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。
+GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。PRイベントでは本文と全コミットも検査し、mainは`workflow-policy`の成功をマージ条件にします。共通検査にはGitHub認証は不要です。
 
 ### 3. XcodeとSwift Packageを準備する
 
@@ -145,7 +148,13 @@ nix develop --command python3 scripts/ios.py run \
 nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-画面の読取・操作はNixのsim-use、ビルド・テスト・実行管理・撮影はApple CLIを使用します。同じSimulatorへの操作は直列に行います。結果はGit管理対象外の`artifacts/`へ保存し、画像・動画を開いて確認します。生成された`REVIEW.md`に確認範囲とPRの添付先を記録してください。
+画面の読取・操作はNixのsim-use、ビルド・テスト・実行管理・撮影はApple CLIを使用します。同じSimulatorへの操作は直列に行い、実行中は検証対象のソースを編集しません。結果はGit管理対象外の`artifacts/`へ保存します。
+
+### 5. 証跡を確認してPRへ記載する
+
+[証跡とPRの検査](docs/review-evidence.md)に従い、実行記録を対象コミットと照合します。画像・動画を開いて確認し、観測と確認範囲、添付URL、ブラウザーでの閲覧結果を`review.json`へ記録します。検査後に生成する`REVIEW.md`を共有用の記録として使います。
+
+PR本文はテンプレートの全欄を埋め、実際の全コミット表と照合します。GitHubを使う場合は`nix develop --command gh auth status`で認証状態を確認してください。PR公開後は本文・現在head・CIの結果も照合します。ソースと媒体の整合性、画面の確認、アップロードと閲覧を、それぞれ独立して確認します。
 
 ## 基盤・研究用アプリを検証する
 
@@ -173,6 +182,8 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 | CIと同じ検査 | `nix flake check --no-update-lock-file --print-build-logs` |
 | runner方針の検査 | `nix develop --command python3 scripts/check_workflows.py` |
 | Swift規約の検査 | `nix develop --command python3 scripts/check_swift_policy.py` |
+| 文書の検査 | `nix develop --command python3 scripts/check_docs.py` |
+| PRのコミット表生成 | `nix develop --command python3 scripts/check_pr.py commits --base origin/main` |
 | Nix定義の整形 | `nix fmt flake.nix` |
 | iOS検証環境の確認 | `nix develop --command python3 scripts/ios.py doctor` |
 

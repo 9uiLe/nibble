@@ -5,7 +5,6 @@ import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,10 +19,13 @@ import threading
 import time
 import uuid
 
+from verification_evidence import differences, inputs, media_hashes, working_hashes
+
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "artifacts" / "ios"
 XCRUN = "/usr/bin/xcrun"
 XCODEBUILD = "/usr/bin/xcodebuild"
+VERIFICATION_IOS = "26.5"
 
 
 class VerificationError(Exception):
@@ -66,6 +68,8 @@ def select_device(devices, runtimes, udid, minimum):
                 version = lambda value: tuple(int(n) for n in value.split("."))
                 if version(runtime["version"]) < version(minimum):
                     raise VerificationError(f"Requires iOS {minimum} or later")
+                if runtime["version"] != VERIFICATION_IOS:
+                    raise VerificationError(f"Execution verification requires iOS {VERIFICATION_IOS}")
                 runtime = {key: runtime[key] for key in ("identifier", "name", "version", "buildversion", "isAvailable") if key in runtime}
                 return {**row, "runtime": runtime}
     raise VerificationError(f"Unknown Simulator UDID: {udid}")
@@ -129,10 +133,8 @@ class Run:
         commit = self.command(["git", "rev-parse", "HEAD"], "commit").strip()
         status = self.command(["git", "status", "--porcelain=v1"], "worktree-status")
         # Record the exact relevant working files, including untracked additions.
-        tracked = subprocess.check_output(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], cwd=ROOT)
-        hashes = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-                  for name in sorted(set(tracked.decode().split("\0"))) if name and (ROOT / name).is_file()}
-        self.manifest.update({"commit": commit, "dirty": bool(status), "files_sha256": hashes,
+        hashes = working_hashes(ROOT)
+        self.manifest.update({"evidence_version": 1, "commit": commit, "dirty": bool(status), "files_sha256": hashes,
                               "project": self.config, "visual_review": "pending"})
         self.devices = json.loads(self.command([XCRUN, "simctl", "list", "devices", "--json"], "devices"))["devices"]
         self.runtimes = json.loads(self.command([XCRUN, "simctl", "list", "runtimes", "--json"], "runtimes"))["runtimes"]
@@ -274,6 +276,20 @@ class Run:
         self.manifest["assertions"] = ["fixture.output accessibility value exactly matches the supplied text"]
 
     def finish(self, error=None):
+        source_error = None
+        if "files_sha256" in self.manifest:
+            try:
+                end = working_hashes(ROOT)
+                self.manifest["files_sha256_end"] = end
+                changed = differences(inputs(self.manifest["files_sha256"], self.manifest["project"]),
+                                      inputs(end, self.manifest["project"]))
+                if changed:
+                    source_error = "Verification inputs changed during the run: " + ", ".join(changed)
+            except (OSError, ValueError, subprocess.SubprocessError) as caught:
+                source_error = "Cannot verify final source identity: " + str(caught)
+        self.manifest["media_sha256"] = media_hashes(self.path)
+        original_error = error
+        error = error or source_error
         self.manifest.update(status="failed" if error else "passed",
                              finished_at=datetime.now(timezone.utc).isoformat())
         if error:
@@ -290,6 +306,8 @@ class Run:
             "- PR の添付先: **未記入**（ローカルパスだけでは添付完了にならない）\n\n"
             + "\n".join(f"- [{name}]({name})" for name in media) + "\n")
         print(f"Artifacts: {self.path}", flush=True)
+        if source_error and not original_error:
+            raise VerificationError(source_error)
 
 
 def expect_text(data, identifier, text):
@@ -345,6 +363,9 @@ def main(argv=None):
             if args.command == "doctor":
                 run.command([XCODEBUILD, "-list", "-json", "-project", ROOT / run.config["project"]], "schemes")
         elif args.command == "create":
+            if not any(r["identifier"] == args.runtime and r.get("version") == VERIFICATION_IOS
+                       and r.get("isAvailable") for r in run.runtimes):
+                raise VerificationError(f"Create a Simulator with available iOS {VERIFICATION_IOS}")
             print(run.command([XCRUN, "simctl", "create", args.name, args.device_type, args.runtime], "created-device").strip())
         else:
             if not args.device:
