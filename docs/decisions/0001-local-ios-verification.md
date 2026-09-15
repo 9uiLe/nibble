@@ -21,9 +21,11 @@
 | 基盤の試験 | `VerificationApp`と`smoke` | ツールチェーン、ホスト識別、文字列反映、画面操作・撮影の成立を検査する |
 | 研究用比較 | `ResearchProbe`、Swift Testing、研究用driver | 保存3案、検索・復旧、UI、API、SQLite別プロセスを比較する |
 | 製品の評価 | `Nibble` / `NibbleShare`、Swift Testing、製品用driver | [MVPの契約](../mvp.md)に対して保存・検索・下書き・共有・URL・画面操作を評価する |
-| クラウド検査 | `ubuntu-24.04`、Nix | workflow方針、Nix書式、共通driverのPythonテストを検査する |
+| クラウド検査 | `ubuntu-24.04`、Nix | workflow方針、Nix書式、Swiftライブラリ規約、共通driverとLintのPythonテストを検査する |
 
 Python標準ライブラリで各CLIを呼び出し、Appleのproject・scheme・結果bundleを直接扱う。
+
+共通検査は`workflow-policy`・`nix-format`・`swift-library-policy`・`ios-tooling`の4つとする。Swift規約は所有する全Swiftソースに適用し、Taskingを経由しないタスク生成・保持と、ScopedAnimationを経由しないアニメーション指定を禁止する。許可する構造化処理と字句Lintの適用限界は[実装規約](../library-policy.md)で定義する。
 
 | 実処理 | 使用するツール | 選定理由 |
 | --- | --- | --- |

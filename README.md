@@ -12,7 +12,7 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 
 ## 設計資料とリポジトリの構成
 
-製品を理解するには、[製品設計](docs/decisions/0002-mvp-app.md)で提供範囲・画面・データの契約と採用理由を読み、[操作と検証手順](docs/mvp.md)、[検証結果と制約](docs/mvp-validation.md)を参照してください。実施済みの検証はiOS 26.5 Simulatorを対象とし、実機検証はMVPの受け入れ範囲に含みません。
+開発に参加する際は、[製品設計](docs/decisions/0002-mvp-app.md)で目的・提供範囲・画面・保存・処理の所有者を確認し、[実装規約](docs/library-policy.md)で非同期処理とアニメーションの入口を確認してください。[操作と検証手順](docs/mvp.md)は期待する動作、[検証結果](docs/mvp-validation.md)は実際に確認したソース・条件・制約を示します。実行評価はiOS 26.5 Simulatorを対象とし、実機検証はMVPの受け入れ範囲に含みません。
 
 このリポジトリは、製品アプリ、開発規約、研究資料、Apple CLIとsim-useによるローカルiOS検証を管理します。
 
@@ -22,11 +22,13 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 | VerificationApp | 検証コマンド、文字列反映、テスト、撮影の成立を確かめるfixture | [共通の検証手順](docs/ios-verification.md)、`validation/project.json` |
 | ResearchProbe | 保存3案、検索、入力、コピー、復旧、OS連携を同じダミーデータで比較する | [設計と実行手順](validation/RESEARCH.md)、`validation/research-project.json` |
 
-本体と共有拡張はSwiftUI・Observation・Swift Concurrency・Apple同梱SQLiteで構成します。非構造化タスクにはswift-tasking、アニメーションにはswift-scoped-animationを使い、[実装規約](docs/library-policy.md)をLintで検査します。[研究資料](research/README.md)は、採用理由の根拠と比較候補を管理します。ResearchProbeの結果と製品MVPの検証結果は、それぞれの対象に限って解釈します。
+本体と共有拡張は、SwiftUI・Observationによる画面、Taskingによる非構造化タスクの所有、ScopedAnimationによる表示変化の範囲、Swift Concurrencyのactor内で扱うApple同梱SQLiteで構成します。2つのプロセスはApp Groupの保存先を共有します。Tasking・ScopedAnimationを経由しない直接APIはLintで禁止します。[研究資料](research/README.md)は採用理由の根拠と比較候補を管理し、試作の結果は記録した構成に限って解釈します。
 
 | 入口 | 内容 |
 | --- | --- |
 | [開発ガイド](CONTRIBUTING.md) | 対応OS、依存管理、ローカルとCIの責務、UI/UX・性能、PRの規約 |
+| [非同期処理とアニメーション](docs/library-policy.md) | Taskingの所有・寿命・重複方針、ScopedAnimationの適用範囲、禁止APIとLint |
+| [製品の検証結果](docs/mvp-validation.md) | ソースごとのテスト・操作・画像と動画・検索測定、未検証の条件 |
 | [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) | Apple CLI・sim-use・Nixの役割、構成、採用理由、対応範囲 |
 | [ローカル iOS 検証](docs/ios-verification.md) | Simulatorの準備、ビルド・テスト・操作・画面記録、証跡の確認 |
 | [研究用の実行検証](validation/RESEARCH.md) | ResearchProbeの構成、データ・操作の契約、再現コマンド |
