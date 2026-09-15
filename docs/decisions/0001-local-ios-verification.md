@@ -25,7 +25,7 @@
 
 Python標準ライブラリで各CLIを呼び出し、Appleのproject・scheme・結果bundleを直接扱う。
 
-共通検査は`workflow-policy`・`nix-format`・`swift-library-policy`・`ios-tooling`の4つとする。Swift規約は所有する全Swiftソースに適用し、Taskingを経由しないタスク生成・保持と、ScopedAnimationを経由しないアニメーション指定を禁止する。許可する構造化処理と字句Lintの適用限界は[実装規約](../library-policy.md)で定義する。
+共通検査は`workflow-policy`・`nix-format`・`swift-library-policy`・`ios-tooling`の4つとする。Swift規約は所有する全Swiftソースに適用する。字句解析で生のTask・別scheduler・直接アニメーションを拒否し、Nixで固定したtree-sitter-language-packによる構文解析でタスク所有者・開始イベント・予約名を検査する。通常メソッド・setter・操作APIに隠れた開始や、store・開始メソッドの別名化を禁止する。許可する構造化処理、構文の制約、型解決・外部APIの副作用を検査しない範囲は[実装規約](../library-policy.md)で定義する。
 
 | 実処理 | 使用するツール | 選定理由 |
 | --- | --- | --- |

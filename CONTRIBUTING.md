@@ -56,8 +56,8 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
-| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation利用、直接APIの禁止 |
-| `ios-tooling` | 端末選択、失敗伝播、テスト結果判定、録画終了処理などのPythonテスト |
+| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation利用、直接APIの禁止、タスク開始境界の構文検査 |
+| `ios-tooling` | 端末選択、失敗伝播、テスト結果判定、録画終了処理、Swift規約のPython回帰テスト |
 
 共通検査はApple SDKやSimulatorを起動しない。iOSの検証は [ローカル iOS 検証](docs/ios-verification.md) のコマンドを使う。
 
@@ -71,7 +71,9 @@ nix flake check --no-update-lock-file --print-build-logs
 
 ## 非同期処理とアニメーション
 
-非同期の操作は完了まで待機できる`async` APIとして公開する。モデルの同期メソッドやsetterにタスク開始を隠さず、UIイベントと明示的な`startTask`境界で呼出元が開始を選ぶ。入力setterは値と世代番号だけを変更する。これらの境界・開始APIの別名化をLintで検査し、モデルの完了契約を直接awaitするテストで確認する。
+モデルは受理した処理と結果反映を待ってから戻る`async`操作APIを提供し、呼出元がタスクとして開始するかを選ぶ。UIの`startTask`は開始の受理を表し、モデルの操作を直接awaitする。モデルはタスク所有者や開始用closureを持たない。入力setterは値とsequenceだけを更新し、viewが不変snapshotの書込をawaitする。保存・閉じるは最新入力を直接永続化し、コピーと通知期限は別の操作とする。
+
+同期メソッド・setterの隠れた開始と、操作APIが非構造化タスクを開始して完了前に戻る形は禁止する。Lintは開始できる所有者・イベント・予約名を構文で検査する。型解決や外部APIの副作用は保証範囲外のため、操作テストはモデルのAPIを直接awaitして結果を検査し、所有者のテストは寿命・重複・キャンセルを検査する。
 
 非構造化タスクの開始・保持はswift-tasking、アプリで指定するアニメーションはswift-scoped-animationに統一する。`ViewTaskStore` / `TaskSlot`で所有者・寿命・重複実行を定義し、`AnimationScope` / `animationBarrier`で適用範囲を定義する。[実装規約](docs/library-policy.md)を本体・共有拡張・テスト・研究用Swiftに適用する。
 

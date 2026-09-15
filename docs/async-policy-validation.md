@@ -11,12 +11,12 @@ Xcode 26.5 / Swift 6.3.2、iOS 26.5（23F77）Simulatorで実行した。最低�
 | Nix共通検査 | `nix flake check --no-update-lock-file --print-build-logs`。workflow-policy・nix-format・ios-tooling・swift-library-policyの4 check |
 | Python回帰テスト | 33件成功。うち20件がSwift規約、13件がiOS検証基盤 |
 | Swift規約 | 本体・拡張・テスト・研究・基盤を含む17ソースに違反なし |
-| 違反の検出 | `058db92`のLibraryModel・EditorModel・SnippetEditorを新しい検査へ渡すと計11件で失敗。通常メソッド、setter、async内部の開始、storeの注入・別名化、開始メソッドの関数参照、任意closure・task内の再開始を回帰テストでも拒否 |
+| 違反の検出 | 同期メソッドやsetter内でタスクを開始する違反例として、`058db92`のLibraryModel・EditorModel・SnippetEditorを構文Lintへ渡し、計11件の違反を検出。通常メソッド、setter、async内部の開始、storeの注入・別名化、開始メソッドの関数参照、任意closure・task内の再開始を回帰テストでも拒否 |
 | 製品Releaseテスト | SE第3世代、UDID `A1E0BB4A-A327-47C0-B9FB-42863D2A51D8`。26件成功、失敗・skipなし。run `20260915T113315Z-test-9cefc6` |
 | 本体・拡張のDebugビルドと実行 | 17 Pro、UDID `114E57E6-E37D-4F50-907A-8B0B6B03C92E`。成功。run `20260915T113645Z-run-07f76a` |
 | 本体・拡張のReleaseビルドと実行 | 17 Proの基本操作driverによるbuild・install・launchが成功 |
 
-製品テストはコミット前の作業ツリーで実行した。manifestの全`app/`ファイルのSHA-256が`16868e6`と一致することを確認済み。画像・動画の対象も同じ製品ソースである。以下のrun IDは、Git管理対象外の`artifacts/ios/`内にあるmanifest・実行ログ・画像・動画を識別する。Ubuntu CIの対象HEADと結果は[PR #7](https://github.com/9uiLe/nibble/pull/7)のchecksを参照する。
+製品テストはコミット前の作業ツリーで実行した。manifestの全`app/`ファイルのSHA-256が`16868e6`と一致することを確認済み。画像・動画の対象も同じ製品ソースである。以下のrun IDは、Git管理対象外の`artifacts/ios/`内にあるmanifest・実行ログ・画像・動画を識別する。Ubuntu 24.04でも同じlockと共通コマンドを実行し、文書を含む`08ce0f7`で[4 checkの成功](https://github.com/9uiLe/nibble/actions/runs/34965595988)を確認した。
 
 `AwaitableOperationTests`の7件は、モデルを直接awaitした時点の結果、入力setterがDBを変更しないこと、明示的なsnapshot保存と世代順序、即時保存・破棄と遅い自動保存、キャンセル済み呼出元、最新検索、独立した通知期限を検査する。`OwnedActionTests`は実際の`LibraryTaskOwner`を使って寿命と重複方針を検査する。操作のテストにmodel内部のタスク完了待ちやポーリングは使わない。
 
@@ -45,11 +45,11 @@ Debug実行開始の2026-09-15 20:36:45 JST以降、対象導線で本体・拡�
 
 SE / iOS 26.5 / Release、同じ本文・件数・SQL・先頭100件取得、各条件30回の検索テストで、10,000件の結果は次のとおり。測定区間はSQLite actorへの要求から返却まで。
 
-| 検索語 | 2026-09-14 中央値 / 最大（ms） | 2026-09-15 中央値 / 最大（ms） |
+| 検索語 | `8473b36`・2026-09-14 中央値 / 最大（ms） | `16868e6`・2026-09-15 中央値 / 最大（ms） |
 | --- | --- | --- |
 | 東 | 0.1254 / 0.2040 | 0.1193 / 0.1792 |
 | 見つからない語句 | 4.7760 / 7.4709 | 4.2217 / 4.4165 |
 
-検索SQLは同一で、ホスト負荷を含む異なる実行間の観測である。タスク開始・IME・View更新・描画を含まず、この差をリファクタリングの性能改善とは判断しない。生データは`artifacts/async-search-timing.json`。
+検索SQLは同一で、ホスト負荷を含む異なる実行間の観測である。タスク開始・IME・View更新・描画を含まず、この差を非同期APIやTaskingによる性能改善とは判断しない。生データは`artifacts/async-search-timing.json`。
 
 Lintは構文の制限であり、外部APIの副作用、型解決、macro展開を保証しない。実機検証・署名配布は受け入れ範囲外。実機hitch、UIフレーム時間の定量比較、VoiceOverの読み上げは未実施。製品全体の評価範囲は[MVPの制約](mvp-validation.md#検証範囲の制約)を参照する。
