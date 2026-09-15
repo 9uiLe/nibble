@@ -71,15 +71,20 @@ nix flake check --no-update-lock-file --print-build-logs
 
 ## 非同期処理・アニメーション・View比較
 
-モデルは受理した処理と結果反映を待ってから戻る`async`操作APIを提供し、呼出元がタスクとして開始するかを選ぶ。UIの`startTask`は開始の受理を表し、モデルの操作を直接awaitする。モデルはタスク所有者や開始用closureを持たない。入力setterは値とsequenceだけを更新し、viewが不変snapshotの書込をawaitする。保存・閉じるは最新入力を直接永続化し、コピーと通知期限は別の操作とする。
+モデルは処理と状態を持ち、UIがタスクを所有する。表示値の比較とアニメーションには、それぞれの適用範囲を設ける。[実装規約](docs/library-policy.md)の契約と構文を本体・共有拡張・テスト・研究・基盤用Swiftに適用する。
 
-同期メソッド・setterの隠れた開始と、操作APIが非構造化タスクを開始して完了前に戻る形は禁止する。Lintは開始できる所有者・イベント・予約名を構文で検査する。型解決や外部APIの副作用は保証範囲外のため、操作テストはモデルのAPIを直接awaitして結果を検査し、所有者のテストは寿命・重複・キャンセルを検査する。
+| 責務 | 必須の設計 | 確認方法 |
+| --- | --- | --- |
+| 操作の完了 | 受理した処理と結果反映を待つ`async` API。モデルにタスク所有者や開始用closureを渡さない | APIを直接awaitし、戻った時点の状態とDBを検査 |
+| 開始と所有 | UIの`startTask`とswift-taskingの`ViewTaskStore` / `TaskSlot`でID・寿命・重複方針を定義 | 所有者のテストで受理・重複・キャンセル・終了を検査 |
+| 表示値の比較 | swift-app-macrosの`@Equatable`と`EquatableBodyView`で全表示入力を比較。値型の通常の`let`だけを受け取り、状態・操作は呼出元に保持 | 入力ごとの等価比較、マウント済みViewの表示変更・復元、外観・文字サイズへの追従を検査 |
+| アニメーション | swift-scoped-animationの`AnimationScope` / `animationBarrier`で適用範囲を定義 | Debug診断と、入力・通知・Reduce Motionの画像・録画を確認 |
 
-非構造化タスクの開始・保持はswift-tasking、アプリで指定するアニメーションはswift-scoped-animationに統一する。`ViewTaskStore` / `TaskSlot`で所有者・寿命・重複実行を定義し、`AnimationScope` / `animationBarrier`で適用範囲を定義する。[実装規約](docs/library-policy.md)を本体・共有拡張・テスト・研究用Swiftに適用する。
+同期メソッド・setterによる隠れた開始と、操作APIがタスクを開始して完了前に戻る実装は禁止する。入力setterは値と入力順序の番号だけを更新し、viewがその時点の下書きを固定した値として書き込む。保存・閉じるは最新入力を直接永続化し、コピーと通知期限は別の操作にする。
 
-生のTask生成、DispatchQueue等の別scheduler、`withAnimation`・`.animation`・直接のtransaction操作はLintで禁止する。構造化されたasync/await・task group・SwiftUI `.task`と協調用のTask APIは許可する。抑制コメントで回避せず、新しい入口を追加する場合は規則と回帰テストを更新する。
+構造化されたasync/await・task group・SwiftUI `.task`と協調用Task APIは許可する。通常のViewには比較を強制せず、値型・enumの標準Equatable合成は使える。生のTask・別scheduler・直接アニメーション・直接比較・手書き`==`・比較除外はLintで禁止する。
 
-SwiftUIの比較による更新制御はswift-app-macros 0.2.0の`@Equatable`と`EquatableBodyView`を使う。比較Viewは値型の`let`入力だけを受け取り、状態と操作は通常のView側へ保持する。直接の`.equatable()`・`EquatableView`・`equatableBody`参照、手書き`==`、比較除外をLintで禁止する。全Viewへ比較を強制せず、値型・enumの標準Equatable合成は許可する。[比較境界の規約](docs/library-policy.md#viewの比較境界)に従う。
+Lintは所有者・イベント・比較Viewの宣言と入力を構文で検査する。型解決・マクロ展開・外部APIの副作用や処理完了はcompiler、テスト、レビューで確認する。抑制コメントは設けず、新しい入口や構文を認める場合は規則と回帰テストを更新する。
 
 ## ローカルとクラウドの責務
 

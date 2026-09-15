@@ -1,21 +1,23 @@
 # 0002：nibble MVPの製品設計
 
-状態：採用。設計基準日：2026-09-15。対象は日本語UIのiPhoneアプリ`Nibble`と共有拡張`NibbleShare`。最低対応OSはiOS 26.0、実行評価はiOS 26.5 Simulatorとする。
+状態：採用。設計基準日：2026-09-16。対象は日本語UIのiPhoneアプリ`Nibble`と共有拡張`NibbleShare`。最低対応OSはiOS 26.0、実行評価はiOS 26.5 Simulatorとする。
 
 ## 目的と設計原則
 
 nibbleは、よく使うテキストを端末内に保存し、必要なときに探してコピーするツールである。利用者は入力先のアプリへ戻り、本文をペーストして作業を続ける。少ない操作で本文へ到達できること、作成・編集・削除に迷わないこと、入力・検索・描画を待たせないことを優先する。
 
-製品を支える契約は次のとおりとする。
+データ、操作、表示には次の契約を設ける。
 
-- 原文と検索用の値を分け、保存・編集・コピーで本文の空白・改行・Unicodeを保持する。
-- 非同期操作は完了まで待てる`async` APIで提供し、呼出元がタスクとして開始するかを選ぶ。
-- UIがタスクの所有者・寿命・重複方針を持ち、モデルが操作と表示状態、保存層が永続化と整合性を担う。
-- 入力を下書きとして保持し、保存・閉じる・破棄は永続化の結果が確定してから画面を閉じる。
-- アニメーションの適用範囲を明示し、入力やスクロールへ不要な表示変化を伝えない。
-- 採用技術は使いやすさ、性能、OS制約、保守・運用、移行の負担で判断する。
+| 領域 | 契約 |
+| --- | --- |
+| データ | 原文と検索用の値を分け、空白・改行・Unicodeを保存・編集・コピーで保持する |
+| 操作の完了 | モデルは受理した処理と結果反映を完了まで待つ`async` APIを提供する |
+| タスクの所有 | UIが非構造化タスクの開始・寿命・重複方針をswift-taskingで管理する |
+| 表示の比較 | 値だけで決まる表示部分はswift-app-macrosで比較し、状態と操作を通常のViewに保持する |
+| アニメーション | swift-scoped-animationで範囲を指定し、入力やスクロールへの不要な伝播を防ぐ |
+| 編集の終了 | 保存・閉じる・破棄は永続化の結果が確定してから画面を閉じる |
 
-この文書は機能・画面・データ・実行時の責務を定義する。コードを書く際の制約は[実装規約](../library-policy.md)、操作と期待結果は[MVP手順](../mvp.md)、実施済みの確認は[検証結果](../mvp-validation.md)を参照する。
+この文書は機能・画面・データ・実行時の責務と採用理由を定義する。コードの構文とLintは[実装規約](../library-policy.md)、操作と期待結果は[MVP手順](../mvp.md)、確認したソースと条件は[検証結果](../mvp-validation.md)を参照する。
 
 ## 利用シーンと提供範囲
 
@@ -46,35 +48,39 @@ nibbleは、よく使うテキストを端末内に保存し、必要なとき�
 
 ## 構成と責務
 
-本体と共有拡張は別プロセスで動作し、App Group内のSQLiteを共有する。各プロセスは`SnippetStore` actorで自身の接続を管理する。actor間では値型を渡し、SQLiteの接続・statement・ポインタをUIへ公開しない。
+SwiftUI・Observationで表示状態を扱い、UIモデルには`@MainActor`を明示する。Swift language mode 6、strict concurrency complete、default isolation nonisolatedを使う。本体と共有拡張は別プロセスで動作し、App Group内のSQLiteを共有する。各プロセスの`SnippetStore` actorが接続を管理し、プロセス間の排他はSQLiteが担う。
 
 ```mermaid
 flowchart TB
-    Events[一覧の操作・sceneイベント・URL] --> View[LibraryView / LibraryTaskOwner]
-    View -->|開始した操作をawait| Library[LibraryModel]
-    Library -->|Draft| Editor[SnippetEditor]
-    Host[共有元アプリ] --> Share[ShareViewController]
-    Share --> Editor
-    Editor -->|操作・snapshot書込をawait| Model[EditorModel]
-    Library --> Store[各プロセスの SnippetStore actor]
-    Model --> Store
-    Share --> Store
+    Events[一覧操作・sceneイベント・URL] --> LibraryView
+    LibraryView -->|startTask| LibraryTaskOwner
+    LibraryTaskOwner -->|await| LibraryModel
+    LibraryModel -->|表示状態| LibraryView
+    LibraryView -->|表示値| Row[SnippetRowContent / AppMacros]
+    LibraryView --> Notice[通知 / ScopedAnimation]
+    LibraryView --> Editor[SnippetEditor]
+    Host[共有元アプリ] --> ShareViewController
+    ShareViewController --> Editor
+    Editor -->|操作と下書き書込をawait| EditorModel
+    LibraryModel --> Store[各プロセスの SnippetStore actor]
+    EditorModel --> Store
+    ShareViewController --> Store
     Store --> DB[(App Group / SQLite)]
-    Library --> Clipboard[端末内のクリップボード]
+    LibraryModel --> Clipboard[端末内のクリップボード]
 ```
 
-| 構成要素 | 責務 |
+| 構成要素 | 保持するものと責務 |
 | --- | --- |
-| `LibraryView` | `@State`で一覧モデルと`LibraryTaskOwner`を保持。画面・フォーカス・シート・sceneイベント・通知scopeを接続 |
-| `SnippetRowContent` | タイトル・本文プレビュー・ピン状態を値で受け取り、AppMacrosの比較ゲート内で表示する。操作と状態の所有はLibraryViewに置く |
-| `LibraryTaskOwner` | 一覧UIの非構造化タスクを所有し、明示的な`startTask`で開始。ID・寿命・重複方針・キャンセルを管理 |
+| `LibraryView` | `@State`の一覧モデルと`LibraryTaskOwner`、フォーカス、シート。操作を所有者へ渡し、一覧行と通知へ表示値を渡す |
+| `LibraryTaskOwner` | Tasking store。`startTask`で開始を受理し、ID・寿命・重複方針・キャンセルを管理 |
 | `LibraryModel` | MainActor上の検索条件・一覧・編集入口・通知状態。読込、コピー、項目更新を待機可能な操作として提供 |
-| `SnippetEditor` | 編集モデルと終了操作のTasking storeを保持。入力snapshotの書込をSwiftUI `.task`で待ち、終了操作の成功後にdismissまたは共有元へ完了通知 |
-| `EditorModel` | MainActor上の入力・sequence・busy・終了・競合・エラー状態。snapshot書込と保存・閉じる・破棄の完了を提供 |
-| `ShareViewController` | UIKitの拡張入口。provider読込タスクの所有、入力検証、共通編集画面の表示、共有元への完了通知 |
-| `SnippetStore` actor | 接続、検索、トランザクション、revisionとsequenceの検査、永続化 |
+| `SnippetRowContent` | タイトル・本文プレビュー・ピン状態の3つの値。AppMacrosの比較境界内で行の内容を表示 |
+| `SnippetEditor` | 編集モデルと終了操作のTasking store。入力の書込をSwiftUI `.task`で待ち、終了操作の成功後にdismissまたは共有元へ完了通知 |
+| `EditorModel` | MainActor上の入力・入力順序・busy・終了・競合・エラー状態。下書き書込と保存・閉じる・破棄の完了を提供 |
+| `ShareViewController` | UIKitの拡張入口とprovider読込タスク。入力検証、共通編集画面の表示、共有元への完了通知 |
+| `SnippetStore` actor | 接続、検索、トランザクション、更新順序の検査、永続化。接続・statement・ポインタをUIへ公開しない |
 
-SwiftUI・Observationで表示状態を扱い、UIモデルには`@MainActor`を明示する。Swift language mode 6、strict concurrency complete、default isolation nonisolatedを使う。SQLiteの処理は専用actor内で実行し、トランザクション中に中断点を置かない。プロセス間の排他はSQLiteが担う。
+モデルはTaskingのstoreや開始用closureを持たない。表示専用の行はモデルや操作closureを持たない。actor間では値型を渡し、SQLiteのトランザクション中には中断点を置かない。
 
 ## データの意味と永続化
 
@@ -94,21 +100,6 @@ SwiftUI・Observationで表示状態を扱い、UIモデルには`@MainActor`を
 編集開始時に下書きを作り、対象項目の下書きがあれば再開する。作成ボタンは新しい下書きを作る。保存は、対象項目が削除されておらず読込時のrevisionと一致する場合に受理する。競合時は入力を保持し、「新しい項目として保存」で別UUIDへ保存できる。
 
 スニペットの保存と下書きの除去は1トランザクションで確定する。下書きの更新はsequenceが新しい既存行だけに適用する。保存・破棄後の遅れた書込で下書きを再生成しない。削除と復元は同じUUIDの削除状態を変更し、本文とピン留めを保持する。完全削除は項目と関連下書きを1トランザクションで消去する。
-
-## 検索と一覧の性能
-
-検索キーはタイトルと本文からNFCと日本語localeのcase/width foldingで生成し、原文と別に保存する。検索入力のたびに全本文を正規化しない。
-
-| 項目 | 契約 |
-| --- | --- |
-| 一致条件 | 検索語の前後空白・改行を除き、SQLiteの`instr`で部分一致。日本語1文字から検索可能 |
-| 文字の扱い | 英字大小・半角/全角を同一視。ひらがな／カタカナ、清音／濁音は区別。`%`・`_`・バックスラッシュは通常文字 |
-| 並び順 | ピン留め優先、更新日時降順、UUID昇順 |
-| 取得範囲 | 先頭100件。「さらに表示」で上限を100件増やし、先頭から再取得。次ページの有無を調べるため追加1件を読む |
-| 一覧の本文 | `substr(body,1,180)`のプレビュー。コピーはDBから本文全体を取得 |
-| 結果の反映 | 要求世代とキャンセル状態を照合し、有効な要求だけ一覧・loading状態へ反映 |
-
-下書き一覧は本文を含めて取得するため、件数と長文に対するメモリ評価をスニペット一覧と分ける。検索測定は保存層の要求から返却までと、IME・状態更新・描画を含むUI応答を分ける。[検証結果](../mvp-validation.md)のSimulator測定値を実機の性能保証へ換算しない。
 
 ## 非同期操作の完了契約
 
@@ -153,19 +144,36 @@ Taskingの`ActionID`は重複判定の単位、`ActionLifetime`はキャンセ�
 
 編集の終了操作は`SnippetEditor.onDisappear`、共有provider読込は`ShareViewController.viewDidDisappear`でscreenBoundをキャンセルする。コピーとprovider読込は読込の前後でキャンセルを確認し、通知期限は待機後にキャンセルと通知IDを確認する。キャンセルは停止要求であり、確定済みDB変更を取り消さない。
 
-## アニメーションの適用範囲
+## 検索と一覧の性能
 
-アプリが指定するアニメーションはswift-scoped-animationで管理する。通知の表示・消去だけを`Library.Notice`という名前の`AnimationScope`で囲み、0.16秒のopacity遷移を使う。Reduce Motion有効時はdurationを0秒にする。
+検索キーはタイトルと本文からNFCと日本語localeのcase/width foldingで生成し、原文と別に保存する。検索入力のたびに全本文を正規化しない。
 
-`LibraryView`と`SnippetEditor`の外側には`animationBarrier(warnsOnLeaks: false)`を置き、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks`と、入力領域の警告付きbarrierでアプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボード自体の遷移はOS部品が管理する。診断だけで全表示変化の正しさを判定せず、対象導線を画像・録画で確認する。
+| 項目 | 契約 |
+| --- | --- |
+| 一致条件 | 検索語の前後空白・改行を除き、SQLiteの`instr`で部分一致。日本語1文字から検索可能 |
+| 文字の扱い | 英字大小・半角/全角を同一視。ひらがな／カタカナ、清音／濁音は区別。`%`・`_`・バックスラッシュは通常文字 |
+| 並び順 | ピン留め優先、更新日時降順、UUID昇順 |
+| 取得範囲 | 先頭100件。「さらに表示」で上限を100件増やし、先頭から再取得。次ページの有無を調べるため追加1件を読む |
+| 一覧の本文 | `substr(body,1,180)`のプレビュー。コピーはDBから本文全体を取得 |
+| 結果の反映 | 要求世代とキャンセル状態を照合し、有効な要求だけ一覧・loading状態へ反映 |
+
+下書き一覧は本文を含めて取得するため、件数と長文に対するメモリ評価をスニペット一覧と分ける。検索測定は保存層の要求から返却までと、IME・状態更新・描画を含むUI応答を分ける。[検証結果](../mvp-validation.md)のSimulator測定値を実機の性能保証へ換算しない。
 
 ## 値による表示更新の制御
 
-一覧のタイトル・本文プレビュー・ピン表示は`SnippetRowContent`へまとめ、swift-app-macrosの`@Equatable`と`EquatableBodyView`を使用する。3つの`let`入力をすべて比較し、既定の`body`が比較ゲートを提供する。呼出側は通常のViewと同じように配置する。
+比較境界とは、表示に必要な入力値の等価比較でSwiftUIの更新を制御するViewの範囲を指す。一覧行の`SnippetRowContent`は`@Equatable`を付けた`EquatableBodyView`とし、タイトル・本文プレビュー・ピン状態の3つの`let`入力をすべて比較する。同じstructの`equatableBody`に内容を書き、ライブラリの既定の`body`が比較を適用する。
 
-Button、アクセシビリティの操作ラベル、編集・コピー・復元・メニューのクロージャは`LibraryView`へ保持する。表示用Viewにクロージャ・参照モデル・DynamicPropertyを渡さず、比較から入力を除外しない。これにより、同じ表示値を再利用する場合も操作は現在のモデル・項目を参照する。
+行のButton、アクセシビリティの操作ラベル、編集・コピー・復元・メニューのクロージャは`LibraryView`に保持する。比較境界へ渡す値にクロージャ・参照モデル・DynamicPropertyを含めず、比較から入力を除外しない。表示値が等しい場合も、操作は現在のモデル・項目を参照する。
 
-状態や入力を持つ一覧全体・編集画面には通常のViewを使う。比較対象を少量の表示値に限定し、外観・文字サイズなど標準部品のenvironment更新はSwiftUIに委ねる。入力ごとの等価比較と、マウント済み画面の表示更新を製品テストで確認し、実際の導線を画像・録画で評価する。比較ゲートの導入だけで再描画削減や応答時間の改善を保証しない。
+状態や入力を持つ一覧全体・編集画面は通常のViewとする。標準部品の外観・文字サイズはSwiftUIのenvironmentで更新される。比較項目の変更と復元、入力が等しい状態での外観・文字サイズの追従をマウント済みViewでテストし、製品の操作を画像・録画で確認する。比較による描画回数や応答時間への効果は、同じ条件で測定して判断する。
+
+## アニメーションの適用範囲
+
+通知の表示・消去を`Library.Notice`という名前の`AnimationScope`で囲み、0.16秒のopacity遷移を使う。Reduce Motion有効時はdurationを0秒にする。通知文の更新と通知の有無を分け、scopeは表示の有無を監視する。
+
+`LibraryView`と`SnippetEditor`の外側には`animationBarrier(warnsOnLeaks: false)`を置き、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks`と、入力領域の警告付きbarrierでアプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボード自体の遷移はOS部品が管理する。
+
+比較境界は表示値の一致、アニメーションscopeは表示変化の適用範囲を扱う。それぞれの役割を独立させ、診断と製品の画像・録画の両方で確認する。
 
 ## 呼び出しと共有の契約
 
@@ -182,6 +190,8 @@ Button、アクセシビリティの操作ラベル、編集・コピー・復�
 
 ## 技術選定と保守
 
+技術は使いやすさ、描画・応答性能、OS/API制約、保守・運用、移行の負担を比較して選ぶ。標準APIと外部依存の成熟度や置き換えやすさを評価し、新しさだけを採用理由にしない。
+
 | 採用 | 比較・判断理由 | 見直す条件 |
 | --- | --- | --- |
 | SwiftUI + Observation | 標準部品と明示的なUI状態で一覧・編集を構成。UIKitは共有拡張の入口で使用 | IME・フォーカス・表示の問題を標準部品で解決できない場合 |
@@ -193,7 +203,7 @@ Button、アクセシビリティの操作ラベル、編集・コピー・復�
 | Share Extension + 標準URLアクション | host内での取り込みと、一覧・作成への呼び出しを公開APIで提供。利用者がショートカットを設定 | host・形式・件数の拡大、自動登録・音声操作・引数付きアクションの必要性 |
 | 端末内保存 | アカウント・通信・同期競合を要しない日常操作 | 複数端末での利用を提供する場合 |
 
-Swift Packageはexact versionと共有`Package.resolved`で固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とそのテストにリンクする。AppMacrosのビルド依存swift-syntax 603.0.2もlockへ固定し、MITライセンス通知を両bundleへ含める。補助ツールはNix、Xcode・SDK・runtimeはローカルのApple配布物で管理する。依存更新の手順は[実装規約](../library-policy.md#依存とビルド)に従う。
+Swift Packageはexact versionと共有`Package.resolved`で固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とそのテストにリンクする。swift-syntax 603.0.2はMac上のマクロを構築する依存としてlockへ固定し、アプリのruntimeにはリンクしない。3つの製品ライブラリはMIT、swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。製品ライブラリの通知を両bundleへ含める。補助ツールはNix、Xcode・SDK・runtimeはローカルのApple配布物で管理する。依存更新の手順は[実装規約](../library-policy.md#依存とビルド)に従う。
 
 比較の根拠は[研究資料](../../research/README.md)に保存する。ResearchProbeの保存3方式やAPI試作は比較条件であり、製品の採用構成と区別する。
 
@@ -209,10 +219,16 @@ schema変更はトランザクション内の明示的なmigrationと旧版fixtu
 
 ## 機械検査と受け入れ条件
 
-`swift-library-policy`で所有するSwiftソースを検査する。生のTask生成・別scheduler・直接アニメーション、モデルや通常メソッド・setterに隠れたタスク開始、store・開始APIの別名化を拒否する。View比較では直接ゲート・手書き等価比較・入力の除外と、マクロやゲートの付け忘れを拒否する。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task APIは利用できる。規則と適用限界は[実装規約](../library-policy.md)を正とする。
+| 検査 | 確認する契約 |
+| --- | --- |
+| `swift-library-policy` | Taskingの開始・ScopedAnimationの入口・AppMacrosの比較境界。直接API、隠れた開始、別名化、比較入力の除外を拒否 |
+| モデル・保存層のテスト | 操作を直接awaitした時点の結果、原文保持、競合、下書き順序、保存・破棄後の遅延書込、復旧条件 |
+| 所有者のテスト | 開始の受理、重複方針、寿命、キャンセル |
+| 比較Viewのテスト | 全表示入力の比較、表示の更新・復元、外観・文字サイズの追従 |
+| Simulatorの操作と撮影 | 日常導線、共有元への復帰、入力・通知・表示設定を含むUI/UX |
 
-Swift Testingでは、モデルの操作を直接awaitして完了と状態を照合する。Taskingの所有者のテストでは寿命・重複・キャンセルを検査する。SQLiteの原文保持・競合・下書き順序・復旧条件も製品の保存層で確認する。
+構文Lintの保証範囲は[実装規約](../library-policy.md)で定義する。Swiftの型解決・マクロ展開・外部APIの副作用・処理の完了はcompiler、テスト、レビューで確認する。構造化されたasync/await・task group・SwiftUI `.task`と協調用Task APIは利用できる。
 
 Ubuntu CIは同じNix lockで静的検査を行い、ローカルMacはApple CLIでビルド・テスト・撮影、sim-useでSimulatorを操作する。GitHub ActionsのmacOS runnerは間接起動を含めて禁止する。26.0への適合はdeployment targetとAPI availability、実行時の確認は26.5で行う。
 
-MVPの受け入れはSimulator評価に限定し、実機検証は含めない。画像・動画にはソース・端末・OS・操作手順を付けてPRへ添付する。[検証結果](../mvp-validation.md)は実施した条件と未検証条件を示す。実機性能・ロック時保護・Handoff・署名配布・審査をSimulatorや未署名archiveの成功から保証しない。
+MVPの受け入れはSimulator評価に限定し、実機検証は含めない。画像・動画にはソース・端末・OS・操作手順を付けてPRへ添付する。[検証結果](../mvp-validation.md)は実施した条件と未検証条件を示す。実機性能・ロック時保護・Handoff・署名配布・審査は個別の評価を要する。
