@@ -1,6 +1,6 @@
 # 0002：nibble MVPの製品設計
 
-状態：採用。対象は日本語UIのiPhoneアプリ`Nibble`と共有拡張`NibbleShare`。最低対応OSはiOS 26.0、実行評価はiOS 26.5 Simulatorとする。
+状態：採用。製品MVPの決定日：2026-09-13。対象は日本語UIのiPhoneアプリ`Nibble`と共有拡張`NibbleShare`。最低対応OSはiOS 26.0、実行評価はiOS 26.5 Simulatorとする。
 
 ## プロダクトの目的
 
