@@ -1,6 +1,6 @@
 # エージェント向け開発ルール
 
-作業前に[開発ガイド](CONTRIBUTING.md)を読む。規約の詳細は開発ガイド、実装上の契約は[ライブラリ規約](docs/library-policy.md)を正とする。このファイルは判断基準と作業の入口を定義する。
+作業前に[開発ガイド](CONTRIBUTING.md)を読む。このファイルは判断基準と作業の入口を定義する。規約の詳細は開発ガイド、実装上の契約は[ライブラリ規約](docs/library-policy.md)、実行・証跡・CI・レビューの責務は[検証基盤の設計](docs/decisions/0001-local-ios-verification.md)を正とする。
 
 ## プロダクトの判断基準
 
@@ -22,9 +22,9 @@
 
 操作テストはAPIを直接awaitし、戻った時点の状態・永続化を検査する。重複・キャンセルは所有者を検査し、Viewは入力の変更・復元と、同一入力での環境更新を検査する。構文Lint、compiler、テスト、画面の確認にはそれぞれ異なる保証範囲がある。
 
-## 機械検査を使う
+## 機械検査とマージ条件
 
-補助ツールは`flake.nix`と`flake.lock`で固定する。ローカルとCIで同じlockを使い、Homebrew・pip等による別管理を前提にしない。
+補助ツールは`flake.nix`と`flake.lock`で固定する。ローカルとCIで同じlockを使い、Homebrew・pip等による別管理を前提にしない。1回の検証実行をrunと呼び、対象ソース・端末・コマンド・成否・媒体をひとまとまりの記録として扱う。
 
 | 検査 | コマンド・入口 |
 | --- | --- |
@@ -39,7 +39,7 @@
 
 GitHub Actionsの各ジョブは`runs-on: ubuntu-24.04`を直接指定する。macOS runnerはself-hosted・再利用workflow・別ジョブの間接起動を含め禁止。iOSのビルド・テスト・UI/UX・性能はローカルMacの責務であり、クラウド静的検査で代替しない。
 
-mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`成功を必須とし、バイパスを設けない。ジョブ名やマージ条件の変更時は宣言と[実効ルール](docs/review-evidence.md#githubの必須チェック)をそろえる。
+mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`成功とbaseへの追従を必須とし、バイパスを設けない。宣言JSONだけではGitHub設定は変わらないため、ジョブ名やマージ条件の変更時は宣言と[実効ルール](docs/review-evidence.md#githubの必須チェック)をそろえる。
 
 ## 検証対象と参照先
 
@@ -58,7 +58,7 @@ mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`
 ローカルiOS検証・証跡整理・PR作成や更新では、共有Skill [nibble-verification](.agents/skills/nibble-verification/SKILL.md)を読む。Apple CLIでビルド・実行管理・撮影し、Nixのsim-useで画面を読み取り操作する。生成物はGit管理対象外の`artifacts/`へ保存する。
 
 - UI/UXの変更は画像、操作・遷移・応答の変更は録画でも確認する。対象コミット・端末・OS・手順を記録し、画像・動画をPRへ添付する。
-- 自動実行の成功、動画デコード、抽出フレームの確認、全編再生、アップロード、ブラウザーでの閲覧を区別する。未実施を完了へ変えない。
+- 自動実行の成功、動画デコード、抽出フレームの確認、全編再生、アップロード、ブラウザーでの閲覧を区別する。観測と閲覧条件は`review.json`に記載し、証跡検査後の`REVIEW.md`を共有に使う。未実施を完了へ変えない。
 - PRは目的・背景、アウトカム、全コミット表、画像・動画、検証結果を記載する。対象外も理由付きで欄を残し、追加コミットと本文を照合する。
 - 検証結果の再利用はファイル照合で判断し、コミット名やcacheの存在から推定しない。失敗runは保存し、最終headのCIと閲覧可能な証跡を確認する。
-- 設計資料は新規参加者へ向け、目的・構成・責務・契約・制約から説明する。会話への参照や移行の経緯を設計上の前提にせず、実験・失敗の記録は検証文書に分ける。
+- 設計資料は新規参加者へ向け、目的・構成・責務・契約・制約を定義する。用語と判断理由は文書内で説明し、実験条件・観測・失敗・未実施の記録は対象ソースを明記した検証文書に置く。

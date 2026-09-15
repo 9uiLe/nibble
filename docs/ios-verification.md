@@ -114,11 +114,11 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 
 ## 成果物とレビュー
 
-各実行は `artifacts/ios/<UTC日時>-<コマンド>-<ID>/` に結果を保存する。ビルドキャッシュは `artifacts/ios/DerivedData/<UDID>/` に置く。`artifacts/` 全体をGit管理対象外とする。
+1回の実行をrunと呼ぶ。各runは`artifacts/ios/<UTC日時>-<コマンド>-<ID>/`へ結果を保存する。ビルドキャッシュは`artifacts/ios/DerivedData/<UDID>/`に置く。`artifacts/`全体をGit管理対象外とする。
 
 | ファイル | 内容 |
 | --- | --- |
-| `manifest.json` | 実行成否、コミット、未コミット状態、ファイルSHA-256、ツール・端末・runtime、コマンドと終了コード |
+| `manifest.json` | 実行成否、コミット、未コミット状態、開始・終了の入力SHA-256、媒体SHA-256、ツール・端末・runtime、コマンドと終了コード |
 | `review.json` | 確認した媒体のhash、目視の方法・観測・限界、安定した添付URL、ブラウザーでの閲覧確認の申告 |
 | `*.log` / `*.stderr.log` | stdout / stderr。失敗時の出力も保存 |
 | `build.xcresult` / `test.xcresult` | Xcodeの結果bundle。Xcodeで開いて調査できる |
@@ -127,13 +127,20 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 | `before.png` / `after.png` / `screenshot.png` | Apple CLIで撮影した静止画 |
 | `recording.mp4` / `recording.log` | H.264動画と録画ログ |
 | `video-frames/` | 動画の長さと代表フレーム3枚 |
-| `REVIEW.md` | 実行情報と、画像・動画の確認結果・PR添付先の記入欄 |
+| `REVIEW.md` | driverが作成する実行情報と記入欄。証跡検査後は`review.json`から生成したレビュー記録 |
 
-レビューでは画像と動画を開き、表示、操作、時間経過を確認する。確認した内容・残る問題・添付先を `REVIEW.md` に記録し、必要な証跡をPRへアップロードするか、レビュー担当者が閲覧できる保存先へ置く。
+共通driverは`evidence_version: 1`のmanifestに、開始時の`files_sha256`、終了時の`files_sha256_end`、run確定時の`media_sha256`を保存する。実行中に検証入力が変わったrunは失敗にし、ログと媒体を残す。文書だけの変更を含むrunの再利用は、コミット名ではなく検証入力のファイル照合で判断する。
 
-runは開始・終了時の検証入力と媒体のSHA-256を保存し、実行中のソース変更を失敗として扱う。[証跡とPRの検査](review-evidence.md)に従い、`check_evidence.py`でコミット・媒体とレビュー申告を照合し、`review.json`から`REVIEW.md`を生成する。
+レビューは[証跡とPRの検査](review-evidence.md)の順序で行う。
 
-**コマンド成功、ファイル生成、動画のデコード、ローカルパスの記載だけでは、画面レビューとPR添付の完了にはならない。** 未実施の条件を記録し、公開するログ・画像・動画に個人情報や秘密情報が含まれないことを確認する。
+1. `check_evidence.py --integrity-only`で対象revision、runの成否、入力と媒体を照合する。
+2. `--init-review`で記入用の`review.json`を作り、画像・動画を開いて表示・操作・時間経過を確認する。確認方法・観測・未実施条件を記載する。
+3. 必要な画像・動画をPRへ添付するか、レビュー担当者が閲覧できる保存先へ置く。ブラウザーで読込を確認し、安定したURLと閲覧条件を記録する。
+4. `check_evidence.py`でソース・媒体・レビュー申告を検査し、`REVIEW.md`を生成する。
+
+ソース照合には同じrun内で対象scheme・UDIDへのビルド成功が必要になる。単独の`screenshot`・`record`は補助的な撮影記録であり、install済みアプリとソースの対応を保証しない。
+
+コマンド成功、ファイル生成、動画デコード、抽出フレーム確認、全編再生、アップロード、閲覧確認を別々に記録する。公開するログ・画像・動画に個人情報や秘密情報が含まれないことを確認し、未実施を完了として記載しない。
 
 ## 検証対象の切り替え
 

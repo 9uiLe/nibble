@@ -229,6 +229,6 @@ schema変更はトランザクション内の明示的なmigrationと旧版fixtu
 
 構文Lintの保証範囲は[実装規約](../library-policy.md)で定義する。Swiftの型解決・マクロ展開・外部APIの副作用・処理の完了はcompiler、テスト、レビューで確認する。構造化されたasync/await・task group・SwiftUI `.task`と協調用Task APIは利用できる。
 
-Ubuntu CIは同じNix lockで静的検査を行い、ローカルMacはApple CLIでビルド・テスト・撮影、sim-useでSimulatorを操作する。GitHub ActionsのmacOS runnerは間接起動を含めて禁止する。26.0への適合はdeployment targetとAPI availability、実行時の確認は26.5で行う。
+検証対象・証跡・CI・マージ条件は[検証とレビュー基盤](0001-local-ios-verification.md)で定義する。Ubuntu CIは同じNix lockで共通検査とPR本文の照合を行い、ローカルMacはApple CLIでビルド・テスト・撮影、sim-useでSimulatorを操作する。GitHub ActionsのmacOS runnerは間接起動を含めて禁止する。26.0への適合はdeployment targetとAPI availability、実行時の確認は26.5で行う。
 
-MVPの受け入れはSimulator評価に限定し、実機検証は含めない。画像・動画にはソース・端末・OS・操作手順を付けてPRへ添付する。[検証結果](../mvp-validation.md)は実施した条件と未検証条件を示す。実機性能・ロック時保護・Handoff・署名配布・審査は個別の評価を要する。
+MVPの受け入れはSimulator評価に限定し、実機検証は含めない。実行開始・終了・コミットの入力と媒体を[証跡検査](../review-evidence.md)で照合し、実際の観測・確認方法・限界を記録する。画像・動画にはソース・端末・OS・操作手順を付けてPRへ添付し、ブラウザーで閲覧を確認する。[検証結果](../mvp-validation.md)は実施した条件と未検証条件を示す。実機性能・ロック時保護・Handoff・署名配布・審査は個別の評価を要する。

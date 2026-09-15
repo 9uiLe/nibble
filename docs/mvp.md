@@ -123,6 +123,8 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 
 ## 証跡と検証範囲
 
-画面読取・入力・操作はNixのsim-use、撮影はAppleの`simctl io screenshot / recordVideo`を使う。[共通手順](ios-verification.md#スクリーンショットと画面録画)に従い、ログ・画像・動画をGit管理対象外の`artifacts/`へ保存する。`REVIEW.md`へ実際の確認範囲を記入し、対象コミット・端末・OS・手順を付けてPRへ添付する。
+画面読取・入力・操作はNixのsim-use、撮影はAppleの`simctl io screenshot / recordVideo`を使う。[共通手順](ios-verification.md#スクリーンショットと画面録画)に従い、ログ・画像・動画をGit管理対象外の`artifacts/`へ保存する。
+
+[証跡とPRの検査](review-evidence.md)に従い、runの開始・終了・対象コミットの入力と媒体を照合する。実際の観測・確認範囲・添付URL・閲覧条件を`review.json`へ記入し、検査後に`REVIEW.md`を生成する。PRには画像・動画と対象コミット・端末・OS・手順を記載する。
 
 MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含めない。実機のロック時保護・性能・触覚・Handoff・署名配布は個別の評価が必要である。VoiceOver、横向き、長時間利用、1 MB本文の入力追従の未検証条件と、Reduce Motionの確認済み範囲は[検証結果の制約](mvp-validation.md#検証範囲の制約)を参照する。
