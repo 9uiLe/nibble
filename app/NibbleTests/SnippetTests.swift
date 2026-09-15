@@ -441,6 +441,8 @@ struct RowComparisonTests {
         let host = UIHostingController(rootView: original)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 320, height: 160)
+        window.overrideUserInterfaceStyle = .light
+        host.traitOverrides.preferredContentSizeCategory = .large
         window.rootViewController = host
         window.isHidden = false
         defer { window.isHidden = true; window.rootViewController = nil }
@@ -476,5 +478,20 @@ struct RowComparisonTests {
             let restored = try await render(original)
             #expect(restored == initial)
         }
+
+        // Equal row inputs must not freeze environment updates in Text/Image.
+        window.overrideUserInterfaceStyle = .dark
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try pixels() != initial)
+        window.overrideUserInterfaceStyle = .light
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try pixels() == initial)
+
+        host.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try pixels() != initial)
+        host.traitOverrides.preferredContentSizeCategory = .large
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try pixels() == initial)
     }
 }

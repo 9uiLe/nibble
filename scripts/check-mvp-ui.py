@@ -25,7 +25,30 @@ def main():
                      "--wait-timeout", "5", "--device", args.device])
 
     def paste(identifier, text, replace=False):
-        run.command(["sim-use", "paste", *(["--replace"] if replace else []), "--via-menu", "--target-id", identifier,
+        if replace:
+            for attempt in range(2):
+                try:
+                    run.command(["sim-use", "paste", "--replace", "--via-menu", "--target-id", identifier,
+                                 "--device", args.device, text])
+                    return
+                except VerificationError as error:
+                    if "Edit menu 'Select All' item did not appear" not in str(error):
+                        raise
+                    current = run.ui(identifier + f"-replace-menu-{attempt}")
+                    if any(entry.get("label") in ("すべてを選択", "Select All") for entry in current["entries"]):
+                        break
+                    # The initial gesture can just focus the field. Retry once
+                    # after observing it; do not accept an absent menu as success.
+                    if attempt == 1:
+                        raise
+            # sim-use 0.14.0 opens the native menu but cannot match this
+            # runtime's Japanese Select All label. Verify and operate that menu.
+            for labels in (("すべてを選択", "Select All"), ("カット", "Cut")):
+                data = wait_ui(identifier + "-" + labels[0], lambda data: any(
+                    entry.get("label") in labels for entry in data["entries"]))
+                item = next(entry["label"] for entry in data["entries"] if entry.get("label") in labels)
+                run.command(["sim-use", "tap", "--label", item, "--device", args.device])
+        run.command(["sim-use", "paste", "--via-menu", "--target-id", identifier,
                      "--device", args.device, text])
 
     def identifiers(data):
