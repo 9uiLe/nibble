@@ -203,4 +203,4 @@ AppMacrosは表示入力から比較を生成し、定義側にゲートを設�
 
 依存更新ではexact version・共有lock・ライセンスを照合し、比較項目の変更・外観と文字サイズ・ゲートによる表示反映、重複操作、キャンセル、入力直後の保存・閉じる、共有元への復帰、通知と入力への伝播をiOS 26.5で確認する。保守停止、対応OS・ツールチェーンの不適合、測定した応答・描画の悪化、必要な表現への不適合を見直し条件とする。
 
-[2026-09-15の非同期API境界の検証](async-policy-validation.md)と[2026-09-14のTasking・ScopedAnimationの検証](library-policy-validation.md)は、それぞれ記載したソースと条件の観測記録である。採用の根拠と適用限界を確認し、依存の更新時には対象ソースに対応する結果を記録する。
+[AppMacrosの検証](app-macros-validation.md)、[非同期API境界の検証](async-policy-validation.md)、[Tasking・ScopedAnimationの検証](library-policy-validation.md)は、それぞれ記載したソースと条件の観測記録である。採用の根拠と適用限界を確認し、依存の更新時には対象ソースに対応する結果を記録する。
