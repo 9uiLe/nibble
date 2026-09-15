@@ -5,6 +5,7 @@ syntax fails closed; adding an event boundary requires policy tests and review.
 """
 
 from tree_sitter_language_pack import get_parser
+from swift_equatable_policy import equatable_violations
 
 PARSER = get_parser("swift")
 STORES = {"ViewTaskStore": "tasks", "TaskSlot": "taskSlot"}
@@ -203,4 +204,5 @@ def boundary_violations(source, tokens):
                     reject(node, "startTask is reserved for explicit UI/task owners; ordinary operations must be async and await completion.")
             elif not direct_call(node) or not start_context(node):
                 reject(node, "Call startTask directly from a UI event/lifecycle, another startTask, or @Test; do not hide or alias task starts.")
+    equatable_violations(root, reject)
     return found

@@ -1,6 +1,15 @@
 {
-  "originHash" : "9d0162019dbe79354e965dc492507c34203db4aa9d21093205228309a21c6bb0",
+  "originHash" : "74b9b0d3acbd254c136df68f296ed01dd68f248471062c3803e88d332e9a7425",
   "pins" : [
+    {
+      "identity" : "swift-app-macros",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/9uiLe/swift-app-macros.git",
+      "state" : {
+        "revision" : "fc4e4623173a41fbde5a35bcf060ed79bfe51e4a",
+        "version" : "0.2.0"
+      }
+    },
     {
       "identity" : "swift-scoped-animation",
       "kind" : "remoteSourceControl",
@@ -8,6 +17,15 @@
       "state" : {
         "revision" : "8c25b8b8eb9afdece1a7dc5b4151f65406ed80e4",
         "version" : "0.2.1"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "state" : {
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
       }
     },
     {

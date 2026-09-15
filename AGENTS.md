@@ -9,12 +9,13 @@
 - アプリとextensionのdeployment targetは `26.0` にそろえる。最低対応OSの変更は、影響と理由を明記した独立の意思決定にする。
 - 技術はOS/API制約、性能、保守・運用、移行容易性を比較して選ぶ。研究資料の候補を採用済みとして扱わない。
 
-## 非同期処理とアニメーション
+## 非同期処理・アニメーション・View比較
 
 - 非同期の操作APIは受理した処理と結果反映を完了まで待つ`async`にする。同期メソッド・setterの隠れた開始と、操作APIがタスクを開始して完了前に戻る形は禁止。モデルは処理・状態、UIの`startTask`・イベント境界は開始・所有・寿命を担う。操作テストはAPIを直接awaitし、所有者のテストで重複・キャンセルを検査する。
 - 非構造化タスクはswift-tasking（`ViewTaskStore` / `TaskSlot`）、アニメーションはswift-scoped-animation（`AnimationScope` / `animationBarrier`）を使う。所有者・寿命・重複方針を明示する。
 - 生の`Task`生成、別scheduler、直接の`withAnimation`・`.animation`・transaction操作は禁止。構造化されたasync/await・task group・SwiftUI `.task`と協調用のTask APIは許可する。詳しくは[実装規約](docs/library-policy.md)に従う。
-- 本体・拡張・テスト・研究用Swiftを`swift-library-policy`で検査する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。
+- 表示値の比較で更新を制御するViewはswift-app-macrosの`@Equatable`＋`EquatableBodyView`とし、通常の`let`の値型入力をすべて比較する。状態・操作は呼出元のViewに保持する。直接ゲート・`equatableBody`参照・手書き`==`・比較除外は禁止。通常のViewと値型・enumの標準Equatable合成は許可する。
+- 本体・拡張・テスト・研究・基盤用Swiftを`swift-library-policy`で検査する。構文Lint、Swift compiler、操作・所有者・表示のテストを併用する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。
 
 ## 開発環境と検証
 

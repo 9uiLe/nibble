@@ -8,13 +8,13 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 
 ## 開発を始めるときに読む資料
 
-[製品設計](docs/decisions/0002-mvp-app.md)で機能・画面・データ・処理の責務を確認し、[実装規約](docs/library-policy.md)でコードの書き方を確認してください。[操作と検証手順](docs/mvp.md)は期待する動作、[検証結果](docs/mvp-validation.md)は対象ソースごとに実施した確認とその限界を示します。
+[製品設計](docs/decisions/0002-mvp-app.md)で機能・画面・用語・責務を確認し、このREADMEのセットアップで開発環境を用意してください。実装時は[実装規約](docs/library-policy.md)、動作確認時は[操作と検証手順](docs/mvp.md)を使います。[検証結果](docs/mvp-validation.md)には確認した契約・ソース・条件と未検証の範囲を記録します。
 
 | 資料 | 内容 |
 | --- | --- |
 | [開発ガイド](CONTRIBUTING.md) | 対応OS、Nix、ローカルとCIの責務、UI/UX・性能、PRの受け入れ条件 |
 | [製品設計](docs/decisions/0002-mvp-app.md) | 提供範囲、画面、ドメインの用語、保存・検索、非同期操作、採用理由 |
-| [非同期処理とアニメーションの実装規約](docs/library-policy.md) | 操作の完了契約、Taskingの開始・所有、ScopedAnimationの範囲、Lintと依存管理 |
+| [ライブラリの実装規約](docs/library-policy.md) | 操作の完了契約、Taskingの開始・所有、ScopedAnimationの範囲、AppMacrosのView比較、Lintと依存管理 |
 | [MVPの操作と検証](docs/mvp.md) | 日常操作、ショートカット設定、製品のビルド・操作・撮影手順 |
 | [製品の検証結果](docs/mvp-validation.md) | コミット・端末・OSごとのテスト、画面証跡、測定、未検証条件 |
 | [検証基盤の設計](docs/decisions/0001-local-ios-verification.md)・[実行手順](docs/ios-verification.md) | Apple CLI・sim-use・Nixの役割、Simulator、ログと画像・動画の記録 |
@@ -23,9 +23,19 @@ nibbleは、よく使うテキストを保存し、必要なときに探して�
 
 ## アプリの構成
 
-SwiftUI・Observationで画面を構成し、MainActorのモデルが完了まで待機可能な`async` APIを提供します。UI所有者がswift-taskingで非構造化タスクを開始し、ID・寿命・重複実行を管理します。入力の下書き保存と通知期限はSwiftUI `.task`から操作を直接awaitします。表示変化の範囲はswift-scoped-animationで指定します。
+SwiftUI・Observationで画面を構成します。操作の完了、タスクの所有、表示の更新を次のように分担します。
 
-本体と共有拡張はApp Group内のSQLiteを共有し、各プロセスのactorが接続を管理します。原文と検索キー、保存済み項目と下書きを分け、revisionとsequenceで競合・遅れた書込を扱います。モデル内部の隠れたタスク開始、生のTask、別scheduler、直接アニメーションはLintで禁止します。
+| 責務 | 構成 |
+| --- | --- |
+| 入力・処理・表示状態 | MainActorのモデルが`async`操作APIを提供し、受理した処理と結果反映を完了まで待ちます |
+| タスクの開始・寿命・重複 | UI所有者がswift-taskingで管理します。下書き保存と通知期限はSwiftUI `.task`から直接awaitします |
+| 一覧行の表示 | swift-app-macrosの`@Equatable`と`EquatableBodyView`でタイトル・本文プレビュー・ピン状態を比較します。状態と操作は呼出元のViewに保持します |
+| アニメーション | swift-scoped-animationで通知の表示変化と入力への伝播を制御します |
+| 永続化 | 本体と共有拡張がApp GroupのSQLiteを共有し、各プロセスのactorが接続とトランザクションを管理します |
+
+原文と検索キー、保存済み項目と下書きを分けます。保存済み項目の更新番号で編集競合を検出し、下書きの入力番号で遅れた書込を判定します。用語と処理順序は[データと永続化の設計](docs/decisions/0002-mvp-app.md#データの意味と永続化)に定義しています。
+
+Lintは、モデル内部の隠れたタスク開始、生のTask・別scheduler、直接アニメーション、直接の比較ゲート・手書き比較・比較除外を禁止します。完了契約と表示反映はSwiftの製品テストで検査します。
 
 | 対象 | 役割 | 設定・手順 |
 | --- | --- | --- |
@@ -41,7 +51,7 @@ SwiftUI・Observationで画面を構成し、MainActorのモデルが完了ま�
 
 | 環境 | 用途 |
 | --- | --- |
-| macOS（Apple Silicon / Intel） | Nix共通検査。Xcodeと対象runtimeを用意したMacでiOS検証 |
+| macOS（Apple Silicon / Intel） | Nix共通検査。製品ビルドにはmacOS 26以上、対応するXcodeと対象runtimeが必要 |
 | Linux（ARM64 / x86_64） | Nix共通検査。GitHub Actionsは`ubuntu-24.04`のみ |
 | iOSの確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
 | 対応OSと実行対象 | deployment target 26.0。ビルド・テスト・操作・性能の実行検証はiOS 26.5のみ |
@@ -80,7 +90,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | 端末選択、失敗処理、テスト判定、録画終了処理、Swift規約の回帰テスト |
-| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation使用、タスク開始の構文境界 |
+| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
 
 GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。
 
@@ -96,13 +106,19 @@ xcodebuild -showsdks
 
 Xcodeの設定からiOS 26.5 Simulator runtimeを導入します。シェルごとにXcodeを選ぶ場合の`DEVELOPER_DIR`設定は[ローカルiOS検証](docs/ios-verification.md)を参照してください。
 
-アプリはswift-tasking 0.3.0とswift-scoped-animation 0.2.1をexact versionと共有`Package.resolved`で固定します。ネットワーク接続のあるMacで依存を解決します。
+アプリはswift-tasking 0.3.0、swift-scoped-animation 0.2.1、swift-app-macros 0.2.0をexact versionと共有`Package.resolved`で固定します。AppMacrosのビルド依存swift-syntax 603.0.2も同じlockで管理します。ネットワーク接続のあるMacで依存を解決します。
 
 ```sh
 xcodebuild -resolvePackageDependencies \
   -project app/Nibble.xcodeproj -scheme Nibble \
   -clonedSourcePackagesDirPath artifacts/SourcePackages
 ```
+
+AppMacrosのマクロはビルド時にMac上で実行されるため、macOS 26以上とSwift 6.3以上を必要とします。初回は次の手順で対象パッケージの実行を有効にします。
+
+1. swift-app-macros 0.2.0のソースと共有lockを確認し、固定revisionを[依存表](docs/library-policy.md#依存とビルド)と照合します。
+2. Xcodeで`app/Nibble.xcodeproj`を開きます。ビルド時にマクロが未承認の診断が出た場合は、Issue Navigatorの「Macro “AppMacrosMacros” … must be enabled」を選びます。
+3. 対象パッケージの確認画面で「Trust & Enable」を選び、CLIのビルド・テストへ進みます。全マクロの検証を無効にする設定は使いません。
 
 ライセンスと更新条件は[依存とビルド](docs/library-policy.md#依存とビルド)を参照してください。通常のセットアップでlockを更新する必要はありません。
 

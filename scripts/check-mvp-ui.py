@@ -24,7 +24,30 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "Button",
                      "--wait-timeout", "5", "--device", args.device])
 
-    def paste(identifier, text):
+    def paste(identifier, text, replace=False):
+        if replace:
+            for attempt in range(2):
+                try:
+                    run.command(["sim-use", "paste", "--replace", "--via-menu", "--target-id", identifier,
+                                 "--device", args.device, text])
+                    return
+                except VerificationError as error:
+                    if "Edit menu 'Select All' item did not appear" not in str(error):
+                        raise
+                    current = run.ui(identifier + f"-replace-menu-{attempt}")
+                    if any(entry.get("label") in ("すべてを選択", "Select All") for entry in current["entries"]):
+                        break
+                    # The initial gesture can just focus the field. Retry once
+                    # after observing it; do not accept an absent menu as success.
+                    if attempt == 1:
+                        raise
+            # sim-use 0.14.0 opens the native menu but cannot match this
+            # runtime's Japanese Select All label. Verify and operate that menu.
+            for labels in (("すべてを選択", "Select All"), ("カット", "Cut")):
+                data = wait_ui(identifier + "-" + labels[0], lambda data: any(
+                    entry.get("label") in labels for entry in data["entries"]))
+                item = next(entry["label"] for entry in data["entries"] if entry.get("label") in labels)
+                run.command(["sim-use", "tap", "--label", item, "--device", args.device])
         run.command(["sim-use", "paste", "--via-menu", "--target-id", identifier,
                      "--device", args.device, text])
 
@@ -86,6 +109,19 @@ def main():
                 time.sleep(0.35)
                 run.tap(row)
                 wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
+                edited_title = title + " 編集済み"
+                edited_body = "更新された本文\n" + body
+                paste("editor.title", edited_title, replace=True)
+                paste("editor.body", edited_body, replace=True)
+                run.tap("editor.save")
+                wait_ui("edited", lambda data: any(e.get("uniqueId") == row
+                        and e.get("label") == edited_title for e in data["entries"]))
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "edited-copy") != edited_body:
+                    raise VerificationError("The edited row copied stale or altered text")
+                run.screenshot("edited")
+                run.tap(row)
+                wait_ui("edited-reopened", lambda data: "editor.close" in identifiers(data))
                 run.tap("editor.close")
                 wait_ui("closed", lambda data: row in identifiers(data))
                 menu(row, "pin-menu")
@@ -113,6 +149,7 @@ def main():
             run.ui("finished")
             run.manifest["assertions"] = {
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
+                "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "data": "Dummy text only; existing snippets are retained",
             }

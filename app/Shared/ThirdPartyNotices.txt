@@ -4,7 +4,10 @@ https://github.com/9uiLe/swift-tasking
 swift-scoped-animation 0.2.1
 https://github.com/9uiLe/swift-scoped-animation
 
-Both libraries are distributed under the following license.
+swift-app-macros 0.2.0 (Nibble app)
+https://github.com/9uiLe/swift-app-macros
+
+These libraries are distributed under the following license.
 
 MIT License
 
