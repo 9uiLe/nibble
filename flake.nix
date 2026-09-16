@@ -91,11 +91,13 @@
               nativeBuildInputs = [
                 (pythonFor pkgs)
                 pkgs.git
+                pkgs.shellcheck
               ];
             }
             ''
               cp -R ${./scripts} scripts
               chmod -R u+w scripts
+              shellcheck scripts/deploy-testflight.sh
               python3 -m unittest discover -s scripts/tests -v
               touch "$out"
             '';

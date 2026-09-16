@@ -34,7 +34,7 @@ nibbleの検証基盤は、製品の正しさと使いやすさを、対象ソ�
 | 目的 | 製品の本体と共有拡張 | 共通検証処理を試験するfixture | 製品技術の比較試作 |
 | project | `app/Nibble.xcodeproj` | `validation/VerificationApp.xcodeproj` | `validation/ResearchProbe.xcodeproj` |
 | shared scheme | `Nibble` | `VerificationApp` | `ResearchProbe` |
-| bundle ID | `dev.nibble.app` / `dev.nibble.app.share` | `dev.nibble.VerificationApp` | `dev.nibble.ResearchProbe` |
+| bundle ID | `nibble.9uiLe.com` / `nibble.9uiLe.com.share` | `dev.nibble.VerificationApp` | `dev.nibble.ResearchProbe` |
 | 設定 | [app/project.json](../../app/project.json) | [validation/project.json](../../validation/project.json) | [validation/research-project.json](../../validation/research-project.json) |
 | 画面の自動操作 | `scripts/check-mvp-ui.py` | `scripts/ios.py smoke` | `validation/check-research-ui.py` |
 | 期待結果と手順 | [製品手順](../mvp.md) | [共通手順](../ios-verification.md) | [研究手順](../../validation/RESEARCH.md) |

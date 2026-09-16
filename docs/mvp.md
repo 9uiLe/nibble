@@ -42,8 +42,8 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 | --- | --- |
 | project / shared scheme | `app/Nibble.xcodeproj` / `Nibble` |
 | 共通driver設定 | `app/project.json` |
-| 本体 / Share Extension | `dev.nibble.app` / `dev.nibble.app.share` |
-| App Group | `group.dev.nibble.app` |
+| 本体 / Share Extension | `nibble.9uiLe.com` / `nibble.9uiLe.com.share` |
+| App Group | `group.nibble.9uiLe.com` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
 | アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.2、swift-app-macros 0.3.0（[実装規約](library-policy.md)） |
 | 依存構成の検証結果 | [Swift Package構成の検証](spm-validation.md)。ビルド・テスト・画面確認の成否と対象revision |

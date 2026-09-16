@@ -95,9 +95,9 @@ class ProcessTests(unittest.TestCase):
         self.run.args = Mock(device="explicit-udid")
 
     def test_launch_waits_for_native_target_process(self):
-        self.run.config = {"bundle_id": "dev.nibble.app"}
+        self.run.config = {"bundle_id": "nibble.9uiLe.com"}
         states = ["PID Status Label\n- 0 UIKitApplication:another.app[x]",
-                  "42 0 UIKitApplication:dev.nibble.app[x][rb-legacy]",
+                  "42 0 UIKitApplication:nibble.9uiLe.com[x][rb-legacy]",
                   "Wed Sep 16 10:00:00 2026 /device/Nibble.app/Nibble\n"]
         with patch.object(self.run, "command", side_effect=states) as command, patch.object(ios.time, "sleep"):
             self.run.wait_for_launch()
@@ -107,23 +107,23 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(self.run.manifest["process_monitor"]["pid"], 42)
 
     def test_missing_process_is_bounded_and_never_certified(self):
-        self.run.config = {"bundle_id": "dev.nibble.app"}
-        with patch.object(self.run, "command", return_value="- 9 UIKitApplication:dev.nibble.app[x]") as command, patch.object(ios.time, "sleep"):
+        self.run.config = {"bundle_id": "nibble.9uiLe.com"}
+        with patch.object(self.run, "command", return_value="- 9 UIKitApplication:nibble.9uiLe.com[x]") as command, patch.object(ios.time, "sleep"):
             with self.assertRaises(ios.VerificationError):
                 self.run.wait_for_launch()
         self.assertEqual(command.call_count, 5)
         self.assertNotIn("process_monitor", self.run.manifest)
 
     def test_native_lookup_matches_only_the_exact_live_bundle(self):
-        self.run.config = {"bundle_id": "dev.nibble.app"}
-        for state in ["- 9 UIKitApplication:dev.nibble.app[x]", "43 0 UIKitApplication:dev.nibble.app[x]",
-                      "42 0 UIKitApplication:dev.nibble.app.share[x]"]:
+        self.run.config = {"bundle_id": "nibble.9uiLe.com"}
+        for state in ["- 9 UIKitApplication:nibble.9uiLe.com[x]", "43 0 UIKitApplication:nibble.9uiLe.com[x]",
+                      "42 0 UIKitApplication:nibble.9uiLe.com.share[x]"]:
             with self.subTest(state=state), patch.object(self.run, "command", return_value=state):
                 self.assertEqual(self.run.process_id(), 43 if state.startswith("43 ") else None)
-        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:dev.nibble.app[x]\n43 0 UIKitApplication:dev.nibble.app[y]"):
+        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:nibble.9uiLe.com[x]\n43 0 UIKitApplication:nibble.9uiLe.com[y]"):
             with self.assertRaises(ios.VerificationError):
                 self.run.process_id()
-        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:dev.nibble.app[x]"):
+        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:nibble.9uiLe.com[x]"):
             self.assertEqual(self.run.process_id(), 42)
 
     def test_host_monitor_rejects_exit_and_reused_pid(self):
@@ -142,7 +142,7 @@ class ProcessTests(unittest.TestCase):
         command.assert_called_once_with(["/bin/ps", "-p", "42", "-o", "lstart=,comm="])
 
     def test_native_probe_command_failure_is_not_ignored(self):
-        self.run.config = {"bundle_id": "dev.nibble.app"}
+        self.run.config = {"bundle_id": "nibble.9uiLe.com"}
         with patch.object(self.run, "command", side_effect=ios.VerificationError("Unavailable")) as command:
             with self.assertRaises(ios.VerificationError):
                 self.run.wait_for_launch()

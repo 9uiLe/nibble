@@ -66,7 +66,7 @@ Swiftの通常のString比較では、例えば「が」と「か＋結合濁点
 
 ### 保存形式と接続
 
-本体と共有拡張は、両方からアクセスできる共有領域（App Group）`group.dev.nibble.app`の`Library/snippets.sqlite`を使う。SQLiteのschema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
+本体と共有拡張は、両方からアクセスできる共有領域（App Group）`group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。SQLiteのschema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
 
 各プロセスの`SnippetStore` actorが接続・statement・ポインタを所有する。actorは同一プロセス内の操作を直列化し、SQLiteがプロセス間の排他を担う。設定はWAL、`synchronous=FULL`、busy timeout 2秒とする。
 
@@ -322,7 +322,7 @@ AppMacrosのmanifestはswift-syntax 603.0.2をexact指定する。swift-syntax�
 
 保存層の変更時はUUID・本文・下書き・削除状態の移行を検査する。WALを欠くDB本体のコピーをバックアップとして扱わない。独自export/importやアプリ削除後の復旧は保証範囲外とする。
 
-署名配布には、本体・共有拡張の同一Developer TeamとApp Group、API・宣言・署名の点検が必要になる。配布方法、App Privacy回答、privacy policy、サポート窓口も配布判断に含める。
+内部配布は[ローカルMacからのTestFlight配布](0003-testflight-distribution.md)を使用する。本体・共有拡張を同じDeveloper Teamで署名し、両方のprofileに共有App Groupを含める。App Store Connectの内部グループ「本人用」へ各ビルドを自動配信する。外部テスト・App Store公開の配布方法、App Privacy回答、privacy policy、サポート窓口は、それぞれの配布設計で定義する。
 
 ## 機械検査と受け入れ条件
 

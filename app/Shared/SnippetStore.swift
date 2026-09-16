@@ -4,11 +4,11 @@ import OSLog
 
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
 actor SnippetStore {
-    static let groupID = "group.dev.nibble.app"
+    static let groupID = "group.nibble.9uiLe.com"
     static let shared = SnippetStore()
     private let location: URL?
     private var connection: Database?
-    private let signposter = OSSignposter(subsystem: "dev.nibble.app", category: "Store")
+    private let signposter = OSSignposter(subsystem: "nibble.9uiLe.com", category: "Store")
 
     init(location: URL? = nil) { self.location = location }
 

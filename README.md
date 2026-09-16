@@ -21,6 +21,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | 検証基盤の責務、端末選択、実行記録 | [基盤設計](docs/decisions/0001-local-ios-verification.md)、[実行手順](docs/ios-verification.md) |
 | ソースと媒体の照合、PR本文とGitHubの確認 | [証跡とPRの検査](docs/review-evidence.md) |
 | 基盤の確認結果と技術選定の比較資料 | [基盤の検証記録](docs/review-tooling-validation.md)、[研究資料](research/README.md) |
+| TestFlightの本人向け自動配信、秘密情報の管理、セットアップ | [配布手順](docs/testflight.md)、[配布設計](docs/decisions/0003-testflight-distribution.md)、[検証記録](docs/testflight-validation.md) |
 | エージェントの作業入口 | [AGENTS.md](AGENTS.md)、[共有Skill](.agents/skills/nibble-verification/SKILL.md)、[PRテンプレート](.github/pull_request_template.md) |
 
 設計資料は現在の契約、検証記録は記載したコミットと条件に対する観測を示します。研究用アプリの構成や比較実験は製品の構成とは区別します。
