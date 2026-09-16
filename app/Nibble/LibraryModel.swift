@@ -26,7 +26,7 @@ final class LibraryModel {
     var query: String {
         get { request.query }
         set {
-            guard !newValue.utf8.elementsEqual(request.query.utf8) else { return }
+            guard !SnippetText.hasSameBytes(newValue, request.query) else { return }
             request = LibraryRequest(query: newValue, filter: request.filter)
         }
     }

@@ -4,6 +4,23 @@ import Testing
 
 @Suite("Draft snapshots and recovery")
 struct DraftLifecycleTests {
+    @Test func byteComparisonPreservesEmptyNullUnicodeAndLongInput() {
+        #expect(SnippetText.hasSameBytes("", ""))
+        #expect(!SnippetText.hasSameBytes("", "a"))
+        #expect(SnippetText.hasSameBytes("a\0b", "a\0b"))
+        #expect(!SnippetText.hasSameBytes("a\0b", "a\0c"))
+        #expect(!SnippetText.hasSameBytes("が", "か\u{3099}"))
+        #expect(SnippetText.hasSameBytes("👩🏽‍💻\n", "👩🏽‍💻\n"))
+        let prefix = String(repeating: "a", count: 999_999)
+        #expect(SnippetText.hasSameBytes(prefix + "x", prefix + "x"))
+        #expect(!SnippetText.hasSameBytes(prefix + "x", prefix + "y"))
+        var draft = Draft(id: UUID(), snippetID: nil, baseRevision: 0, title: "", body: prefix + "x")
+        draft.body = prefix + "x"
+        #expect(draft.sequence == 0)
+        draft.body = prefix + "y"
+        #expect(draft.sequence == 1)
+    }
+
     @Test func staleSaveCannotOverwriteNewerAutosave() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }
@@ -215,4 +232,3 @@ extension UIIntegrationTests {
         }
     }
 }
-

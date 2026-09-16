@@ -190,7 +190,38 @@ class Run:
         self.command([XCRUN, "simctl", "install", self.args.device, app], "install")
         self.command([XCRUN, "simctl", "launch", "--terminate-running-process", self.args.device,
                       self.config["bundle_id"]], "launch")
-        self.command(["sim-use", "app-state", "--reset", "--device", self.args.device], "app-state-reset")
+        self.wait_for_launch()
+
+    def wait_for_launch(self):
+        """A newly launched Simulator process can briefly be unavailable to sim-use."""
+        recovered = []
+        bundle = self.config["bundle_id"]
+        for attempt in range(5):
+            try:
+                result = json.loads(self.command(["sim-use", "app-state", "--reset", "--bundle-id", bundle,
+                    "--json", "--device", self.args.device], f"app-state-reset-{attempt}"))
+            except VerificationError as error:
+                event = self.manifest["commands"][-1] if self.manifest["commands"] else {}
+                if (event.get("exit_code") != 1 or "Could not read the running-process list" not in str(error)
+                        or attempt == 4):
+                    raise
+                recovered.append(event)
+                time.sleep(1)
+                continue
+            data = result.get("data", {})
+            if (not result.get("ok") or not data.get("didReset")
+                    or data.get("query") != {"bundleId": bundle, "state": "running"}
+                    or not any(app.get("bundleId") == bundle and app.get("pid", 0) > 0
+                               for app in data.get("apps", []))):
+                raise VerificationError("The launched app was not observed running with a reset crash baseline")
+            self.manifest.setdefault("assertions", {})["launch_state_observed"] = True
+            for event in recovered:
+                event["handled_error"] = {
+                    "reason": "Transient process-list failure after launch; subsequent probe observed the target PID and reset the crash baseline",
+                    "assertion": "launch_state_observed",
+                }
+            self.save()
+            return
 
     def ui(self, name="ui"):
         result = json.loads(self.command(["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"], name))
@@ -273,7 +304,7 @@ class Run:
             time.sleep(1)
         # Keep still capture separate from simctl's active recording session.
         self.screenshot("after")
-        self.manifest["assertions"] = ["fixture.output accessibility value exactly matches the supplied text"]
+        self.manifest.setdefault("assertions", {})["fixture_output_exact"] = True
 
     def finish(self, error=None):
         source_error = None

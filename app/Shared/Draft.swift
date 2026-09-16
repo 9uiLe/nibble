@@ -6,10 +6,10 @@ struct Draft: Identifiable, Equatable, Sendable {
     let snippetID: UUID?
     let baseRevision: Int
     var title: String {
-        didSet { if !oldValue.utf8.elementsEqual(title.utf8) { sequence += 1 } }
+        didSet { if !SnippetText.hasSameBytes(oldValue, title) { sequence += 1 } }
     }
     var body: String {
-        didSet { if !oldValue.utf8.elementsEqual(body.utf8) { sequence += 1 } }
+        didSet { if !SnippetText.hasSameBytes(oldValue, body) { sequence += 1 } }
     }
     private(set) var sequence: Int = 0
 
@@ -21,8 +21,8 @@ struct Draft: Identifiable, Equatable, Sendable {
     func canReplace(_ stored: Draft) -> Bool {
         guard id == stored.id, snippetID == stored.snippetID, baseRevision == stored.baseRevision else { return false }
         return sequence > stored.sequence || (sequence == stored.sequence
-            && title.utf8.elementsEqual(stored.title.utf8)
-            && body.utf8.elementsEqual(stored.body.utf8))
+            && SnippetText.hasSameBytes(title, stored.title)
+            && SnippetText.hasSameBytes(body, stored.body))
     }
 }
 
@@ -31,4 +31,3 @@ struct DraftSummary: Identifiable, Equatable, Sendable {
     let id: UUID
     let title: String
 }
-
