@@ -10,9 +10,9 @@
 | --- | --- |
 | パッケージ解決・ローカル共通検査 | 解決成功、Nix全5 check成功。Python回帰テスト65件・Swiftソース29件を含む |
 | iOSのビルド・製品テスト | 対象マクロの承認後、Releaseビルド・42テスト成功。パラメータ展開後43実行、失敗・skipなし |
-| 基本操作・Debug通知 | 基本操作はSimulatorの座標変換エラー・タイムアウトで未完了。Debug通知は未実施 |
+| 基本操作・Debug通知 | 標準UI driver成功。Reduce Motion無効・有効で通知表示・消去と編集開閉を確認、設定復元済み |
 | 性能 | 通知のBooleanトリガー1件の解決処理を同一Simulator・Release最適化で比較。描画・操作全体の応答時間は未測定 |
-| GitHub Actions | この構成では未実施 |
+| GitHub Actions | 対象PRのChecksでUbuntuの共通検査・本文検査を確認。iOS実行の結果とは区別する |
 
 環境、対象revision、成功・失敗run、性能の実測と受け入れ条件は[Swift Package構成の検証](spm-validation.md)に記載する。以下の各記録は表記したコミットと依存構成に対する観測であり、上記構成の実行成功を示すものではない。
 
@@ -113,7 +113,7 @@ raw値は`artifacts/mvp/search-timing-final.json`（`a498ba4`）と`artifacts/li
 
 | 評価領域 | 詳細記録 | 閲覧可能な添付先 |
 | --- | --- | --- |
-| Swift Package構成 | [依存構成の検証](spm-validation.md)。`bd53d99` | iOS実行・媒体は未取得 |
+| Swift Package構成 | [依存構成の検証](spm-validation.md)。`bd53d99` | Release基本操作・Debug通知2条件の画像と録画を取得。共有先は対象PRの証跡欄 |
 | 一覧・下書き・編集終了 | [一覧と編集の検証](library-validation.md)。製品ソース`054b09d`・driver `9e19e41` | [PR #10](https://github.com/9uiLe/nibble/pull/10) |
 | 一覧行の比較・表示反映 | [比較Viewの検証](app-macros-validation.md)。`81d9144`・`ba35eca` | [PR #8](https://github.com/9uiLe/nibble/pull/8)の画像5点・録画2本 |
 | 操作API・UI所有者・通知・共有 | [非同期APIの検証](async-policy-validation.md)。製品は`16868e6`、Lintと回帰テストは`89cf8ff` | [PR #7](https://github.com/9uiLe/nibble/pull/7)の画像5点・動画6本 |

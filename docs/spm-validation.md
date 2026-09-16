@@ -25,20 +25,20 @@ Xcode projectのexact version、共有`Package.resolved`、取得したパッケ
 | Xcode / Swift | Xcode 26.5（17F42）、Swift 6.3.2 |
 | Simulator | 専用iPhone 17 Pro、iOS 26.5（23F77） |
 | UDID | `D099A849-386F-4EAE-AE12-02D8DC623AF2` |
-| ビルド指定 | scheme `Nibble`、Release、ad hoc署名 |
+| ビルド指定 | scheme `Nibble`、製品テスト・基本操作はRelease、通知はDebug、ad hoc署名 |
 | 製品設定 | deployment target 26.0、Swift language mode 6、strict concurrency complete、default isolation nonisolated |
 
 | 検証 | 結果 | 記録 |
 | --- | --- | --- |
 | パッケージ解決 | 表の4件のバージョン・revisionを解決 | `artifacts/package-resolution.log` |
-| Nix共通検査 | ローカル5 check成功。Python回帰テスト65件、Swiftソース29件の規約検査を含む | `artifacts/nix-check-final.log` |
+| Nix共通検査 | ローカル5 check成功。Python回帰テスト65件、Swiftソース29件の規約検査を含む | `artifacts/nix-package-final.log` |
 | Releaseビルド・製品テスト | 42件成功、失敗・skipなし。パラメータ展開後43実行 | run `20260916T032846Z-test-93c9c4` |
-| 基本操作のUI検証 | 未完了。Releaseの本体を起動し、新規入力と下書き保存まで操作できたが、Simulator操作の座標変換エラー・タイムアウトで中止 | 下記の失敗runを保存 |
-| Debug通知・Reduce Motion | 未実施。Settingsで初期状態が無効であることのみ確認 | `artifacts/motion-disabled-settings.json` |
+| 基本操作のUI検証 | 成功。下書き再開・保存・検索・編集・原文コピー・pin・削除・同一UUIDのUndo・破棄を確認 | run `20260916T101304Z-mvp-ui-764740` |
+| Debug通知・Reduce Motion | 無効・有効の両方で通知表示・2.3秒後の消去・編集開閉が成功。設定を初期状態の無効へ復元 | 下記のDebug run |
 | 通知トリガーの解決処理 | 同一端末・Release最適化で0.2.1と0.2.2を比較。詳細は下記 | `artifacts/package-performance/result.json` |
-| GitHub Actions | 未実施 | この構成に対するCI結果なし |
+| GitHub Actions | Ubuntuの共通検査とPR本文検査。実行状態は対象PRのChecksを参照 | iOSの実行検証は上記ローカルrunで評価 |
 
-runは1回の検証実行を指す。manifest・ログ・xcresultは`artifacts/ios/<run>/`へ保存する。Releaseテストrunの開始・終了時の検証入力は、対象ソースとファイルhashが一致した。行の全入力の比較、マウント済みViewの変更・復元、同一入力での外観・文字サイズの更新を含む。
+runは1回の検証実行を指す。manifest・ログ・xcresultは`artifacts/ios/<run>/`へ保存する。Releaseテスト・基本操作・Debug通知の各runの開始・終了時の検証入力は、対象ソースとファイルhashが一致した。行の全入力の比較、マウント済みViewの変更・復元、同一入力での外観・文字サイズの更新を含む。
 
 ### ビルドホストとテストログの観測
 
@@ -48,7 +48,32 @@ runは1回の検証実行を指す。manifest・ログ・xcresultは`artifacts/i
 
 ## Simulatorの操作検証
 
-Releaseの標準UI driverを実行した。各runのビルドは成功したが、次の実行環境の失敗により、基本操作全体の受け入れ結果は得られていない。
+### 基本操作と通知
+
+標準UI driverのrun `20260916T101304Z-mvp-ui-764740`で、新規作成→閉じる→下書き再開→保存→日本語検索→編集→コピー→pin→削除→Undo→下書き破棄を実行した。作成したUUIDを編集・復元後も保持し、コピーは改行・空白・結合文字を含むUTF-8で原文と一致した。破棄後の保存済み本文も一致した。既存項目は保持し、ダミーデータのみを操作した。
+
+| Debug条件 | run | 結果 |
+| --- | --- | --- |
+| Reduce Motion無効 | `20260916T101819Z-package-notice-disabled-1caf35` | 通知表示・2.3秒待機後の消去・編集開閉が成功 |
+| Reduce Motion有効 | `20260916T102207Z-package-notice-enabled-3a9374` | 同じ操作と表示状態の照合が成功 |
+
+Debugの補助driver `artifacts/check-package-notice.py`は共通の`Run`でビルド・起動・ソース照合・撮影を行い、自身のhashとSettingsの観測をmanifestへ記録した。Settingsの`REDUCE_MOTION`をvalue 0/1で照合し、検証後は初期状態の0へ戻した。通知の通常0.16秒・有効時0秒という指定は実装上の条件であり、今回の抽出フレームから遷移時間を測定したものではない。
+
+2026-09-16 19:18:19〜19:23:00 JSTのSimulator統合ログをinfo/debug込みで取得した。Nibble / NibbleShareのScopedAnimationカテゴリと`Unhandled ViewTaskStore`に該当する記録は0件だった（`artifacts/package-debug-diagnostics.json`）。一覧と編集内部の診断、入力barrierを通る今回の通知・編集開閉が対象で、共有拡張は実行していない。OSのシートtransactionは外側のbarrierで遮断する。全導線の診断がないことを示す結果ではない。
+
+一覧・下書き再開・通知表示と消去のPNGを開き、録画は次の時刻の抽出フレームを確認した。タイトル・本文・pin・コピー操作が表示され、確認した画面に操作を妨げる重なりはなかった。
+
+| 録画 | 原本の長さ（秒） | 確認した抽出時刻（秒） |
+| --- | --- | --- |
+| 基本操作 | 93.412 | 4.860、46.343、83.198 |
+| Reduce Motion無効 | 10.757 | 0、7.068、9.127 |
+| Reduce Motion有効 | 12.428 | 0、8.030、10.485 |
+
+全編の連続再生、全フレームのhitch評価、VoiceOver実操作、今回の構成での日本語IME変換・小画面・最大文字の操作は未実施。録画時間にはdriverの待機と画面読取を含む。比較Viewの外観・文字サイズへの追従は製品テストで評価した。画像・録画の共有URLとブラウザー閲覧条件は対象PRと各runの`review.json`に記録する。
+
+### 実行基盤が停止したrun
+
+以下は同日の成功runより前の失敗記録である。各runのビルドは成功したが、Simulator操作の座標変換エラー・タイムアウトで操作検証を中止した。
 
 | run | 観測 |
 | --- | --- |
@@ -62,7 +87,7 @@ Releaseの標準UI driverを実行した。各runのビルドは成功したが�
 
 新規の専用iPhone 17 Pro / iOS 26.5 Simulator（`31DA9A52-C6C0-4F37-9326-352CD49B12A5`）は作成できたが、起動が`launchd failed to respond`で失敗した。作業再開時にもこの端末のbootが45秒でタイムアウトした（`artifacts/package-simulator-resume-boot.log`）。この端末では製品を実行していない。既存データのerase、他のSimulatorの停止、Mac全体のサービス再起動は行っていない。
 
-操作の停止を製品のテスト失敗と混同しない一方、部分的な入力・画像・録画をUI検証の成功とも扱わない。ホストのSimulator基盤が復旧した後、基本操作とDebug通知を再実行し、ソース照合・媒体の確認・共有を完了する必要がある。
+これらの部分的な入力・画像・録画を成功runへ合算していない。上記の基本操作とDebug通知は、ホスト再起動後に標準driverと補助driverをそれぞれ最初から実行して取得した独立の結果である。
 
 ## 通知トリガーの処理時間
 
