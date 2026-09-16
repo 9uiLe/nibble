@@ -45,6 +45,8 @@ def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9ui
         require(info.get('MinimumOSVersion') == '26.0', 'Minimum iOS must remain 26.0.')
         require(info.get('DTPlatformName') == 'iphoneos', 'Device SDK required.')
         require(info.get('DTPlatformVersion') == '26.5', 'Use the verified iOS 26.5 SDK.')
+        require(info.get('ITSAppUsesNonExemptEncryption') is False,
+                'App and extension must declare no non-exempt encryption with a Boolean false.')
         executable = info.get('CFBundleExecutable', '')
         require(bool(executable) and Path(executable).name == executable and (path / executable).is_file(),
                 'Missing bundle executable.')
@@ -63,7 +65,7 @@ def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9ui
             'App icon configuration is missing.')
     return {'bundle_id': bundle_id, 'extension_bundle_id': extension_id,
             'version': app_info['CFBundleShortVersionString'], 'build': app_info['CFBundleVersion'],
-            'minimum_ios': '26.0', 'sdk': '26.5'}
+            'minimum_ios': '26.0', 'sdk': '26.5', 'uses_non_exempt_encryption': False}
 
 
 def private_path(path, directory=False):

@@ -24,7 +24,7 @@ def make_archive(archive, build='1'):
                 'CFBundleSupportedPlatforms': ['iPhoneOS'], 'DTPlatformName': 'iphoneos',
                 'DTPlatformVersion': '26.5', 'MinimumOSVersion': '26.0',
                 'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': build,
-                'CFBundleExecutable': 'fixture',
+                'CFBundleExecutable': 'fixture', 'ITSAppUsesNonExemptEncryption': False,
                 'CFBundleIcons': {'CFBundlePrimaryIcon': {'CFBundleIconName': 'AppIcon'}},
                 'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.share-services'}}
         (path / 'Info.plist').write_bytes(plistlib.dumps(info))
@@ -261,6 +261,25 @@ class ArchiveTests(Fixture):
         (app / 'PrivacyInfo.xcprivacy').unlink()
         with self.assertRaises(OSError):
             tf.archive_info(archive)
+
+    def test_encryption_declaration_must_be_boolean_false_in_both_bundles(self):
+        archive = self.root / 'Nibble.xcarchive'
+        app, share = make_archive(archive)
+        self.assertIs(tf.archive_info(archive)['uses_non_exempt_encryption'], False)
+        for bundle in [app, share]:
+            path = bundle / 'Info.plist'
+            original = plistlib.loads(path.read_bytes())
+            for value in [None, True, 'NO', 'false', 0]:
+                with self.subTest(bundle=bundle.name, value=value):
+                    info = dict(original)
+                    if value is None:
+                        info.pop('ITSAppUsesNonExemptEncryption')
+                    else:
+                        info['ITSAppUsesNonExemptEncryption'] = value
+                    path.write_bytes(plistlib.dumps(info))
+                    with self.assertRaisesRegex(tf.DistributionError, 'non-exempt encryption'):
+                        tf.archive_info(archive)
+            path.write_bytes(plistlib.dumps(original))
 
     def test_other_app_is_rejected(self):
         archive = self.root / 'Nibble.xcarchive'

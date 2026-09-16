@@ -83,6 +83,14 @@ scripts/deploy-testflight.sh --dry-run
 
 `--check-config`は鍵の有効性や署名を検証しない。`--dry-run`はIPAを生成するが、App Store Connectへビルドを送信しない。
 
+## 輸出コンプライアンス
+
+本体と共有拡張の`Info.plist`に`ITSAppUsesNonExemptEncryption`をBooleanの`false`として保存する。これは「免除対象外の暗号化を使用しない」という申告である。nibbleはApple同梱SQLiteに保存し、ファイルの保護はiOSのData Protectionを使う。製品とリンクする依存ライブラリには、独自の暗号化実装を含めない。
+
+申告をビルドに含めることで、App Store Connectで各ビルドの暗号化に関する質問へ回答する操作を省略する。配布スクリプトは完成したarchiveの本体と共有拡張を検査し、キーの欠落、`true`、文字列や数値などの型の誤りがあれば、export・upload前に停止する。確認した値を公開メタデータ`uses_non_exempt_encryption`へ記録する。
+
+申告値は秘密情報ではなく、製品の構成としてGitで管理する。スクリプトは申告を推測したり、archiveを書き換えたりしない。暗号化機能や依存ライブラリの追加・変更時は、配布担当者が申告の適合性を再確認し、必要に応じて設定と検査を変更する。Appleの[申告キーの定義](https://developer.apple.com/documentation/bundleresources/information-property-list/itsappusesnonexemptencryption)と[ベータビルドの申告](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-export-compliance-information-for-beta-builds)を参照する。
+
 ## 毎回の配布
 
 1. 配布する変更と共有SPM lockをコミットし、作業ツリーに未コミットの変更がない状態にする。
@@ -92,11 +100,11 @@ scripts/deploy-testflight.sh --dry-run
    scripts/deploy-testflight.sh
    ```
 
-3. App Store ConnectのTestFlightで対象buildの処理完了を確認する。輸出コンプライアンスが未回答の場合は、配布担当者が実装に基づいて回答する。
+3. App Store ConnectのTestFlightで対象buildの処理完了を確認する。ビルドに含めた輸出コンプライアンスの申告が受理されたことを確認する。追加情報を求められた場合は配布担当者が対応する。
 4. 「本人用」に対象buildが自動反映され、テスト可能になったことを確認する。
 5. 自分の端末のTestFlightからインストールする。端末への自動インストールはTestFlightアプリ側の設定に従う。
 
-コマンドはNixの全check、固定したSwift Packageの解決、Release archive、メタデータ検査、署名・送信を順に実行する。未確認の輸出コンプライアンス申告は自動設定しない。Appleの[buildアップロード](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)と[輸出コンプライアンス](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)も参照する。
+コマンドはNixの全check、固定したSwift Packageの解決、Release archive、メタデータ検査、署名・送信を順に実行する。輸出コンプライアンスは、製品のInfo.plistに保存した申告をXcode経由で送信する。Appleの[buildアップロード](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)と[輸出コンプライアンス](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)も参照する。
 
 ### ビルド番号
 
