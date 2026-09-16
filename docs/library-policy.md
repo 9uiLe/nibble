@@ -91,7 +91,7 @@ struct ExampleView: View {
 
 下書きの入力順序を`sequence`、ある時点の下書きを固定した値を`snapshot`と呼ぶ。入力setterは値とsequenceだけを更新する。viewは`.task(id: snapshot.sequence)`から`persist(snapshot)`を直接awaitする。SwiftUIによる入力更新の集約を許容し、全キーストロークの独立した保存は約束しない。
 
-保存・閉じるは自動保存の開始に依存せず、最新入力を直接永続化する。保存層はsequence比較で古いsnapshotを拒否し、保存・破棄後の下書きを遅れた書込で再生成しない。コピーの完了に通知の表示時間を含めず、期限は`.task(id: noticeID)`から`expireNotice(id:)`をawaitする。
+保存・閉じるは自動保存の開始に依存せず、最新入力を直接永続化する。保存層はsequence比較で古いsnapshotを拒否し、保存・破棄後の下書きを遅れた書込で再生成しない。終了操作は`finish(_:)`へ集約し、phaseを編集中→終了処理中→終了済み（失敗時は編集中）と遷移させる。保存・閉じる・破棄でもDBの下書きとsnapshotを照合し、救済保存は新しい入力がある下書きを消さない。コピーの完了に通知の表示時間を含めず、期限は`.task(id: notice?.id)`から`expireNotice(id:)`をawaitする。
 
 業務エラーは表示状態へ変換し、入力を保持して再試行・競合回復を可能にする。storeへ流出した非キャンセルエラーはDebug assertionの対象になる。空のcatchで失敗を消さず、キャンセルだけを正常な終了として扱うcatchと区別する。
 
@@ -156,7 +156,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | UIKit / Core Animationの直接アニメーション | `UIView.animate`・`transition`等、`UIViewPropertyAnimator`、CAAnimation系、`CATransaction`等 | ScopedAnimation |
 | 直接の比較と比較除外 | `.equatable`、`EquatableView`、`.equatableBody`、`@SkipEquatable`、手書き`==` | AppMacrosの比較View、データの標準Equatable合成 |
 
-正確な名前の集合は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)を正とする。予約名は別用途にも使わない。SQLiteのprivate helperには`writeTransaction`を使う。
+正確な名前の集合は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)を正とする。予約名は別用途にも使わない。SQLiteのhelperには`readTransaction`・`writeTransaction`を使い、共通の確定・rollbackはprivateな`performTransaction`に閉じ込める。
 
 字句解析はコメント・通常/raw/複数行文字列・regexの本文を読み飛ばし、実行される補間を検査する。改行・コメントを挟む呼出し、修飾名、backtick、型aliasも対象とする。
 
