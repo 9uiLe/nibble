@@ -4,6 +4,10 @@
 
 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`の構成では、コミット`f0ff5063ef42fd09742accb00699a7f306772ecd`でReleaseテスト42件とSafariからの共有保存・本体表示・本文のUTF-8完全一致を確認した。[配布の検証記録](testflight-validation.md)に実行環境と画像・録画の確認範囲を記載する。各記録の結果は、その記録に示した識別子と対象ソースに適用する。
 
+## 標準タブと検索
+
+「すべて」「ピン留め」「検索」の標準タブと下部の新規作成を持つ構成について、対象ソース`1f40c8cf3ebfaecd22ebd55edba57cc41305f3e3`でRelease製品テスト43件と基本操作driverが成功した。削除一覧の検索・復元も含め、UUIDとコピー本文を照合した。[標準ナビゲーションの検証記録](native-navigation-validation.md)に環境、画像・録画の確認範囲、未実施条件を記載する。
+
 ## 採用している依存構成の検証状況
 
 2026-09-16の対象ソースは`bd53d99e792241966834f0be2eb711ef0f2868e0`。依存はTasking 0.3.0、ScopedAnimation 0.2.2、AppMacros 0.3.0、swift-syntax 603.0.2である。
