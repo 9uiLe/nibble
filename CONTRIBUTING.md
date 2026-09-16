@@ -116,9 +116,11 @@ Lintは構文を検査する。型解決・マクロ展開・外部APIの副作�
 
 ## TestFlight配布
 
-内部配布は[配布設計](docs/decisions/0003-testflight-distribution.md)と[設定・操作手順](docs/testflight.md)に従う。同じmacOSユーザーの`scripts/deploy-testflight.sh`で検査・archive・署名・送信を実行する。認証設定・秘密鍵・生ログはGit管理せず、本人がリポジトリ外で管理する。エージェントは秘密情報を直接参照せず、配布スクリプトの限定された出力だけを確認する。これは運用上の制限であり、OSによるアクセス分離ではない。
+TestFlightの内部配布先は、Apple Developerアカウントと端末を管理する配布担当者1名を登録した「本人用」グループとする。開発と同じmacOSユーザーで`scripts/deploy-testflight.sh`を実行し、検査・archive・署名・送信を行う。Apple側の処理と必要な申告が完了した各ビルドを、App Store Connectがグループへ自動配信する。構成と責務は[配布設計](docs/decisions/0003-testflight-distribution.md)、設定と運用は[配布手順](docs/testflight.md)に定義する。
 
-TestFlightからの実機インストールと共有保存は配布の受け入れとしてiOS 26.5端末で確認し、MVPのSimulator評価と区別して記録する。署名なしarchive、アップロード成功、Apple側の処理完了、端末での利用成立を別々に扱う。
+認証設定・秘密鍵・生ログはGitに保存せず、配布担当者がリポジトリ外で管理する。エージェントは直接参照せず、レビューした配布スクリプトが返す工程・成否・公開メタデータだけを確認する。この制限は同一ユーザー内の運用規約であり、OSによるアクセス分離ではない。
+
+署名とアップロード、Apple側の処理とグループ配信、実機インストール、実機操作を別々に確認する。配布の受け入れはiOS 26.5実機で起動・編集・コピー・共有保存を確認し、MVPのSimulator評価と区別して[検証記録](docs/testflight-validation.md)へ残す。
 
 ## UI/UXと性能の確認
 

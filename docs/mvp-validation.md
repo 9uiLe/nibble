@@ -2,7 +2,7 @@
 
 この文書はiPhoneアプリ`Nibble`と共有拡張`NibbleShare`の確認結果を、検証する契約ごとに案内する。機能と構成は[製品設計](decisions/0002-mvp-app.md)、再現手順と期待結果は[MVP手順](mvp.md)で定義する。最低対応OSは26.0、実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。
 
-配布識別子は本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`を使用する。この構成でReleaseテスト42件と、Safariからの共有保存・本体表示・本文の完全一致を確認した。対象ソースと環境、画像・録画の確認範囲は[配布の検証記録](testflight-validation.md)を参照する。以下の既存runは、それぞれに記載した旧識別子と対象ソースに対する結果である。
+本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`の構成では、コミット`f0ff5063ef42fd09742accb00699a7f306772ecd`でReleaseテスト42件とSafariからの共有保存・本体表示・本文のUTF-8完全一致を確認した。[配布の検証記録](testflight-validation.md)に実行環境と画像・録画の確認範囲を記載する。各記録の結果は、その記録に示した識別子と対象ソースに適用する。
 
 ## 採用している依存構成の検証状況
 

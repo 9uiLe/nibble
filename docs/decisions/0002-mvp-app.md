@@ -322,7 +322,7 @@ AppMacrosのmanifestはswift-syntax 603.0.2をexact指定する。swift-syntax�
 
 保存層の変更時はUUID・本文・下書き・削除状態の移行を検査する。WALを欠くDB本体のコピーをバックアップとして扱わない。独自export/importやアプリ削除後の復旧は保証範囲外とする。
 
-署名配布には、本体・共有拡張の同一Developer TeamとApp Group、API・宣言・署名の点検が必要になる。配布方法、App Privacy回答、privacy policy、サポート窓口も配布判断に含める。
+内部配布は[ローカルMacからのTestFlight配布](0003-testflight-distribution.md)を使用する。本体・共有拡張を同じDeveloper Teamで署名し、両方のprofileに共有App Groupを含める。App Store Connectの内部グループ「本人用」へ各ビルドを自動配信する。外部テスト・App Store公開の配布方法、App Privacy回答、privacy policy、サポート窓口は、それぞれの配布設計で定義する。
 
 ## 機械検査と受け入れ条件
 

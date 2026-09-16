@@ -53,11 +53,13 @@ mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`
 
 製品の採用構成は[製品設計](docs/decisions/0002-mvp-app.md)、追加の判断は[研究と検証計画](research/README.md)、共通基盤の責務は[基盤設計](docs/decisions/0001-local-ios-verification.md)を参照する。新しいtargetには設定・手順・期待結果を用意する。
 
-## 配布の秘密情報
+## TestFlight配布と秘密情報
 
-[TestFlight手順](docs/testflight.md)に従い、同じmacOSユーザーで`scripts/deploy-testflight.sh`を実行する。認証設定とAPI鍵はリポジトリ外の`~/.appstoreconnect/`で本人が管理する。エージェントはこのディレクトリ・秘密鍵・パスワード・トークン・Keychain・認証ログを直接読まず、内容の表示や会話への貼り付けも依頼しない。別コマンドやコード変更で直接参照の禁止を迂回しない。
+[TestFlight手順](docs/testflight.md)に従い、開発と同じmacOSユーザーで`scripts/deploy-testflight.sh`を実行する。配布先は、Apple Developerアカウントと端末を管理する配布担当者1名を登録した内部グループ「本人用」。App Store ConnectでXcodeビルドの自動配信を有効にする。
 
-許可する認証情報の使用は、レビューした配布スクリプトによる設定確認・archive・署名・アップロードとする。エージェントへ返すのは工程・成否・公開メタデータのみ。設定の登録・変更と生ログの確認は本人が行う。Claudeのdeny設定は補助であり、同一OSユーザーの読取権限を分離しない。詳細と制約は[配布設計](docs/decisions/0003-testflight-distribution.md)を参照する。
+認証設定とAPI鍵はリポジトリ外の`~/.appstoreconnect/`で配布担当者が管理する。エージェントはこのディレクトリ・秘密鍵・パスワード・トークン・Keychain・認証ログを直接読まず、内容の表示や会話への貼り付けも依頼しない。別コマンドやコード変更で直接参照の禁止を迂回しない。
+
+認証情報を使用できる経路は、レビューした配布スクリプトによる設定確認・archive・署名・アップロード。エージェントへ返すのは工程・成否・公開メタデータのみ。設定の登録・変更と生ログの確認は配布担当者が行う。これは同一ユーザー内の運用規約であり、OSの読取権限を分離しない。Claude Codeのdeny設定も補助として扱う。詳細は[配布設計](docs/decisions/0003-testflight-distribution.md)を参照する。
 
 ## 検証とPRの進め方
 
