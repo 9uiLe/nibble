@@ -16,7 +16,7 @@ scripts/deploy-testflight.sh
 | `--dry-run` | 共通検査、依存解決、Release archive、署名したIPAの書き出し。Developer Portalへの接続・provisioning更新は許可するが、buildをアップロードしない |
 | 引数なし | 同じ検査とarchiveを経て、XcodeからApp Store Connectへアップロードする |
 
-画面には工程名と成否、完了時のversion・buildだけを表示する。認証設定の失敗時は、固定した検査工程名（ファイルの存在・所有者・権限、代入書式・必須項目、識別子の書式、鍵の配置規則）を返す。入力値・実際のパス・例外詳細は表示しない。送信成功後、Apple側の処理完了と内部グループへの追加をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
+画面には工程名と成否、完了時のversion・buildだけを表示する。認証設定の失敗時は、固定した検査工程名（ファイルの存在・所有者・権限、代入書式・必須項目、識別子の書式、鍵の配置規則）を返す。入力値・実際のパス・例外詳細は表示しない。送信成功後、Apple側の処理完了と「本人用」への自動配信をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
 
 ## 秘密情報の管理
 
@@ -99,11 +99,17 @@ scripts/deploy-testflight.sh --build-number 202609170900
 
 失敗メッセージは工程名と固定の案内のみで、コマンド引数・例外詳細・ログ末尾を返さない。本人がログを調べ、秘密情報を除いた原因だけをエージェントに伝える。共有する証跡にはmanifestを使い、archive・IPA・ログをPRへ添付しない。
 
-## 5. 本人の端末へ配布する
+## 5. 本人の端末へ自動配信する
 
-1. 引数なしでアップロードし、App Store ConnectのTestFlightでbuildの処理完了を確認する。アップロード成功と処理完了は別の状態。
-2. 暗号化の輸出コンプライアンスについて、本人が実装に基づいて回答する。スクリプトは未確認の申告を自動設定しない。
-3. 自分だけの内部テストグループを作り、初回は自動配布を無効にして対象buildを追加する。
-4. iOS 26.5の自分の端末でTestFlightからインストールし、起動・作成・編集・コピー・共有拡張からの保存・本体での表示を確認する。
+App Store ConnectのTestFlightで、内部グループ「本人用」を作成する。作成時に「自動配信を有効にする」を選び、本人のアカウント1件だけを追加する。グループの設定が「Xcodeビルドを自動配信」、テスターが1人であることを確認する。この配信設定は作成後に変更できないため、手動配信のグループから移る場合は自動配信用のグループを作成する。
+
+この設定により、ローカルの配布スクリプトからアップロードするビルドは、利用可能になるたびに本人へ配信される。グループへの手動追加は毎回行わない。Xcode CloudのビルドはAppleの自動配信対象外であり、この運用では使用しない。
+
+1. `scripts/deploy-testflight.sh`でアップロードする。
+2. App Store Connectで処理完了を確認する。暗号化の輸出コンプライアンスが未回答の場合は、本人が実装に基づいて回答する。スクリプトは未確認の申告を自動設定しない。
+3. 「本人用」に対象buildが反映され、テスト可能になったことを確認する。アップロード成功だけでは配信完了としない。
+4. 自分の端末でTestFlightからインストールする。配布の受け入れ検証はiOS 26.5を対象とし、起動・作成・編集・コピー・共有拡張からの保存・本体での表示を確認する。
+
+自動配信はTestFlightで新しいビルドを利用可能にする設定であり、端末への自動インストールは端末側のTestFlight設定に従う。
 
 buildは`testFlightInternalTestingOnly`で送信する。外部テストやApp Store公開には使用せず、別の配布判断とbuildを用意する。Appleの[buildアップロード](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)、[内部テスター](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/)、[輸出コンプライアンス](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)も確認する。

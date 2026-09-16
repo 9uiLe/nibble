@@ -264,7 +264,7 @@ class Deployment:
         self.save()
         print('完了: version=' + info['version'] + ' build=' + self.build, flush=True)
         print('IPA書き出しのみ。Appleへは送信していません。' if self.dry_run else
-              'アップロード成功。App Store Connectで処理完了と内部グループへの追加を確認してください。')
+              'アップロード成功。App Store Connectで処理完了と「本人用」への自動配信を確認してください。')
 
 
 @contextmanager
