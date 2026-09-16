@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Only displayed values cross this gate. Actions and observable state belong to LibraryView.
 @Equatable
-struct SnippetRowContent: EquatableBodyView {
+struct SnippetRowContent: @MainActor EquatableBodyView {
     let title: String
     let preview: String
     let pinned: Bool

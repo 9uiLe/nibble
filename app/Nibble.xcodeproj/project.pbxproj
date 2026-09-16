@@ -75,7 +75,7 @@
   000000000000000000000049 = { isa = PBXContainerItemProxy; containerPortal = 000000000000000000000044; proxyType = 1; remoteGlobalIDString = 00000000000000000000002E; remoteInfo = Nibble; };
   00000000000000000000004A = { isa = PBXTargetDependency; target = 00000000000000000000002E; targetProxy = 000000000000000000000049; };
   000000000000000000000050 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/9uiLe/swift-tasking.git"; requirement = { kind = exactVersion; version = 0.3.0; }; };
-  000000000000000000000051 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/9uiLe/swift-scoped-animation.git"; requirement = { kind = exactVersion; version = 0.2.1; }; };
+  000000000000000000000051 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/9uiLe/swift-scoped-animation.git"; requirement = { kind = exactVersion; version = 0.2.2; }; };
   000000000000000000000052 = { isa = XCSwiftPackageProductDependency; package = 000000000000000000000050; productName = Tasking; };
   000000000000000000000053 = { isa = PBXBuildFile; productRef = 000000000000000000000052; };
   000000000000000000000054 = { isa = XCSwiftPackageProductDependency; package = 000000000000000000000051; productName = ScopedAnimation; };
@@ -89,7 +89,7 @@
   00000000000000000000005C = { isa = PBXFileReference; lastKnownFileType = text; path = ThirdPartyNotices.txt; sourceTree = "<group>"; };
   00000000000000000000005D = { isa = PBXBuildFile; fileRef = 00000000000000000000005C; };
   00000000000000000000005E = { isa = PBXBuildFile; fileRef = 00000000000000000000005C; };
-  000000000000000000000060 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/9uiLe/swift-app-macros.git"; requirement = { kind = exactVersion; version = 0.2.0; }; };
+  000000000000000000000060 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/9uiLe/swift-app-macros.git"; requirement = { kind = exactVersion; version = 0.3.0; }; };
   000000000000000000000061 = { isa = XCSwiftPackageProductDependency; package = 000000000000000000000060; productName = AppMacros; };
   000000000000000000000062 = { isa = PBXBuildFile; productRef = 000000000000000000000061; };
   000000000000000000000063 = { isa = XCSwiftPackageProductDependency; package = 000000000000000000000060; productName = AppMacros; };

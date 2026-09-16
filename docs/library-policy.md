@@ -117,14 +117,14 @@ Taskingのstoreへ流出した非キャンセルエラーはDebug assertionの�
 
 ## Viewの比較境界
 
-比較Viewは`@Equatable`を付けた`EquatableBodyView`とし、同じstructの`equatableBody`に内容を書く。ライブラリの既定の`body`が等価比較を適用するため、呼出側は通常のViewとして配置する。
+比較Viewは`@Equatable`を付けた`@MainActor EquatableBodyView`とし、準拠と等価比較をMainActorに隔離する。同じstructの`equatableBody`に内容を書く。ライブラリの既定の`body`が等価比較を適用するため、呼出側は通常のViewとして配置する。
 
 ```swift
 import AppMacros
 import SwiftUI
 
 @Equatable
-struct CaptionContent: EquatableBodyView {
+struct CaptionContent: @MainActor EquatableBodyView {
     let text: String
 
     var equatableBody: some View {
@@ -226,8 +226,8 @@ LintはSwiftの型解決・macro展開・全プログラムの副作用解析を
 | パッケージ | 固定版 | product | 対応条件 |
 | --- | --- | --- | --- |
 | [swift-tasking](https://github.com/9uiLe/swift-tasking/tree/0.3.0) | 0.3.0 | `Tasking`の`ViewTaskStore`、`TaskingCore`の`TaskSlot` | Swift tools 6.0、iOS 13以上 |
-| [swift-scoped-animation](https://github.com/9uiLe/swift-scoped-animation/tree/v0.2.1) | 0.2.1 | `ScopedAnimation` | Swift tools 6.2、iOS 17以上 |
-| [swift-app-macros](https://github.com/9uiLe/swift-app-macros/tree/0.2.0) | 0.2.0 | `AppMacros` | Swift tools 6.3、iOS / macOS 26以上 |
+| [swift-scoped-animation](https://github.com/9uiLe/swift-scoped-animation/tree/v0.2.2) | 0.2.2 | `ScopedAnimation` | Swift tools 6.2、iOS 17以上 |
+| [swift-app-macros](https://github.com/9uiLe/swift-app-macros/tree/0.3.0) | 0.3.0 | `AppMacros` | Swift tools 6.3、iOS / macOS 26以上 |
 
 製品のdeployment targetは26.0、検証ツールチェーンはXcode 26.5 / Swift 6.3.2とする。本体と共有拡張はTasking・ScopedAnimationの同じ固定版をリンクする。AppMacrosは比較Viewを持つ本体とそのテストにリンクする。共有拡張・研究・基盤targetには未使用のproductをリンクしない。
 
@@ -239,9 +239,9 @@ xcodebuild -resolvePackageDependencies \
   -clonedSourcePackagesDirPath artifacts/SourcePackages
 ```
 
-AppMacrosが使用するswift-syntax 603.0.2も同じlockに固定する。swift-syntaxはMac上のマクロコンパイラを構築する依存で、アプリへリンクするruntimeではない。Tasking・ScopedAnimationは追加の外部パッケージを持たない。補助ツールはNix、アプリのSwift PackageはXcode / SwiftPMで管理する。
+AppMacrosのPackage.swiftがexact versionを要求するswift-syntax 603.0.2も同じlockに固定する。swift-syntaxはMac上のマクロコンパイラを構築する依存で、アプリへリンクするruntimeではない。単独で別の版へ更新せず、AppMacrosの要求とツールチェーンの互換性を確認する。Tasking・ScopedAnimationは追加の外部パッケージを持たない。補助ツールはNix、アプリのSwift PackageはXcode / SwiftPMで管理する。
 
-マクロはビルド時にMac上で実行される。初回はパッケージのソースとlockを確認し、XcodeのprojectでAppMacrosMacrosの実行を有効にする。対象はswift-app-macros 0.2.0、revision `fc4e4623173a41fbde5a35bcf060ed79bfe51e4a`。手順は[README](../README.md#セットアップ)を参照する。全マクロの検証を無効にする設定は使用せず、依存更新時にも対象revisionの信頼を確認する。
+マクロはビルド時にMac上で実行される。初回はパッケージのソースとlockを確認し、XcodeのprojectでAppMacrosMacrosの実行を有効にする。対象はswift-app-macros 0.3.0、revision `9b6d5d699b44990029cdfa61cddf35cec46d1520`。手順は[README](../README.md#セットアップ)を参照する。全マクロの検証を無効にする設定は使用せず、依存更新時にも対象revisionの信頼を確認する。
 
 3つの製品ライブラリはMITライセンスで、本体と共有拡張のbundleに`ThirdPartyNotices.txt`を含める。swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。
 

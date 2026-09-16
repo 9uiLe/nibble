@@ -112,7 +112,7 @@ xcodebuild -showsdks
 
 Xcodeの設定からiOS 26.5 Simulator runtimeを導入します。シェルごとにXcodeを選ぶ場合の`DEVELOPER_DIR`設定は[ローカルiOS検証](docs/ios-verification.md)を参照してください。
 
-アプリはswift-tasking 0.3.0、swift-scoped-animation 0.2.1、swift-app-macros 0.2.0をexact versionと共有`Package.resolved`で固定します。AppMacrosのビルド依存swift-syntax 603.0.2も同じlockで管理します。ネットワーク接続のあるMacで依存を解決します。
+アプリはswift-tasking 0.3.0、swift-scoped-animation 0.2.2、swift-app-macros 0.3.0をexact versionと共有`Package.resolved`で固定します。AppMacrosのビルド依存swift-syntax 603.0.2も同じlockで管理します。ネットワーク接続のあるMacで依存を解決します。
 
 ```sh
 xcodebuild -resolvePackageDependencies \
@@ -122,7 +122,7 @@ xcodebuild -resolvePackageDependencies \
 
 AppMacrosのマクロはビルド時にMac上で実行されるため、macOS 26以上とSwift 6.3以上を必要とします。初回は次の手順で対象パッケージの実行を有効にします。
 
-1. swift-app-macros 0.2.0のソースと共有lockを確認し、固定revisionを[依存表](docs/library-policy.md#依存とビルド)と照合します。
+1. swift-app-macros 0.3.0のソースと共有lockを確認し、固定revisionを[依存表](docs/library-policy.md#依存とビルド)と照合します。
 2. Xcodeで`app/Nibble.xcodeproj`を開きます。ビルド時にマクロが未承認の診断が出た場合は、Issue Navigatorの「Macro “AppMacrosMacros” … must be enabled」を選びます。
 3. 対象パッケージの確認画面で「Trust & Enable」を選び、CLIのビルド・テストへ進みます。全マクロの検証を無効にする設定は使いません。
 

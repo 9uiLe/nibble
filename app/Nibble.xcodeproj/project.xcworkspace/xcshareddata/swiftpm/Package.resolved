@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/9uiLe/swift-app-macros.git",
       "state" : {
-        "revision" : "fc4e4623173a41fbde5a35bcf060ed79bfe51e4a",
-        "version" : "0.2.0"
+        "revision" : "9b6d5d699b44990029cdfa61cddf35cec46d1520",
+        "version" : "0.3.0"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/9uiLe/swift-scoped-animation.git",
       "state" : {
-        "revision" : "8c25b8b8eb9afdece1a7dc5b4151f65406ed80e4",
-        "version" : "0.2.1"
+        "revision" : "78b1e6981cd89c313b4d6906f74deb2d02ffff4c",
+        "version" : "0.2.2"
       }
     },
     {

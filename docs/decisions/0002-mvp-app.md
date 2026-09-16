@@ -298,8 +298,8 @@ Button、操作用のアクセシビリティラベル、編集・コピー・�
 | --- | --- |
 | SwiftUI + Observation | 標準部品とMainActor上の状態で画面を構成する。IME・フォーカス・表示の問題を標準部品で解決できることを評価する |
 | swift-tasking 0.3.0 | タスクの所有・寿命・重複方針を共通APIで表す。操作ごとのIDと終了イベントは製品側で定義する |
-| swift-scoped-animation 0.2.1 | 表示変化の範囲と伝播をscope・barrierで表す。OS遷移との境界とReduce Motionを確認する |
-| swift-app-macros 0.2.0 | 全表示入力の比較を生成し、View定義に比較境界を置く。Mac上のマクロ実行とswift-syntaxのビルドを必要とする |
+| swift-scoped-animation 0.2.2 | 表示変化の範囲と伝播をscope・barrierで表す。OS遷移との境界とReduce Motionを確認する |
+| swift-app-macros 0.3.0 | 全表示入力の比較を生成し、View定義に比較境界を置く。Mac上のマクロ実行とswift-syntaxのビルドを必要とする |
 | Apple同梱SQLite | 共有DB、更新番号の照合、項目と下書きの同時確定をSQLで表現できる。SQLとmigrationを手動管理する |
 | 保存済み検索キー + `instr` | 原文を保持しながら日本語1〜2文字の部分一致を扱う。件数に応じた検索遅延を測る |
 | Share Extension + 標準URLアクション | 公開APIで取り込みと画面呼び出しを提供する。共有元の形式対応と利用者のショートカット設定が必要 |

@@ -9,6 +9,22 @@ from check_swift_policy import violations
 
 
 class EquatablePolicyTests(unittest.TestCase):
+    def test_main_actor_conformance_preserves_comparison_rules(self):
+        for protocol in ("EquatableBodyView", "AppMacros.EquatableBodyView"):
+            declaration = f"@Equatable struct Row: @MainActor {protocol}"
+            body = 'var equatableBody: some View { Text(title) }'
+            with self.subTest(protocol=protocol):
+                self.assertEqual(violations(declaration + ' { let title: String; ' + body + ' }'), [])
+                for invalid in [
+                    declaration + ' { var title: String; ' + body + ' }',
+                    declaration + ' { let title: String; let action: () -> Void; ' + body + ' }',
+                    declaration + ' { let title: String; var body: some View { Text(title) } }',
+                    declaration.removeprefix('@Equatable ') + ' { let title: String; ' + body + ' }',
+                    f'extension Row: @MainActor {protocol} {{ {body} }}',
+                ]:
+                    with self.subTest(source=invalid):
+                        self.assertTrue(violations(invalid))
+
     def test_value_only_comparison_views_and_native_values_are_allowed(self):
         for source in [
             '@Equatable struct Row: EquatableBodyView { let title: String; let pinned: Bool; var equatableBody: some View { Text(title) } }',
