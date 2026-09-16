@@ -15,6 +15,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | 製品の目的、機能、構成、データ、操作の成立条件 | [製品設計](docs/decisions/0002-mvp-app.md) |
 | 対応OS、ツール管理、検証とPRの条件 | [開発ガイド](CONTRIBUTING.md) |
 | 非同期処理、タスク所有、View比較、アニメーション、Lint | [ライブラリの実装規約](docs/library-policy.md) |
+| 固定したSwift Package構成の確認結果と未実施条件 | [Swift Package構成の検証](docs/spm-validation.md) |
 | 日常操作と期待結果、製品のビルド・操作・撮影 | [MVPの操作と検証](docs/mvp.md) |
 | 確認したソース、環境、成功・失敗、未検証条件 | [製品検証の索引](docs/mvp-validation.md)、[一覧と編集の検証結果](docs/library-validation.md) |
 | 検証基盤の責務、端末選択、実行記録 | [基盤設計](docs/decisions/0001-local-ios-verification.md)、[実行手順](docs/ios-verification.md) |
@@ -112,7 +113,16 @@ xcodebuild -showsdks
 
 Xcodeの設定からiOS 26.5 Simulator runtimeを導入します。シェルごとにXcodeを選ぶ場合の`DEVELOPER_DIR`設定は[ローカルiOS検証](docs/ios-verification.md)を参照してください。
 
-アプリはswift-tasking 0.3.0、swift-scoped-animation 0.2.2、swift-app-macros 0.3.0をexact versionと共有`Package.resolved`で固定します。AppMacrosのビルド依存swift-syntax 603.0.2も同じlockで管理します。ネットワーク接続のあるMacで依存を解決します。
+Swift Package Manager（SPM）がアプリのライブラリ依存を解決します。Xcode projectのexact versionは採用する版を指定し、共有`Package.resolved`は依存全体のバージョンとGit revisionを固定します。
+
+| 依存 | 採用版 | 用途 |
+| --- | --- | --- |
+| swift-tasking | 0.3.0 | UIが開始するタスクの所有・寿命・重複管理 |
+| swift-scoped-animation | 0.2.2 | アニメーションの適用範囲と伝播の制御 |
+| swift-app-macros | 0.3.0 | MainActor上での表示入力の等価比較 |
+| swift-syntax | 603.0.2 | Mac上でAppMacrosのマクロを構築する間接依存 |
+
+swift-syntaxはAppMacrosのmanifestが指定する版を使います。製品の構成と依存の対応条件は[依存とビルド](docs/library-policy.md#依存とビルド)に定義しています。ネットワーク接続のあるMacで依存を解決してください。
 
 ```sh
 xcodebuild -resolvePackageDependencies \
@@ -120,13 +130,13 @@ xcodebuild -resolvePackageDependencies \
   -clonedSourcePackagesDirPath artifacts/SourcePackages
 ```
 
-AppMacrosのマクロはビルド時にMac上で実行されるため、macOS 26以上とSwift 6.3以上を必要とします。初回は次の手順で対象パッケージの実行を有効にします。
+`AppMacrosMacros`は、Swiftソースから等価比較を生成するビルド時のプログラムです。実行にはmacOS 26以上・Swift 6.3以上と、対象revisionへのXcodeの承認が必要です。Xcodeが未承認の診断を表示した場合は次の手順で有効にします。
 
-1. swift-app-macros 0.3.0のソースと共有lockを確認し、固定revisionを[依存表](docs/library-policy.md#依存とビルド)と照合します。
-2. Xcodeで`app/Nibble.xcodeproj`を開きます。ビルド時にマクロが未承認の診断が出た場合は、Issue Navigatorの「Macro “AppMacrosMacros” … must be enabled」を選びます。
-3. 対象パッケージの確認画面で「Trust & Enable」を選び、CLIのビルド・テストへ進みます。全マクロの検証を無効にする設定は使いません。
+1. 取得したswift-app-macros 0.3.0のソースと共有lockを読み、revisionが`9b6d5d699b44990029cdfa61cddf35cec46d1520`であることを確認します。
+2. Xcodeで`app/Nibble.xcodeproj`を開き、Issue Navigatorの「Macro “AppMacrosMacros” … must be enabled」を選びます。
+3. 対象パッケージの確認画面で「Trust & Enable」を選び、CLIのビルド・テストを実行します。
 
-ライセンスと更新条件は[依存とビルド](docs/library-policy.md#依存とビルド)を参照してください。通常のセットアップでlockを更新する必要はありません。
+通常のセットアップでは共有lockを使用し、全マクロの検証を無効にする設定は使いません。ライセンスと依存構成の見直し条件は[実装規約](docs/library-policy.md#採用理由と更新条件)、この構成の実行結果は[Swift Package構成の検証](docs/spm-validation.md)を参照してください。
 
 ### 4. 専用Simulatorで製品を実行する
 

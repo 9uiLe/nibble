@@ -2,13 +2,25 @@
 
 この文書はiPhoneアプリ`Nibble`と共有拡張`NibbleShare`の確認結果を、検証する契約ごとに案内する。機能と構成は[製品設計](decisions/0002-mvp-app.md)、再現手順と期待結果は[MVP手順](mvp.md)で定義する。最低対応OSは26.0、実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。
 
+## 採用している依存構成の検証状況
+
+2026-09-16の対象ソースは`bd53d99e792241966834f0be2eb711ef0f2868e0`。依存はTasking 0.3.0、ScopedAnimation 0.2.2、AppMacros 0.3.0、swift-syntax 603.0.2である。
+
+| 検証 | 状態 |
+| --- | --- |
+| パッケージ解決・ローカル共通検査 | 解決成功、Nix全5 check成功。Python回帰テスト65件・Swiftソース29件を含む |
+| iOSのビルド・製品テスト | AppMacrosMacrosのXcode承認が必要という診断でビルド中止。製品テスト未実行 |
+| UI・性能・GitHub Actions | この構成では未実施 |
+
+環境、対象revision、失敗runと受け入れ条件は[Swift Package構成の検証](spm-validation.md)に記載する。以下の各記録は表記したコミットと依存構成に対する観測であり、上記構成の実行成功を示すものではない。
+
 ## 検証する契約と結果
 
 各行は記載したソースに対する結果である。テスト件数や観測条件が異なる記録は、そのソースの評価として参照する。
 
 | 契約 | 確認結果 | 対象と詳細 |
 | --- | --- | --- |
-| 一覧取得・下書き・編集終了 | 製品Releaseテスト41件成功、Nix全5 check成功。UIは個別観測を含むが標準driverの完走なし | `888dec0`、専用17 Pro。ソース照合、検索測定、ツール障害、未検証条件は[一覧と編集の検証結果](library-validation.md) |
+| 一覧取得・下書き・編集終了 | 製品Releaseテスト42件成功、標準UI driver成功、Nix全5 check成功 | 製品ソース`054b09d`・driver `9e19e41`、専用17 Pro。ソース照合、性能測定、証跡と制約は[一覧と編集の検証結果](library-validation.md) |
 | 操作・保存・比較View | 製品Releaseテスト28件成功、失敗・skipなし | `ba35eca`。SEでは`81d9144`の28件、専用17 Proでは外観・文字サイズを含む28件。[比較・表示更新の検証](app-macros-validation.md) |
 | モデル操作の完了とUI所有者 | 操作を直接awaitした時点の状態、snapshot保存、即時保存・閉じる、通知期限、所有者の寿命・重複を確認 | `16868e6`の26件に対応する[非同期APIの検証](async-policy-validation.md)。同じ契約を製品の28件のテストにも含む |
 | 基本操作と表示反映 | 作成・編集・コピー・日本語検索・ピン・削除・復元・下書き破棄。コピー本文のUTF-8と復元UUIDが一致 | `81d9144`、17 Pro、Release、標準文字・ライト。[操作と画像・動画](app-macros-validation.md#基本操作と表示) |
@@ -34,7 +46,7 @@ runは1回の検証実行を識別する名前である。`artifacts/ios/<run>/m
 
 | ソース | 対応する評価 |
 | --- | --- |
-| `888dec0` | 一覧要求と同じDB読取時点の結果、下書き再開、編集終了の状態と照合。41テストと個別の画面観測。端末・OS・記録は[一覧と編集の検証結果](library-validation.md) |
+| `054b09d`・`9e19e41` | 前者は一覧・下書き・編集終了・原文比較の製品ソース、後者は検証driver。42テストと標準UI driver、性能測定の条件・端末・記録は[一覧と編集の検証結果](library-validation.md) |
 | `ba35eca` | 製品実装は`81d9144`と同じ。外観・文字サイズの追従を含む28テストと日本語編集メニュー用driver。詳細は[AppMacrosの検証](app-macros-validation.md) |
 | `81d9144` | AppMacrosを使う一覧行の比較境界。28テスト、Debugビルド・本体起動、Releaseの作成・編集・コピー・検索・ピン・削除・復元を確認。詳細は[AppMacrosの検証](app-macros-validation.md) |
 | `16868e6` | 待機可能な操作APIとUI側の明示的なTasking開始。26テスト、基本操作、即時closeからの再開・保存、共有、通知、再起動を2026-09-15に確認 |
@@ -99,6 +111,8 @@ raw値は`artifacts/mvp/search-timing-final.json`（`a498ba4`）と`artifacts/li
 
 | 評価領域 | 詳細記録 | 閲覧可能な添付先 |
 | --- | --- | --- |
+| Swift Package構成 | [依存構成の検証](spm-validation.md)。`bd53d99` | iOS実行・媒体は未取得 |
+| 一覧・下書き・編集終了 | [一覧と編集の検証](library-validation.md)。製品ソース`054b09d`・driver `9e19e41` | [PR #10](https://github.com/9uiLe/nibble/pull/10) |
 | 一覧行の比較・表示反映 | [比較Viewの検証](app-macros-validation.md)。`81d9144`・`ba35eca` | [PR #8](https://github.com/9uiLe/nibble/pull/8)の画像5点・録画2本 |
 | 操作API・UI所有者・通知・共有 | [非同期APIの検証](async-policy-validation.md)。製品は`16868e6`、Lintと回帰テストは`89cf8ff` | [PR #7](https://github.com/9uiLe/nibble/pull/7)の画像5点・動画6本 |
 | タスク所有・アニメーションの比較資料 | [Tasking・ScopedAnimationの検証](library-policy-validation.md)。`9686f3a`の19テスト、操作と撮影 | [PR #7](https://github.com/9uiLe/nibble/pull/7)の画像4点・動画5点 |

@@ -46,6 +46,7 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 | App Group | `group.dev.nibble.app` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
 | アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.2、swift-app-macros 0.3.0（[実装規約](library-policy.md)） |
+| 依存構成の検証結果 | [Swift Package構成の検証](spm-validation.md)。ビルド・テスト・画面確認の成否と対象revision |
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
