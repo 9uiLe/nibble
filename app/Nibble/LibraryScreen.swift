@@ -86,7 +86,7 @@ struct LibraryScreen: View {
                 if model.filter != .trash && !searchFocused.wrappedValue {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
-                            .font(.title2.weight(.semibold))
+                            .font(.system(size: 24, weight: .semibold))
                             .frame(width: 56, height: 56)
                     }
                     .buttonStyle(.glassProminent)
@@ -204,7 +204,7 @@ struct LibraryScreen: View {
                     .accessibilityIdentifier("restore.\(item.id)")
             } else {
                 Button { startTask(.copy(item.id)) } label: {
-                    Image(systemName: "doc.on.doc").font(.body.weight(.medium))
+                    Image(systemName: "doc.on.doc").font(.system(size: 20, weight: .medium))
                         .frame(width: 44, height: 44)
                         .background(Color.nibbleAccent.opacity(0.09), in: .rect(cornerRadius: 14))
                 }
