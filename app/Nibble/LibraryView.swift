@@ -90,6 +90,7 @@ private struct DeletedSnippetsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        @Bindable var library = model
         NavigationStack {
             LibraryScreen(model: model, title: "削除した項目", showsDrafts: false,
                           searchFocused: $searchFocused)
@@ -100,5 +101,10 @@ private struct DeletedSnippetsView: View {
                     }
                 }
         }
+        .searchable(text: $library.query, prompt: "削除した項目を検索")
+        .searchFocused($searchFocused)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .onSubmit(of: .search) { searchFocused = false }
     }
 }

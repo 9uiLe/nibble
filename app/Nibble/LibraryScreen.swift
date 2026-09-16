@@ -160,11 +160,11 @@ struct LibraryScreen: View {
     }
 
     private var emptyContent: (title: String, symbol: String, message: String) {
-        if model.filter == .trash {
-            return ("削除した項目はありません", "trash", "削除したスニペットはここから復元できます。")
-        }
         if !model.query.isEmpty {
             return ("見つかりませんでした", "magnifyingglass", "別の言葉や、短い語句で探してみてください。")
+        }
+        if model.filter == .trash {
+            return ("削除した項目はありません", "trash", "削除したスニペットはここから復元できます。")
         }
         if model.filter == .pinned {
             return ("よく使う言葉を、手前に。", "text.quote", "項目を長押ししてピン留めすると、すぐに見つかります。")

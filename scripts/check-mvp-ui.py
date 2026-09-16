@@ -235,6 +235,33 @@ def main():
                 if any(entry.get("uniqueId", "").startswith("draft.")
                        and entry.get("label", "").endswith(edited_title) for entry in finished["entries"]):
                     raise VerificationError("Discarded draft is still listed")
+                menu(row, "trash-delete-menu")
+                run.tap("trash")
+                wait_ui("trash-deleted", lambda data: row not in identifiers(data))
+                run.tap("library.menu")
+                wait_ui("trash-menu", lambda data: "library.trash" in identifiers(data))
+                run.tap("library.trash")
+                wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
+                paste_search("該当なし-" + uuid4().hex)
+                wait_ui("trash-search-empty", lambda data: any(
+                    e.get("label") == "見つかりませんでした" for e in data["entries"]))
+                clear_search()
+                paste_search(title)
+                wait_ui("trash-search-result", lambda data: "restore." + snippet_id in identifiers(data))
+                run.tap("Search")
+                wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))
+                run.screenshot("trash-search")
+                run.tap("restore." + snippet_id)
+                wait_ui("trash-restored", lambda data: row not in identifiers(data))
+                label("閉じる")
+                wait_ui("trash-search-closed", lambda data: "library.trash.close" in identifiers(data))
+                run.tap("library.trash.close")
+                wait_ui("trash-returned", lambda data: row in identifiers(data)
+                        and "library.trash.close" not in identifiers(data))
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "trash-restored-copy") != edited_body:
+                    raise VerificationError("Trash search/restore changed the snippet's text")
+                time.sleep(2.3)
                 run.screenshot("finished")
             run.manifest.setdefault("assertions", {}).update({
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
@@ -244,6 +271,7 @@ def main():
                 "native_tabs": True, "create_above_search": True,
                 "create_hidden_while_searching": True, "pinned_tab": True,
                 "empty_search_does_not_filter_all": True,
+                "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",
             })
     except Exception as caught:
