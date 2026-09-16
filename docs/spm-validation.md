@@ -32,14 +32,52 @@ Xcode projectのexact version、共有`Package.resolved`、取得したパッケ
 | --- | --- | --- |
 | パッケージ解決 | 表の4件のバージョン・revisionを解決 | `artifacts/package-resolution.log` |
 | Nix共通検査 | ローカル5 check成功。Python回帰テスト65件、Swiftソース29件の規約検査を含む | `artifacts/nix-check-final.log` |
-| Releaseビルド・製品テスト | ビルド失敗。`AppMacrosMacros`のXcode承認が必要という診断で中止。製品テストの実行なし | run `20260916T015640Z-test-a1ce49` |
-| UI操作・画像・録画 | 未実施。対象構成の実行バイナリを取得できていない | 証跡なし |
-| 描画・応答時間 | 未測定 | 性能改善・非劣化の判断なし |
+| Releaseビルド・製品テスト | 42件成功、失敗・skipなし。パラメータ展開後43実行 | run `20260916T032846Z-test-93c9c4` |
+| 基本操作のUI検証 | 未完了。Releaseの本体を起動し、新規入力と下書き保存まで操作できたが、Simulator操作の座標変換エラー・タイムアウトで中止 | 下記の失敗runを保存 |
+| Debug通知・Reduce Motion | 未実施。Settingsで初期状態が無効であることのみ確認 | `artifacts/motion-disabled-settings.json` |
+| 通知トリガーの解決処理 | 同一端末・Release最適化で0.2.1と0.2.2を比較。詳細は下記 | `artifacts/package-performance/result.json` |
 | GitHub Actions | 未実施 | この構成に対するCI結果なし |
 
-runは1回の検証実行を指す。上記runのmanifest・ログ・xcresultは、Git管理対象外の`artifacts/ios/20260916T015640Z-test-a1ce49/`へ保存している。コミット前のソースを実行しており、manifestには開始・終了時のファイルhashを記録している。
+runは1回の検証実行を指す。manifest・ログ・xcresultは`artifacts/ios/<run>/`へ保存する。Releaseテストrunの開始・終了時の検証入力は、対象ソースとファイルhashが一致した。行の全入力の比較、マウント済みViewの変更・復元、同一入力での外観・文字サイズの更新を含む。
 
-Xcodeの診断は「Macro “AppMacrosMacros” from package “swift-app-macros” was changed since a previous approval and must be enabled before it can be used」。ビルドホストの画面ロックにより対象マクロを有効にするXcode操作を実施できなかった。マクロの固定revision・展開ソース・依存は確認済みで、全マクロの検証を無効にする設定は使用していない。この結果は、製品コードのコンパイル成功やiOS上の互換性を示さない。
+### ビルドホストとテストログの観測
+
+初回run `20260916T015640Z-test-a1ce49`は、更新した`AppMacrosMacros`の承認が必要というXcode診断で中止した。固定revisionとマクロ展開ソースを確認し、Xcodeで対象のrevisionを有効にした後、上表のReleaseテストが成功した。全マクロの検証を無効にする設定は使用していない。
+
+成功runにはコピーしたDerivedDataの古いパスに関する警告と、AppIntents metadata抽出の対象がない旨の警告がある。また使い捨てDBの後片付けでSQLiteの`vnode unlinked while in use`が出る。SQLiteの診断は更新前のrun `20260916T013623Z-test-a80994`にも存在し、テスト用DBを接続の解放前に削除する後片付けに対応する。警告のない実行とは報告しない。
+
+## Simulatorの操作検証
+
+Releaseの標準UI driverを実行した。各runのビルドは成功したが、次の実行環境の失敗により、基本操作全体の受け入れ結果は得られていない。
+
+| run | 観測 |
+| --- | --- |
+| `20260916T033756Z-mvp-ui-a69447` | 一覧の撮影後、新規作成のタップでsim-useの`No translation object returned for simulator`が発生 |
+| `20260916T034112Z-mvp-ui-c80012` | 新規本文を入力して下書きに保存。再開のタップで同じ座標変換エラーが発生 |
+| `20260916T034321Z-mvp-ui-32d952` | 検証用wrapperでタップ前0.5秒・後0.3秒の待機を追加。判定は標準driverと同一だが、下書き再開のタップが60秒でタイムアウト |
+| `20260916T034626Z-mvp-ui-056e0c` | 専用Simulatorをデータを保持して再起動。標準driverのアプリinstallが60秒でタイムアウト |
+| `20260916T041557Z-mvp-ui-193409` | 作業再開後の標準driver。Releaseビルドは成功したが、アプリinstallが再び60秒でタイムアウト |
+
+初めの座標変換エラー後、Settingsで「視差効果を減らす」が無効であることを確認し、アプリの空の編集画面を閉じられた。しかし専用端末の再起動後はAppleのSettingsの起動も応答しなくなった。専用端末のrunningboardサービスを再起動しても、Settingsの起動は回復しなかった。
+
+新規の専用iPhone 17 Pro / iOS 26.5 Simulator（`31DA9A52-C6C0-4F37-9326-352CD49B12A5`）は作成できたが、起動が`launchd failed to respond`で失敗した。作業再開時にもこの端末のbootが45秒でタイムアウトした（`artifacts/package-simulator-resume-boot.log`）。この端末では製品を実行していない。既存データのerase、他のSimulatorの停止、Mac全体のサービス再起動は行っていない。
+
+操作の停止を製品のテスト失敗と混同しない一方、部分的な入力・画像・録画をUI検証の成功とも扱わない。ホストのSimulator基盤が復旧した後、基本操作とDebug通知を再実行し、ソース照合・媒体の確認・共有を完了する必要がある。
+
+## 通知トリガーの処理時間
+
+`Library.Notice`が使うBoolean 1件と`.easeOut(duration: 0.16)`を条件に、ScopedAnimation 0.2.1と0.2.2の履歴解決処理を比較した。上表の同一Simulator、Swift 6.3.2、iOS 26.5 SDK、arm64、`-O`、Swift language mode 6で、各revisionの変更していないSwiftソースと共通の測定コードをコンパイルした。内部APIの呼出名と採用indexの参照だけを版ごとに切り替える。
+
+2つのsnapshotを事前に作り、同じ値を繰り返す条件と、false/trueを交互に解決する条件を測る。各プロセスで1,000回の準備実行後、200,000回を1標本として7標本取得した。実行順は0.2.1→0.2.2→0.2.2→0.2.1、各版14標本。結果のchecksumを検査し、各標本の1操作あたり時間を集計した。
+
+| 条件 | 0.2.1 中央値（最小〜最大）ns | 0.2.2 中央値（最小〜最大）ns |
+| --- | --- | --- |
+| 同じ値の再評価 | 8.80（8.53〜9.11） | 86.28（83.90〜89.92） |
+| 通知状態の変化 | 345.84（339.38〜361.93） | 180.33（179.39〜202.22） |
+
+同じsnapshotの再評価は約77ns増え、状態変化時は約166ns減った。通知1件のこの処理はいずれも1µs未満であり、通知処理のCPU時間を理由に採用を見送る結果ではない。無変化時の増加を含むため、一律の高速化・非劣化とはしない。snapshot構築、SwiftUIのlayout・描画、操作全体の遅延、hitch、メモリ、電力はこの測定に含まない。事前構築したsnapshotの再利用による最適化も結果に含まれる。
+
+ソースrevision、コンパイル引数、測定コードのhash、CSV、集計結果は`artifacts/package-performance/`へ保存した。この測定は通知の内部処理に限定した補助評価であり、実機性能を示さない。
 
 ## 再現手順と受け入れ条件
 
