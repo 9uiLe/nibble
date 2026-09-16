@@ -62,6 +62,8 @@ UUIDは項目の一意な識別子である。下書きと保存済み項目は�
 
 Swiftの通常のString比較では、例えば「が」と「か＋結合濁点」が等しいと判定される。原文の同一性と入力番号の更新はUTF-8で比較し、検索では文字を正規化する。
 
+原文の比較は`SnippetText.hasSameBytes`に集約する。連続したUTF-8バッファの長さと内容を比較し、NULを含む文字列も途中で打ち切らない。長文の入力時にUTF-8の各要素をSwiftのiteratorで反復するコストを避ける。
+
 ### 保存形式と接続
 
 本体と共有拡張は、両方からアクセスできる共有領域（App Group）`group.dev.nibble.app`の`Library/snippets.sqlite`を使う。SQLiteのschema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
