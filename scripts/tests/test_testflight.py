@@ -18,7 +18,7 @@ import testflight as tf
 def make_archive(archive, build='1'):
     app = archive / 'Products/Applications/Nibble.app'
     share = app / 'PlugIns/NibbleShare.appex'
-    for path, identifier, kind in [(app, 'dev.nibble.app', 'APPL'), (share, 'dev.nibble.app.share', 'XPC!')]:
+    for path, identifier, kind in [(app, 'nibble.9uiLe.com', 'APPL'), (share, 'nibble.9uiLe.com.share', 'XPC!')]:
         path.mkdir(parents=True)
         info = {'CFBundleIdentifier': identifier, 'CFBundlePackageType': kind,
                 'CFBundleSupportedPlatforms': ['iPhoneOS'], 'DTPlatformName': 'iphoneos',

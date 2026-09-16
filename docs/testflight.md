@@ -32,9 +32,11 @@ Apple DeveloperのCertificates, Identifiers & Profilesで、次の構成を登�
 
 | 対象 | 識別子 | Capability |
 | --- | --- | --- |
-| 本体のExplicit App ID | `dev.nibble.app` | App Groups |
-| Share ExtensionのExplicit App ID | `dev.nibble.app.share` | App Groups |
-| 共有App Group | `group.dev.nibble.app` | 本体とShare Extensionの両方へ関連付ける |
+| 本体のExplicit App ID | `nibble.9uiLe.com` | App Groups |
+| Share ExtensionのExplicit App ID | `nibble.9uiLe.com.share` | App Groups |
+| 共有App Group | `group.nibble.9uiLe.com` | 本体とShare Extensionの両方へ関連付ける |
+
+共有拡張のBundle IDは本体のBundle IDと`.`を先頭に含む必要がある。本体`nibble.9uiLe.com`に対して、拡張は`nibble.9uiLe.com.share`とする。
 
 共有保存に必要なのは**両方のApp IDのApp Groups**。共有拡張は別のApp IDとprovisioning profileを持つ。Push Notifications・iCloud・Associated Domains・Sign in with Appleは現在の製品には不要。
 
@@ -52,6 +54,8 @@ App Store Connectでは本体のBundle IDでiOSアプリを1件作成する。�
 ## 3. API認証設定を本人が配置する
 
 App Store ConnectのUsers and Access / IntegrationsでTeam API keyを作成する。アップロード用にはDeveloperロールを基本とし、必要な権限を確認する。Team API keyは対象アプリ1件だけに限定できないため、他のアプリにも及ぶ権限として管理する。詳しくはAppleの[API key作成](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)を参照する。
+
+同じTeamの既存のTeam API keyに必要な権限があれば共用できる。`nibble.env`から既存の鍵ファイルを参照し、秘密鍵を複製しない。共用した鍵を失効・交換すると、その鍵を使う他の配布処理にも影響する。
 
 本人が、リポジトリ外に次のファイルを配置する。ダウンロード直後の秘密鍵をエージェントに操作・表示させない。
 

@@ -1,8 +1,16 @@
 # TestFlight配布の検証記録
 
-## 対象と状態
+## 配布識別子の検証
 
-2026-09-16、製品ソース`76ebf8256441fc434b1c07f7e27aaef4fb1e2903`に対して署名なし実機archiveを作成した。配布ツールの実装は`codex/testflight-distribution`の変更に含む。製品のSwift・entitlements・Xcode project・SPM lockには差分がない。
+現在の配布設定は、本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`。Xcode project、両targetのentitlements、保存先、Simulator driver、配布archive検査、手順書を同じ識別子にそろえる。新しい識別子でのビルドと共有保存は確認中。
+
+2026-09-16、既存の署名なしarchiveを一時ディレクトリへ複製し、Info.plistの識別子だけを変えてXcode 26.5の`embeddedBinaryValidationUtility`を実行した。共有拡張`nibble.share.9uiLe.com`は親Bundle IDのprefix不一致で終了コード1、`nibble.9uiLe.com.share`は終了コード0だった。これは識別子の組合せの検査であり、新構成の再ビルド・署名・Appleへの登録照合の代用ではない。
+
+以下は明記した旧製品ソースに対するarchiveの記録であり、新しい識別子での配布実績として扱わない。
+
+## 署名なしarchiveの対象と状態
+
+2026-09-16、製品ソース`76ebf8256441fc434b1c07f7e27aaef4fb1e2903`に対して署名なし実機archiveを作成した。配布ツールの実装は`codex/testflight-distribution`の変更に含む。このarchiveは識別子変更前のSwift・entitlements・Xcode project・SPM lockを対象としている。
 
 | 確認 | 結果 |
 | --- | --- |
@@ -41,7 +49,7 @@ Apple CLIはmockを使用し、dry-runとuploadの区別、内部専用export設
 
 ## 変更の影響範囲
 
-製品コードとUIは変更していないため、この配布ツール変更に対する画面・動画の追加は対象外。既存の製品操作の確認は[SPM構成の検証](spm-validation.md)に対象ソースと条件を記録している。今回のarchiveで操作や性能を再測定したとは扱わない。
+配布スクリプト自体は製品UIを変更しない。配布識別子の変更では本体・共有拡張・共有保存先の対応を検証する。既存の製品操作の確認は[SPM構成の検証](spm-validation.md)に対象ソースと条件を記録している。今回のarchiveで操作や性能を再測定したとは扱わない。
 
 ## 共通検査
 

@@ -1,7 +1,7 @@
 {
   "project": "app/Nibble.xcodeproj",
   "scheme": "Nibble",
-  "bundle_id": "dev.nibble.app",
+  "bundle_id": "nibble.9uiLe.com",
   "app_name": "Nibble",
   "minimum_ios": "26.0",
   "simulator_signing": "ad-hoc"

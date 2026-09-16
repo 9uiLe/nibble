@@ -27,7 +27,7 @@ def require(condition, message):
         raise DistributionError(message)
 
 
-def archive_info(archive, bundle_id='dev.nibble.app', extension_id='dev.nibble.app.share'):
+def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9uiLe.com.share'):
     app = archive / 'Products/Applications/Nibble.app'
     extension = app / 'PlugIns/NibbleShare.appex'
     require(sorted(p.name for p in (archive / 'Products/Applications').iterdir()) == ['Nibble.app'],

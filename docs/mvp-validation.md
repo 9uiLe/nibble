@@ -2,6 +2,8 @@
 
 この文書はiPhoneアプリ`Nibble`と共有拡張`NibbleShare`の確認結果を、検証する契約ごとに案内する。機能と構成は[製品設計](decisions/0002-mvp-app.md)、再現手順と期待結果は[MVP手順](mvp.md)で定義する。最低対応OSは26.0、実行評価はiOS 26.5 Simulatorに限定し、実機検証は受け入れ範囲に含めない。
 
+配布識別子は本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`を使用する。この構成の確認状況は[配布の検証記録](testflight-validation.md)を参照する。以下の既存runは、それぞれに記載した旧識別子と対象ソースに対する結果である。
+
 ## 採用している依存構成の検証状況
 
 2026-09-16の対象ソースは`bd53d99e792241966834f0be2eb711ef0f2868e0`。依存はTasking 0.3.0、ScopedAnimation 0.2.2、AppMacros 0.3.0、swift-syntax 603.0.2である。

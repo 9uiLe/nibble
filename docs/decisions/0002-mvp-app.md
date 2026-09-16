@@ -66,7 +66,7 @@ Swiftの通常のString比較では、例えば「が」と「か＋結合濁点
 
 ### 保存形式と接続
 
-本体と共有拡張は、両方からアクセスできる共有領域（App Group）`group.dev.nibble.app`の`Library/snippets.sqlite`を使う。SQLiteのschema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
+本体と共有拡張は、両方からアクセスできる共有領域（App Group）`group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。SQLiteのschema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
 
 各プロセスの`SnippetStore` actorが接続・statement・ポインタを所有する。actorは同一プロセス内の操作を直列化し、SQLiteがプロセス間の排他を担う。設定はWAL、`synchronous=FULL`、busy timeout 2秒とする。
 
