@@ -94,51 +94,51 @@ class ProcessTests(unittest.TestCase):
         self.run.manifest = {"commands": []}
         self.run.args = Mock(device="explicit-udid")
 
-    def test_launch_retries_only_transient_process_probe_and_records_recovery(self):
+    def test_launch_waits_for_native_target_process(self):
         self.run.config = {"bundle_id": "dev.nibble.app"}
-        observed = {"ok": True, "data": {"didReset": True,
-            "query": {"bundleId": "dev.nibble.app", "state": "running"},
-            "apps": [{"bundleId": "dev.nibble.app", "pid": 42}]}}
-
-        def probe(*args, **kwargs):
-            self.run.manifest["commands"].append({"exit_code": 1 if len(self.run.manifest["commands"]) == 0 else 0})
-            if len(self.run.manifest["commands"]) == 1:
-                raise ios.VerificationError("Could not read the running-process list from explicit-udid")
-            return json.dumps(observed)
-
-        with patch.object(self.run, "command", side_effect=probe) as command, patch.object(ios.time, "sleep"):
+        states = ["PID Status Label\n- 0 UIKitApplication:another.app[x]",
+                  "42 0 UIKitApplication:dev.nibble.app[x][rb-legacy]"]
+        with patch.object(self.run, "command", side_effect=states) as command, patch.object(ios.time, "sleep"):
             self.run.wait_for_launch()
         self.assertEqual(command.call_count, 2)
-        self.assertTrue(self.run.manifest["assertions"]["launch_state_observed"])
-        self.assertEqual(self.run.manifest["commands"][0]["handled_error"]["assertion"], "launch_state_observed")
+        self.assertEqual(self.run.launched_pid, 42)
+        self.assertEqual(self.run.manifest["process_monitor"]["pid"], 42)
 
-    def test_launch_probe_failure_is_bounded_and_never_certified(self):
+    def test_missing_process_is_bounded_and_never_certified(self):
         self.run.config = {"bundle_id": "dev.nibble.app"}
-
-        def unavailable(*args, **kwargs):
-            self.run.manifest["commands"].append({"exit_code": 1})
-            raise ios.VerificationError("Could not read the running-process list from explicit-udid")
-
-        with patch.object(self.run, "command", side_effect=unavailable) as command, patch.object(ios.time, "sleep"):
+        with patch.object(self.run, "command", return_value="- 9 UIKitApplication:dev.nibble.app[x]") as command, patch.object(ios.time, "sleep"):
             with self.assertRaises(ios.VerificationError):
                 self.run.wait_for_launch()
         self.assertEqual(command.call_count, 5)
-        self.assertNotIn("assertions", self.run.manifest)
-        self.assertTrue(all("handled_error" not in event for event in self.run.manifest["commands"]))
+        self.assertNotIn("process_monitor", self.run.manifest)
 
-    def test_launch_probe_rejects_unrelated_failure_or_wrong_app(self):
+    def test_ui_monitor_rejects_exit_restart_wrong_bundle_and_ambiguous_pid(self):
         self.run.config = {"bundle_id": "dev.nibble.app"}
-        for result in [ios.VerificationError("Permission denied"), json.dumps({"ok": True, "data": {
-            "didReset": True, "query": {"bundleId": "another.app", "state": "running"},
-            "apps": [{"bundleId": "another.app", "pid": 42}]}})]:
-            with self.subTest(result=result):
-                self.run.manifest = {"commands": []}
-                options = {"side_effect": result} if isinstance(result, Exception) else {"return_value": result}
-                with patch.object(self.run, "command", **options) as command:
-                    with self.assertRaises(ios.VerificationError):
-                        self.run.wait_for_launch()
-                self.assertEqual(command.call_count, 1)
-                self.assertNotIn("assertions", self.run.manifest)
+        self.run.launched_pid = 42
+        for state in ["- 9 UIKitApplication:dev.nibble.app[x]", "43 0 UIKitApplication:dev.nibble.app[x]",
+                      "42 0 UIKitApplication:dev.nibble.app.share[x]",
+                      "42 0 UIKitApplication:dev.nibble.app[x]\n43 0 UIKitApplication:dev.nibble.app[y]"]:
+            with self.subTest(state=state), patch.object(self.run, "command", return_value=state):
+                with self.assertRaises(ios.VerificationError):
+                    self.run.check_process()
+        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:dev.nibble.app[x]"):
+            self.run.check_process()
+
+    def test_native_probe_command_failure_is_not_ignored(self):
+        self.run.config = {"bundle_id": "dev.nibble.app"}
+        with patch.object(self.run, "command", side_effect=ios.VerificationError("Unavailable")) as command:
+            with self.assertRaises(ios.VerificationError):
+                self.run.wait_for_launch()
+        self.assertEqual(command.call_count, 1)
+
+    def test_sim_use_command_checks_pid_before_and_after_and_uses_local_ax(self):
+        self.run.launched_pid = 42
+        with patch.object(self.run, "check_process") as monitor, patch.object(ios.subprocess, "run", return_value=Mock(returncode=0)) as process, redirect_stdout(io.StringIO()):
+            self.run.command(["sim-use", "tap", "@17"])
+        self.assertEqual(monitor.call_count, 2)
+        environment = process.call_args.kwargs["env"]
+        self.assertEqual(environment["SIM_USE_NO_DAEMON"], "1")
+        self.assertEqual(environment["SIM_USE_NO_CRASH_DETECT"], "1")
 
     def test_missing_project_config_leaves_a_failed_manifest(self):
         with patch.object(ios, "ARTIFACTS", self.run.path), patch.object(ios.platform, "system", return_value="Darwin"):

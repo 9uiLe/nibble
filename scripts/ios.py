@@ -90,6 +90,14 @@ class Run:
 
     def command(self, argv, name=None, timeout=60):
         argv = [str(a) for a in argv]
+        monitor = argv[0] == "sim-use" and hasattr(self, "launched_pid")
+        if monitor:
+            self.check_process()
+        # Each UI command gets a fresh AX connection. Native PID checks own
+        # crash/restart detection for runs that launched the target app.
+        environment = {**os.environ, "SIM_USE_NO_DAEMON": "1"}
+        if monitor:
+            environment["SIM_USE_NO_CRASH_DETECT"] = "1"
         index = len(self.manifest["commands"])
         name = name or f"command-{index:03}"
         print("+ " + shlex.join(argv), flush=True)
@@ -99,7 +107,7 @@ class Run:
         start = time.monotonic()
         with (self.path / event["stdout"]).open("w") as out, (self.path / event["stderr"]).open("w") as err:
             try:
-                result = subprocess.run(argv, cwd=ROOT, stdout=out, stderr=err, timeout=timeout, check=False)
+                result = subprocess.run(argv, cwd=ROOT, stdout=out, stderr=err, timeout=timeout, check=False, env=environment)
                 event["exit_code"] = result.returncode
             except subprocess.TimeoutExpired:
                 event["error"] = "timeout"
@@ -111,6 +119,8 @@ class Run:
             detail = ((self.path / event["stdout"]).read_text() + (self.path / event["stderr"]).read_text())
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
+        if monitor:
+            self.check_process()
         return (self.path / event["stdout"]).read_text()
 
     def setup(self):
@@ -192,36 +202,32 @@ class Run:
                       self.config["bundle_id"]], "launch")
         self.wait_for_launch()
 
+    def process_id(self):
+        output = self.command([XCRUN, "simctl", "spawn", self.args.device, "launchctl", "list"])
+        marker = "UIKitApplication:" + self.config["bundle_id"] + "["
+        matches = [fields[0] for line in output.splitlines() if len(fields := line.split()) == 3
+                   and fields[2].startswith(marker) and fields[0].isdigit() and int(fields[0]) > 0]
+        if len(matches) > 1:
+            raise VerificationError("Multiple processes match the target bundle")
+        return int(matches[0]) if matches else None
+
     def wait_for_launch(self):
-        """A newly launched Simulator process can briefly be unavailable to sim-use."""
-        recovered = []
-        bundle = self.config["bundle_id"]
+        """Use Apple's process list; sim-use's probe is unreliable on this runtime."""
         for attempt in range(5):
-            try:
-                result = json.loads(self.command(["sim-use", "app-state", "--reset", "--bundle-id", bundle,
-                    "--json", "--device", self.args.device], f"app-state-reset-{attempt}"))
-            except VerificationError as error:
-                event = self.manifest["commands"][-1] if self.manifest["commands"] else {}
-                if (event.get("exit_code") != 1 or "Could not read the running-process list" not in str(error)
-                        or attempt == 4):
-                    raise
-                recovered.append(event)
+            pid = self.process_id()
+            if pid is not None:
+                self.launched_pid = pid
+                self.manifest["process_monitor"] = {"provider": "simctl launchctl", "pid": pid,
+                    "bundle_id": self.config["bundle_id"], "scope": "before and after each sim-use operation"}
+                self.save()
+                return
+            if attempt < 4:
                 time.sleep(1)
-                continue
-            data = result.get("data", {})
-            if (not result.get("ok") or not data.get("didReset")
-                    or data.get("query") != {"bundleId": bundle, "state": "running"}
-                    or not any(app.get("bundleId") == bundle and app.get("pid", 0) > 0
-                               for app in data.get("apps", []))):
-                raise VerificationError("The launched app was not observed running with a reset crash baseline")
-            self.manifest.setdefault("assertions", {})["launch_state_observed"] = True
-            for event in recovered:
-                event["handled_error"] = {
-                    "reason": "Transient process-list failure after launch; subsequent probe observed the target PID and reset the crash baseline",
-                    "assertion": "launch_state_observed",
-                }
-            self.save()
-            return
+        raise VerificationError("The launched app has no live process")
+
+    def check_process(self):
+        if self.process_id() != self.launched_pid:
+            raise VerificationError("The target app exited or restarted during UI verification")
 
     def ui(self, name="ui"):
         result = json.loads(self.command(["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"], name))
