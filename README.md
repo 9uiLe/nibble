@@ -1,53 +1,54 @@
 # nibble
 
-nibbleは、よく使うテキストを保存し、必要なときに探してコピーするiPhone向けのスニペットツールです。最低対応OSはiOS 26.0。使いやすさ、シンプルさ、描画と応答の速さを設計の判断基準にします。
+nibbleは、よく使うテキストをiPhoneに保存し、探してコピーするスニペットツールです。日本語UIの本体アプリと共有拡張を持ち、最低対応OSはiOS 26.0です。
 
-日本語UIの本体と共有拡張で、作成・編集、日本語1文字からの検索、ピン留め、コピー、削除・復元、下書きの保存・再開を提供します。他アプリの共有シートからテキスト・URLを取り込み、Appleの「ショートカット」の標準URLアクションから一覧・作成画面を開けます。
+利用者は、保存した本文を検索またはピン留めから選んでコピーし、入力先のアプリへ戻ってペーストします。テキストとURLは他アプリの共有シートから取り込めます。作成・編集、下書きの再開、削除・復元も本体から操作できます。
 
-保存は端末内で完結し、アカウントと通信を必要としません。入力先のアプリへの復帰とペーストは利用者が行います。同期、独自バックアップ、キーボード拡張はMVPの提供範囲外です。
+日常操作は端末内で完結し、アカウントと通信を必要としません。保存・編集・コピーでは原文の空白・改行・Unicodeを保持します。同期、独自バックアップ、キーボード拡張はMVPの提供範囲外です。
 
 ## 開発を始めるときに読む資料
 
-[製品設計](docs/decisions/0002-mvp-app.md)で機能・画面・用語・責務を確認し、このREADMEのセットアップで開発環境を用意してください。実装時は[実装規約](docs/library-policy.md)、動作確認時は[操作と検証手順](docs/mvp.md)を使います。[検証結果](docs/mvp-validation.md)には確認した契約・ソース・条件と未検証の範囲を記録します。
+最初に[製品設計](docs/decisions/0002-mvp-app.md)で目的・用語・責務・処理の流れを確認し、このREADMEの[セットアップ](#セットアップ)で開発環境を用意してください。実装には[開発ガイド](CONTRIBUTING.md)と[実装規約](docs/library-policy.md)を適用します。
 
-| 資料 | 内容 |
+| 知りたいこと | 資料 |
 | --- | --- |
-| [開発ガイド](CONTRIBUTING.md) | 対応OS、Nix、ローカルとCIの責務、UI/UX・性能、PRの受け入れ条件 |
-| [製品設計](docs/decisions/0002-mvp-app.md) | 提供範囲、画面、ドメインの用語、保存・検索、非同期操作、採用理由 |
-| [ライブラリの実装規約](docs/library-policy.md) | 操作の完了契約、Taskingの開始・所有、ScopedAnimationの範囲、AppMacrosのView比較、Lintと依存管理 |
-| [MVPの操作と検証](docs/mvp.md) | 日常操作、ショートカット設定、製品のビルド・操作・撮影手順 |
-| [製品の検証結果](docs/mvp-validation.md) | コミット・端末・OSごとのテスト、画面証跡、測定、未検証条件 |
-| [検証基盤の設計](docs/decisions/0001-local-ios-verification.md)・[実行手順](docs/ios-verification.md) | Apple CLI・sim-use・Nixの役割、検証対象、実行記録、ローカルとCIの責務 |
-| [証跡とPRの検査](docs/review-evidence.md) | ソースと媒体の照合、レビュー申告、全コミットとPR本文、GitHubの必須チェック |
-| [基盤の検証記録](docs/review-tooling-validation.md) | 共通検査・fixture・GitHub読取の実施結果と保証範囲 |
-| [研究資料](research/README.md) | 一次資料と比較実験。製品で採用する構成は製品設計を参照 |
-| [AGENTS.md](AGENTS.md)・[共有Skill](.agents/skills/nibble-verification/SKILL.md)・[PRテンプレート](.github/pull_request_template.md) | エージェントの判断基準、検証・PRの進め方、レビューに必要な記載欄 |
+| 製品の目的、機能、構成、データ、操作の成立条件 | [製品設計](docs/decisions/0002-mvp-app.md) |
+| 対応OS、ツール管理、検証とPRの条件 | [開発ガイド](CONTRIBUTING.md) |
+| 非同期処理、タスク所有、View比較、アニメーション、Lint | [ライブラリの実装規約](docs/library-policy.md) |
+| 日常操作と期待結果、製品のビルド・操作・撮影 | [MVPの操作と検証](docs/mvp.md) |
+| 確認したソース、環境、成功・失敗、未検証条件 | [製品検証の索引](docs/mvp-validation.md)、[一覧と編集の検証結果](docs/library-validation.md) |
+| 検証基盤の責務、端末選択、実行記録 | [基盤設計](docs/decisions/0001-local-ios-verification.md)、[実行手順](docs/ios-verification.md) |
+| ソースと媒体の照合、PR本文とGitHubの確認 | [証跡とPRの検査](docs/review-evidence.md) |
+| 基盤の確認結果と技術選定の比較資料 | [基盤の検証記録](docs/review-tooling-validation.md)、[研究資料](research/README.md) |
+| エージェントの作業入口 | [AGENTS.md](AGENTS.md)、[共有Skill](.agents/skills/nibble-verification/SKILL.md)、[PRテンプレート](.github/pull_request_template.md) |
 
-構造の評価・改善点と確認結果は[リファクタリングの検証記録](docs/refactoring-validation.md)を参照してください。
+設計資料は現在の契約、検証記録は記載したコミットと条件に対する観測を示します。研究用アプリの構成や比較実験は製品の構成とは区別します。
 
 ## アプリの構成
 
-SwiftUI・Observationで画面を構成します。操作の完了、タスクの所有、表示の更新を次のように分担します。
+画面、操作を実行するモデル、データを保存するactorで責務を分けます。本体と共有拡張は共通の編集画面・保存層を使い、App GroupのSQLiteにアクセスします。
 
-| 責務 | 構成 |
+| 配置・構成要素 | 責務 |
 | --- | --- |
-| 入力・処理・表示状態 | MainActorのモデルが`async`操作APIを提供し、受理した処理と結果反映を完了まで待ちます |
-| タスクの開始・寿命・重複 | UI所有者がswift-taskingで管理します。下書き保存と通知期限はSwiftUI `.task`から直接awaitします |
-| 一覧行の表示 | swift-app-macrosの`@Equatable`と`EquatableBodyView`でタイトル・本文プレビュー・ピン状態を比較します。状態と操作は呼出元のViewに保持します |
-| アニメーション | swift-scoped-animationで通知の表示変化と入力への伝播を制御します |
-| 永続化 | 本体と共有拡張がApp GroupのSQLiteを共有し、各プロセスのactorが接続とトランザクションを管理します |
+| `app/Nibble/LibraryView.swift` | 検索、一覧、通知、編集画面への入口 |
+| `LibraryModel` / `LibraryTaskOwner` | 一覧の状態と待機可能な操作、操作タスクの開始・寿命・重複方針 |
+| `app/Shared/SnippetEditor.swift` / `EditorModel` | 入力、自動保存、保存・閉じる・破棄の状態遷移 |
+| `Draft` / `LibraryRequest` / `LibraryPage` | 編集中の値、一覧の取得条件、同じDB読取時点の一覧結果 |
+| `app/Shared/SnippetStore.swift` | SQLite接続、検索、トランザクション、更新順序と競合の検査 |
+| `app/NibbleShare/ShareViewController.swift` | 共有テキスト・URLの取得と、共通編集画面の表示 |
+| `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較のテスト |
 
-原文と検索キー、保存済み項目と下書きを分けます。一覧は本文を持たない下書き要約を使い、編集開始時に最新の下書きを1件読み込みます。保存済み項目の更新番号で編集競合を検出し、下書きの入力番号で遅れた書込を判定します。用語と処理順序は[データと永続化の設計](docs/decisions/0002-mvp-app.md#データの意味と永続化)に定義しています。
+一覧は保存済み項目と下書きの要約を使います。下書きの再開と本文のコピーは、その時点のDBから対象1件を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
 
-Lintは、モデル内部の隠れたタスク開始、生のTask・別scheduler、直接アニメーション、直接の比較ゲート・手書き比較・比較除外を禁止します。完了契約と表示反映はSwiftの製品テストで検査します。
+SwiftUI・Observationが表示状態を扱い、swift-taskingがUI側のタスクを所有します。一覧行の表示値の比較にはswift-app-macros、アニメーションの適用範囲にはswift-scoped-animationを使います。操作APIの完了は直接awaitしてテストし、開始・比較・アニメーションの構文はLintで検査します。
 
-| 対象 | 役割 | 設定・手順 |
+| 検証対象 | 用途 | 設定 |
 | --- | --- | --- |
-| `Nibble` / `NibbleShare` | 製品の本体・共有拡張 | `app/project.json`、[MVP手順](docs/mvp.md) |
-| `VerificationApp` | コマンド・テスト・文字列反映・撮影の成立を確認するfixture | `validation/project.json`、[共通手順](docs/ios-verification.md) |
-| `ResearchProbe` | 保存3方式、検索、復旧、入力、コピー、OS連携の比較用アプリ | `validation/research-project.json`、[研究用の構成と手順](validation/RESEARCH.md) |
+| `Nibble` / `NibbleShare` | 製品の本体・共有拡張 | `app/project.json` |
+| `VerificationApp` | コマンド、テスト、文字列反映、撮影の成立を確認するfixture | `validation/project.json` |
+| `ResearchProbe` | 保存方式、検索、復旧、入力、コピー、OS連携の比較実験 | `validation/research-project.json` |
 
-製品のXcode projectは`app/Nibble.xcodeproj`、shared schemeは`Nibble`です。基盤・研究用は`validation/<対象名>.xcodeproj`と同名のschemeを使います。比較用アプリの画面や保存構成は実験条件として扱います。
+製品のXcode projectは`app/Nibble.xcodeproj`、shared schemeは`Nibble`です。基盤・研究用は`validation/<対象名>.xcodeproj`と同名schemeを使います。
 
 ## セットアップ
 
