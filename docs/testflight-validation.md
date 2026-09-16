@@ -1,5 +1,20 @@
 # TestFlight配布の検証記録
 
+## 初回の署名とアップロード
+
+2026-09-16、対象コミット`3746af2c79be8e8e24ed015909781e08dfa752b2`から、レビューした配布スクリプトを実行した。Release、iPhoneOS SDK 26.5、最低iOS 26.0、固定SPM lockで、本体`nibble.9uiLe.com`と共有拡張`nibble.9uiLe.com.share`をarchiveした。
+
+| 実行 | 結果 | 記録 |
+| --- | --- | --- |
+| `--dry-run`、0.1.0 (202609161351) | 共通検査・依存解決・署名付きarchive・IPA書き出し成功。アップロードなし | `artifacts/testflight/202609161351/manifest.json` |
+| 引数なし、0.1.0 (202609161356) | 共通検査・依存解決・署名付きarchive・App Store Connectへのアップロード成功 | `artifacts/testflight/202609161356/manifest.json` |
+
+両manifestの`completed`は`true`で、実行ソースは同じ。認証値・API秘密鍵・Keychain・保護された生ログはエージェントから直接参照していない。署名と送信はXcodeが担当し、スクリプトから返された工程の成否と公開メタデータを確認した。
+
+App Store ConnectでNibbleの登録を確認し、自動配信を無効にした内部グループ「本人用」を作成した。本人のアカウント1件だけを追加し、画面上でも1人のテスターを確認した。アップロード後、Apple側の「ビルドのアップロード」は「終了」となり、0.1.0 (202609161356)が内部専用ビルドとして一覧へ反映された。ビルドの状態は「コンプライアンスがありません」で、暗号化申告の回答待ち。グループへのビルド追加とTestFlightからの実機インストール・実機操作は未実施。
+
+製品ソースでは`FileProtectionType.complete`によるiOSのファイル保護を使用している。本体・共有拡張と利用するTasking・ScopedAnimation・AppMacrosのソース検索では、独自の暗号化処理や外部の暗号ライブラリは見つからなかった。Appleの[暗号化書類の基準](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)では、Apple OS内の暗号化に限定される場合は書類不要としている。現行実装からは画面の「上記のアルゴリズムのどれでもない」が該当するという判断材料を提示し、本人の回答を待っている。検索結果を法的な適合性の証明として扱わない。
+
 ## 共通の設定書式の検証
 
 2026-09-16、num-pathの追跡対象スクリプトと設定例（`bcab35964391d104c93ba33c85a40d5615b2ffd9`）に合わせ、先頭の`export`と追加変数を含む代入を受け付けるようにした。nibbleは必須4項目だけを使用し、追加の値を保存・出力したり、子プロセスの環境変数へ反映したりしない。設定をshellとして実行せず、変数名の重複・必須項目の不足・コマンド置換・指定外の鍵パスは拒否する。
