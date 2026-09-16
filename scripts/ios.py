@@ -90,6 +90,14 @@ class Run:
 
     def command(self, argv, name=None, timeout=60):
         argv = [str(a) for a in argv]
+        monitor = argv[0] == "sim-use" and hasattr(self, "launched_pid")
+        if monitor:
+            self.check_process()
+        # Each UI command gets a fresh AX connection. Native PID checks own
+        # crash/restart detection for runs that launched the target app.
+        environment = {**os.environ, "SIM_USE_NO_DAEMON": "1"}
+        if monitor:
+            environment["SIM_USE_NO_CRASH_DETECT"] = "1"
         index = len(self.manifest["commands"])
         name = name or f"command-{index:03}"
         print("+ " + shlex.join(argv), flush=True)
@@ -99,7 +107,7 @@ class Run:
         start = time.monotonic()
         with (self.path / event["stdout"]).open("w") as out, (self.path / event["stderr"]).open("w") as err:
             try:
-                result = subprocess.run(argv, cwd=ROOT, stdout=out, stderr=err, timeout=timeout, check=False)
+                result = subprocess.run(argv, cwd=ROOT, stdout=out, stderr=err, timeout=timeout, check=False, env=environment)
                 event["exit_code"] = result.returncode
             except subprocess.TimeoutExpired:
                 event["error"] = "timeout"
@@ -111,6 +119,8 @@ class Run:
             detail = ((self.path / event["stdout"]).read_text() + (self.path / event["stderr"]).read_text())
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
+        if monitor:
+            self.check_process()
         return (self.path / event["stdout"]).read_text()
 
     def setup(self):
@@ -190,7 +200,44 @@ class Run:
         self.command([XCRUN, "simctl", "install", self.args.device, app], "install")
         self.command([XCRUN, "simctl", "launch", "--terminate-running-process", self.args.device,
                       self.config["bundle_id"]], "launch")
-        self.command(["sim-use", "app-state", "--reset", "--device", self.args.device], "app-state-reset")
+        self.wait_for_launch()
+
+    def process_id(self):
+        output = self.command([XCRUN, "simctl", "spawn", self.args.device, "launchctl", "list"])
+        marker = "UIKitApplication:" + self.config["bundle_id"] + "["
+        matches = [fields[0] for line in output.splitlines() if len(fields := line.split()) == 3
+                   and fields[2].startswith(marker) and fields[0].isdigit() and int(fields[0]) > 0]
+        if len(matches) > 1:
+            raise VerificationError("Multiple processes match the target bundle")
+        return int(matches[0]) if matches else None
+
+    def wait_for_launch(self):
+        """Use Apple's process list; sim-use's probe is unreliable on this runtime."""
+        for attempt in range(5):
+            pid = self.process_id()
+            if pid is not None:
+                self.launched_pid = pid
+                self.launched_identity = self.process_identity()
+                self.manifest["process_monitor"] = {"provider": "simctl launchctl + host ps", "pid": pid,
+                    "identity": self.launched_identity,
+                    "bundle_id": self.config["bundle_id"], "scope": "before and after each sim-use operation"}
+                self.save()
+                return
+            if attempt < 4:
+                time.sleep(1)
+        raise VerificationError("The launched app has no live process")
+
+    def process_identity(self):
+        # Simulator processes share the host PID namespace. Avoid spawning a
+        # process inside the device for every check: it can delay timed UI.
+        identity = self.command(["/bin/ps", "-p", str(self.launched_pid), "-o", "lstart=,comm="]).strip()
+        if not identity:
+            raise VerificationError("The target app has no live process")
+        return identity
+
+    def check_process(self):
+        if self.process_identity() != self.launched_identity:
+            raise VerificationError("The target app exited or restarted during UI verification")
 
     def ui(self, name="ui"):
         result = json.loads(self.command(["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"], name))
@@ -273,7 +320,7 @@ class Run:
             time.sleep(1)
         # Keep still capture separate from simctl's active recording session.
         self.screenshot("after")
-        self.manifest["assertions"] = ["fixture.output accessibility value exactly matches the supplied text"]
+        self.manifest.setdefault("assertions", {})["fixture_output_exact"] = True
 
     def finish(self, error=None):
         source_error = None

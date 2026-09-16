@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 struct Snippet: Identifiable, Equatable, Sendable {
     let id: UUID
@@ -26,15 +27,6 @@ struct SnippetSummary: Identifiable, Equatable, Sendable {
     var displayTitle: String { Snippet.displayTitle(title: title, body: preview) }
 }
 
-struct Draft: Identifiable, Equatable, Sendable {
-    let id: UUID
-    let snippetID: UUID?
-    let baseRevision: Int
-    var title: String
-    var body: String
-    var sequence: Int
-}
-
 enum LibraryFilter: String, CaseIterable, Sendable {
     case all, pinned, trash
     var title: String {
@@ -47,7 +39,7 @@ enum LibraryFilter: String, CaseIterable, Sendable {
 }
 
 enum StoreError: Error, LocalizedError, Equatable {
-    case unavailable, database, newerVersion, conflict, missing, empty, tooLarge
+    case unavailable, database, newerVersion, conflict, staleDraft, missing, empty, tooLarge
 
     var errorDescription: String? {
         switch self {
@@ -55,6 +47,7 @@ enum StoreError: Error, LocalizedError, Equatable {
         case .database: "保存データにアクセスできませんでした。内容を保持して、もう一度お試しください。"
         case .newerVersion: "このデータを開くには、新しいバージョンのnibbleが必要です。"
         case .conflict: "この項目は別の操作で変更されています。編集中の内容を新しい項目として保存できます。"
+        case .staleDraft: "この下書きには新しい入力があります。編集中の内容を新しい項目として保存できます。"
         case .missing: "この項目は見つかりませんでした。一覧を更新してください。"
         case .empty: "保存する本文を入力してください。"
         case .tooLarge: "タイトルは512バイト、本文は1 MB以内で保存できます。"
@@ -63,6 +56,19 @@ enum StoreError: Error, LocalizedError, Equatable {
 }
 
 enum SnippetText {
+    /// Compare the original bytes, including canonically equivalent Unicode.
+    /// Contiguous buffers avoid UTF8View's per-byte iteration on long input.
+    static func hasSameBytes(_ lhs: String, _ rhs: String) -> Bool {
+        var lhs = lhs, rhs = rhs
+        return lhs.withUTF8 { left in
+            rhs.withUTF8 { right in
+                guard left.count == right.count else { return false }
+                guard !left.isEmpty else { return true }
+                return memcmp(left.baseAddress!, right.baseAddress!, left.count) == 0
+            }
+        }
+    }
+
     static func searchKey(_ text: String) -> String {
         text.precomposedStringWithCanonicalMapping
             .folding(options: [.caseInsensitive, .widthInsensitive], locale: Locale(identifier: "ja_JP"))

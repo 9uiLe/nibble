@@ -7,7 +7,6 @@ struct SnippetEditor: View {
     @State private var confirmsDiscard = false
     @State private var tasks = ViewTaskStore()
     private static var finishAction: ActionID { "editor.finish" }
-    private enum FinishOperation { case save, saveAsNew, keep, discard }
     private enum Field { case title, body }
     @FocusState private var focus: Field?
     @Environment(\.dismiss) private var dismiss
@@ -54,11 +53,11 @@ struct SnippetEditor: View {
                             .accessibilityIdentifier("editor.body")
                             .accessibilityLabel("本文")
                     }
-                    if let error = model.error {
-                        Label(error, systemImage: "exclamationmark.circle")
+                    if let failure = model.failure {
+                        Label(failure.message, systemImage: "exclamationmark.circle")
                             .foregroundStyle(.red).font(.callout)
                             .accessibilityIdentifier("editor.error")
-                        if model.conflict {
+                        if failure.canSaveAsNew {
                             Button("新しい項目として保存") { startTask(.saveAsNew) }
                                 .buttonStyle(.borderedProminent)
                         }
@@ -93,7 +92,7 @@ struct SnippetEditor: View {
                     }
                     .accessibilityIdentifier("editor.more")
                     Spacer()
-                    if model.busy { ProgressView().accessibilityLabel("保存中") }
+                    if model.phase == .finishing { ProgressView().accessibilityLabel("保存中") }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -101,7 +100,7 @@ struct SnippetEditor: View {
                         .accessibilityIdentifier("editor.keyboard.dismiss")
                 }
             }
-            .disabled(model.busy)
+            .disabled(model.phase != .editing)
             .confirmationDialog("この下書きを破棄しますか？", isPresented: $confirmsDiscard, titleVisibility: .visible) {
                 Button("下書きを破棄", role: .destructive) {
                     startTask(.discard)
@@ -127,19 +126,13 @@ struct SnippetEditor: View {
         }
     }
 
-    private func startTask(_ operation: FinishOperation) {
+    private func startTask(_ operation: EditorModel.FinishOperation) {
         let editor = model
         let completion = complete
         let dismiss = dismiss
         tasks.start(id: Self.finishAction, lifetime: .screenBound, policy: .ignoreNew) { cancellation in
             try cancellation.check()
-            let succeeded: Bool
-            switch operation {
-            case .save: succeeded = await editor.save()
-            case .saveAsNew: succeeded = await editor.save(asNew: true)
-            case .keep: succeeded = await editor.keepForLater()
-            case .discard: succeeded = await editor.discard()
-            }
+            let succeeded = await editor.finish(operation)
             // A completed persistence operation must finish the editor even if cancellation arrived meanwhile.
             if succeeded {
                 if let completion { completion() } else { dismiss() }
@@ -148,13 +141,4 @@ struct SnippetEditor: View {
     }
 
 
-}
-
-extension Color {
-    static let nibbleAccent = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(red: 1, green: 0.64, blue: 0.39, alpha: 1) : UIColor(red: 0.64, green: 0.24, blue: 0.08, alpha: 1)
-    })
-    static let nibbleCanvas = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(red: 0.08, green: 0.085, blue: 0.08, alpha: 1) : UIColor(red: 0.975, green: 0.968, blue: 0.95, alpha: 1)
-    })
 }

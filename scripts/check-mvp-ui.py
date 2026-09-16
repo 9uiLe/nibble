@@ -85,6 +85,19 @@ def main():
                 run.ui("new-editor")
                 paste("editor.title", title)
                 paste("editor.body", body)
+                run.tap("editor.close")
+                pending = wait_ui("draft-kept", lambda data: any(
+                    entry.get("uniqueId", "").startswith("draft.") and entry.get("label", "").endswith(title)
+                    for entry in data["entries"]))
+                drafts = [entry["uniqueId"] for entry in pending["entries"]
+                          if entry.get("uniqueId", "").startswith("draft.") and entry.get("label", "").endswith(title)]
+                if len(drafts) != 1:
+                    raise VerificationError("Expected exactly one draft for this run's title")
+                run.tap(drafts[0])
+                wait_ui("draft-resumed", lambda data: "editor.body" in identifiers(data))
+                run.screenshot("resumed-draft")
+                # Native AX text can omit surrounding whitespace. Validate the
+                # resumed bytes through save/copy below, not a display value.
                 run.tap("editor.save")
                 wait_ui("saved", lambda data: "library.search" in identifiers(data))
                 # Identify this run's item through a unique Japanese search term.
@@ -136,28 +149,43 @@ def main():
                     raise VerificationError("Pin state did not update")
                 menu(row, "delete-menu")
                 run.tap("trash")
-                if row in identifiers(wait_ui("deleted", lambda data: "library.undo" in identifiers(data))):
+                deleted = wait_ui("deleted", lambda data: "library.undo" in identifiers(data))
+                if row in identifiers(deleted):
                     raise VerificationError("Deleted row is still visible")
-                run.tap("library.undo")
+                # The notice expires after six seconds. A second AX traversal
+                # can outlast it; tap the alias from the state just observed.
+                undo = next(entry for entry in deleted["entries"] if entry.get("uniqueId") == "library.undo")
+                run.command(["sim-use", "tap", "@" + str(undo["aliases"]["at"]), "--device", args.device])
                 if row not in identifiers(wait_ui("restored", lambda data: row in identifiers(data))):
                     raise VerificationError("Undo did not restore the same snippet ID")
-            run.screenshot("library")
-            run.tap(row)
-            wait_ui("editor", lambda data: "editor.body" in identifiers(data))
-            run.screenshot("editor")
-            # Exercise explicit draft discard as well as the earlier unchanged close.
-            run.tap("editor.more")
-            run.ui("editor-menu")
-            run.tap("editor.discard")
-            run.ui("discard-confirmation")
-            run.tap("editor.confirmDiscard")
-            run.ui("finished")
-            run.manifest["assertions"] = {
+                run.screenshot("library")
+                run.tap(row)
+                wait_ui("editor", lambda data: "editor.body" in identifiers(data))
+                run.screenshot("editor")
+                run.tap("editor.more")
+                run.ui("editor-menu")
+                run.tap("editor.discard")
+                run.ui("discard-confirmation")
+                run.tap("editor.confirmDiscard")
+                wait_ui("discarded", lambda data: row in identifiers(data)
+                        and "editor.body" not in identifiers(data))
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "discarded-copy") != edited_body:
+                    raise VerificationError("Discard changed the saved snippet's original text")
+                run.tap("library.search.clear")
+                finished = wait_ui("finished", lambda data: row in identifiers(data)
+                                   and "library.search.clear" not in identifiers(data))
+                if any(entry.get("uniqueId", "").startswith("draft.")
+                       and entry.get("label", "").endswith(edited_title) for entry in finished["entries"]):
+                    raise VerificationError("Discarded draft is still listed")
+                run.screenshot("finished")
+            run.manifest.setdefault("assertions", {}).update({
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
+                "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",
-            }
+            })
     except Exception as caught:
         error = str(caught)
     finally:

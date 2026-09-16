@@ -94,6 +94,69 @@ class ProcessTests(unittest.TestCase):
         self.run.manifest = {"commands": []}
         self.run.args = Mock(device="explicit-udid")
 
+    def test_launch_waits_for_native_target_process(self):
+        self.run.config = {"bundle_id": "dev.nibble.app"}
+        states = ["PID Status Label\n- 0 UIKitApplication:another.app[x]",
+                  "42 0 UIKitApplication:dev.nibble.app[x][rb-legacy]",
+                  "Wed Sep 16 10:00:00 2026 /device/Nibble.app/Nibble\n"]
+        with patch.object(self.run, "command", side_effect=states) as command, patch.object(ios.time, "sleep"):
+            self.run.wait_for_launch()
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual(self.run.launched_pid, 42)
+        self.assertEqual(self.run.launched_identity, states[-1].strip())
+        self.assertEqual(self.run.manifest["process_monitor"]["pid"], 42)
+
+    def test_missing_process_is_bounded_and_never_certified(self):
+        self.run.config = {"bundle_id": "dev.nibble.app"}
+        with patch.object(self.run, "command", return_value="- 9 UIKitApplication:dev.nibble.app[x]") as command, patch.object(ios.time, "sleep"):
+            with self.assertRaises(ios.VerificationError):
+                self.run.wait_for_launch()
+        self.assertEqual(command.call_count, 5)
+        self.assertNotIn("process_monitor", self.run.manifest)
+
+    def test_native_lookup_matches_only_the_exact_live_bundle(self):
+        self.run.config = {"bundle_id": "dev.nibble.app"}
+        for state in ["- 9 UIKitApplication:dev.nibble.app[x]", "43 0 UIKitApplication:dev.nibble.app[x]",
+                      "42 0 UIKitApplication:dev.nibble.app.share[x]"]:
+            with self.subTest(state=state), patch.object(self.run, "command", return_value=state):
+                self.assertEqual(self.run.process_id(), 43 if state.startswith("43 ") else None)
+        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:dev.nibble.app[x]\n43 0 UIKitApplication:dev.nibble.app[y]"):
+            with self.assertRaises(ios.VerificationError):
+                self.run.process_id()
+        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:dev.nibble.app[x]"):
+            self.assertEqual(self.run.process_id(), 42)
+
+    def test_host_monitor_rejects_exit_and_reused_pid(self):
+        self.run.launched_pid = 42
+        self.run.launched_identity = "Wed Sep 16 10:00:00 2026 /device/Nibble.app/Nibble"
+        for identity in ["", "Wed Sep 16 10:00:01 2026 /device/Nibble.app/Nibble",
+                         "Wed Sep 16 10:00:00 2026 /device/Other.app/Other"]:
+            with self.subTest(identity=identity), patch.object(self.run, "command", return_value=identity):
+                with self.assertRaises(ios.VerificationError):
+                    self.run.check_process()
+        with patch.object(self.run, "command", side_effect=ios.VerificationError("Process exited")):
+            with self.assertRaises(ios.VerificationError):
+                self.run.check_process()
+        with patch.object(self.run, "command", return_value=self.run.launched_identity + "\n") as command:
+            self.run.check_process()
+        command.assert_called_once_with(["/bin/ps", "-p", "42", "-o", "lstart=,comm="])
+
+    def test_native_probe_command_failure_is_not_ignored(self):
+        self.run.config = {"bundle_id": "dev.nibble.app"}
+        with patch.object(self.run, "command", side_effect=ios.VerificationError("Unavailable")) as command:
+            with self.assertRaises(ios.VerificationError):
+                self.run.wait_for_launch()
+        self.assertEqual(command.call_count, 1)
+
+    def test_sim_use_command_checks_pid_before_and_after_and_uses_local_ax(self):
+        self.run.launched_pid = 42
+        with patch.object(self.run, "check_process") as monitor, patch.object(ios.subprocess, "run", return_value=Mock(returncode=0)) as process, redirect_stdout(io.StringIO()):
+            self.run.command(["sim-use", "tap", "@17"])
+        self.assertEqual(monitor.call_count, 2)
+        environment = process.call_args.kwargs["env"]
+        self.assertEqual(environment["SIM_USE_NO_DAEMON"], "1")
+        self.assertEqual(environment["SIM_USE_NO_CRASH_DETECT"], "1")
+
     def test_missing_project_config_leaves_a_failed_manifest(self):
         with patch.object(ios, "ARTIFACTS", self.run.path), patch.object(ios.platform, "system", return_value="Darwin"):
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
