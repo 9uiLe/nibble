@@ -4,9 +4,11 @@
 
 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`の構成では、コミット`f0ff5063ef42fd09742accb00699a7f306772ecd`でReleaseテスト42件とSafariからの共有保存・本体表示・本文のUTF-8完全一致を確認した。[配布の検証記録](testflight-validation.md)に実行環境と画像・録画の確認範囲を記載する。各記録の結果は、その記録に示した識別子と対象ソースに適用する。
 
-## 標準タブと検索
+## 一覧・設定・検索
 
-「すべて」「ピン留め」「検索」の標準タブと下部の新規作成を持つ構成について、対象ソース`1f40c8cf3ebfaecd22ebd55edba57cc41305f3e3`でRelease製品テスト43件と基本操作driverが成功した。削除一覧の検索・復元も含め、UUIDとコピー本文を照合した。[標準ナビゲーションの検証記録](native-navigation-validation.md)に環境、画像・録画の確認範囲、未実施条件を記載する。
+「一覧」のピン留め済み・その他の区分、「設定」の新規作成・コピーの左右配置について、製品ソース`20604eb70212578df9d5bef401fa9c70e6c4f6d4`でReleaseテスト44件が成功した。UI driverを更新した`9e97c5d70dba5fa7507a0bbd1ae150f831b0a96b`で基本操作・設定の再起動保持・外観を確認した。[一覧と設定の検証記録](library-settings-validation.md)に対象・媒体・未実施条件を記載する。
+
+初回の「すべて」「ピン留め」「検索」構成に対する評価は、対象ソースを明記した[標準ナビゲーションの検証記録](native-navigation-validation.md)に保持する。
 
 ## 採用している依存構成の検証状況
 
