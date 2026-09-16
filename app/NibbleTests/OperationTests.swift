@@ -37,7 +37,7 @@ extension UIIntegrationTests {
             #expect(library.error == nil)
         }
 
-        @Test func tabLibrariesKeepIndependentQueriesAndRefreshSharedChanges() async throws {
+        @Test func librarySectionsKeepSearchIndependentAndRefreshSharedChanges() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let store = database.store
@@ -45,26 +45,49 @@ extension UIIntegrationTests {
             let second = try await create(store, body: "検索だけに一致")
             try await store.setPinned(true, id: first)
             let all = LibraryModel(store: store)
-            let pinned = LibraryModel(store: store, filter: .pinned)
             let search = LibraryModel(store: store)
             search.query = "検索だけ"
             search.showMore()
             await all.refresh()
-            await pinned.refresh()
             await search.refresh()
             #expect(Set(all.items.map(\.id)) == [first, second])
-            #expect(pinned.items.map(\.id) == [first])
+            #expect(all.page.pinnedItems.map(\.id) == [first])
+            #expect(all.page.otherItems.map(\.id) == [second])
             #expect(search.items.map(\.id) == [second])
-            #expect(all.query.isEmpty && pinned.query.isEmpty)
+            #expect(all.query.isEmpty)
             #expect(all.request.limit == LibraryRequest.pageSize)
             let item = try #require(all.items.first { $0.id == first })
             await all.pin(item)
-            await pinned.refresh()
-            #expect(pinned.items.isEmpty)
+            #expect(all.page.pinnedItems.isEmpty)
+            #expect(Set(all.page.otherItems.map(\.id)) == [first, second])
             await all.delete(second)
             await search.refresh()
             #expect(search.items.isEmpty)
             #expect(search.query == "検索だけ")
+        }
+
+        @Test func librarySectionsPreservePagingAndRestoration() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let pinned = try await create(store, body: "先頭に残す")
+            try await store.setPinned(true, id: pinned)
+            let other = try await create(store, body: "その他の項目")
+            let firstPage = try await store.library(LibraryRequest(limit: 1))
+            #expect(firstPage.pinnedItems.map(\.id) == [pinned])
+            #expect(firstPage.otherItems.isEmpty && firstPage.hasMore)
+            let expanded = try await store.library(LibraryRequest(limit: 1).expanded)
+            #expect(expanded.pinnedItems.map(\.id) == [pinned])
+            #expect(expanded.otherItems.map(\.id) == [other])
+            #expect(!expanded.hasMore)
+            let model = LibraryModel(store: store)
+            await model.delete(pinned)
+            #expect(model.page.pinnedItems.isEmpty)
+            #expect(model.page.otherItems.map(\.id) == [other])
+            await model.restore(pinned)
+            #expect(model.page.pinnedItems.map(\.id) == [pinned])
+            #expect(Set(model.items.map(\.id)) == [pinned, other])
+            #expect(model.items.count == model.page.pinnedItems.count + model.page.otherItems.count)
         }
 
         @Test func settersOnlyChangeMemoryAndPersistenceIsAwaitable() async throws {

@@ -1,26 +1,27 @@
 import SwiftUI
 
 struct LibraryView: View {
-    private enum TabID: Hashable { case all, pinned, search }
+    private enum TabID: Hashable { case library, settings, search }
 
-    @State private var selectedTab = TabID.all
+    @State private var selectedTab = TabID.library
+    @AppStorage(ActionButtonSide.storageKey) private var actionButtonSide = ActionButtonSide.right
     @State private var all = LibraryModel()
-    @State private var pinned = LibraryModel(filter: .pinned)
     @State private var search = LibraryModel()
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
-    @State private var showsAbout = false
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var searchableLibrary = search
         TabView(selection: $selectedTab) {
-            Tab("すべて", systemImage: "tray", value: TabID.all) {
-                library(all, title: "すべて", showsDrafts: true)
+            Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
+                library(all, title: "一覧", showsDrafts: true)
             }
-            Tab("ピン留め", systemImage: "pin", value: TabID.pinned) {
-                library(pinned, title: "ピン留め")
+            Tab("設定", systemImage: "gearshape", value: TabID.settings) {
+                NavigationStack {
+                    LibrarySettingsView(actionButtonSide: $actionButtonSide, showTrash: { showsTrash = true })
+                }
             }
             Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
                 library(search, title: "検索")
@@ -36,19 +37,17 @@ struct LibraryView: View {
         .sheet(isPresented: $showsTrash, onDismiss: { routeOwner.startTask(.refresh, on: currentLibrary) }) {
             DeletedSnippetsView()
         }
-        .sheet(isPresented: $showsAbout) { AboutView() }
         .tint(.nibbleAccent)
         .onChange(of: selectedTab) {
             if selectedTab != .search { searchFocused = false }
         }
         .onOpenURL { url in
             guard let route = AppRoute(url: url), all.editor == nil,
-                  pinned.editor == nil, search.editor == nil else { return }
+                  search.editor == nil else { return }
             showsTrash = false
-            showsAbout = false
             searchFocused = false
             search.query = ""
-            selectedTab = .all
+            selectedTab = .library
             if route == .create { routeOwner.startTask(.open(.new), on: all) }
         }
         .onChange(of: scenePhase) {
@@ -69,16 +68,13 @@ struct LibraryView: View {
     private func library(_ model: LibraryModel, title: String, showsDrafts: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsDrafts: showsDrafts,
-                          searchFocused: $searchFocused,
-                          showTrash: { searchFocused = false; showsTrash = true },
-                          showAbout: { searchFocused = false; showsAbout = true })
+                          searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
         }
     }
 
     private var currentLibrary: LibraryModel {
         switch selectedTab {
-        case .all: all
-        case .pinned: pinned
+        case .library, .settings: all
         case .search: search
         }
     }

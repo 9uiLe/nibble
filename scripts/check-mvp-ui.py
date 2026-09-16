@@ -28,6 +28,17 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
                      "--wait-timeout", "5", "--device", args.device])
 
+    def check_side(data, side, snippet_id):
+        add = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
+        row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
+        copy = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "copy." + snippet_id)
+        if side == "left":
+            valid = copy["x"] < row["x"] and add["x"] < row["x"] + row["width"] / 2
+        else:
+            valid = copy["x"] >= row["x"] + row["width"] - 1 and add["x"] > row["x"] + row["width"] / 2
+        if not valid or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
+            raise VerificationError("Action position or minimum target size is incorrect: " + side)
+
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
 
@@ -107,10 +118,12 @@ def main():
             before = run.ui("before")
             run.screenshot("before")
             tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
-            if set(tabs) != {"すべて", "ピン留め", "検索"} or search_fields(before):
-                raise VerificationError("Expected three native tabs and no search field in All")
+            if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
+                raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
             add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == "library.add")
             search_tab = tabs["検索"]["frame"]
+            if not (44 <= add["width"] <= 50 and 44 <= add["height"] <= 50):
+                raise VerificationError("Create control must remain compact and tappable")
             if (add["y"] + add["height"] > search_tab["y"] or
                     abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
                 raise VerificationError("Create must sit above the trailing search button")
@@ -186,13 +199,45 @@ def main():
                 if not any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in pinned["entries"]):
                     raise VerificationError("Pin state did not update")
                 close_search()
-                tab("ピン留め")
-                pinned_tab = wait_ui("pinned-tab", lambda data: row in identifiers(data))
-                if search_fields(pinned_tab):
-                    raise VerificationError("Search field leaked into Pinned")
+                tab("一覧")
+                grouped = wait_ui("grouped-library", lambda data: row in identifiers(data))
+                if search_fields(grouped) or not any(e.get("label") == "ピン留め済み" for e in grouped["entries"]):
+                    raise VerificationError("Pinned items must have their own section in Library")
                 run.screenshot("pinned")
-                tab("すべて")
-                wait_ui("all-tab", lambda data: row in identifiers(data))
+                tab("設定")
+                wait_ui("settings", lambda data: "settings.about" in identifiers(data))
+                run.screenshot("settings")
+                run.tap("settings.about")
+                wait_ui("about", lambda data: any(e.get("label") == "言葉を、すぐ手元に。" for e in data["entries"]))
+                run.screenshot("about")
+                label("設定")
+                wait_ui("settings-returned", lambda data: "settings.about" in identifiers(data))
+                run.tap("settings.side.left")
+                run.ui("left-setting")
+                tab("一覧")
+                left = wait_ui("left-library", lambda data: row in identifiers(data))
+                check_side(left, "left", snippet_id)
+                run.screenshot("left-library")
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "left-copy") != edited_body:
+                    raise VerificationError("Left-side copy changed the text")
+                run.tap("library.add")
+                wait_ui("left-editor", lambda data: "editor.close" in identifiers(data))
+                run.tap("editor.close")
+                wait_ui("left-editor-closed", lambda data: "library.add" in identifiers(data))
+                run.command([XCRUN, "simctl", "launch", "--terminate-running-process", args.device,
+                             run.config["bundle_id"]], "restart-for-preference")
+                run.wait_for_launch()
+                left = wait_ui("left-after-restart", lambda data: row in identifiers(data))
+                check_side(left, "left", snippet_id)
+                tab("設定")
+                wait_ui("settings-after-restart", lambda data: "settings.about" in identifiers(data))
+                run.tap("settings.side.right")
+                run.ui("right-setting")
+                tab("一覧")
+                right = wait_ui("right-library", lambda data: row in identifiers(data))
+                check_side(right, "right", snippet_id)
+                run.screenshot("right-library")
                 tab("検索")
                 wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
                 paste_search(title)
@@ -238,8 +283,8 @@ def main():
                 menu(row, "trash-delete-menu")
                 run.tap("trash")
                 wait_ui("trash-deleted", lambda data: row not in identifiers(data))
-                run.tap("library.menu")
-                wait_ui("trash-menu", lambda data: "library.trash" in identifiers(data))
+                tab("設定")
+                wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
                 run.tap("library.trash")
                 wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
                 paste_search("該当なし-" + uuid4().hex)
@@ -256,8 +301,10 @@ def main():
                 label("閉じる")
                 wait_ui("trash-search-closed", lambda data: "library.trash.close" in identifiers(data))
                 run.tap("library.trash.close")
-                wait_ui("trash-returned", lambda data: row in identifiers(data)
+                wait_ui("trash-returned", lambda data: "settings.about" in identifiers(data)
                         and "library.trash.close" not in identifiers(data))
+                tab("一覧")
+                wait_ui("restored-in-library", lambda data: row in identifiers(data))
                 run.tap("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "trash-restored-copy") != edited_body:
                     raise VerificationError("Trash search/restore changed the snippet's text")
@@ -269,7 +316,8 @@ def main():
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "native_tabs": True, "create_above_search": True,
-                "create_hidden_while_searching": True, "pinned_tab": True,
+                "create_hidden_while_searching": True, "pinned_section": True,
+                "settings_about": True, "left_and_right_actions": True, "side_survives_restart": True,
                 "empty_search_does_not_filter_all": True,
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",

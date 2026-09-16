@@ -7,8 +7,8 @@ struct LibraryScreen: View {
     let title: String
     let showsDrafts: Bool
     let searchFocused: FocusState<Bool>.Binding
-    var showTrash: (() -> Void)?
-    var showAbout: (() -> Void)?
+    var actionButtonSide: ActionButtonSide = .right
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var taskOwner = LibraryTaskOwner()
     @State private var permanentDeletion: SnippetSummary?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -44,22 +44,35 @@ struct LibraryScreen: View {
             if model.items.isEmpty && !model.loading && model.error == nil {
                 emptyState.listRowBackground(Color.clear)
             } else {
-                Section {
-                    ForEach(model.items) { item in
-                        snippetRow(item)
+                if showsDrafts {
+                    if !model.page.pinnedItems.isEmpty {
+                        Section("ピン留め済み") {
+                            ForEach(model.page.pinnedItems) { item in snippetRow(item) }
+                        }
                     }
-                    if model.hasMore {
-                        Button("さらに表示") { model.showMore() }
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                    if !model.page.otherItems.isEmpty {
+                        Section("その他") {
+                            ForEach(model.page.otherItems) { item in snippetRow(item) }
+                        }
                     }
-                } header: {
-                    HStack {
-                        Text(sectionTitle)
-                        Spacer()
-                        if model.loading { ProgressView().controlSize(.mini) }
+                } else {
+                    Section(sectionTitle) {
+                        ForEach(model.items) { item in snippetRow(item) }
                     }
-                } footer: {
-                    if model.filter == .trash { Text("自動では消えません。必要な項目を復元できます。") }
+                }
+                if model.hasMore || model.loading {
+                    Section {
+                        if model.hasMore {
+                            Button("さらに表示") { model.showMore() }
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        if model.loading { ProgressView().frame(maxWidth: .infinity) }
+                    }
+                }
+                if model.filter == .trash {
+                    Text("自動では消えません。必要な項目を復元できます。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .listRowBackground(Color.clear)
                 }
             }
         }
@@ -68,29 +81,20 @@ struct LibraryScreen: View {
         .background(Color.nibbleCanvas)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(title)
-        .toolbar {
-            if let showTrash, let showAbout {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu("その他", systemImage: "ellipsis") {
-                        Button("削除した項目", systemImage: "trash", action: showTrash)
-                            .accessibilityIdentifier("library.trash")
-                        Button("nibbleについて", systemImage: "info.circle", action: showAbout)
-                    }
-                    .accessibilityIdentifier("library.menu")
-                }
-            }
-        }
-        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
-            VStack(alignment: .trailing, spacing: 12) {
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
+            VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
                 notice
                 if model.filter != .trash && !searchFocused.wrappedValue {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .semibold))
-                            .frame(width: 56, height: 56)
+                            .font(.system(size: 20, weight: .medium))
+                            .frame(width: 48, height: 48)
+                            .contentShape(.circle)
                     }
-                    .buttonStyle(.glassProminent)
-                    .buttonBorderShape(.circle)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.nibbleAccent)
+                    .glassEffect(.regular.interactive(), in: .circle)
                     .accessibilityLabel("新しいスニペット")
                     .accessibilityIdentifier("library.add")
                     .keyboardShortcut("n", modifiers: .command)
@@ -187,8 +191,27 @@ struct LibraryScreen: View {
         .padding(.vertical, 30)
     }
 
+    private var actionsAtLeading: Bool {
+        (actionButtonSide == .left) == (layoutDirection == .leftToRight)
+    }
+
+    private func copyButton(_ item: SnippetSummary) -> some View {
+        Button { startTask(.copy(item.id)) } label: {
+            Image(systemName: "doc.on.doc")
+                .font(.system(size: 17, weight: .regular))
+                .frame(width: 32, height: 32)
+                .background(Color.nibbleAccent.opacity(0.07), in: .rect(cornerRadius: 10))
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("\(item.displayTitle)をコピー")
+        .accessibilityIdentifier("copy.\(item.id)")
+    }
+
     private func snippetRow(_ item: SnippetSummary) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 8) {
+            if model.filter != .trash && actionsAtLeading { copyButton(item) }
             Button { if model.filter != .trash { startTask(.open(.snippet(item.id))) } } label: {
                 SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
             }
@@ -202,18 +225,11 @@ struct LibraryScreen: View {
                 Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
                     .labelStyle(.iconOnly).buttonStyle(.borderless).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("restore.\(item.id)")
-            } else {
-                Button { startTask(.copy(item.id)) } label: {
-                    Image(systemName: "doc.on.doc").font(.system(size: 20, weight: .medium))
-                        .frame(width: 44, height: 44)
-                        .background(Color.nibbleAccent.opacity(0.09), in: .rect(cornerRadius: 14))
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("\(item.displayTitle)をコピー")
-                .accessibilityIdentifier("copy.\(item.id)")
+            } else if !actionsAtLeading {
+                copyButton(item)
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .contextMenu {
             if model.filter == .trash {
                 Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
