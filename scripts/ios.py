@@ -217,7 +217,9 @@ class Run:
             pid = self.process_id()
             if pid is not None:
                 self.launched_pid = pid
-                self.manifest["process_monitor"] = {"provider": "simctl launchctl", "pid": pid,
+                self.launched_identity = self.process_identity()
+                self.manifest["process_monitor"] = {"provider": "simctl launchctl + host ps", "pid": pid,
+                    "identity": self.launched_identity,
                     "bundle_id": self.config["bundle_id"], "scope": "before and after each sim-use operation"}
                 self.save()
                 return
@@ -225,8 +227,16 @@ class Run:
                 time.sleep(1)
         raise VerificationError("The launched app has no live process")
 
+    def process_identity(self):
+        # Simulator processes share the host PID namespace. Avoid spawning a
+        # process inside the device for every check: it can delay timed UI.
+        identity = self.command(["/bin/ps", "-p", str(self.launched_pid), "-o", "lstart=,comm="]).strip()
+        if not identity:
+            raise VerificationError("The target app has no live process")
+        return identity
+
     def check_process(self):
-        if self.process_id() != self.launched_pid:
+        if self.process_identity() != self.launched_identity:
             raise VerificationError("The target app exited or restarted during UI verification")
 
     def ui(self, name="ui"):

@@ -79,7 +79,7 @@ nix develop --command python3 scripts/ios.py smoke \
 
 `test` は `xcodebuild` の終了コードと `xcresulttool` のsummaryを確認する。成功したテストが1件以上必要で、0件・全skip・失敗を成功扱いしない。fixtureのSwift Testingはホストの識別・対応OSと、ViewControllerを経由するUnicode・空白の保持を検査する。
 
-起動後はAppleの`simctl spawn launchctl list`で対象bundle IDとPIDを確認する。プロセスが現れるまで1秒間隔・最大5回待ち、各sim-use操作の前後で同じPIDの生存を照合する。終了・再起動・複数候補・取得エラーはrunを失敗にする。sim-useは操作ごとに新しいAX接続を使い、driverが起動したアプリでは組み込みのプロセス監視をこのPID照合で置き換える。監視方式とPIDはmanifestに記録する。
+起動後はAppleの`simctl spawn launchctl list`で対象bundle IDとPIDを確認する。プロセスが現れるまで1秒間隔・最大5回待つ。SimulatorのプロセスはホストのPIDを使うため、各sim-use操作の前後にはホストの`ps`で同じPIDの起動時刻と実行ファイルを照合する。操作ごとにSimulator内へ監視プロセスを起動する待ち時間を避ける。終了・再起動・複数候補・取得エラーはrunを失敗にする。sim-useは操作ごとに新しいAX接続を使い、driverが起動したアプリでは組み込みのプロセス監視をこの照合で置き換える。監視方式・PID・プロセス情報はmanifestに記録する。
 
 `smoke` はビルド・起動後、画面読取 → リセット → 入力欄選択 → ダミーテキストの貼り付け → 反映 → 出力値の照合を実行する。入力は `日本語 👩🏽‍💻` と改行・`Hello, nibble!`。`--text` で変更できる。Swift Testingは別の `test` コマンドで実行する。
 
