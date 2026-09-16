@@ -17,6 +17,8 @@ struct AboutView: View {
                 Text("アカウント、広告、アクセス解析はありません。")
             }
         }
+        .listStyle(.plain)
+        .contentMargins(.top, 0, for: .scrollContent)
         .navigationTitle("nibbleについて").navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)

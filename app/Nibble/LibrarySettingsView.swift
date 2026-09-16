@@ -12,7 +12,7 @@ struct LibrarySettingsView: View {
     let showTrash: () -> Void
 
     var body: some View {
-        Form {
+        List {
             Section {
                 Picker("操作ボタンの位置", selection: $actionButtonSide) {
                     ForEach(ActionButtonSide.allCases) { side in
@@ -40,9 +40,11 @@ struct LibrarySettingsView: View {
                 .accessibilityIdentifier("settings.about")
             }
         }
+        .listStyle(.plain)
+        .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
         .navigationTitle("設定")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleDisplayMode(.inlineLarge)
     }
 }

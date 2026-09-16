@@ -76,12 +76,13 @@ struct LibraryScreen: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarTitleDisplayMode(model.filter == .trash ? .inline : .inlineLarge)
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
                 notice

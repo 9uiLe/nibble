@@ -28,6 +28,13 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
                      "--wait-timeout", "5", "--device", args.device])
 
+    def check_navigation_title(data, title):
+        headings = [e["frame"] for e in data["entries"]
+                    if e.get("role") == "Heading" and e.get("label") == title]
+        if not headings or not any(frame["x"] < data["screen"]["width"] / 4
+                                   and 50 <= frame["y"] < 120 for frame in headings):
+            raise VerificationError("Root title must be leading inside the navigation bar: " + title)
+
     def choose_side(side):
         data = wait_ui("position-picker", lambda data: "settings.actionButtonSide" in identifiers(data))
         frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "settings.actionButtonSide")
@@ -124,6 +131,7 @@ def main():
         with run.device_lock():
             run.launch()
             before = run.ui("before")
+            check_navigation_title(before, "一覧")
             run.screenshot("before")
             tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
             if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
@@ -213,7 +221,8 @@ def main():
                     raise VerificationError("Pinned items must have their own section in Library")
                 run.screenshot("pinned")
                 tab("設定")
-                wait_ui("settings", lambda data: "settings.about" in identifiers(data))
+                settings = wait_ui("settings", lambda data: "settings.about" in identifiers(data))
+                check_navigation_title(settings, "設定")
                 run.screenshot("settings")
                 run.tap("settings.about")
                 wait_ui("about", lambda data: any(e.get("label") == "言葉を、すぐ手元に。" for e in data["entries"]))
@@ -323,7 +332,7 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
-                "native_tabs": True, "create_above_search": True,
+                "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
                 "create_hidden_while_searching": True, "pinned_section": True,
                 "settings_about": True, "left_and_right_actions": True, "side_survives_restart": True,
                 "empty_search_does_not_filter_all": True,
