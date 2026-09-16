@@ -16,7 +16,7 @@
 | モデルの操作 | 受理した処理と結果反映を完了まで待つ`async` API。同期メソッド・setterの隠れた開始や、タスク開始直後に戻る操作APIは禁止 |
 | UIのタスク所有 | `startTask`の境界とswift-taskingの`ViewTaskStore` / `TaskSlot`で、所有者・寿命・重複方針を定義 |
 | アニメーション | swift-scoped-animationの`AnimationScope` / `animationBarrier`で適用範囲を定義 |
-| Viewの比較 | 表示更新を比較で制御するViewはswift-app-macrosの`@Equatable`＋`EquatableBodyView`。通常の値型`let`入力をすべて比較し、状態と操作は呼出元に保持 |
+| Viewの比較 | 表示更新を比較で制御するViewはswift-app-macrosの`@Equatable`＋`@MainActor EquatableBodyView`。通常の値型`let`入力をすべて比較し、状態と操作は呼出元に保持 |
 
 生のTask生成・別scheduler・直接アニメーション・直接比較ゲート・手書き`==`・比較除外は禁止。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task API、通常のView、値型・enumの標準Equatable合成は許可する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。
 

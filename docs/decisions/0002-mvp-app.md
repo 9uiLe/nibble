@@ -263,11 +263,13 @@ lifetimeは画面やsceneを自動監視しない。所有者が終了イベン�
 
 ## 値による表示更新の制御
 
-比較境界は、入力値の等価比較によって表示更新を制御するViewの範囲である。`SnippetRowContent`は`@Equatable`を付けた`EquatableBodyView`とし、タイトル・本文プレビュー・ピン状態の3つの`let`入力をすべて比較する。同じstructの`equatableBody`に表示を定義する。
+比較境界は、入力値が等しいときに親からの表示更新を省けるViewの範囲である。一覧行の`SnippetRowContent`は、タイトル・本文プレビュー・ピン状態の3つを通常の値型`let`として受け取り、すべてを比較する。
 
-Button、操作用のアクセシビリティラベル、編集・コピー・復元・メニューのclosureは`LibraryView`が保持する。比較境界にはclosure、参照モデル、`@State`等のDynamicPropertyを渡さない。状態と入力を持つ一覧全体・編集画面は通常のViewとする。
+Viewには`@Equatable`を付け、`@MainActor EquatableBodyView`へ直接準拠する。MainActorはUI処理を実行するactorであり、準拠と生成される等価比較を同じactorに限定する。内容は同じstructの`equatableBody`へ定義し、比較の適用にはライブラリが提供する`body`を使う。
 
-標準部品の外観・文字サイズはSwiftUIのenvironmentで更新する。入力の変更・復元、および入力値が等しい状態での外観・文字サイズの変更をマウント済みViewで検査する。比較による描画コストの効果は実測で判断する。
+`LibraryView`はButton、操作用のアクセシビリティラベル、編集・コピー・復元・メニューのclosureを保持する。表示専用の行にはclosure・参照モデル・`@State`等のDynamicPropertyを渡さない。表示値が等しくても、操作は現在のモデルと項目を参照する。状態と入力を持つ一覧全体・編集画面は通常のViewとして構成する。
+
+標準部品の外観・文字サイズはSwiftUIのenvironmentで更新する。マウント済みViewのテストで入力の変更・復元と、入力が等しい状態での外観・文字サイズへの追従を確認する。描画回数や応答時間への効果は実測で判断する。
 
 ## アニメーションの適用範囲
 
@@ -298,13 +300,15 @@ Button、操作用のアクセシビリティラベル、編集・コピー・�
 | --- | --- |
 | SwiftUI + Observation | 標準部品とMainActor上の状態で画面を構成する。IME・フォーカス・表示の問題を標準部品で解決できることを評価する |
 | swift-tasking 0.3.0 | タスクの所有・寿命・重複方針を共通APIで表す。操作ごとのIDと終了イベントは製品側で定義する |
-| swift-scoped-animation 0.2.1 | 表示変化の範囲と伝播をscope・barrierで表す。OS遷移との境界とReduce Motionを確認する |
-| swift-app-macros 0.2.0 | 全表示入力の比較を生成し、View定義に比較境界を置く。Mac上のマクロ実行とswift-syntaxのビルドを必要とする |
+| swift-scoped-animation 0.2.2 | 表示変化の範囲と伝播をscope・barrierで表す。OS遷移との境界とReduce Motionを確認する |
+| swift-app-macros 0.3.0 | MainActor上の表示入力の比較を生成し、View定義に比較境界を置く。Mac上のマクロ実行とswift-syntaxのビルドを必要とする |
 | Apple同梱SQLite | 共有DB、更新番号の照合、項目と下書きの同時確定をSQLで表現できる。SQLとmigrationを手動管理する |
 | 保存済み検索キー + `instr` | 原文を保持しながら日本語1〜2文字の部分一致を扱う。件数に応じた検索遅延を測る |
 | Share Extension + 標準URLアクション | 公開APIで取り込みと画面呼び出しを提供する。共有元の形式対応と利用者のショートカット設定が必要 |
 
-Swift Packageはexact versionと共有`Package.resolved`で固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とテストへリンクする。swift-syntax 603.0.2はMac上のマクロのビルド依存で、アプリのruntimeにはリンクしない。
+Swift Package Manager（SPM）がライブラリ依存を解決する。Xcode projectは直接依存をexact versionで指定し、共有`Package.resolved`は全依存のバージョンとGit revisionを固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とテストへリンクする。
+
+AppMacrosのmanifestはswift-syntax 603.0.2をexact指定する。swift-syntaxはMac上でマクロを構築する間接依存であり、iOSアプリの実行時ライブラリとしてリンクしない。マクロ実行にはmacOS 26以上・Swift 6.3以上と、対象ソースを確認した上でのXcodeの承認が必要になる。
 
 製品の3ライブラリはMIT、swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。ライセンス通知を製品bundleへ含める。補助ツールはNix、Xcode・SDK・SimulatorはローカルのApple配布物で管理する。詳細は[依存とビルド](../library-policy.md#依存とビルド)を参照する。
 
