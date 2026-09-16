@@ -28,6 +28,14 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
                      "--wait-timeout", "5", "--device", args.device])
 
+    def choose_side(side):
+        data = wait_ui("position-picker", lambda data: "settings.actionButtonSide" in identifiers(data))
+        frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "settings.actionButtonSide")
+        # sim-use exposes this native segmented control as one TabGroup. Its two
+        # visible segments are left/right; resolve the live frame before tapping.
+        run.command(["sim-use", "tap", "-x", str(frame["x"] + frame["width"] * (0.25 if side == "left" else 0.75)),
+                     "-y", str(frame["y"] + frame["height"] / 2), "--device", args.device])
+
     def check_side(data, side, snippet_id):
         add = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
         row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
@@ -212,7 +220,7 @@ def main():
                 run.screenshot("about")
                 label("設定")
                 wait_ui("settings-returned", lambda data: "settings.about" in identifiers(data))
-                run.tap("settings.side.left")
+                choose_side("left")
                 run.ui("left-setting")
                 tab("一覧")
                 left = wait_ui("left-library", lambda data: row in identifiers(data))
@@ -232,7 +240,7 @@ def main():
                 check_side(left, "left", snippet_id)
                 tab("設定")
                 wait_ui("settings-after-restart", lambda data: "settings.about" in identifiers(data))
-                run.tap("settings.side.right")
+                choose_side("right")
                 run.ui("right-setting")
                 tab("一覧")
                 right = wait_ui("right-library", lambda data: row in identifiers(data))
