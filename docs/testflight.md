@@ -83,9 +83,9 @@ git checkout --detach 'レビュー済みの40桁commit'
 nix develop
 ```
 
-XcodeのAccountsでApple Accountを追加する。Apple Developerの契約、Team、本体・共有拡張のApp Groupsを確認する。[セットアップ](../README.md#3-xcodeとswift-packageを準備する)に従い、固定したAppMacrosのrevisionだけを承認する。
+XcodeのAccountsでApple Accountを追加する。Manage Certificatesで有効なApple Distribution証明書と、その秘密鍵が配布ユーザーのKeychainにあることを本人が確認し、必要なら作成する。Apple Developerの契約、Team、本体・共有拡張のApp Groupsを確認する。[セットアップ](../README.md#3-xcodeとswift-packageを準備する)に従い、固定したAppMacrosのrevisionだけを承認する。
 
-App Store ConnectのUsers and Access → Integrationsで**Team API key**を作成する。照会・ビルド送信・provisioningに必要な権限を持つDeveloperロールを用い、Account Holder/Adminの鍵を初期値にしない。Team keyはApple側では全アプリに適用されるため、本サービスのアプリ限定とは別の権限範囲である。Individual keyはProvisioning endpointsに対応しないため、この構成では使用しない。[AppleのAPI key仕様](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)
+App Store ConnectのUsers and Access → Integrationsで**Team API key**を作成する。照会・ビルド送信用にDeveloperロールを用い、配布署名の証明書・profileは下記の事前準備で用意する。API鍵によるcloud-managed配布証明書の作成を前提にせず、Account Holder/Adminの鍵を初期値にしない。Team keyはApple側では全アプリに適用されるため、本サービスのアプリ限定とは別の権限範囲である。Individual keyはProvisioning endpointsに対応しないため、この構成では使用しない。[AppleのAPI key仕様](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)
 
 鍵を配布ユーザーのブラウザーでダウンロードし、`~/testflight-private/AuthKey_<Key ID>.p8`へ移す。通常ユーザーのDownloads・共有フォルダー・clipboard・会話を経由させない。本人が配布ユーザーのターミナルで対象ファイルを`chmod 600`にする。不要なダウンロード元の複製を残さない。
 
@@ -129,7 +129,31 @@ xcodebuild archive \
   ENABLE_TESTABILITY=NO
 ```
 
-これは配布ユーザーが署名情報を使用するコマンドである。Keychainの確認は本人が行う。API秘密鍵と署名秘密鍵は別物であり、API鍵だけで署名準備が完了するわけではない。両targetのprovisioning profileで同じApp Groupが許可されることをXcodeから確認する。Xcodeは条件を満たす場合に[クラウド管理対象証明書](https://developer.apple.com/help/account/certificates/cloud-managed-certificates)で配布署名を行う。
+これは配布ユーザーが署名情報を使用するコマンドである。Keychainの確認は本人が行う。API秘密鍵と署名秘密鍵は別物であり、API鍵だけで署名準備が完了するわけではない。両targetのprovisioning profileで同じApp Groupが許可されることをXcodeから確認する。
+
+初回は、作成したarchiveを**API鍵の引数なし**でApp Store Connect向けにローカルexportする。Xcodeに登録した本人のApple Accountでprofileを準備し、ローカルのApple Distribution秘密鍵で署名できることを確認する。このコマンドは配布ユーザー本人が実行し、Appleへのbuild送信は行わない。
+
+```sh
+nix develop --command python3 - <<'PYTHON'
+import os
+from pathlib import Path
+import plistlib
+options = Path.home() / 'testflight-private' / 'PrepareSigning.plist'
+options.write_bytes(plistlib.dumps({
+    'method': 'app-store-connect', 'destination': 'export',
+    'signingStyle': 'automatic', 'teamID': os.environ['NIBBLE_TEAM_ID'],
+    'manageAppVersionAndBuildNumber': False,
+    'testFlightInternalTestingOnly': True, 'uploadSymbols': True,
+}))
+PYTHON
+xcodebuild -exportArchive \
+  -archivePath "$HOME/testflight-private/release.xcarchive" \
+  -exportPath "$HOME/testflight-private/signing-check" \
+  -exportOptionsPlist "$HOME/testflight-private/PrepareSigning.plist" \
+  -allowProvisioningUpdates
+```
+
+exportが成功し、ローカルのApple Distribution証明書に対応する秘密鍵が使用可能な状態でAPI運用を開始する。Xcodeはローカル署名情報がない場合に[クラウド管理対象証明書](https://developer.apple.com/help/account/certificates/cloud-managed-certificates)を使うため、exportの成功だけでローカル秘密鍵の準備まで保証しない。証明書やprofileの期限切れ、App Groups変更、署名エラー時は本人がこの準備を見直す。権限不足を理由にAPI鍵を自動的にAdminへ変更しない。
 
 アーカイブを差し替えるときはサービスを止め、前のarchive・配布記録をprivate領域に保存してから次のbuildを準備する。ビルド中のarchiveをサービスへ渡さない。
 

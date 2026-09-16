@@ -44,3 +44,11 @@ Xcodeの結果は`ARCHIVE SUCCEEDED`。本体と共有拡張に対して、AppIn
 ## 共通検査
 
 2026-09-16、`nix flake check --no-update-lock-file --print-build-logs`の全5 checkが成功した。Python回帰テスト81件（配布境界16件を含む）、Swiftソース29件、文書・workflow・Nix書式を確認した。ログは`artifacts/testflight/nix-check.log`。クラウドCIでiOSの署名や実機配布が確認できるとは扱わない。
+
+## 配布手順の参照実装
+
+num-pathの`bcab35964391d104c93ba33c85a40d5615b2ffd9`にある`docs/testflight.md`、`scripts/deploy-testflight.sh`、`.claude/settings.json`のpermissionsを確認した。認証設定・秘密鍵・署名情報の実体は参照していない。
+
+参照実装は、リポジトリ外の認証設定、ClaudeのRead/Bash deny、`xcodebuild archive`と`-exportArchive`による配布を組み合わせる。文書は、同一OSユーザーのため完全な技術的遮断ではないことと、DeveloperロールのAPI鍵にはローカルの配布証明書・profileの事前準備が必要なことを明記している。
+
+nibbleは署名資産の事前準備を手順に取り込み、鍵を持つ処理のOSユーザー分離を維持する。参照実装の`-skipMacroValidation`や認証用shell fileの`source`、生ログ末尾の返却は採用しない。実際の署名準備・API接続は未実施であり、参照実装の成功をnibbleの配布実績として扱わない。
