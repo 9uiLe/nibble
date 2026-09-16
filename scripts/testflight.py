@@ -4,6 +4,7 @@
 import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from enum import Enum
 import fcntl
 import json
 import os
@@ -73,35 +74,70 @@ def private_path(path, directory=False):
             '認証設定のファイル形式を本人が確認してください。')
 
 
+class CredentialStep(Enum):
+    DIRECTORY = '認証ディレクトリの存在・所有者・権限'
+    CONFIG_FILE = 'nibble.envの存在・所有者・権限・読み取り'
+    CONFIG_FORMAT = 'nibble.envの4項目の書式'
+    KEY_ID = 'ASC_KEY_IDの書式'
+    TEAM_ID = 'ASC_TEAM_IDの書式'
+    ISSUER_ID = 'ASC_ISSUER_IDの書式'
+    KEY_PATH = 'ASC_KEY_PATHの配置規則'
+    KEY_FILE = 'API鍵ファイルの存在・所有者・権限'
+
+
+class CredentialError(DistributionError):
+    def __init__(self, step):
+        # Only predefined check names reach the caller, never values or exception text.
+        if not isinstance(step, CredentialStep):
+            raise ValueError('Unknown credential check')
+        super().__init__('認証設定（' + step.value + '）: 失敗。本人がdocs/testflight.mdの初回設定を確認してください。')
+
+
+@contextmanager
+def credential_step(step):
+    try:
+        yield
+    except (OSError, ValueError, DistributionError):
+        raise CredentialError(step) from None
+
+
 def load_credentials(home):
     directory = home / '.appstoreconnect'
-    private_path(directory, directory=True)
+    with credential_step(CredentialStep.DIRECTORY):
+        private_path(directory, directory=True)
     path = directory / 'nibble.env'
-    private_path(path)
+    with credential_step(CredentialStep.CONFIG_FILE):
+        private_path(path)
+        contents = path.read_text()
     values = {}
     allowed = {'ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_KEY_PATH', 'ASC_TEAM_ID'}
-    for line in path.read_text().splitlines():
-        if not line.strip() or line.lstrip().startswith('#'):
-            continue
-        name, separator, value = line.partition('=')
-        name = name.strip()
-        require(separator and name in allowed and name not in values, '認証設定の書式を本人が確認してください。')
-        words = shlex.split(value, comments=True)
-        require(len(words) == 1, '認証設定の書式を本人が確認してください。')
-        values[name] = words[0]
-    require(set(values) == allowed, '認証設定に必要な項目がありません。')
-    for name in ['ASC_KEY_ID', 'ASC_TEAM_ID']:
-        require(re.fullmatch('[A-Z0-9]{10}', values[name]), 'Apple識別子の書式を本人が確認してください。')
-    require(re.fullmatch('[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', values['ASC_ISSUER_ID']),
-            'Apple識別子の書式を本人が確認してください。')
-    raw = values['ASC_KEY_PATH']
-    for prefix in ('$HOME/', '${HOME}/', '~/'):
-        if raw.startswith(prefix):
-            raw = str(home / raw[len(prefix):])
-            break
-    key = directory / ('AuthKey_' + values['ASC_KEY_ID'] + '.p8')
-    require(raw == str(key), '鍵は指定の認証ディレクトリへ本人が配置してください。')
-    private_path(key)
+    with credential_step(CredentialStep.CONFIG_FORMAT):
+        for line in contents.splitlines():
+            if not line.strip() or line.lstrip().startswith('#'):
+                continue
+            name, separator, value = line.partition('=')
+            name = name.strip()
+            require(separator and name in allowed and name not in values, 'Invalid assignment.')
+            words = shlex.split(value, comments=True)
+            require(len(words) == 1, 'Invalid value format.')
+            values[name] = words[0]
+        require(set(values) == allowed, 'Missing fields.')
+    for name, step in [('ASC_KEY_ID', CredentialStep.KEY_ID), ('ASC_TEAM_ID', CredentialStep.TEAM_ID)]:
+        with credential_step(step):
+            require(re.fullmatch('[A-Z0-9]{10}', values[name]), 'Invalid identifier format.')
+    with credential_step(CredentialStep.ISSUER_ID):
+        require(re.fullmatch('[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', values['ASC_ISSUER_ID']),
+                'Invalid issuer format.')
+    with credential_step(CredentialStep.KEY_PATH):
+        raw = values['ASC_KEY_PATH']
+        for prefix in ('$HOME/', '${HOME}/', '~/'):
+            if raw.startswith(prefix):
+                raw = str(home / raw[len(prefix):])
+                break
+        key = directory / ('AuthKey_' + values['ASC_KEY_ID'] + '.p8')
+        require(raw == str(key), 'Unexpected key path.')
+    with credential_step(CredentialStep.KEY_FILE):
+        private_path(key)
     values['ASC_KEY_PATH'] = str(key)
     # The private key bytes are read by Xcode only; this parser never executes shell expressions.
     return values
@@ -259,6 +295,8 @@ def main():
         require(sys.platform == 'darwin', '配布にはローカルMacが必要です。')
         try:
             values = load_credentials(Path.home())
+        except CredentialError:
+            raise
         except (OSError, ValueError, DistributionError):
             raise DistributionError('認証設定は利用できません。本人がdocs/testflight.mdの初回設定を確認してください。') from None
         if args.check_config:

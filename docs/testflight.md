@@ -16,7 +16,7 @@ scripts/deploy-testflight.sh
 | `--dry-run` | 共通検査、依存解決、Release archive、署名したIPAの書き出し。Developer Portalへの接続・provisioning更新は許可するが、buildをアップロードしない |
 | 引数なし | 同じ検査とarchiveを経て、XcodeからApp Store Connectへアップロードする |
 
-画面には工程名と成否、完了時のversion・buildだけを表示する。送信成功後、Apple側の処理完了と内部グループへの追加をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
+画面には工程名と成否、完了時のversion・buildだけを表示する。認証設定の失敗時は、固定した検査工程名（ファイルの存在・所有者・権限、4項目の書式、識別子の書式、鍵の配置規則）を返す。入力値・実際のパス・例外詳細は表示しない。送信成功後、Apple側の処理完了と内部グループへの追加をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
 
 ## 秘密情報の管理
 

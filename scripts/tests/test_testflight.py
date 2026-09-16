@@ -111,6 +111,101 @@ class CredentialTests(Fixture):
             self.assertEqual(tf.main(), 1)
         self.assertNotIn('FAKE_SECRET', output.getvalue())
 
+    def test_configuration_failures_report_only_fixed_steps_without_reading_keys(self):
+        cases = [
+            ('directory-missing', tf.CredentialStep.DIRECTORY),
+            ('directory-permissions', tf.CredentialStep.DIRECTORY),
+            ('config-missing', tf.CredentialStep.CONFIG_FILE),
+            ('config-permissions', tf.CredentialStep.CONFIG_FILE),
+            ('config-encoding', tf.CredentialStep.CONFIG_FILE),
+            ('config-unknown-field', tf.CredentialStep.CONFIG_FORMAT),
+            ('config-quoting', tf.CredentialStep.CONFIG_FORMAT),
+            ('key-id', tf.CredentialStep.KEY_ID),
+            ('team-id', tf.CredentialStep.TEAM_ID),
+            ('issuer-id', tf.CredentialStep.ISSUER_ID),
+            ('key-path', tf.CredentialStep.KEY_PATH),
+            ('key-missing', tf.CredentialStep.KEY_FILE),
+            ('key-permissions', tf.CredentialStep.KEY_FILE),
+            ('key-symlink', tf.CredentialStep.KEY_FILE),
+            ('key-hardlink', tf.CredentialStep.KEY_FILE),
+        ]
+        for name, step in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                home = Path(temporary)
+                directory = home / '.appstoreconnect'
+                directory.mkdir(mode=0o700)
+                key = directory / 'AuthKey_ABCDEFGHIJ.p8'
+                key.write_text('FAKE_KEY_CONTENT_MUST_NOT_BE_READ')
+                key.chmod(0o600)
+                env = directory / 'nibble.env'
+                values = dict(self.values, ASC_KEY_PATH=str(key))
+                field = {'key-id': 'ASC_KEY_ID', 'team-id': 'ASC_TEAM_ID',
+                         'issuer-id': 'ASC_ISSUER_ID', 'key-path': 'ASC_KEY_PATH'}.get(name)
+                if field:
+                    values[field] = 'FAKE_SECRET_MALFORMED_VALUE'
+                contents = '\n'.join(k + '=' + v for k, v in values.items())
+                env.write_text(contents)
+                env.chmod(0o600)
+                if name == 'directory-missing':
+                    env.unlink()
+                    key.unlink()
+                    directory.rmdir()
+                elif name == 'directory-permissions':
+                    directory.chmod(0o755)
+                elif name == 'config-missing':
+                    env.unlink()
+                elif name == 'config-permissions':
+                    env.chmod(0o644)
+                elif name == 'config-encoding':
+                    env.write_bytes(b'\xffFAKE_SECRET')
+                elif name == 'config-unknown-field':
+                    env.write_text(contents + '\nFAKE_SECRET_FIELD=FAKE_SECRET_VALUE')
+                elif name == 'config-quoting':
+                    env.write_text('ASC_KEY_ID="FAKE_SECRET_UNCLOSED')
+                elif name == 'key-missing':
+                    key.unlink()
+                elif name == 'key-permissions':
+                    key.chmod(0o644)
+                elif name == 'key-symlink':
+                    key.unlink()
+                    key.symlink_to(env)
+                elif name == 'key-hardlink':
+                    os.link(key, directory / 'duplicate.p8')
+                output = io.StringIO()
+                original = Path.open
+
+                def open_checked(path, *args, **kwargs):
+                    self.assertEqual(path, env, 'Only configuration metadata may be read')
+                    return original(path, *args, **kwargs)
+
+                with patch.object(tf.Path, 'home', return_value=home), patch.object(Path, 'open', open_checked), \
+                        patch.object(tf.sys, 'platform', 'darwin'), \
+                        patch.object(tf.sys, 'argv', ['testflight.py', 'deploy', '--check-config']), \
+                        patch.object(tf.subprocess, 'run') as native, \
+                        patch.object(tf.subprocess, 'check_output') as command, \
+                        redirect_stderr(output), redirect_stdout(output):
+                    self.assertEqual(tf.main(), 1)
+                native.assert_not_called()
+                command.assert_not_called()
+                self.assertEqual(output.getvalue(), '認証設定（' + step.value
+                                 + '）: 失敗。本人がdocs/testflight.mdの初回設定を確認してください。\n')
+                for value in [*values.values(), str(home), 'FAKE_SECRET', 'FAKE_KEY_CONTENT']:
+                    self.assertNotIn(value, output.getvalue())
+
+    def test_unclassified_errors_and_check_names_cannot_expose_arbitrary_text(self):
+        for error in [OSError('FAKE_SECRET_PATH'), ValueError('FAKE_SECRET_VALUE'),
+                      tf.DistributionError('FAKE_SECRET_DETAIL')]:
+            output = io.StringIO()
+            with self.subTest(error=type(error)), patch.object(tf.sys, 'platform', 'darwin'), \
+                    patch.object(tf.sys, 'argv', ['testflight.py', 'deploy', '--check-config']), \
+                    patch.object(tf, 'load_credentials', side_effect=error), \
+                    redirect_stderr(output), redirect_stdout(output):
+                self.assertEqual(tf.main(), 1)
+            self.assertEqual(output.getvalue(),
+                             '認証設定は利用できません。本人がdocs/testflight.mdの初回設定を確認してください。\n')
+        with self.assertRaises(ValueError):
+            tf.CredentialError('FAKE_SECRET_CHECK_NAME')
+
 
 class ArchiveTests(Fixture):
     def test_device_bundle_versions_and_privacy_resources(self):
