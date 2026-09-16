@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.appstoreconnect/**)",
+      "Read(**/*.p8)",
+      "Read(**/AuthKey_*)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(~/Library/Keychains/**)",
+      "Bash(cat ~/.appstoreconnect/*)",
+      "Bash(head ~/.appstoreconnect/*)",
+      "Bash(tail ~/.appstoreconnect/*)",
+      "Bash(less ~/.appstoreconnect/*)",
+      "Bash(base64 ~/.appstoreconnect/*)",
+      "Bash(cp ~/.appstoreconnect/*)",
+      "Bash(open ~/.appstoreconnect/*)"
+    ]
+  }
+}

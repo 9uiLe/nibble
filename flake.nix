@@ -43,7 +43,6 @@
         pkgs:
         pkgs.python3.withPackages (ps: [
           ps.pyyaml
-          ps.cryptography
           ps.markdown-it-py
           ps.tree-sitter-language-pack
         ]);
@@ -92,11 +91,13 @@
               nativeBuildInputs = [
                 (pythonFor pkgs)
                 pkgs.git
+                pkgs.shellcheck
               ];
             }
             ''
               cp -R ${./scripts} scripts
               chmod -R u+w scripts
+              shellcheck scripts/deploy-testflight.sh
               python3 -m unittest discover -s scripts/tests -v
               touch "$out"
             '';

@@ -55,7 +55,9 @@ mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`
 
 ## 配布の秘密情報
 
-[TestFlight手順](docs/testflight.md)に従う。Appleの秘密情報はGit管理せず、別の配布専用OSユーザーへ隔離する。エージェントは秘密鍵・パスワード・トークン・配布ユーザーのhome・Keychain・認証ログを直接読み取ったり、内容の表示を依頼したりしない。配布ユーザーへのsudo・ログイン・画面操作でこの境界を越えない。本人による秘密情報の登録・サービス更新後、通常ユーザーから`testflight.py status/upload`の限定された窓口を使う。配布コードの詳細は[設計判断](docs/decisions/0003-testflight-distribution.md)を参照する。
+[TestFlight手順](docs/testflight.md)に従い、同じmacOSユーザーで`scripts/deploy-testflight.sh`を実行する。認証設定とAPI鍵はリポジトリ外の`~/.appstoreconnect/`で本人が管理する。エージェントはこのディレクトリ・秘密鍵・パスワード・トークン・Keychain・認証ログを直接読まず、内容の表示や会話への貼り付けも依頼しない。別コマンドやコード変更で直接参照の禁止を迂回しない。
+
+許可する認証情報の使用は、レビューした配布スクリプトによる設定確認・archive・署名・アップロードとする。エージェントへ返すのは工程・成否・公開メタデータのみ。設定の登録・変更と生ログの確認は本人が行う。Claudeのdeny設定は補助であり、同一OSユーザーの読取権限を分離しない。詳細と制約は[配布設計](docs/decisions/0003-testflight-distribution.md)を参照する。
 
 ## 検証とPRの進め方
 

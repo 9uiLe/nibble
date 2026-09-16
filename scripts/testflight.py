@@ -1,33 +1,25 @@
 #!/usr/bin/env python3
-"""Inspect archives and request a narrowly scoped, separate-user TestFlight service."""
+"""Local TestFlight deployment; credentials and native logs never reach stdout."""
 
 import argparse
-import base64
-import ctypes
-import hashlib
-import http.client
+from contextlib import contextmanager
+from datetime import datetime, timezone
+import fcntl
 import json
 import os
 from pathlib import Path
 import plistlib
-import pwd
 import re
+import shlex
 import shutil
-import socket
-import ssl
 import stat
 import subprocess
 import sys
-import tempfile
-import time
-from urllib.parse import urlencode
-
-SOCKET = Path('/Users/Shared/nibble-testflight/control.sock')
-MAX_MESSAGE = 4096
+import uuid
 
 
 class DistributionError(Exception):
-    """Only fixed, non-secret messages may cross the service boundary."""
+    """Only fixed, non-secret errors are presented to the caller."""
 
 
 def require(condition, message):
@@ -73,301 +65,213 @@ def archive_info(archive, bundle_id='dev.nibble.app', extension_id='dev.nibble.a
             'minimum_ios': '26.0', 'sdk': '26.5'}
 
 
-def owned_path(path, uid, private=False):
+def private_path(path, directory=False):
     info = path.lstat()
-    require(not stat.S_ISLNK(info.st_mode) and info.st_uid == uid,
-            'Service paths must be owned by the distribution user and cannot be symlinks.')
-    require(not info.st_mode & (0o077 if private else 0o022),
-            'Service path permissions are too broad.')
-    return info
+    require(info.st_uid == os.geteuid() and not info.st_mode & 0o077
+            and not stat.S_ISLNK(info.st_mode), '認証設定の所有者・権限を本人が確認してください。')
+    require(stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode) and info.st_nlink == 1,
+            '認証設定のファイル形式を本人が確認してください。')
 
 
-def archive_digest(archive, uid):
-    """Hash names and bytes; reject links/special files and client-writable inputs."""
-    owned_path(archive, uid)
-    digest = hashlib.sha256()
-    for path in sorted(archive.rglob('*')):
-        info = owned_path(path, uid)
-        require(stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode), 'Special archive files are forbidden.')
-        if stat.S_ISREG(info.st_mode):
-            require(info.st_nlink == 1, 'Hard links are forbidden in the staged archive.')
-            with path.open('rb') as stream:
-                value = hashlib.file_digest(stream, 'sha256').digest()
-            digest.update(path.relative_to(archive).as_posix().encode() + b'\0' + value)
-    return digest.hexdigest()
+def load_credentials(home):
+    directory = home / '.appstoreconnect'
+    private_path(directory, directory=True)
+    path = directory / 'nibble.env'
+    private_path(path)
+    values = {}
+    allowed = {'ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_KEY_PATH', 'ASC_TEAM_ID'}
+    for line in path.read_text().splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        name, separator, value = line.partition('=')
+        name = name.strip()
+        require(separator and name in allowed and name not in values, '認証設定の書式を本人が確認してください。')
+        words = shlex.split(value, comments=True)
+        require(len(words) == 1, '認証設定の書式を本人が確認してください。')
+        values[name] = words[0]
+    require(set(values) == allowed, '認証設定に必要な項目がありません。')
+    for name in ['ASC_KEY_ID', 'ASC_TEAM_ID']:
+        require(re.fullmatch('[A-Z0-9]{10}', values[name]), 'Apple識別子の書式を本人が確認してください。')
+    require(re.fullmatch('[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', values['ASC_ISSUER_ID']),
+            'Apple識別子の書式を本人が確認してください。')
+    raw = values['ASC_KEY_PATH']
+    for prefix in ('$HOME/', '${HOME}/', '~/'):
+        if raw.startswith(prefix):
+            raw = str(home / raw[len(prefix):])
+            break
+    key = directory / ('AuthKey_' + values['ASC_KEY_ID'] + '.p8')
+    require(raw == str(key), '鍵は指定の認証ディレクトリへ本人が配置してください。')
+    private_path(key)
+    values['ASC_KEY_PATH'] = str(key)
+    # The private key bytes are read by Xcode only; this parser never executes shell expressions.
+    return values
 
 
-def peer_uid(connection):
-    if sys.platform == 'darwin':
-        uid, gid = ctypes.c_uint(), ctypes.c_uint()
-        libc = ctypes.CDLL(None, use_errno=True)
-        require(libc.getpeereid(connection.fileno(), ctypes.byref(uid), ctypes.byref(gid)) == 0,
-                'Cannot verify the local peer.')
-        return uid.value
-    if sys.platform.startswith('linux'):
-        import struct
-        return struct.unpack('3i', connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))[1]
-    raise DistributionError('Peer identity is unsupported on this OS.')
+def authentication_arguments(values):
+    return ['-allowProvisioningUpdates', '-authenticationKeyPath', values['ASC_KEY_PATH'],
+            '-authenticationKeyID', values['ASC_KEY_ID'], '-authenticationKeyIssuerID', values['ASC_ISSUER_ID']]
 
 
-def read_message(connection, limit):
-    data = bytearray()
-    while b'\n' not in data:
-        part = connection.recv(min(4096, limit + 1 - len(data)))
-        require(bool(part), 'Incomplete request.')
-        data.extend(part)
-        require(len(data) <= limit, 'Message is too large.')
-    require(data.endswith(b'\n') and data.count(b'\n') == 1, 'One JSON message is required.')
-    value = json.loads(data)
-    require(isinstance(value, dict), 'JSON object required.')
+def apple_environment():
+    values = {'HOME': str(Path.home()), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'LANG': 'en_US.UTF-8'}
+    if 'DEVELOPER_DIR' in os.environ:
+        values['DEVELOPER_DIR'] = os.environ['DEVELOPER_DIR']
+    return values
+
+
+def source_commit(root):
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, stderr=subprocess.DEVNULL, text=True).strip()
+    changed = subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, stderr=subprocess.DEVNULL)
+    require(not changed, '変更をcommitしてから配布してください。')
+    names = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root, stderr=subprocess.DEVNULL).decode().split('\0')
+    forbidden = {'.p8', '.p12', '.pfx', '.mobileprovision', '.provisionprofile'}
+    require(not any(Path(name).suffix.lower() in forbidden
+                    or Path(name).name in {'.env', 'nibble.env'}
+                    or Path(name).name.startswith(('AuthKey_', '.env.')) for name in names),
+            '認証・署名ファイルがGit管理されています。配布を停止しました。')
+    return commit
+
+
+def build_number(value=None):
+    value = value or datetime.now(timezone.utc).strftime('%Y%m%d%H%M')
+    require(len(value) <= 18 and re.fullmatch(r'[1-9][0-9]*(?:\.(?:0|[1-9][0-9]*)){0,2}', value),
+            'build番号には18文字以内の正の整数、またはピリオドで区切った整数を指定してください。')
     return value
 
 
-def validate_request(request):
-    require(request == {'action': 'status'} or (
-        set(request) == {'action', 'release'} and request['action'] == 'upload'
-        and isinstance(request['release'], str) and re.fullmatch('[0-9a-f]{64}', request['release'])),
-        'Only status or upload of an approved release is allowed.')
+def export_options(team, dry_run):
+    return {'method': 'app-store-connect', 'destination': 'export' if dry_run else 'upload',
+            'signingStyle': 'automatic', 'teamID': team, 'manageAppVersionAndBuildNumber': False,
+            'testFlightInternalTestingOnly': True, 'uploadSymbols': True}
 
 
-def load_config(path):
-    uid = os.geteuid()
-    require(uid != 0, 'Run as the dedicated standard user, never root.')
-    home = Path(pwd.getpwuid(uid).pw_dir)
-    require(path.is_absolute() and path.is_relative_to(home), 'Keep service state in the dedicated home.')
-    current = home
-    owned_path(current, uid, private=True)
-    for part in path.relative_to(home).parts[:-1]:
-        current = current / part
-        owned_path(current, uid, private=True)
-    owned_path(path, uid, private=True)
-    config = json.loads(path.read_text())
-    require(set(config) == {'client_uid', 'team_id', 'key_id', 'issuer_id', 'app_id',
-                            'bundle_id', 'extension_bundle_id'}, 'Invalid service configuration fields.')
-    require(type(config['client_uid']) is int and config['client_uid'] > 0 and config['client_uid'] != uid,
-            'The client and distribution users must be different.')
-    for key in ['team_id', 'key_id']:
-        require(isinstance(config[key], str) and re.fullmatch('[A-Z0-9]{10}', config[key]),
-                'Invalid Apple identifier.')
-    require(isinstance(config['issuer_id'], str)
-            and re.fullmatch('[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', config['issuer_id']),
-            'Invalid issuer identifier.')
-    require(isinstance(config['app_id'], str) and re.fullmatch('[0-9]+', config['app_id']), 'Invalid app ID.')
-    for key in ['bundle_id', 'extension_bundle_id']:
-        require(isinstance(config[key], str) and re.fullmatch('[A-Za-z0-9.-]+', config[key]), 'Invalid bundle ID.')
-    return config
-
-
-def b64(value):
-    return base64.urlsafe_b64encode(value).rstrip(b'=')
-
-
-def save_journal(path, value):
-    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as stream:
-        temporary = Path(stream.name)
+class Deployment:
+    def __init__(self, root, home, values, build, dry_run):
+        self.root, self.values, self.build, self.dry_run = root, values, build, dry_run
+        self.commit = source_commit(root)
+        self.path = root / 'artifacts/testflight' / build
         try:
-            json.dump(value, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-            os.replace(temporary, path)
-        finally:
-            temporary.unlink(missing_ok=True)
+            self.path.mkdir(parents=True, mode=0o700)
+        except FileExistsError:
+            raise DistributionError('このbuild番号の実行記録があります。送信状況を確認し、未使用の番号を指定してください。') from None
+        self.archive = self.path / 'Nibble.xcarchive'
+        self.logs = home / '.appstoreconnect/logs'
+        self.logs.mkdir(mode=0o700, exist_ok=True)
+        private_path(self.logs, directory=True)
+        self.logs = self.logs / ('nibble-' + build + '-' + uuid.uuid4().hex[:8])
+        self.logs.mkdir(mode=0o700)
+        self.manifest = {'commit': self.commit, 'build': build, 'configuration': 'Release',
+                         'destination': 'export' if dry_run else 'upload', 'stage': 'prepared', 'completed': False}
+        self.save()
+
+    def save(self):
+        (self.path / 'manifest.json').write_text(json.dumps(self.manifest, ensure_ascii=False, indent=2) + '\n')
+
+    def native(self, stage, command, timeout):
+        self.manifest['stage'] = stage
+        self.save()
+        print(stage + ': 開始', flush=True)
+        with (self.logs / (stage + '.log')).open('xb') as log:
+            os.chmod(log.name, 0o600)
+            try:
+                result = subprocess.run(command, cwd=self.root, env=apple_environment(),
+                                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
+            except (OSError, subprocess.TimeoutExpired):
+                raise DistributionError(stage + 'を完了できませんでした。本人が保護されたログと送信状況を確認してください。') from None
+        require(result.returncode == 0, stage + 'に失敗しました。本人が保護されたログを確認してください。')
+        print(stage + ': 成功', flush=True)
+
+    def unchanged(self):
+        require(source_commit(self.root) == self.commit, '実行中にソースが変わりました。配布を停止しました。')
+
+    def execute(self):
+        nix = shutil.which('nix')
+        require(nix is not None, 'Nix環境で実行してください。')
+        self.native('checks', [nix, 'flake', 'check', '--no-update-lock-file', '--print-build-logs'], 1800)
+        self.unchanged()
+        sdk = subprocess.check_output(['/usr/bin/xcrun', '--sdk', 'iphoneos', '--show-sdk-version'],
+                                      env=apple_environment(), stderr=subprocess.DEVNULL, text=True).strip()
+        require(sdk == '26.5', 'iPhoneOS 26.5 SDKを選択してください。')
+        cache = self.root / 'artifacts/SourcePackages'
+        self.native('resolve', ['/usr/bin/xcodebuild', '-resolvePackageDependencies',
+                    '-project', 'app/Nibble.xcodeproj', '-scheme', 'Nibble',
+                    '-clonedSourcePackagesDirPath', str(cache), '-onlyUsePackageVersionsFromResolvedFile'], 900)
+        self.unchanged()
+        self.native('archive', ['/usr/bin/xcodebuild', 'archive', '-project', 'app/Nibble.xcodeproj',
+                    '-scheme', 'Nibble', '-configuration', 'Release', '-destination', 'generic/platform=iOS',
+                    '-archivePath', str(self.archive), '-derivedDataPath', str(self.path / 'DerivedData'),
+                    '-clonedSourcePackagesDirPath', str(cache), '-disableAutomaticPackageResolution',
+                    '-onlyUsePackageVersionsFromResolvedFile', '-skipPackageUpdates',
+                    'DEVELOPMENT_TEAM=' + self.values['ASC_TEAM_ID'], 'CURRENT_PROJECT_VERSION=' + self.build,
+                    'ENABLE_TESTABILITY=NO', *authentication_arguments(self.values)], 3600)
+        self.unchanged()
+        info = archive_info(self.archive)
+        require(info['build'] == self.build, 'archiveのbuild番号が指定と一致しません。')
+        self.manifest['archive'] = info
+        # Export options contain the team ID; retain them with the protected native logs.
+        options = self.logs / 'ExportOptions.plist'
+        options.write_bytes(plistlib.dumps(export_options(self.values['ASC_TEAM_ID'], self.dry_run)))
+        exported = self.path / 'export'
+        self.native('export' if self.dry_run else 'upload', ['/usr/bin/xcodebuild', '-exportArchive',
+                    '-archivePath', str(self.archive), '-exportPath', str(exported),
+                    '-exportOptionsPlist', str(options), *authentication_arguments(self.values)], 1800)
+        if self.dry_run:
+            require(any(exported.glob('*.ipa')), 'export成功後のIPAがありません。本人がログを確認してください。')
+        self.manifest['completed'] = True
+        self.save()
+        print('完了: version=' + info['version'] + ' build=' + self.build, flush=True)
+        print('IPA書き出しのみ。Appleへは送信していません。' if self.dry_run else
+              'アップロード成功。App Store Connectで処理完了と内部グループへの追加を確認してください。')
 
 
-class Service:
-    def __init__(self, config, directory):
-        self.config = config
-        self.directory = directory
-        self.key_path = directory / f'AuthKey_{config["key_id"]}.p8'
-        self.archive = directory / 'release.xcarchive'
-
-    def token(self, path):
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import ec, utils
-        owned_path(self.key_path, os.geteuid(), private=True)
-        key = serialization.load_pem_private_key(self.key_path.read_bytes(), password=None)
-        require(isinstance(key, ec.EllipticCurvePrivateKey) and isinstance(key.curve, ec.SECP256R1),
-                'An ES256 App Store Connect key is required.')
-        now = int(time.time())
-        header = {'alg': 'ES256', 'kid': self.config['key_id'], 'typ': 'JWT'}
-        payload = {'iss': self.config['issuer_id'], 'iat': now, 'exp': now + 120,
-                   'aud': 'appstoreconnect-v1', 'scope': ['GET ' + path]}
-        message = b'.'.join(b64(json.dumps(v, separators=(',', ':')).encode()) for v in [header, payload])
-        r, s = utils.decode_dss_signature(key.sign(message, ec.ECDSA(hashes.SHA256())))
-        return (message + b'.' + b64(r.to_bytes(32, 'big') + s.to_bytes(32, 'big'))).decode()
-
-    def apple_get(self, path):
-        # Fixed host, no proxy/environment credentials, no redirects or response-body errors.
-        connection = http.client.HTTPSConnection('api.appstoreconnect.apple.com', timeout=20,
-                                                  context=ssl.create_default_context())
+@contextmanager
+def deployment_lock(root):
+    directory = root / 'artifacts/testflight'
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / '.lock').open('a') as lock:
         try:
-            connection.request('GET', path, headers={'Authorization': 'Bearer ' + self.token(path)})
-            response = connection.getresponse()
-            require(response.status == 200, f'Apple API returned HTTP {response.status}.')
-            data = response.read(1024 * 1024 + 1)
-            require(len(data) <= 1024 * 1024, 'Apple response is too large.')
-            return json.loads(data)
-        finally:
-            connection.close()
-
-    def verify_app(self):
-        app = self.apple_get('/v1/apps/' + self.config['app_id'] + '?fields[apps]=bundleId')['data']
-        require(app['attributes']['bundleId'] == self.config['bundle_id'], 'Apple app and bundle ID differ.')
-
-    def local_release(self):
-        digest = archive_digest(self.archive, os.geteuid())
-        return {**archive_info(self.archive, self.config['bundle_id'], self.config['extension_bundle_id']),
-                'release': digest}
-
-    def status(self):
-        self.verify_app()
-        query = urlencode({'filter[app]': self.config['app_id'], 'sort': '-uploadedDate', 'limit': '10',
-                           'fields[builds]': 'version,processingState,expired'})
-        response = self.apple_get('/v1/builds?' + query)
-        builds = []
-        for build in response['data']:
-            attributes = build['attributes']
-            state = attributes.get('processingState')
-            version = attributes.get('version')
-            require(state in {'PROCESSING', 'FAILED', 'INVALID', 'VALID'}
-                    and isinstance(version, str) and re.fullmatch('[0-9.]+', version),
-                    'Unexpected Apple build response.')
-            builds.append({'build': version, 'processing': state, 'expired': attributes.get('expired') is True})
-        return {'builds': builds, 'staged_release': self.local_release() if self.archive.exists() else None}
-
-    def upload(self, expected):
-        release = self.local_release()
-        require(release['release'] == expected, 'Staged archive differs from the approved release.')
-        journal_path = self.directory / 'uploads.json'
-        if journal_path.exists():
-            owned_path(journal_path, os.geteuid(), private=True)
-        journal = json.loads(journal_path.read_text()) if journal_path.exists() else {}
-        require(expected not in journal, 'This release already has an upload attempt; check App Store Connect.')
-        self.verify_app()
-        owned_path(self.key_path, os.geteuid(), private=True)
-        export = self.directory / 'exports' / expected
-        export.mkdir(parents=True, mode=0o700)
-        snapshot = export / 'Nibble.xcarchive'
-        shutil.copytree(self.archive, snapshot, symlinks=True)
-        require(archive_digest(snapshot, os.geteuid()) == expected, 'Archive changed while staging the upload.')
-        options = export / 'ExportOptions.plist'
-        options.write_bytes(plistlib.dumps({'method': 'app-store-connect', 'destination': 'upload',
-            'signingStyle': 'automatic', 'teamID': self.config['team_id'],
-            'manageAppVersionAndBuildNumber': False, 'testFlightInternalTestingOnly': True,
-            'uploadSymbols': True}))
-        journal[expected] = 'started'
-        save_journal(journal_path, journal)
-        command = ['/usr/bin/xcodebuild', '-exportArchive', '-archivePath', str(snapshot),
-                   '-exportPath', str(export), '-exportOptionsPlist', str(options),
-                   '-allowProvisioningUpdates', '-authenticationKeyPath', str(self.key_path),
-                   '-authenticationKeyID', self.config['key_id'],
-                   '-authenticationKeyIssuerID', self.config['issuer_id']]
-        environment = {'HOME': pwd.getpwuid(os.geteuid()).pw_dir,
-                       'PATH': '/usr/bin:/bin:/usr/sbin:/sbin', 'LANG': 'en_US.UTF-8'}
-        result = subprocess.run(command, env=environment, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL, timeout=1800)
-        journal[expected] = 'uploaded' if result.returncode == 0 else 'check_required'
-        save_journal(journal_path, journal)
-        require(result.returncode == 0, 'Upload was not confirmed; inspect it in the distribution account.')
-        return {'upload': 'accepted', 'build': release['build'], 'version': release['version'],
-                'processing': 'Check status before adding the build to your internal group.'}
-
-    def handle(self, request):
-        validate_request(request)
-        return self.status() if request['action'] == 'status' else self.upload(request['release'])
-
-
-def handle_connection(connection, service, client_uid):
-    connection.settimeout(5)
-    try:
-        require(peer_uid(connection) == client_uid, 'Client user is not authorized.')
-        request = read_message(connection, MAX_MESSAGE)
-        result = {'ok': True, 'result': service.handle(request)}
-    except DistributionError as error:
-        result = {'ok': False, 'error': str(error)}
-    except Exception:
-        # Exception text, Apple bodies and native tool output may contain credentials.
-        result = {'ok': False, 'error': 'Operation failed; inspect the distribution account.'}
-    try:
-        connection.sendall(json.dumps(result).encode() + b'\n')
-    except OSError:
-        pass
-
-
-def serve(config_path):
-    require(sys.platform == 'darwin', 'The distribution service requires macOS.')
-    os.umask(0o077)
-    config = load_config(config_path)
-    # Install this reviewed file in the dedicated private home, never run a shared checkout.
-    source = Path(__file__).absolute()
-    require(source.is_relative_to(Path(pwd.getpwuid(os.geteuid()).pw_dir)),
-            'Install the reviewed service in the dedicated home.')
-    current = source
-    while current != Path(pwd.getpwuid(os.geteuid()).pw_dir):
-        owned_path(current, os.geteuid())
-        current = current.parent
-    owned_path(SOCKET.parent, os.geteuid())
-    require(not SOCKET.exists(), 'Socket already exists; stop the old service before removing it.')
-    service = Service(config, config_path.parent)
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
-        listener.bind(str(SOCKET))
-        os.chmod(SOCKET, 0o666)  # Authorization uses the kernel peer UID, never a client-supplied UID.
-        listener.listen(4)
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise DistributionError('別の配布処理が実行中です。完了を待ってください。') from None
         try:
-            while True:
-                connection, _ = listener.accept()
-                with connection:
-                    handle_connection(connection, service, config['client_uid'])
+            yield
         finally:
-            SOCKET.unlink(missing_ok=True)
-
-
-def request_service(request, user):
-    validate_request(request)
-    uid = pwd.getpwnam(user).pw_uid
-    require(uid not in {0, os.geteuid()}, 'Use a separate standard distribution user.')
-    owned_path(SOCKET.parent, uid)
-    require(SOCKET.lstat().st_uid == uid and stat.S_ISSOCK(SOCKET.lstat().st_mode),
-            'Unexpected service socket.')
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-        connection.settimeout(1850)
-        connection.connect(str(SOCKET))
-        require(peer_uid(connection) == uid, 'Unexpected service user.')
-        connection.sendall(json.dumps(request).encode() + b'\n')
-        return read_message(connection, 65536)
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest='action', required=True)
-    check = sub.add_parser('archive-check', help='Inspect a local archive without credentials')
+    commands = parser.add_subparsers(dest='command', required=True)
+    check = commands.add_parser('archive-check', help='Inspect an archive without credentials')
     check.add_argument('archive', type=Path)
-    service = sub.add_parser('serve', help='Run only in the dedicated distribution account')
-    service.add_argument('--config', required=True, type=Path)
-    for name in ['status', 'upload']:
-        client = sub.add_parser(name)
-        client.add_argument('--service-user', default='nibble-release')
-        if name == 'upload':
-            client.add_argument('--release', required=True, help='Approved staged archive SHA-256 from status')
+    deploy = commands.add_parser('deploy', help='Archive and export/upload using local Apple credentials')
+    modes = deploy.add_mutually_exclusive_group()
+    modes.add_argument('--dry-run', action='store_true', help='Sign and export an IPA without uploading')
+    modes.add_argument('--check-config', action='store_true', help='Report configuration readiness without values or network')
+    deploy.add_argument('--build-number', help='Unused CFBundleVersion; default UTC YYYYMMDDHHmm')
     args = parser.parse_args()
+    os.umask(0o077)
     try:
-        if args.action == 'serve':
-            serve(args.config)
+        if args.command == 'archive-check':
+            print(json.dumps({'metadata': archive_info(args.archive),
+                              'scope': 'Metadata only; signing and Apple validation are unverified.'}, indent=2))
             return 0
-        if args.action == 'archive-check':
-            result = {'ok': True, 'result': archive_info(args.archive),
-                      'scope': 'Bundle metadata only; signing, Apple validation and installation are unverified.'}
-        else:
-            request = {'action': args.action}
-            if args.action == 'upload':
-                request['release'] = args.release
-            result = request_service(request, args.service_user)
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0 if result['ok'] else 1
+        require(sys.platform == 'darwin', '配布にはローカルMacが必要です。')
+        try:
+            values = load_credentials(Path.home())
+        except (OSError, ValueError, DistributionError):
+            raise DistributionError('認証設定は利用できません。本人がdocs/testflight.mdの初回設定を確認してください。') from None
+        if args.check_config:
+            print('認証設定: 利用可能（値・鍵の内容は非表示。Appleへの接続は未確認）')
+            return 0
+        root = Path(__file__).resolve().parents[1]
+        with deployment_lock(root):
+            Deployment(root, Path.home(), values, build_number(args.build_number), args.dry_run).execute()
+        return 0
     except DistributionError as error:
-        print(json.dumps({'ok': False, 'error': str(error)}))
-    except Exception:
-        print(json.dumps({'ok': False, 'error': 'Check the service setup or archive; no sensitive details returned.'}))
+        print(str(error), file=sys.stderr)
+    except (Exception, KeyboardInterrupt):
+        print('配布を完了できませんでした。本人が設定・保護されたログ・送信状況を確認してください。', file=sys.stderr)
     return 1
 
 

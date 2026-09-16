@@ -1,208 +1,105 @@
-# TestFlightの内部配布
+# TestFlightで内部配布する
 
-nibbleの配布対象はiPhoneアプリ`Nibble`と共有拡張`NibbleShare`。初回は自分の端末を内部テスターとして登録する。最低対応OSは26.0、ビルド環境はXcode 26.5、実機の確認対象はiOS 26.5とする。
+## 実行するコマンド
 
-配布には、実機向けアーカイブ、Appleの署名、App Store Connectへのアップロード、Apple側の処理完了、内部グループへの追加、TestFlightからのインストールが必要になる。署名なしarchiveやSimulatorテストの成功は、これらの完了を意味しない。確認結果は[配布の検証記録](testflight-validation.md)に記録する。
+ローカルMacで、commit済みのnibbleを署名し、本人の内部テスターへ配布する。初回設定を済ませ、リポジトリのルートで実行する。
 
-## 必要なApple側の登録
+```sh
+scripts/deploy-testflight.sh --check-config
+scripts/deploy-testflight.sh --dry-run
+scripts/deploy-testflight.sh
+```
 
-| 対象 | 現在の識別子 | 設定 |
-| --- | --- | --- |
-| 本体の明示的App ID | `dev.nibble.app` | App Groupsを有効にし、下記グループを割り当てる |
-| 共有拡張の明示的App ID | `dev.nibble.app.share` | 本体と同じApp Groupを割り当てる |
-| App Group | `group.dev.nibble.app` | 本体と共有拡張のSQLite保存先 |
-| App Store Connectのアプリ | 本体のBundle IDを選択 | iOSアプリとして作成。拡張用の別アプリレコードは作らない |
-
-DeveloperのCertificates, Identifiers & Profilesで[App Groupを登録](https://developer.apple.com/help/account/identifiers/register-an-app-group)し、両方のApp IDに[割り当てる](https://developer.apple.com/help/account/identifiers/enable-app-capabilities)。共有拡張の種類はInfo.plistで定義する。URL schemeの`nibble`もInfo.plistに設定済みである。
-
-現在必要なCapabilityはApp Groups。本体と共有拡張のentitlementsは同じグループを要求する。DBのファイル保護は`FileProtectionType.complete`で設定している。登録する識別子を変える場合は、Xcode project、両entitlements、`SnippetStore.groupID`、`app/project.json`をそろえ、共有からの保存と本体からの読取を再検証する。
-
-Team ID、Bundle ID、App Group ID、App Store Connectの数値のApple IDは秘密情報ではない。API秘密鍵、署名秘密鍵、パスワード、認証トークンは公開・Git管理・会話への貼り付けをしない。
-
-## 秘密情報と実行権限
-
-1台のMacで、通常の開発ユーザーと配布専用の標準ユーザー`nibble-release`を使う。AIエージェントは開発ユーザーで実行する。配布ユーザーにはAIエージェントを起動しない。
-
-| 配置 | 所有者・役割 |
+| モード | 処理と完了条件 |
 | --- | --- |
-| 開発checkout | エージェントがコードの編集・検証を行う。Appleの秘密情報を置かない |
-| 配布ユーザーのprivate home | 人がレビューした固定commitのサービス、Xcode認証、署名情報、API鍵を保持する |
-| `~/testflight-private/`（配布ユーザー） | `config.json`、`AuthKey_<Key ID>.p8`、`release.xcarchive`、アップロード試行記録 |
-| `/Users/Shared/nibble-testflight/control.sock` | 同じMacの依頼窓口。接続元のOSユーザーIDをカーネルから取得して認可する |
+| `--check-config` | 設定の書式・所有者・ファイル権限・鍵ファイルの存在を確認する。鍵の内容を読まず、Appleには接続しない |
+| `--dry-run` | 共通検査、依存解決、Release archive、署名したIPAの書き出し。Developer Portalへの接続・provisioning更新は許可するが、buildをアップロードしない |
+| 引数なし | 同じ検査とarchiveを経て、XcodeからApp Store Connectへアップロードする |
 
-`.gitignore`は誤登録防止の補助であり、読取権限を分離する機構ではない。秘密情報はリポジトリの外に置き、配布homeとstate directoryは`0700`、API鍵と設定は`0600`にする。アクセスを広げるACL・共有・同期を設定しない。
+画面には工程名と成否、完了時のversion・buildだけを表示する。送信成功後、Apple側の処理完了と内部グループへの追加をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
 
-分離は通常の別ユーザー間のアクセス制御を前提にする。エージェントにroot、配布ユーザーへの`sudo`・パスワード・ログイン権限、配布セッションの画面操作権限を与えない。管理者権限での侵入やOSの脆弱性に耐える仕組みとは位置付けない。
+## 秘密情報の管理
 
-### サービスが受理する操作
+開発と配布は同じmacOSユーザーで行う。API鍵、認証設定、署名の秘密鍵、生ログをGit管理しない。認証設定とAPI鍵は`~/.appstoreconnect/`、署名の秘密鍵は本人が管理するKeychainに保持する。
 
-`scripts/testflight.py`はクライアントとサービスの両方を提供する。クライアントは秘密情報を読み込まない。
+AIエージェントは、認証ディレクトリ・Keychain・秘密鍵・生ログを直接参照せず、配布コマンドの結果だけを受け取る。設定値やログ全文を会話へ貼らない。初回設定と失敗時の生ログ確認は本人が行う。
 
-| 操作 | 入力と制限 | 返却する情報 |
+これは同一ユーザー内の運用上の制限であり、OSによるアクセス分離ではない。[AGENTS.md](../AGENTS.md)でエージェントの行動を定め、Claude Codeには[deny設定](../.claude/settings.json)も適用する。この設定はCodexなど別のエージェントへ自動適用されず、同一ユーザーの任意のシェル操作を完全には遮断しない。厳密な技術的隔離が必要になった場合は、[配布設計](decisions/0003-testflight-distribution.md)を見直す。
+
+## 1. Apple側の識別子とCapabilityを登録する
+
+Apple DeveloperのCertificates, Identifiers & Profilesで、次の構成を登録する。識別子を変更する場合は、製品のentitlements・project・配布検査をまとめて更新する。
+
+| 対象 | 識別子 | Capability |
 | --- | --- | --- |
-| `status` | private設定で固定した1アプリを照会 | 最新10件のbuild番号・処理状態・期限切れフラグ、準備したarchiveの公開メタデータとhash |
-| `upload` | 準備したarchiveのSHA-256だけを受理 | アップロードコマンドの成功、version・build。失敗時は固定メッセージ |
+| 本体のExplicit App ID | `dev.nibble.app` | App Groups |
+| Share ExtensionのExplicit App ID | `dev.nibble.app.share` | App Groups |
+| 共有App Group | `group.dev.nibble.app` | 本体とShare Extensionの両方へ関連付ける |
 
-任意のURL・コマンド・ファイルパス・JWT署名要求は受理しない。クライアントの申告UIDを信用せず、Unix socketのpeer UIDを確認する。クライアントも配布ユーザーのUIDを照合する。HTTP接続先はAppleの固定ホストで、redirect・環境変数のproxyを使用しない。
+共有保存に必要なのは**両方のApp IDのApp Groups**。共有拡張は別のApp IDとprovisioning profileを持つ。Push Notifications・iCloud・Associated Domains・Sign in with Appleは現在の製品には不要。
 
-APIの照会トークンはES256で生成し、有効期間を2分、scopeを照会するGETに限定する。鍵・トークン・APIの生レスポンス・例外の詳細をクライアントへ返さない。暗号処理にはNixで固定する`cryptography`を使う。[AppleのJWT仕様](https://developer.apple.com/documentation/appstoreconnectapi/generating-tokens-for-api-requests)
+App Store Connectでは本体のBundle IDでiOSアプリを1件作成する。共有拡張を別アプリとして登録しない。登録と契約への同意は本人が行う。詳細はAppleの[Capability設定](https://developer.apple.com/help/account/identifiers/enable-app-capabilities)と[App Group登録](https://developer.apple.com/help/account/identifiers/register-an-app-group)を参照する。
 
-アップロードは配布ユーザーの`xcodebuild -exportArchive`で実行する。API鍵はプロセス内またはApple CLIからのみ使用する。署名済みarchiveをprivate領域に複製し、同じhashであることを確認してから送る。試行開始を先に記録し、同じarchiveを自動再送しない。出力を失った場合やtimeoutの場合もApp Store Connectで状態を確認する。
+## 2. Xcodeの署名を準備する
 
-ソースからのビルドはサービスに依頼できない。配布ユーザーが固定commitをレビューしてからビルドする。これにより、エージェントが変更できるcheckoutやビルドスクリプトを、秘密情報のある権限で自動実行しない。サービス更新も人が別途レビューして適用する。
+1. Xcode 26.5を選択し、[開発環境](../README.md#セットアップ)を準備する。固定したAppMacros revisionをXcodeで個別に承認する。一括でmacro検証を無効にしない。
+2. 本人がXcodeのAccountsでApple Developerアカウントへサインインする。
+3. 対象TeamのApple Distribution証明書と対応する秘密鍵を、本人のKeychainに用意する。本体と共有拡張の配布profileに、同じApp Groupが含まれることを確認する。
+4. 署名資産が不足する場合は、本人がXcodeのOrganizer等で配布準備を完了する。DeveloperロールのAPI鍵で、配布証明書の新規発行まで自動的に成立すると想定しない。
 
-## 初回の設定（人が行う）
+スクリプトはTeamを実行時に指定するため、個人のTeam IDやアカウントをXcode projectへ保存する必要はない。Appleの[cloud-managed certificates](https://developer.apple.com/help/account/certificates/cloud-managed-certificates/)にはロール・権限の条件がある。認証に失敗しても、エージェントがAPI鍵の権限を引き上げない。
 
-以下はエージェントのターミナル・画面操作を使わず、Macを操作する本人が実施する。
+## 3. API認証設定を本人が配置する
 
-### 1. 配布ユーザーと依頼窓口
+App Store ConnectのUsers and Access / IntegrationsでTeam API keyを作成する。アップロード用にはDeveloperロールを基本とし、必要な権限を確認する。Team API keyは対象アプリ1件だけに限定できないため、他のアプリにも及ぶ権限として管理する。詳しくはAppleの[API key作成](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)を参照する。
 
-システム設定 → ユーザとグループで、標準ユーザー`nibble-release`を作る。パスワードは会話やリポジトリへ記録しない。通常ユーザーのターミナルで次を実行し、出力された数値を`client_uid`として控える。
+本人が、リポジトリ外に次のファイルを配置する。ダウンロード直後の秘密鍵をエージェントに操作・表示させない。
+
+| パス | 内容 | 権限 |
+| --- | --- | --- |
+| `~/.appstoreconnect/` | 認証情報のディレクトリ | 所有者は実行ユーザー、`0700` |
+| `~/.appstoreconnect/AuthKey_<KEY_ID>.p8` | Appleから取得した秘密鍵 | `0600`、通常ファイル |
+| `~/.appstoreconnect/nibble.env` | 下記の4項目 | `0600`、通常ファイル |
+
+`nibble.env`の書式例。山括弧の部分は本人がローカルで実際の値に置き換える。このファイルの内容は会話へ貼らない。
+
+```text
+ASC_KEY_ID=<10文字のKEY_ID>
+ASC_ISSUER_ID=<IssuerのUUID>
+ASC_KEY_PATH="$HOME/.appstoreconnect/AuthKey_<KEY_ID>.p8"
+ASC_TEAM_ID=<10文字のTEAM_ID>
+```
+
+設定はshellとして実行しない。4項目の代入、空行、コメントのみを受け付け、`export`・コマンド置換・任意パスを許可しない。鍵の場所では`$HOME/`・`${HOME}/`・`~/`を利用できる。symlink・hard linkは使用しない。秘密鍵の内容はXcodeが読み、配布スクリプトは読み込まない。
+
+`--check-config`が成功しても、鍵の有効性・ロール・Appleへの接続・署名は未確認。続けて`--dry-run`でIPAまでの経路を確認する。
+
+## 4. ビルド番号と配布結果を扱う
+
+作業ツリーがcleanであることを要求し、対象commitを実行記録に残す。Nixの全check、iPhoneOS 26.5 SDK、共有`Package.resolved`を使い、本体と共有拡張を同じbuild番号でarchiveする。検査・依存解決・archiveの終了時にもソースが変わっていないことを確認する。同じcheckoutからの配布処理は同時実行しない。
+
+build番号は既定でUTCの`YYYYMMDDHHmm`。明示する場合は、App Store Connectで未使用かつ現在より新しい番号を指定する。
 
 ```sh
-id -u
-sudo install -d -o nibble-release -g staff -m 0755 /Users/Shared/nibble-testflight
+scripts/deploy-testflight.sh --build-number 202609170900
 ```
 
-配布ユーザーにログインする。XcodeやCLI Toolsは同じMacのインストールを使う。Nixをこのユーザーからも使えるようにする。homeの共有アクセスを解除し、state directoryを作る。
+同じbuild番号の実行記録がある場合は上書きしない。dry-run直後に同じ分内でアップロードする場合も、次の番号を指定する。中断やtimeoutの後は、本人がApp Store Connectで受理状況を確認してから新しい番号で実行する。送信を自動再試行しない。
 
-```sh
-chmod -N "$HOME"
-chmod 700 "$HOME"
-mkdir -m 700 "$HOME/testflight-private"
-```
+| 保存先 | 内容・扱い |
+| --- | --- |
+| `artifacts/testflight/<build>/manifest.json` | commit、工程、完了フラグ、archiveの公開メタデータ |
+| `artifacts/testflight/<build>/Nibble.xcarchive` | 実機向けarchive。Git管理外 |
+| `artifacts/testflight/<build>/export/` | dry-runのIPA等。Git管理外 |
+| `~/.appstoreconnect/logs/nibble-<build>-<識別子>/` | Xcode・Nixの生ログとExportOptions。ディレクトリ`0700`、ファイル`0600`。本人だけが内容を確認する |
 
-### 2. レビューしたコードとApple認証
+失敗メッセージは工程名と固定の案内のみで、コマンド引数・例外詳細・ログ末尾を返さない。本人がログを調べ、秘密情報を除いた原因だけをエージェントに伝える。共有する証跡にはmanifestを使い、archive・IPA・ログをPRへ添付しない。
 
-配布ユーザーのhomeへこのリポジトリをcloneし、レビュー済みの40桁commitを指定してcheckoutする。開発ユーザーが書き換えられるworktreeを直接実行しない。配布checkoutの自動更新も行わない。
+## 5. 本人の端末へ配布する
 
-```sh
-git clone https://github.com/9uiLe/nibble.git "$HOME/nibble-release-code"
-cd "$HOME/nibble-release-code"
-git checkout --detach 'レビュー済みの40桁commit'
-nix develop
-```
+1. 引数なしでアップロードし、App Store ConnectのTestFlightでbuildの処理完了を確認する。アップロード成功と処理完了は別の状態。
+2. 暗号化の輸出コンプライアンスについて、本人が実装に基づいて回答する。スクリプトは未確認の申告を自動設定しない。
+3. 自分だけの内部テストグループを作り、初回は自動配布を無効にして対象buildを追加する。
+4. iOS 26.5の自分の端末でTestFlightからインストールし、起動・作成・編集・コピー・共有拡張からの保存・本体での表示を確認する。
 
-XcodeのAccountsでApple Accountを追加する。Manage Certificatesで有効なApple Distribution証明書と、その秘密鍵が配布ユーザーのKeychainにあることを本人が確認し、必要なら作成する。Apple Developerの契約、Team、本体・共有拡張のApp Groupsを確認する。[セットアップ](../README.md#3-xcodeとswift-packageを準備する)に従い、固定したAppMacrosのrevisionだけを承認する。
-
-App Store ConnectのUsers and Access → Integrationsで**Team API key**を作成する。照会・ビルド送信用にDeveloperロールを用い、配布署名の証明書・profileは下記の事前準備で用意する。API鍵によるcloud-managed配布証明書の作成を前提にせず、Account Holder/Adminの鍵を初期値にしない。Team keyはApple側では全アプリに適用されるため、本サービスのアプリ限定とは別の権限範囲である。Individual keyはProvisioning endpointsに対応しないため、この構成では使用しない。[AppleのAPI key仕様](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)
-
-鍵を配布ユーザーのブラウザーでダウンロードし、`~/testflight-private/AuthKey_<Key ID>.p8`へ移す。通常ユーザーのDownloads・共有フォルダー・clipboard・会話を経由させない。本人が配布ユーザーのターミナルで対象ファイルを`chmod 600`にする。不要なダウンロード元の複製を残さない。
-
-`~/testflight-private/config.json`を本人が作成し、`chmod 600`にする。値は次の形。`app_id`はアプリ情報に表示される数値のApple IDで、Apple Accountのメールアドレスではない。JSONに秘密鍵やパスワードを記載しない。
-
-```json
-{
-  "client_uid": 501,
-  "team_id": "ABCDEFGHIJ",
-  "key_id": "KLMNOPQRST",
-  "issuer_id": "00000000-0000-0000-0000-000000000000",
-  "app_id": "1234567890",
-  "bundle_id": "dev.nibble.app",
-  "extension_bundle_id": "dev.nibble.app.share"
-}
-```
-
-例のUIDとApple識別子は自分の値に置き換える。秘密情報を置いた後の確認をエージェントへ依頼しない。
-
-### 3. 署名済みアーカイブ
-
-配布checkoutでNix共通検査を実行する。配布前のSimulator検証は[製品検証](mvp.md)に従う。Team IDと未使用のbuild番号は公開情報として指定する。本体・共有拡張のbuild番号を一緒に更新し、同じversion/buildを再利用しない。
-
-```sh
-nix flake check --no-update-lock-file --print-build-logs
-xcodebuild -resolvePackageDependencies \
-  -project app/Nibble.xcodeproj -scheme Nibble \
-  -clonedSourcePackagesDirPath artifacts/SourcePackages
-
-export NIBBLE_TEAM_ID='自分のTeam ID'
-export NIBBLE_BUILD_NUMBER='1'
-xcodebuild archive \
-  -project app/Nibble.xcodeproj -scheme Nibble -configuration Release \
-  -destination 'generic/platform=iOS' \
-  -archivePath "$HOME/testflight-private/release.xcarchive" \
-  -derivedDataPath artifacts/distribution/DerivedData \
-  -clonedSourcePackagesDirPath artifacts/SourcePackages \
-  -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile -skipPackageUpdates \
-  -allowProvisioningUpdates \
-  DEVELOPMENT_TEAM="$NIBBLE_TEAM_ID" CURRENT_PROJECT_VERSION="$NIBBLE_BUILD_NUMBER" \
-  ENABLE_TESTABILITY=NO
-```
-
-これは配布ユーザーが署名情報を使用するコマンドである。Keychainの確認は本人が行う。API秘密鍵と署名秘密鍵は別物であり、API鍵だけで署名準備が完了するわけではない。両targetのprovisioning profileで同じApp Groupが許可されることをXcodeから確認する。
-
-初回は、作成したarchiveを**API鍵の引数なし**でApp Store Connect向けにローカルexportする。Xcodeに登録した本人のApple Accountでprofileを準備し、ローカルのApple Distribution秘密鍵で署名できることを確認する。このコマンドは配布ユーザー本人が実行し、Appleへのbuild送信は行わない。
-
-```sh
-nix develop --command python3 - <<'PYTHON'
-import os
-from pathlib import Path
-import plistlib
-options = Path.home() / 'testflight-private' / 'PrepareSigning.plist'
-options.write_bytes(plistlib.dumps({
-    'method': 'app-store-connect', 'destination': 'export',
-    'signingStyle': 'automatic', 'teamID': os.environ['NIBBLE_TEAM_ID'],
-    'manageAppVersionAndBuildNumber': False,
-    'testFlightInternalTestingOnly': True, 'uploadSymbols': True,
-}))
-PYTHON
-xcodebuild -exportArchive \
-  -archivePath "$HOME/testflight-private/release.xcarchive" \
-  -exportPath "$HOME/testflight-private/signing-check" \
-  -exportOptionsPlist "$HOME/testflight-private/PrepareSigning.plist" \
-  -allowProvisioningUpdates
-```
-
-exportが成功し、ローカルのApple Distribution証明書に対応する秘密鍵が使用可能な状態でAPI運用を開始する。Xcodeはローカル署名情報がない場合に[クラウド管理対象証明書](https://developer.apple.com/help/account/certificates/cloud-managed-certificates)を使うため、exportの成功だけでローカル秘密鍵の準備まで保証しない。証明書やprofileの期限切れ、App Groups変更、署名エラー時は本人がこの準備を見直す。権限不足を理由にAPI鍵を自動的にAdminへ変更しない。
-
-アーカイブを差し替えるときはサービスを止め、前のarchive・配布記録をprivate領域に保存してから次のbuildを準備する。ビルド中のarchiveをサービスへ渡さない。
-
-### 4. サービスを起動
-
-配布checkoutで起動し、このターミナルは動かしたままにする。Fast User Switchingで通常ユーザーへ戻れる。配布ユーザーをログアウトするとサービスは利用できなくなる。初期実装は自動起動daemonをインストールしない。
-
-```sh
-nix develop --command python3 -I scripts/testflight.py serve \
-  --config "$HOME/testflight-private/config.json"
-```
-
-別ユーザー・private home・コードの所有者・stateの権限を満たさなければ起動を拒否する。通常ユーザーがservice fileやAPI鍵を直接読めない状態を本人が確認する。socketが残った場合は、旧サービスを終了したことを確認した本人が配布ユーザーで削除する。
-
-## 通常ユーザーからアップロード
-
-通常の開発checkoutで実行する。`status`が返した準備済みarchiveのversion・build・SHA-256を、配布する対象として確認する。
-
-```sh
-nix develop --command python3 scripts/testflight.py status
-nix develop --command python3 scripts/testflight.py upload --release '確認した64桁のSHA-256'
-```
-
-アップロードは内部テスト専用で、build番号をXcodeに自動変更させない。このbuildを外部TestFlightやApp Storeへ転用することはできない。外部配布は別buildと配布方針の見直しが必要になる。[内部テスト専用buildの制約](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers)
-
-送信成功後もAppleで処理が続く。`status`で`VALID`になったことを確認する。失敗・timeout・接続切断時は自動再送せず、配布ユーザーがApp Store Connectで受信済みbuildを確認する。API本文やXcodeの認証を含む生ログをエージェントへ渡さない。サービスの試行記録を解除する判断は配布ユーザーが行う。
-
-## 内部グループと実機確認
-
-App Store Connect → nibble → TestFlightで、本人だけを含む内部グループを作る。初回は自動配布を無効にし、処理済みbuildを明示的に追加する。内部テスターはアプリへのアクセス権を持つApp Store Connectユーザーである。
-
-輸出コンプライアンスの質問には実装と利用地域に基づいて本人が回答する。現在のコードはOSのファイル保護を使用し、独自暗号処理・通信機能を実装していない。免除の判定とAppleでの回答はまだ完了していないため、`ITSAppUsesNonExemptEncryption`の宣言は固定していない。[Appleの確認手順](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)
-
-「テストする内容」には次の操作を記載する。
-
-- 作成、保存、日本語検索、編集、原文のコピー。
-- 編集途中で閉じる、下書き再開、破棄。
-- ピン留め、削除、取り消し。
-- Safariの共有シートからテキスト・URLを保存し、本体で表示する。
-
-本人のiOS 26.5端末でTestFlightからインストールし、ダミーデータで上記を確認する。TestFlightのversion/build、端末・OS、操作結果を記録する。アプリの起動と共有先からの保存が両方成立して初回配布を完了とする。実機性能、ロック時の保護、全アクセシビリティ条件をこれだけで検証済みにしない。
-
-## 秘密情報を使わない事前確認
-
-開発ユーザーは`xcodebuild archive`に`CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM=`を指定し、`-allowProvisioningUpdates`を付けずに実機向けビルドを確認できる。未署名archiveは配布ユーザーの署名済みarchiveと別に保存する。
-
-```sh
-nix develop --command python3 scripts/testflight.py archive-check \
-  artifacts/testflight/Nibble-unsigned.xcarchive
-```
-
-この検査は本体・共有拡張の同梱、識別子、version/build、iOS/SDK、Privacy Manifestとアイコン設定の存在を確認する。実際の署名・profileのentitlements、Appleのvalidation、端末インストールは検査しない。GitHub Actionsは既存のUbuntu共通検査だけを使い、Appleの秘密情報を登録しない。
+buildは`testFlightInternalTestingOnly`で送信する。外部テストやApp Store公開には使用せず、別の配布判断とbuildを用意する。Appleの[buildアップロード](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)、[内部テスター](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/)、[輸出コンプライアンス](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)も確認する。
