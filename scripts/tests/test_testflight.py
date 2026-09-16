@@ -70,9 +70,11 @@ class CredentialTests(Fixture):
         with patch.object(Path, 'open', open_checked):
             self.assertEqual(tf.load_credentials(self.home), self.values)
 
-    def test_rejects_shell_expressions_unknown_and_duplicate_fields(self):
+    def test_rejects_shell_expressions_invalid_names_and_duplicate_fields(self):
         contents = self.env.read_text()
-        for value in [contents + '\nASC_KEY_ID=ABCDEFGHIJ', contents + '\nRUN_COMMAND=anything',
+        for value in [contents + '\nASC_KEY_ID=ABCDEFGHIJ', contents + '\nINVALID-NAME=anything',
+                      contents + '\nFUTURE_VALUE="$(id)"',
+                      contents + '\nFUTURE_VALUE=`id`',
                       contents.replace(self.values['ASC_KEY_PATH'], '$(id)'),
                       contents.replace(self.values['ASC_KEY_PATH'], '/tmp/AuthKey_ABCDEFGHIJ.p8')]:
             self.env.write_text(value)
@@ -80,6 +82,37 @@ class CredentialTests(Fixture):
                     patch.object(tf.subprocess, 'run') as process:
                 tf.load_credentials(self.home)
             process.assert_not_called()
+
+    def test_export_and_additional_fields_use_only_required_values(self):
+        contents = '\n'.join('export ' + name + '=' + value for name, value in self.values.items())
+        contents += '\nexport ASC_APP_ID=1234567890\nFUTURE_NOTE="FAKE_PRIVATE_FUTURE_VALUE with spaces"'
+        contents += '\nFUTURE_EMPTY=\nPATH=/not/a/real/tool/path\nDEVELOPER_DIR=/not/a/real/xcode'
+        self.env.write_text(contents)
+        original = Path.open
+
+        def open_checked(path, *args, **kwargs):
+            self.assertEqual(path, self.env, 'Only configuration metadata may be read')
+            return original(path, *args, **kwargs)
+
+        output = io.StringIO()
+        environment = dict(os.environ)
+        with patch.object(Path, 'open', open_checked), patch.object(tf.subprocess, 'run') as native, \
+                patch.object(tf.subprocess, 'check_output') as command:
+            self.assertEqual(tf.load_credentials(self.home), self.values)
+            with patch.object(tf.Path, 'home', return_value=self.home), patch.object(tf.sys, 'platform', 'darwin'), \
+                    patch.object(tf.sys, 'argv', ['testflight.py', 'deploy', '--check-config']), \
+                    redirect_stdout(output), redirect_stderr(output):
+                self.assertEqual(tf.main(), 0)
+        native.assert_not_called()
+        command.assert_not_called()
+        self.assertEqual(dict(os.environ), environment)
+        for value in [*self.values.values(), '1234567890', 'FAKE_PRIVATE_FUTURE_VALUE', '/not/a/real']:
+            self.assertNotIn(value, output.getvalue())
+
+    def test_additional_fields_do_not_replace_missing_required_fields(self):
+        self.env.write_text(self.env.read_text().replace('ASC_TEAM_ID=', 'FUTURE_TEAM_ID='))
+        with self.assertRaises(tf.CredentialError):
+            tf.load_credentials(self.home)
 
     def test_rejects_broad_permissions_and_symlinks(self):
         self.env.chmod(0o644)
@@ -118,7 +151,7 @@ class CredentialTests(Fixture):
             ('config-missing', tf.CredentialStep.CONFIG_FILE),
             ('config-permissions', tf.CredentialStep.CONFIG_FILE),
             ('config-encoding', tf.CredentialStep.CONFIG_FILE),
-            ('config-unknown-field', tf.CredentialStep.CONFIG_FORMAT),
+            ('config-invalid-name', tf.CredentialStep.CONFIG_FORMAT),
             ('config-quoting', tf.CredentialStep.CONFIG_FORMAT),
             ('key-id', tf.CredentialStep.KEY_ID),
             ('team-id', tf.CredentialStep.TEAM_ID),
@@ -158,8 +191,8 @@ class CredentialTests(Fixture):
                     env.chmod(0o644)
                 elif name == 'config-encoding':
                     env.write_bytes(b'\xffFAKE_SECRET')
-                elif name == 'config-unknown-field':
-                    env.write_text(contents + '\nFAKE_SECRET_FIELD=FAKE_SECRET_VALUE')
+                elif name == 'config-invalid-name':
+                    env.write_text(contents + '\nINVALID-NAME=FAKE_SECRET_VALUE')
                 elif name == 'config-quoting':
                     env.write_text('ASC_KEY_ID="FAKE_SECRET_UNCLOSED')
                 elif name == 'key-missing':

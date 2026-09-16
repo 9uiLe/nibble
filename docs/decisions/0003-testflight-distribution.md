@@ -12,7 +12,7 @@
 
 `scripts/deploy-testflight.sh`を実行入口とし、Nixで固定したPythonからAppleの`xcodebuild`を呼ぶ。API認証、署名、export、アップロードはXcodeが担当する。独自JWT生成やアップロードprotocolを実装しない。
 
-認証設定とAPI鍵は`~/.appstoreconnect/`、署名の秘密鍵は本人が管理するKeychainに置く。Pythonは固定書式の設定を解釈して鍵のパスをXcodeへ渡し、鍵の内容を読み込まない。設定をshellとして実行せず、ユーザー環境の認証用変数を子プロセスへ引き継がない。
+認証設定とAPI鍵は`~/.appstoreconnect/`、署名の秘密鍵は本人が管理するKeychainに置く。Pythonは変数の代入と任意の先頭`export`を解釈し、必須4項目だけを利用する。他の用途の追加変数は保持・出力・引き継ぎを行わない。鍵のパスをXcodeへ渡し、鍵の内容を読み込まない。設定をshellとして実行せず、ユーザー環境の認証用変数を子プロセスへ引き継がない。
 
 | 担当 | 責務 |
 | --- | --- |

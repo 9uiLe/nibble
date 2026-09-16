@@ -77,7 +77,7 @@ def private_path(path, directory=False):
 class CredentialStep(Enum):
     DIRECTORY = '認証ディレクトリの存在・所有者・権限'
     CONFIG_FILE = 'nibble.envの存在・所有者・権限・読み取り'
-    CONFIG_FORMAT = 'nibble.envの4項目の書式'
+    CONFIG_FORMAT = 'nibble.envの代入書式・必須項目'
     KEY_ID = 'ASC_KEY_IDの書式'
     TEAM_ID = 'ASC_TEAM_IDの書式'
     ISSUER_ID = 'ASC_ISSUER_IDの書式'
@@ -110,18 +110,25 @@ def load_credentials(home):
         private_path(path)
         contents = path.read_text()
     values = {}
-    allowed = {'ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_KEY_PATH', 'ASC_TEAM_ID'}
+    required = {'ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_KEY_PATH', 'ASC_TEAM_ID'}
+    names = set()
     with credential_step(CredentialStep.CONFIG_FORMAT):
         for line in contents.splitlines():
             if not line.strip() or line.lstrip().startswith('#'):
                 continue
-            name, separator, value = line.partition('=')
+            assignment = re.sub(r'^export[ \t]+', '', line.strip())
+            name, separator, value = assignment.partition('=')
             name = name.strip()
-            require(separator and name in allowed and name not in values, 'Invalid assignment.')
+            require(separator and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name)
+                    and name not in names, 'Invalid assignment.')
+            names.add(name)
+            require('$(' not in value and '`' not in value, 'Shell evaluation is not supported.')
             words = shlex.split(value, comments=True)
-            require(len(words) == 1, 'Invalid value format.')
-            values[name] = words[0]
-        require(set(values) == allowed, 'Missing fields.')
+            require(len(words) <= 1, 'Invalid value format.')
+            if name in required:
+                require(len(words) == 1, 'Missing required value.')
+                values[name] = words[0]
+        require(set(values) == required, 'Missing fields.')
     for name, step in [('ASC_KEY_ID', CredentialStep.KEY_ID), ('ASC_TEAM_ID', CredentialStep.TEAM_ID)]:
         with credential_step(step):
             require(re.fullmatch('[A-Z0-9]{10}', values[name]), 'Invalid identifier format.')

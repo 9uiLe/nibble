@@ -16,7 +16,7 @@ scripts/deploy-testflight.sh
 | `--dry-run` | 共通検査、依存解決、Release archive、署名したIPAの書き出し。Developer Portalへの接続・provisioning更新は許可するが、buildをアップロードしない |
 | 引数なし | 同じ検査とarchiveを経て、XcodeからApp Store Connectへアップロードする |
 
-画面には工程名と成否、完了時のversion・buildだけを表示する。認証設定の失敗時は、固定した検査工程名（ファイルの存在・所有者・権限、4項目の書式、識別子の書式、鍵の配置規則）を返す。入力値・実際のパス・例外詳細は表示しない。送信成功後、Apple側の処理完了と内部グループへの追加をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
+画面には工程名と成否、完了時のversion・buildだけを表示する。認証設定の失敗時は、固定した検査工程名（ファイルの存在・所有者・権限、代入書式・必須項目、識別子の書式、鍵の配置規則）を返す。入力値・実際のパス・例外詳細は表示しない。送信成功後、Apple側の処理完了と内部グループへの追加をApp Store Connectで確認する。実施済みの範囲は[検証記録](testflight-validation.md)を参照する。
 
 ## 秘密情報の管理
 
@@ -63,7 +63,7 @@ App Store ConnectのUsers and Access / IntegrationsでTeam API keyを作成す�
 | --- | --- | --- |
 | `~/.appstoreconnect/` | 認証情報のディレクトリ | 所有者は実行ユーザー、`0700` |
 | `~/.appstoreconnect/AuthKey_<KEY_ID>.p8` | Appleから取得した秘密鍵 | `0600`、通常ファイル |
-| `~/.appstoreconnect/nibble.env` | 下記の4項目 | `0600`、通常ファイル |
+| `~/.appstoreconnect/nibble.env` | 下記の必須4項目。追加の変数を含められる | `0600`、通常ファイル |
 
 `nibble.env`の書式例。山括弧の部分は本人がローカルで実際の値に置き換える。このファイルの内容は会話へ貼らない。
 
@@ -74,7 +74,7 @@ ASC_KEY_PATH="$HOME/.appstoreconnect/AuthKey_<KEY_ID>.p8"
 ASC_TEAM_ID=<10文字のTEAM_ID>
 ```
 
-設定はshellとして実行しない。4項目の代入、空行、コメントのみを受け付け、`export`・コマンド置換・任意パスを許可しない。鍵の場所では`$HOME/`・`${HOME}/`・`~/`を利用できる。symlink・hard linkは使用しない。秘密鍵の内容はXcodeが読み、配布スクリプトは読み込まない。
+設定はshellとして実行しない。変数の代入、先頭の`export`、空行、コメントを受け付け、必須4項目だけを利用する。他の用途の追加変数は残してよく、nibbleは値を保持・出力せず、環境変数やXcodeの引数にも反映しない。変数名の重複、必須項目の不足、コマンド置換、任意の鍵パスは拒否する。鍵の場所では`$HOME/`・`${HOME}/`・`~/`を利用できる。symlink・hard linkは使用しない。秘密鍵の内容はXcodeが読み、配布スクリプトは読み込まない。
 
 `--check-config`が成功しても、鍵の有効性・ロール・Appleへの接続・署名は未確認。続けて`--dry-run`でIPAまでの経路を確認する。
 
