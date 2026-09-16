@@ -32,7 +32,8 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 
 | 配置・構成要素 | 責務 |
 | --- | --- |
-| `app/Nibble/LibraryView.swift` | 検索、一覧、通知、編集画面への入口 |
+| `app/Nibble/LibraryView.swift` | 標準タブ、検索フォーカス、タブごとの一覧状態、URLからの入口 |
+| `app/Nibble/LibraryScreen.swift` | 一覧、新規作成、通知、編集画面と項目操作 |
 | `LibraryModel` / `LibraryTaskOwner` | 一覧の状態と待機可能な操作、操作タスクの開始・寿命・重複方針 |
 | `app/Shared/SnippetEditor.swift` / `EditorModel` | 入力、自動保存、保存・閉じる・破棄の状態遷移 |
 | `Draft` / `LibraryRequest` / `LibraryPage` | 編集中の値、一覧の取得条件、同じDB読取時点の一覧結果 |

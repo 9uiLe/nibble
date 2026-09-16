@@ -24,6 +24,32 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "Button",
                      "--wait-timeout", "5", "--device", args.device])
 
+    def tab(text):
+        run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
+                     "--wait-timeout", "5", "--device", args.device])
+
+    def search_fields(data):
+        return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
+
+    def paste_search(text):
+        data = wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
+        # The system search field has no app-owned identifier. Resolve its live
+        # AX frame immediately before the native edit-menu gesture.
+        frame = search_fields(data)[0]["frame"]
+        run.command(["sim-use", "paste", "--via-menu",
+                     "--target-x", str(frame["x"] + frame["width"] / 2),
+                     "--target-y", str(frame["y"] + frame["height"] / 2),
+                     "--device", args.device, text])
+
+    def clear_search():
+        label("テキストを消去")
+        wait_ui("search-cleared", lambda data: not any(
+            e.get("label") == "テキストを消去" for e in data["entries"]))
+
+    def close_search():
+        label("閉じる")
+        wait_ui("search-closed", lambda data: not search_fields(data))
+
     def paste(identifier, text, replace=False):
         if replace:
             for attempt in range(2):
@@ -80,6 +106,14 @@ def main():
             run.launch()
             before = run.ui("before")
             run.screenshot("before")
+            tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
+            if set(tabs) != {"すべて", "ピン留め", "検索"} or search_fields(before):
+                raise VerificationError("Expected three native tabs and no search field in All")
+            add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == "library.add")
+            search_tab = tabs["検索"]["frame"]
+            if (add["y"] + add["height"] > search_tab["y"] or
+                    abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
+                raise VerificationError("Create must sit above the trailing search button")
             with run.recording():
                 run.tap("library.add")
                 run.ui("new-editor")
@@ -99,11 +133,15 @@ def main():
                 # Native AX text can omit surrounding whitespace. Validate the
                 # resumed bytes through save/copy below, not a display value.
                 run.tap("editor.save")
-                wait_ui("saved", lambda data: "library.search" in identifiers(data))
+                wait_ui("saved", lambda data: "library.add" in identifiers(data))
+                tab("検索")
+                focused = wait_ui("search-focused", lambda data: "Search" in identifiers(data))
+                if "library.add" in identifiers(focused):
+                    raise VerificationError("Create obscures the active search input")
                 # Identify this run's item through a unique Japanese search term.
                 # A visible-row difference can mistake an older, newly revealed row
                 # for the saved item when the keyboard or existing pins change layout.
-                paste("library.search", title)
+                paste_search(title)
                 data = wait_ui("searched", lambda data: any(
                     e.get("uniqueId", "").startswith("snippet.") and e.get("label") == title
                     for e in data["entries"]))
@@ -117,13 +155,13 @@ def main():
                 copied = run.command([XCRUN, "simctl", "pbpaste", args.device], "copied")
                 if copied != body:
                     raise VerificationError("Copied UTF-8 text differs from input")
-                run.tap("library.search.clear")
-                wait_ui("search-cleared", lambda data: "library.search.clear" not in identifiers(data))
-                paste("library.search", title)
+                clear_search()
+                paste_search(title)
                 wait_ui("searched-again", lambda data: row in identifiers(data))
-                run.tap("library.keyboard.dismiss")
+                run.screenshot("search-keyboard")
+                run.tap("Search")
                 wait_ui("search-dismissed", lambda data: row in identifiers(data)
-                        and "Return" not in identifiers(data))
+                        and "Search" not in identifiers(data) and "library.add" in identifiers(data))
                 time.sleep(0.35)
                 run.tap(row)
                 wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
@@ -147,6 +185,20 @@ def main():
                 pinned = wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 if not any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in pinned["entries"]):
                     raise VerificationError("Pin state did not update")
+                close_search()
+                tab("ピン留め")
+                pinned_tab = wait_ui("pinned-tab", lambda data: row in identifiers(data))
+                if search_fields(pinned_tab):
+                    raise VerificationError("Search field leaked into Pinned")
+                run.screenshot("pinned")
+                tab("すべて")
+                wait_ui("all-tab", lambda data: row in identifiers(data))
+                tab("検索")
+                wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
+                paste_search(title)
+                wait_ui("pin-search-result", lambda data: row in identifiers(data))
+                run.tap("Search")
+                wait_ui("pin-search-submitted", lambda data: "Search" not in identifiers(data))
                 menu(row, "delete-menu")
                 run.tap("trash")
                 deleted = wait_ui("deleted", lambda data: "library.undo" in identifiers(data))
@@ -172,9 +224,14 @@ def main():
                 run.tap("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "discarded-copy") != edited_body:
                     raise VerificationError("Discard changed the saved snippet's original text")
-                run.tap("library.search.clear")
+                clear_search()
+                paste_search("該当なし-" + uuid4().hex)
+                wait_ui("search-empty", lambda data: not any(
+                    e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
+                run.screenshot("search-empty")
+                close_search()
                 finished = wait_ui("finished", lambda data: row in identifiers(data)
-                                   and "library.search.clear" not in identifiers(data))
+                                   and not search_fields(data))
                 if any(entry.get("uniqueId", "").startswith("draft.")
                        and entry.get("label", "").endswith(edited_title) for entry in finished["entries"]):
                     raise VerificationError("Discarded draft is still listed")
@@ -184,6 +241,9 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
+                "native_tabs": True, "create_above_search": True,
+                "create_hidden_while_searching": True, "pinned_tab": True,
+                "empty_search_does_not_filter_all": True,
                 "data": "Dummy text only; existing snippets are retained",
             })
     except Exception as caught:

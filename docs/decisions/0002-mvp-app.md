@@ -1,6 +1,6 @@
 # 0002：nibble MVPの製品設計
 
-状態：採用。設計基準日：2026-09-16。
+状態：採用。設計基準日：2026-09-17。
 
 nibbleは、よく使うテキストをiPhoneに保存し、必要なときに探してコピーするアプリである。この文書は、製品の目的、データの意味、各構成要素の責務、操作の成立条件を定義する。実装規約は[ライブラリ規約](../library-policy.md)、利用者の操作と確認手順は[MVP手順](../mvp.md)、実行したソースと観測結果は[検証結果](../mvp-validation.md)に記載する。
 
@@ -80,7 +80,8 @@ SwiftUIが画面を構成し、Observationがモデルの表示状態を伝え�
 
 ```mermaid
 flowchart TB
-    Library[LibraryView] -->|開始要求| Owner[LibraryTaskOwner]
+    Tabs[LibraryView] -->|タブごとのモデル| Library[LibraryScreen]
+    Library -->|開始要求| Owner[LibraryTaskOwner]
     Owner -->|await| Model[LibraryModel]
     Model -->|一覧結果・通知・編集対象| Library
     Library -->|表示値| Row[SnippetRowContent]
@@ -97,7 +98,8 @@ flowchart TB
 
 | 構成要素 | 責務と所有する状態 |
 | --- | --- |
-| `LibraryView` | 一覧モデルとタスク所有者を`@State`で保持。フォーカス、シート、表示、利用者の操作を扱う |
+| `LibraryView` | 標準タブ、検索フォーカス、タブごとの一覧モデル、削除・製品情報のシート、URLからの入口を保持する |
+| `LibraryScreen` | 一覧の表示、新規作成、通知、編集シート、項目操作とそのタスク所有者を保持する |
 | `LibraryTaskOwner` | 一覧操作のタスクを所有。開始、重複判定、キャンセルをTaskingで管理する |
 | `LibraryModel` | 検索要求、一覧結果、編集対象、通知、エラー。読込・コピー・項目更新の待機可能なAPIを提供する |
 | `SnippetRowContent` | タイトル・本文プレビュー・ピン状態の値から行の内容を描画する |
@@ -126,7 +128,7 @@ flowchart TB
 | 区別する文字 | ひらがなとカタカナ、清音と濁音。`%`・`_`・バックスラッシュは通常文字として扱う |
 | フィルタ | 未削除の全項目、未削除のピン留め項目、削除済み項目 |
 | 並び順 | ピン留め優先、更新日時降順、UUID昇順 |
-| 下書き | UUIDとタイトル要約を取得。画面には検索語が空で削除一覧以外の場合に表示する |
+| 下書き | UUIDとタイトル要約を取得。「すべて」タブに表示する |
 | 全文の取得 | コピー時は保存済み本文、編集開始時は対象下書きの全文を1件取得する |
 
 ### 性能の評価範囲
@@ -238,13 +240,27 @@ Taskingの`ActionID`は重複判定の単位、`ActionLifetime`は所有者が�
 | 編集終了 | `SnippetEditor` / `editor.finish` | screenBound / ignoreNew |
 | 共有データの読込 | `ShareViewController` / `share.load` | screenBound / ignoreNew |
 | 下書き書込 | `SnippetEditor`の`.task(id: snapshot.sequence)` | SwiftUIが入力番号の変更とview終了に応じてキャンセル |
-| 通知期限 | `LibraryView`の`.task(id: notice?.id)` | SwiftUIが通知IDの変更とview終了に応じてキャンセル |
+| 通知期限 | `LibraryScreen`の`.task(id: notice?.id)` | SwiftUIが通知IDの変更とview終了に応じてキャンセル |
 
 lifetimeは画面やsceneを自動監視しない。所有者が終了イベントを接続する。一覧の有限なsceneBound操作はシート表示や一時的な非active化をまたいで完了する。background化では編集開始をキャンセルし、通知を消す。編集終了と共有データの読込は、それぞれの画面が消えたときにscreenBoundをキャンセルする。
 
 キャンセルは協調的な停止要求であり、確定済みのDB変更を取り消さない。コピーと共有データの読込は取得の前後、一覧は結果反映前にキャンセルを確認する。受理済みの下書き書込はDBの条件で適用を判断する。編集終了の永続化が成功した場合、途中でキャンセルが届いても画面へ成功を返す。
 
 ## 画面とフィードバック
+
+### タブと片手操作
+
+本体は「すべて」「ピン留め」「検索」の3タブで構成する。`TabView`と`Tab(role: .search)`により、画面の切り替えと検索の表示をシステムに任せる。検索欄は検索タブの`NavigationStack`へ`.searchable`を適用し、選択と入力開始を`.tabViewSearchActivation(.searchTabSelection)`で結び付ける。
+
+検索タブはシステムが末尾側へ配置する。日本語UIでは右端になる。言語の表示方向を利き手の設定として変更せず、検索の左右を選ぶ設定は設けない。タブバーはスクロールで縮小せず、操作位置を保つ。
+
+各タブは独立した`LibraryModel`と一覧を持ち、検索語や取得上限を他のタブへ渡さない。保存層は共有し、画面の表示時と編集終了時に一覧を更新する。下書きの再開は「すべて」、削除した項目はその他メニューから開く専用シートに置く。検索対象は保存済みの未削除項目全体とする。
+
+新規作成は検索タブの上に位置する末尾側の円形ボタンとし、`glassProminent`で主要な操作を示す。一覧のsafe areaに操作領域を確保し、最後の項目までスクロールできるようにする。検索フィールドにフォーカスがある間は新規作成を隠し、検索を確定してキーボードを閉じると再表示する。通知は新規作成の上に表示し、ボタンの位置を動かさない。
+
+Liquid Glassは標準タブと操作ボタンに使う。スニペットは読みやすい通常の一覧面に表示し、システムフォント、余白、背景色とアクセントカラーで製品の表情を作る。[AppleのLiquid Glass導入指針](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)と[検索タブの起動API](https://developer.apple.com/documentation/swiftui/view/tabviewsearchactivation(_:))に従う。使用APIは最低対応のiOS 26.0で利用できる。
+
+### 状態と操作結果
 
 システムフォント、Dynamic Type、標準の一覧・入力・シート・メニュー・確認ダイアログを使う。本文領域は内容に応じて伸び、編集ページ全体をスクロールできる。永続化の結果を経ずに画面が閉じないよう、編集シートのスワイプ終了は無効とする。
 
@@ -257,7 +273,7 @@ lifetimeは画面やsceneを自動監視しない。所有者が終了イベン�
 | 編集 | タイトル、本文、保存、閉じる、キーボードを閉じる操作。その他メニューに本文共有と下書き破棄 |
 | 保存失敗 | 入力と説明を残し、該当する回復操作を表示 |
 
-コピー・検索クリア・復元の操作領域は44 pt以上とする。スワイプし切るだけでは項目更新を実行しない。コピーは触覚と通知で完了を伝え、通知本文はアクセシビリティのannouncementにも送る。
+アプリが配置する新規作成・コピー・復元の操作領域は44 pt以上とする。検索欄とクリア操作は標準部品の領域を使う。スワイプし切るだけでは項目更新を実行しない。コピーは触覚と通知で完了を伝え、通知本文はアクセシビリティのannouncementにも送る。
 
 色は`NibbleTheme`で定義する。ライト外観はクリーム色の背景と錆色のアクセント、ダーク外観は暗いグレーと明るいオレンジを使う。
 
@@ -267,7 +283,7 @@ lifetimeは画面やsceneを自動監視しない。所有者が終了イベン�
 
 Viewには`@Equatable`を付け、`@MainActor EquatableBodyView`へ直接準拠する。MainActorはUI処理を実行するactorであり、準拠と生成される等価比較を同じactorに限定する。内容は同じstructの`equatableBody`へ定義し、比較の適用にはライブラリが提供する`body`を使う。
 
-`LibraryView`はButton、操作用のアクセシビリティラベル、編集・コピー・復元・メニューのclosureを保持する。表示専用の行にはclosure・参照モデル・`@State`等のDynamicPropertyを渡さない。表示値が等しくても、操作は現在のモデルと項目を参照する。状態と入力を持つ一覧全体・編集画面は通常のViewとして構成する。
+`LibraryScreen`はButton、操作用のアクセシビリティラベル、編集・コピー・復元・メニューのclosureを保持する。表示専用の行にはclosure・参照モデル・`@State`等のDynamicPropertyを渡さない。表示値が等しくても、操作は現在のモデルと項目を参照する。状態と入力を持つ一覧全体・編集画面は通常のViewとして構成する。
 
 標準部品の外観・文字サイズはSwiftUIのenvironmentで更新する。マウント済みViewのテストで入力の変更・復元と、入力が等しい状態での外観・文字サイズへの追従を確認する。描画回数や応答時間への効果は実測で判断する。
 

@@ -43,7 +43,10 @@ final class LibraryModel {
 
     func showMore() { request = request.expanded }
 
-    init(store: SnippetStore = .shared) { self.store = store }
+    init(store: SnippetStore = .shared, filter: LibraryFilter = .all) {
+        self.store = store
+        request = LibraryRequest(filter: filter)
+    }
 
     func clearNotice() { notice = nil }
 

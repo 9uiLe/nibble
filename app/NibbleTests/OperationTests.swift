@@ -37,6 +37,36 @@ extension UIIntegrationTests {
             #expect(library.error == nil)
         }
 
+        @Test func tabLibrariesKeepIndependentQueriesAndRefreshSharedChanges() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let first = try await create(store, body: "定型文")
+            let second = try await create(store, body: "検索だけに一致")
+            try await store.setPinned(true, id: first)
+            let all = LibraryModel(store: store)
+            let pinned = LibraryModel(store: store, filter: .pinned)
+            let search = LibraryModel(store: store)
+            search.query = "検索だけ"
+            search.showMore()
+            await all.refresh()
+            await pinned.refresh()
+            await search.refresh()
+            #expect(Set(all.items.map(\.id)) == [first, second])
+            #expect(pinned.items.map(\.id) == [first])
+            #expect(search.items.map(\.id) == [second])
+            #expect(all.query.isEmpty && pinned.query.isEmpty)
+            #expect(all.request.limit == LibraryRequest.pageSize)
+            let item = try #require(all.items.first { $0.id == first })
+            await all.pin(item)
+            await pinned.refresh()
+            #expect(pinned.items.isEmpty)
+            await all.delete(second)
+            await search.refresh()
+            #expect(search.items.isEmpty)
+            #expect(search.query == "検索だけ")
+        }
+
         @Test func settersOnlyChangeMemoryAndPersistenceIsAwaitable() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
