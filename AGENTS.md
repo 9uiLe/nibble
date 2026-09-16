@@ -53,6 +53,10 @@ mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`
 
 製品の採用構成は[製品設計](docs/decisions/0002-mvp-app.md)、追加の判断は[研究と検証計画](research/README.md)、共通基盤の責務は[基盤設計](docs/decisions/0001-local-ios-verification.md)を参照する。新しいtargetには設定・手順・期待結果を用意する。
 
+## 配布の秘密情報
+
+[TestFlight手順](docs/testflight.md)に従う。Appleの秘密情報はGit管理せず、別の配布専用OSユーザーへ隔離する。エージェントは秘密鍵・パスワード・トークン・配布ユーザーのhome・Keychain・認証ログを直接読み取ったり、内容の表示を依頼したりしない。配布ユーザーへのsudo・ログイン・画面操作でこの境界を越えない。本人による秘密情報の登録・サービス更新後、通常ユーザーから`testflight.py status/upload`の限定された窓口を使う。配布コードの詳細は[設計判断](docs/decisions/0003-testflight-distribution.md)を参照する。
+
 ## 検証とPRの進め方
 
 ローカルiOS検証・証跡整理・PR作成や更新では、共有Skill [nibble-verification](.agents/skills/nibble-verification/SKILL.md)を読む。Apple CLIでビルド・実行管理・撮影し、Nixのsim-useで画面を読み取り操作する。生成物はGit管理対象外の`artifacts/`へ保存する。

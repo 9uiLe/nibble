@@ -43,6 +43,7 @@
         pkgs:
         pkgs.python3.withPackages (ps: [
           ps.pyyaml
+          ps.cryptography
           ps.markdown-it-py
           ps.tree-sitter-language-pack
         ]);

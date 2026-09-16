@@ -114,6 +114,12 @@ Lintは構文を検査する。型解決・マクロ展開・外部APIの副作�
 
 `workflow-policy`ジョブは共通検査とPR本文の検査を担当する。PRの作成・push・再開・本文編集・draft解除で再実行する。mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの同ジョブの成功とbaseへの追従を要求し、バイパスを設けない。設定変更時は[実効ルール](docs/review-evidence.md#githubの必須チェック)と宣言を照合する。CI成功をiOS検証済みの意味で使わない。
 
+## TestFlight配布
+
+内部配布は[配布設計](docs/decisions/0003-testflight-distribution.md)と[設定・操作手順](docs/testflight.md)に従う。Appleの秘密情報はGit管理せず、AIエージェントと別の標準OSユーザーで保持・使用する。エージェントは公開情報の確認と限定した配布クライアントを使い、配布home・Keychain・API鍵・認証ログを直接調べない。専用ユーザーの設定・鍵の登録・配布コードの更新は本人が行う。
+
+TestFlightからの実機インストールと共有保存は配布の受け入れとしてiOS 26.5端末で確認し、MVPのSimulator評価と区別して記録する。署名なしarchive、アップロード成功、Apple側の処理完了、端末での利用成立を別々に扱う。
+
 ## UI/UXと性能の確認
 
 UI/UXに影響する変更は、内部実装も含めて対象導線を操作し、画像・動画で確認する。ビルド・テスト・実行管理・撮影はApple CLI、画面読取・操作はNixのsim-useを使う。
