@@ -7,8 +7,6 @@ struct AboutIllustration: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var session: RiveSession?
-    @State private var active = false
-    @State private var paused = false
     @State private var visible = true
     @State private var failed = false
     @State private var attempt = 0
@@ -16,7 +14,7 @@ struct AboutIllustration: View {
 
     static let contract = RiveContract(
         artboard: "About", stateMachine: "Presentation", viewModel: "AboutStory",
-        properties: ["motionAllowed": .boolean, "replay": .trigger, "active": .boolean,
+        properties: ["motionAllowed": .boolean, "active": .boolean,
                      "paper": .color, "ink": .color, "accent": .color, "muted": .color]
     )
 
@@ -24,7 +22,7 @@ struct AboutIllustration: View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
                 if let session {
-                    RiveCanvas(session: session, paused: paused || !visible, renderingRevision: paletteRevision)
+                    RiveCanvas(session: session, paused: !visible, renderingRevision: paletteRevision)
                         .allowsHitTesting(false)
                 } else {
                     HStack(spacing: 24) {
@@ -36,13 +34,13 @@ struct AboutIllustration: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .aspectRatio(400.0 / 208.0, contentMode: .fit)
+            .aspectRatio(480.0 / 300.0, contentMode: .fit)
             .accessibilityHidden(true)
             .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
 
-            Text("選ぶ → コピー → ペースト")
+            Text("選ぶ → コピー → nibbleに保存")
                 .font(.subheadline.weight(.medium))
-                .accessibilityLabel("保存した言葉を選び、コピーして、使いたいアプリにペーストします")
+                .accessibilityLabel("ほかのアプリの文章を選んでコピーし、nibbleに保存します。元の文章はそのまま残ります")
                 .accessibilityIdentifier("about.story.caption")
 
             if failed {
@@ -53,36 +51,20 @@ struct AboutIllustration: View {
                         .frame(minHeight: 34)
                 }
                 .accessibilityIdentifier("about.story.retry")
-            } else if !reduceMotion, let session {
-                Button {
-                    if active {
-                        paused.toggle()
-                    } else {
-                        paused = false
-                        session.data.fire(trigger: TriggerProperty(path: "replay"))
-                    }
-                } label: {
-                    Label(buttonTitle, systemImage: buttonSymbol).frame(minHeight: 34)
-                }
-                .accessibilityIdentifier("about.story.playback")
             }
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .task(id: attempt) { await loadAndObserve() }
+        .task(id: attempt) { await load() }
         .onChange(of: colorScheme) { updatePalette() }
         .onChange(of: contrast) { updatePalette() }
         .onChange(of: reduceMotion) {
-            paused = false
             session?.data.setValue(of: BoolProperty(path: "motionAllowed"), to: !reduceMotion)
         }
     }
 
-    private var buttonTitle: String { active ? (paused ? "再生" : "一時停止") : "もう一度見る" }
-    private var buttonSymbol: String { active ? (paused ? "play.fill" : "pause.fill") : "arrow.counterclockwise" }
-
     @MainActor
-    private func loadAndObserve() async {
+    private func load() async {
         failed = false
         do {
             if session == nil {
@@ -93,13 +75,8 @@ struct AboutIllustration: View {
                 session = loaded
                 updatePalette()
             }
-            guard let session else { return }
-            for try await value in session.data.valueStream(of: BoolProperty(path: "active")) {
-                try Task.checkCancellation()
-                active = value
-            }
         } catch is CancellationError {
-            // Leaving the screen cancels loading/subscription; existing playback stays owned by this view.
+            // The view owns the session; cancelled loads never replace it.
         } catch {
             guard !Task.isCancelled else { return }
             session = nil
@@ -113,15 +90,15 @@ struct AboutIllustration: View {
         let dark = colorScheme == .dark
         let strong = contrast == .increased
         let colors: [(String, UInt32)] = [
-            ("paper", dark ? 0xFF252822 : 0xFFFFFDF8),
-            ("ink", dark ? 0xFFF1E9E0 : 0xFF514238),
-            ("accent", dark ? 0xFFFFA366 : 0xFFA33D14),
-            ("muted", dark ? (strong ? 0xFF8D897C : 0xFF555348) : (strong ? 0xFF8D7965 : 0xFFE2D4C3))
+            ("paper", dark ? 0xFF25282C : 0xFFFFFDFC),
+            ("ink", dark ? 0xFFF1F1EF : 0xFF31373D),
+            ("accent", dark ? 0xFFFFA366 : (strong ? 0xFFA33D14 : 0xFFD66C39)),
+            ("muted", dark ? (strong ? 0xFFA3A9AF : 0xFF727980) : (strong ? 0xFF727980 : 0xFFBFC5CB))
         ]
         for (name, argb) in colors {
             data.setValue(of: ColorProperty(path: name), to: RiveRuntime.Color(argb))
         }
-        // Rive 6.27 does not draw binding changes while manually paused.
+        // Rive 6.27 needs a viewport refresh for binding changes while offscreen.
         paletteRevision += 1
     }
 }

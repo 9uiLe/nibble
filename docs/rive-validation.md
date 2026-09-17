@@ -2,6 +2,40 @@
 
 RivePresentation、AboutIllustration、AboutStoryアセットを対象とする実行記録。採用する責務と振る舞いは[演出設計](decisions/0004-rive-presentation.md)、再生成は[アセット手順](../app/Animations/README.md)に定義する。本書は観測した結果と、その保証範囲を記録する。
 
+## モバイル画面のコピー・保存ループ
+
+2026-09-18の評価対象はRML SHA-256 `4d91ffe44747c68ecd4afe03a493563b5fe6f3b380a1487014c321a1db43d3e1`、生成した`.riv` SHA-256 `d19985127a961abb687dcea6b819fb3eda2f63bf7681ad8145daf1a0a227cffd`。CLI 1.0.4 / rive-ios 6.27.0を維持し、480×300の図を6.2秒で繰り返す。
+
+- CLIのverify・unsigned生成はエラー・警告0。6プロパティの名前・型・default instance・参照を検査した。
+- `--fit=contain --viewport=960x600`で90、462、834フレームを出力し、3周期の同じ時点のPNGが完全一致した。全時点で`active=true`を読み戻した。
+- `motionAllowed=false`では`active=false`となり、通常再生の保存後330フレームと完成図のPNGが一致した。
+- コピー選択、複製の移動、保存後の完成図を原本PNGで確認した。ログ・画像・読み戻し・照合結果は`artifacts/mobile-integration/`に保存する。
+- 配布用アセットは4,884 bytesから80,316 bytesへ増加した（+75,432 bytes）。ラベルのベクター輪郭とモバイル画面の図形を含む。外部フォント・画像・新しい依存は追加していない。
+
+CLIの900フレーム測定は制作キャンバス400×208と480×300で実行された。`--viewport`を指定してもベンチマークの出力ログは各制作サイズを示したため、同寸法の性能比較として扱わない。並行したXcodeコンパイルもあり、iOSのfpsやGPU時間はこの値から判断しない。測定ログは`before-bench-fit.log`と`after-bench-fit.log`に保持する。
+
+### iOSと配布の評価
+
+同じXcode 26.5 / Swift 6.3.2、iPhone SE第3世代・iOS 26.5（23F77）で評価した。対象ソースは各runの開始・終了時のハッシュで保持する。
+
+| run ID | 結果 |
+| --- | --- |
+| `20260917T162046Z-test-d286ec` | 最終入力のRelease製品テスト61件成功。実.rivの独立Session、800フレーム後のループ状態、Reduce Motionによる停止・解除後の再開、契約不一致と欠損リソースを含む |
+| `20260917T161619Z-rive-about-b44d0c` | 通常起動、2周期以上の再生、再生ボタンなし、ライト・ダーク・コントラスト、背景復帰、Reduce Motionの有効化・解除、最大文字の末尾到達が成功 |
+| `20260917T161843Z-rive-about-reduced-b5794d` | Reduce Motion有効での初回静止、再生ボタンなし、ライト・ダーク・最大文字の末尾到達が成功。設定は元へ復元 |
+
+通常runの`motion-disabled.png`と`motion-disabled-still.png`は2秒間隔で完全一致した。静止・再開・ダーク・大文字の原本PNGを開いて確認した。通常録画は101.162秒で、5.088秒の抽出画像、および通常速度再生中の11.050 / 17.345 / 44.583秒を画面観測した。Reduce Motion録画は62.322秒で、30.492秒の抽出画像を確認した。全編の連続目視レビューとはしない。未公開のローカル媒体と観測は各runの`review.json`へ保持する。
+
+`20260917T161424Z-rive-about-a38952`はアプリ切替途中のSettingsとNibbleが混在するAXツリーを読み、復帰判定で失敗した。driverは対象bundleと説明文の出現を待つ条件に修正し、上記の最終runで再確認した。初回テスト`20260917T160745Z-test-6ccc45`も61件成功したが、driver修正後の入力照合には最終テストを使用する。
+
+同じReleaseの通常SimulatorビルドからテストbundleとdSYMを除いた本体（拡張込み）のファイル合計は17,825,550 → 17,877,158 bytes（+51,608 bytes）。RiveRuntimeの版とバイナリサイズは同一。`artifacts/mobile-integration/simulator-size.json`へ集計条件を保存した。App Storeの圧縮・端末別サイズ、実機のfps・電力、VoiceOverの音声操作、不可視中のGPU停止は未測定。
+
+TestFlightの署名・送信は配布用manifest、Apple側の配信状態と実機の確認は配布担当者の観測として分ける。
+
+## 基盤導入時の評価記録
+
+以下は`d127c4dfa682ebf4e2119c7d4aca0af6a9afa7f0`の一回再生アセットに対する記録で、モバイル画面の自動ループ版の確認結果には流用しない。
+
 ## 対象ソースと環境
 
 評価する製品ソースは `d127c4dfa682ebf4e2119c7d4aca0af6a9afa7f0`。下表の成功runは、実行開始・終了時の入力ファイルとこのコミットの内容が証跡検査で一致した記録である。実行時の作業ツリーには未コミットの変更が含まれるため、manifestのHEAD名だけでは対象を判断しない。

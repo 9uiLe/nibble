@@ -1,6 +1,6 @@
 # 説明アニメーションの制作と配布
 
-Aboutの図は、保存した言葉を選び、複製を入力先へ運ぶ流れを表す。元のカードを残し、コピーしても保存内容が消えないことを示す。説明文と再生操作はiOSのホストが表示し、Riveは図形、動き、演出内の状態遷移を管理する。
+Aboutの図は、モバイルのメモ画面で文章を選んでコピーし、nibbleに保存する流れを表す。元の文章を残し、複製を保存先へ運ぶ。二つの枠は同じ端末で使うアプリを並べた説明図で、端末間同期を表さない。説明文はiOSのホスト、図形・動き・自動ループはRiveが管理する。
 
 ## 正本と生成物
 
@@ -11,7 +11,7 @@ Aboutの図は、保存した言葉を選び、複製を入力先へ運ぶ流れ
 | [assets.json](assets.json) | 検査対象の制作ディレクトリ、配布先、接続契約、CLI版、ソースと出力のハッシュ |
 | [about-story.riv](../Nibble/Animations/about-story.riv) | アプリへ同梱する生成済みバイナリ |
 
-外部画像、フォント、Luauスクリプト、シェーダーは使用しない。制作・プレビュー・生成はRive CLIで完結し、Rive Editorや`.rev`の手作業を工程に含めない。`.riv`だけを直接修正せず、正本を編集して生成する。
+操作ラベルはRML内のベクター輪郭として保持する。外部画像、フォントファイル、Luauスクリプト、シェーダーは使用しない。制作・プレビュー・生成はRive CLIで完結し、Rive Editorや`.rev`の手作業を工程に含めない。`.riv`だけを直接修正せず、正本を編集して生成する。
 
 ## 再生成とレビュー
 
@@ -31,34 +31,33 @@ nix develop --command rive app/Animations/about
 
 ## Aboutの接続契約
 
-Artboard **About**（400×208）、State Machine **Presentation**、View Model **AboutStory**、exportするdefault instance **Default**を使用する。プロパティは全てView Modelのrootに置く。
+Artboard **About**（480×300）、State Machine **Presentation**、View Model **AboutStory**、exportするdefault instance **Default**を使用する。プロパティは全てView Modelのrootに置く。
 
 | プロパティ | 型・初期値・値域 | 更新方向と意味 |
 | --- | --- | --- |
-| motionAllowed | Boolean、true、true/false | ホスト→Rive。falseで完成図へ移り、trueへ戻しても自動再生しない |
-| replay | Trigger、初期は未発火（RML値0）、イベントとして発火 | ホスト→Rive。完成後の一回再生要求。演出中とmotionAllowed=falseでは無視する |
-| active | Boolean、false、true/false | Rive→ホスト。演出の進行状態。一時停止中もtrue。完了またはReduce Motion向けの静止状態ではfalse |
-| paper | Color、FFFFFDF8、32-bit ARGB | ホスト→Rive。カードと入力面 |
-| ink | Color、FF514238、32-bit ARGB | ホスト→Rive。内容を表す線 |
-| accent | Color、FFA33D14、32-bit ARGB | ホスト→Rive。収束時の確認記号 |
-| muted | Color、FFEADCCC、32-bit ARGB | ホスト→Rive。輪郭・経路・接地面 |
+| motionAllowed | Boolean、true、true/false | ホスト→Rive。falseで完成図へ移り、trueへ戻すと先頭から自動再生する |
+| active | Boolean、false、true/false | Rive→ホスト。ループ状態ではtrue（画面外などで停止中も保持）。Reduce Motionの完成図ではfalse |
+| paper | Color、FFFFFDFC、32-bit ARGB | ホスト→Rive。画面とカード |
+| ink | Color、FF31373D、32-bit ARGB | ホスト→Rive。内容を表す線 |
+| accent | Color、FFD66C39、32-bit ARGB | ホスト→Rive。選択、保存、確認記号 |
+| muted | Color、FFBFC5CB、32-bit ARGB | ホスト→Rive。輪郭と補助的なUI |
 
-色の初期値はライト用の制作値である。ホストは表示時に外観とコントラストに合わせた配色を設定する。`active`とtriggerは演出専用で、実際のコピー、保存、入力先アプリの状態を表さない。ホスト実装の名前・型は[AboutIllustration](../Nibble/AboutIllustration.swift)に定義する。
+色の初期値はライト用の制作値である。ホストは表示時に外観とコントラストに合わせた配色を設定する。`active`は演出専用で、実際のコピーや保存の成功を表さない。ホスト実装の名前・型は[AboutIllustration](../Nibble/AboutIllustration.swift)に定義する。
 
 ## 状態と時間
 
-通常の初回入場で**ChooseCopyPaste**を4秒間、一度だけ再生し、**Overview**で静止する。複製を持ち上げて入力面へ運ぶ動きを主役にし、入力先の線は少し遅れて現れる。確認記号は小さくオーバーシュートして収束する。完成図でも複製元と入力先の関係を読み取れる構図にする。
+**CopyAndSave**を自動再生し、6.2秒周期で繰り返す。文章選択、コピーメニュー、複製の移動、保存操作、完了の順に進む。チェックと「保存しました」は保存操作後に表示する。主動作は5.4秒までに収束し、完成図を残して次の周期へ移る。ループ境界は次の説明の開始として先頭へ戻す。再生・停止・再視聴の操作ボタンは設けない。
 
 | 条件 | 振る舞い |
 | --- | --- |
-| motionAllowed=trueで初回入場 | ChooseCopyPasteを一度再生し、Overviewへ移る |
-| motionAllowed=falseで入場、または演出中にfalseへ変更 | フレーム評価でOverviewへ移り、active=falseになる |
-| motionAllowedをtrueへ変更 | Overviewを維持し、replayを待つ |
-| Overviewでreplay | motionAllowed=trueなら先頭から一度再生する |
-| 演出中のreplay・連打 | 進行中の動きを維持する |
-| 一時停止・画面外・バックグラウンド | ホストがフレーム進行を止める。Sessionとactiveは保持する |
-| 停止条件の解除 | 同じSessionの位置から進む。手動停止が残る場合は停止を維持する |
-| Session破棄後の再入場 | 新しいSessionで初期状態から開始し、現在のmotionAllowedを適用する |
+| motionAllowed=trueで入場 | CopyAndSaveを自動で繰り返す。active=true |
+| motionAllowed=falseで入場、または途中でfalseへ変更 | Overviewの完成図へ移る。active=false |
+| motionAllowedをtrueへ変更 | CopyAndSaveの先頭から自動ループを再開する |
+| 画面外・バックグラウンド | ホストがフレーム進行を止め、Sessionと再生位置を保持する |
+| 停止条件の解除 | 同じSessionの位置から進む |
+| Session破棄後の再入場 | 新しいSessionで開始し、現在のmotionAllowedを適用する |
+
+背景は透過し、ホストの背景面を使用する。モバイルの枠と選択・保存の反応を残し、ライト・ダーク・コントラスト強調の配色をホストから渡す。
 
 ホストは停止中の配色更新にCanvasの`renderingRevision`を用いる。表示と再生位置を分けて管理する契約は[RivePresentation](../Packages/RivePresentation/README.md)に定義する。読み上げと文字拡大はホストの説明文が担当し、図の意味をアクセシビリティツリーへ重複して追加しない。
 
