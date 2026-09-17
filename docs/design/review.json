@@ -1,10 +1,13 @@
 {
   "version": 1,
-  "summary": "S05・C44の仕様をAboutView、AboutIllustration、RML、RivePresentationと照合。コピー元を残す複製・保存の演出、6.2秒自動ループ、Reduce Motionの完成図、本文内の配置と読み上げ、Sessionの所有、停止・復帰と配色更新を一貫した契約として説明する。生成手順・表示基盤の利用契約・対象ソースの検証記録を分け、実装とアセットは変更しない。",
+  "summary": "製品設計、演出設計、画面・部品台帳、動きの原則をAboutView、AboutIllustration、RML、RivePresentationと照合。製品情報は文章と図を読むScrollViewであり、制作ソース・表示基盤・ホストが図形と時間、接続とフレーム停止、環境設定と説明を分担する。Sessionの所有、Reduce Motion、配色、API世代、生成と検証の境界を共通の設計として定義する。",
   "references": [
+    "docs/decisions/0002-mvp-app.md",
+    "docs/decisions/0004-rive-presentation.md",
+    "docs/design/README.md",
+    "docs/design/foundations.md",
     "docs/design/screens.md",
-    "docs/design/components.md",
-    "docs/decisions/0004-rive-presentation.md"
+    "docs/design/components.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -47,14 +50,14 @@
     "app/Shared/SnippetStore.swift": "da85eea9e499572b7ee0a88edd0c745155d2df0968d91898daab83d6b19899cc",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "465040463a1d739f56bdf2fafbc73aef89bde1d7e4cce8865143dfd03c2422d4",
-    "docs/decisions/0004-rive-presentation.md": "17effc063a267108baf401c04d0efa1c4e37f15b9ef9c967b224aa61e95d6ba4",
-    "docs/design/README.md": "1959abb4c7c429f97a7f69d219ac9bf33e38f19574ed4c14b538a42f606189e9",
+    "docs/decisions/0002-mvp-app.md": "9b6f4a99093bf54011fdfbfe8f69abe729561c3991fd740a91507e86fd0f6910",
+    "docs/decisions/0004-rive-presentation.md": "17642d2012830e519d31f774cd6206202487e9d1137a6814de35a1d2ffc2d6ad",
+    "docs/design/README.md": "14f26f412d3533ca18df2e9a0b696664cbda9a1229147223e3ef4bf91a62d6e5",
     "docs/design/audit.md": "e4fc26e2eb87505f8f51d5676df5f882daefd33b5763baa75885770ed7575b4e",
     "docs/design/components.md": "a8f9524cb5c7e49b8a24d657f5f1ed2aa3fd5e64cc65e34ebfce1d9c965a4140",
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
     "docs/design/decisions/0001-library-actions.md": "624a628ecdbc4404221e2e399d3be99b062616c5e4fbac74e0b3e769e1a2dc24",
-    "docs/design/foundations.md": "3c639f7d4ad905c7eb3bd585ccb9b3d6468ef2a43b3378094fd7823143a49d7b",
+    "docs/design/foundations.md": "fa4a608db78d5a36e5c18fbd4e8100ea3e66e9337fef89a5025f03ecf00791bc",
     "docs/design/policy.json": "f25f7cb1cc8a02fa0cb11b615467380c9668b1de0e62a260204a32365802b6cf",
     "docs/design/screens.md": "fc210f4cf236dbe2f4d7ab24271ecd98bdbf2430812db36d563e174b1bc78a5c",
     "flake.lock": "471ca03b2a52dc5ac12dd208c19c7e47f0ca85d04c577f3849e7bffa32c30eb8",

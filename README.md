@@ -24,6 +24,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | --- | --- |
 | 製品の目的、機能、構成、データ、操作の成立条件 | [製品設計](docs/decisions/0002-mvp-app.md) |
 | UI要素の目的、配置理由、共通原則、画面構成、改善課題 | [UI設計](docs/design/README.md)、[設計監査](docs/design/audit.md) |
+| 説明アニメーションの意図、制作、iOS表示、他製品での利用 | [演出設計](docs/decisions/0004-rive-presentation.md)、[制作手順](app/Animations/README.md)、[RivePresentation](app/Packages/RivePresentation/README.md) |
 | UI設計基盤の責務、設定、実行と他製品での利用 | [共通ツールキット](tools/ui-design/README.md)、[基盤の測定記録](docs/ui-design-tooling-validation.md) |
 | 対応OS、ツール管理、検証とPRの条件 | [開発ガイド](CONTRIBUTING.md) |
 | 非同期処理、タスク所有、View比較、アニメーション、Lint | [ライブラリの実装規約](docs/library-policy.md) |
@@ -47,12 +48,15 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | `app/Nibble/LibraryView.swift` | 標準タブ、検索フォーカス、タブごとの一覧状態、URLからの入口 |
 | `app/Nibble/LibraryScreen.swift` | 上部フィルター、一覧・検索結果、新規作成、通知、編集画面と項目操作 |
 | `app/Nibble/LibrarySettingsView.swift` | 操作ボタンの左右設定、削除一覧と製品情報への入口 |
+| `app/Nibble/AboutView.swift` / `AboutIllustration` | 製品の説明、イラストの再生状態の保持、外観・動作設定、読み込みと回復 |
+| `app/Packages/RivePresentation/` | ローカルのRiveファイルの読込、接続契約の検査、表示ごとの独立した再生状態、フレーム停止 |
+| `app/Animations/` | 編集可能なRML、CLI設定、同梱アセットの生成契約 |
 | `LibraryModel` / `LibraryTaskOwner` | 一覧の状態と待機可能な操作、操作タスクの開始・寿命・重複方針 |
 | `app/Shared/SnippetEditor.swift` / `EditorModel` | 入力、自動保存、保存・閉じる・破棄の状態遷移 |
 | `Draft` / `LibraryRequest` / `LibraryPage` | 編集中の値、一覧の取得条件、同じDB読取時点の一覧結果 |
 | `app/Shared/SnippetStore.swift` | SQLite接続、検索、トランザクション、更新順序と競合の検査 |
 | `app/NibbleShare/ShareViewController.swift` | 共有テキスト・URLの取得と、共通編集画面の表示 |
-| `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較のテスト |
+| `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較、Rive接続のテスト |
 
 一覧は保存済み項目と下書きの要約を使います。下書きの再開と本文のコピーは、その時点のDBから対象1件を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
 
@@ -65,6 +69,19 @@ SwiftUI・Observationが表示状態を扱い、swift-taskingがUI側のタス�
 | `ResearchProbe` | 保存方式、検索、復旧、入力、コピー、OS連携の比較実験 | `validation/research-project.json` |
 
 製品のXcode projectは`app/Nibble.xcodeproj`、shared schemeは`Nibble`です。基盤・研究用は`validation/<対象名>.xcodeproj`と同名schemeを使います。
+
+## Riveの説明イラスト
+
+「nibbleについて」では、ほかのアプリの文章を選んでコピーし、nibbleに保存する流れを図と動きで説明します。元の文章を残したまま複製が保存先へ移る演出を6.2秒周期で自動再生し、Reduce Motionでは完成図を表示します。
+
+説明文と表示設定はSwiftUI、図形と時間はRML、ファイルの読み込みと独立した再生状態の表示はSwift PackageのRivePresentationが担当します。図は説明用であり、コピーや保存を実行しません。
+
+| 目的 | 参照先 |
+| --- | --- |
+| 構成、責務、採用理由を理解する | [演出設計](docs/decisions/0004-rive-presentation.md) |
+| 図や動きを編集し、同梱する`.riv`を再生成する | [アセットの制作と配布](app/Animations/README.md) |
+| iOSへ接続する、表示基盤を他製品で利用する | [RivePresentationの利用契約](app/Packages/RivePresentation/README.md) |
+| 対象ソースの実行結果と未確認条件を調べる | [検証記録](docs/rive-validation.md) |
 
 ## セットアップ
 
@@ -216,16 +233,3 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 | iOS検証環境の確認 | `nix develop --command python3 scripts/ios.py doctor` |
 
 依存の追加・更新は[開発ツールの管理](CONTRIBUTING.md#開発ツールの管理)、実装・証跡・PRは[開発ガイド](CONTRIBUTING.md)に従います。
-
-## Riveの説明イラスト
-
-「nibbleについて」では、ほかのアプリの文章を選んでコピーし、nibbleに保存する流れを図と動きで説明します。元の文章を残したまま複製が保存先へ移る演出を6.2秒周期で自動再生し、Reduce Motionでは完成図を表示します。
-
-説明文と表示設定はSwiftUI、図形と時間はRML、ファイルの読み込みと独立した再生状態の表示はSwift PackageのRivePresentationが担当します。図は説明用であり、コピーや保存を実行しません。
-
-| 目的 | 参照先 |
-| --- | --- |
-| 構成、責務、採用理由を理解する | [演出設計](docs/decisions/0004-rive-presentation.md) |
-| 図や動きを編集し、同梱する`.riv`を再生成する | [アセットの制作と配布](app/Animations/README.md) |
-| iOSへ接続する、表示基盤を他製品で利用する | [RivePresentationの利用契約](app/Packages/RivePresentation/README.md) |
-| 対象ソースの実行結果と未確認条件を調べる | [検証記録](docs/rive-validation.md) |

@@ -24,12 +24,14 @@
 | --- | --- |
 | モデルの操作 | 受理した処理と結果反映を完了まで待つ`async` API。同期メソッド・setterの隠れた開始や、タスク開始直後に戻る操作APIは禁止 |
 | UIのタスク所有 | `startTask`の境界とswift-taskingの`ViewTaskStore` / `TaskSlot`で、所有者・寿命・重複方針を定義 |
-| アニメーション | swift-scoped-animationの`AnimationScope` / `animationBarrier`で適用範囲を定義 |
+| アニメーション | SwiftUIの表示変化はswift-scoped-animationの`AnimationScope` / `animationBarrier`、説明イラスト内の時間と状態はRMLで定義 |
 | Viewの比較 | 表示更新を比較で制御するViewはswift-app-macrosの`@Equatable`＋`@MainActor EquatableBodyView`。通常の値型`let`入力をすべて比較し、状態と操作は呼出元に保持 |
 
 生のTask生成・別scheduler・直接アニメーション・直接比較ゲート・手書き`==`・比較除外は禁止。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task API、通常のView、値型・enumの標準Equatable合成は許可する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。
 
 操作テストはAPIを直接awaitし、戻った時点の状態・永続化を検査する。重複・キャンセルは所有者を検査し、Viewは入力の変更・復元と、同一入力での環境更新を検査する。構文Lint、compiler、テスト、画面の確認にはそれぞれ異なる保証範囲がある。
+
+説明イラストは[演出設計](docs/decisions/0004-rive-presentation.md)に従う。RivePresentationが読み込みと表示、ホストがSessionの寿命・配色・Reduce Motion・説明文、RMLが図形と演出を所有する。制作ソース、生成済み`.riv`、manifestを一組で管理し、[アセット手順](app/Animations/README.md)で再生成と検証を行う。
 
 ## 機械検査とマージ条件
 

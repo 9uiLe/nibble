@@ -1,6 +1,6 @@
 # 0002：nibble MVPの製品設計
 
-状態：採用。設計基準日：2026-09-17。
+状態：採用。設計基準日：2026-09-18。
 
 nibbleは、よく使うテキストをiPhoneに保存し、必要なときに探してコピーするアプリである。この文書は、製品の目的、データの意味、各構成要素の責務、操作の成立条件を定義する。実装規約は[ライブラリ規約](../library-policy.md)、利用者の操作と確認手順は[MVP手順](../mvp.md)、実行したソースと観測結果は[検証結果](../mvp-validation.md)に記載する。
 
@@ -99,11 +99,19 @@ MVPの範囲はプレーンテキストの保存と再利用である。同期�
 
 一覧・検索・設定のタイトルは、標準ナビゲーションバーの左側でスクロール中も位置を保つ。`LibraryNavigationTitle`が標準タイトル表示を除き、`topBarLeading`に`title3`の見出しを配置する。見出しは1行の本来の幅を確保し、操作部品のガラス背景を付けない。文字サイズの適用範囲は標準toolbarに従う。製品情報と削除一覧は、戻る・閉じる操作と標準のinlineタイトルを使う。
 
-一覧・検索・設定・製品情報・削除一覧のListは`plain`スタイルで横幅を使う。行の背景を透明にし、行・見出し・余白を共通の`nibbleCanvas`で統一する。行の境界は標準の区切り線で示す。スクロール内容の上余白は0とし、一覧ではフィルター、検索と設定ではバーの直下から内容を表示する。
+一覧・検索・設定・削除一覧のListは`plain`スタイルで横幅を使う。行の背景を透明にし、行・見出し・余白を共通の`nibbleCanvas`で統一する。行の境界は標準の区切り線で示す。スクロール内容の上余白は0とし、一覧ではフィルター、検索と設定ではバーの直下から内容を表示する。製品情報は同じ背景面のScrollViewに文章と説明イラストを置く。
 
 色は`NibbleTheme`で定義する。ライトはクリーム色の背景と錆色のアクセント、ダークは暗いグレーと明るいオレンジを使う。本文はシステムフォントとDynamic Typeで表示する。Liquid Glassは標準タブバーと新規作成に用い、スニペット本文は共通の一覧面に表示する。
 
 採用APIはiOS 26.0で利用できる。[Liquid Glassの導入指針](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)、[検索タブの起動](https://developer.apple.com/documentation/swiftui/view/tabviewsearchactivation(_:))、[標準toolbar項目](https://developer.apple.com/documentation/swiftui/toolbardefaultitemkind)、[検索時のtoolbar表示](https://developer.apple.com/documentation/swiftui/searchpresentationtoolbarbehavior/avoidhidingcontent)を実装の参照先とする。
+
+### 製品情報と利用説明
+
+「nibbleについて」は、導入、コピー・保存のイラスト、基本操作、他アプリからの取り込み、ショートカット、データの扱いを一列に読む画面である。本文と見出しは一緒にスクロールし、余白と文字の階層で読み順を示す。大きな文字でも省略せず末尾まで読める構成とする。
+
+イラストは、メモ画面で文章を選び、元の文章を残したまま複製をnibbleへ保存する流れを示す。表示範囲では自動ループし、Reduce Motionでは保存後の完成図になる。図の下の説明文が文字拡大と読み上げを担う。読み込み中・失敗時にも文章を残し、失敗時には再読み込み手段を提供する。
+
+説明の図形は実際のコピー・保存を行わず、アプリ間の関係を表す。配置は[画面S05](../design/screens.md#s05-nibbleについて)、表現・状態・表示基盤は[演出設計](0004-rive-presentation.md)に定義する。
 
 ### 失敗と回復
 
@@ -168,6 +176,8 @@ flowchart TB
     Tabs[LibraryView] -->|一覧・検索のモデル| Library[LibraryScreen]
     Tabs --> Settings[LibrarySettingsView]
     Settings --> About[AboutView]
+    About --> Illustration[AboutIllustration]
+    Illustration --> Presentation[RivePresentation]
     Tabs --> Trash[DeletedSnippetsView]
     Trash -->|削除済みのモデル| Library
     Library -->|開始要求| Owner[LibraryTaskOwner]
@@ -188,7 +198,10 @@ flowchart TB
 | 構成要素 | 責務と所有する状態 |
 | --- | --- |
 | `LibraryView` | 選択タブ、一覧・検索の独立したモデル、検索フォーカス、左右設定、削除一覧シート、URLからの入口を保持する |
-| `LibrarySettingsView` / `AboutView` | 左右設定の編集、削除一覧への入口、製品情報への標準ナビゲーションと表示 |
+| `LibrarySettingsView` | 左右設定の編集、削除一覧と製品情報への入口 |
+| `AboutView` / `AboutIllustration` | 説明の読み順、Session（一つの表示の再生状態）、外観・動作設定・可視性、読込失敗時の回復 |
+| `RivePresentation` | 同梱ファイルの読込、接続契約の検査、表示ごとの独立した再生状態、画面・アプリの寿命に従うフレーム停止 |
+| RML / `about-story.riv` | コピー・保存の図形、時間、演出状態、型付きデータ。編集可能な制作ソースと同梱する生成物 |
 | `DeletedSnippetsView` | 削除済み項目の専用モデルと検索フォーカス、シートの閉じる操作 |
 | `LibraryScreen` | フィルター、一覧・検索結果・空状態、新規作成、通知、編集シート、項目操作とそのタスク所有者を保持する |
 | `LibraryTaskOwner` | 一覧操作のタスクを所有。開始、重複判定、キャンセルをTaskingで管理する |
@@ -349,11 +362,15 @@ Viewには`@Equatable`を付け、`@MainActor EquatableBodyView`へ直接準拠�
 
 ## アニメーションの適用範囲
 
+動きは、操作への応答と利用方法の説明で責務を分ける。SwiftUIの表示変化はScopedAnimation、説明イラスト内の図形と時間はRML、システムの遷移は標準部品が管理する。
+
 通知の表示・消去は`Library.Notice`という名前の`AnimationScope`内で0.16秒のopacity遷移を使う。Reduce Motion有効時のdurationは0秒。通知本文の更新と通知の有無を区別し、scopeは有無の変化を監視する。
 
 一覧と編集画面の外側には`animationBarrier(warnsOnLeaks: false)`を置き、OSのシートtransactionの伝播を遮断する。内側の`detectAnimationLeaks`と入力領域の警告付きbarrierがアプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOSが管理する。
 
 比較境界は表示値の一致、アニメーションscopeは変化を適用する範囲を扱う。入力・スクロール・通知・Reduce Motionの実際の表示は画像と録画で確認する。
+
+説明イラストはRiveの時計でフレームを進める。AboutIllustrationはSessionを保持し、Reduce Motionと配色をData Bindingへ渡す。Canvasは可視性・Viewの寿命・scenePhaseに従って停止し、同じSessionで復帰する。演出の完了表示を、モデルの操作完了や保存の成功判定へ流用しない。
 
 ## 呼び出しと共有の契約
 
@@ -378,15 +395,16 @@ Viewには`@Equatable`を付け、`@MainActor EquatableBodyView`へ直接準拠�
 | swift-tasking 0.3.0 | タスクの所有・寿命・重複方針を共通APIで表す。操作ごとのIDと終了イベントは製品側で定義する |
 | swift-scoped-animation 0.2.2 | 表示変化の範囲と伝播をscope・barrierで表す。OS遷移との境界とReduce Motionを確認する |
 | swift-app-macros 0.3.0 | MainActor上の表示入力の比較を生成し、View定義に比較境界を置く。Mac上のマクロ実行とswift-syntaxのビルドを必要とする |
+| rive-ios 6.27.0 / Rive CLI 1.0.4 | RMLから再生成できるベクター演出を、Apple runtime APIとData Bindingで画面へ接続する。CLIの制作可否とiOSの実行可否を別々に確認する |
 | Apple同梱SQLite | 共有DB、更新番号の照合、項目と下書きの同時確定をSQLで表現できる。SQLとmigrationを手動管理する |
 | 保存済み検索キー + `instr` | 原文を保持しながら日本語1〜2文字の部分一致を扱う。件数に応じた検索遅延を測る |
 | Share Extension + 標準URLアクション | 公開APIで取り込みと画面呼び出しを提供する。共有元の形式対応と利用者のショートカット設定が必要 |
 
-Swift Package Manager（SPM）がライブラリ依存を解決する。Xcode projectは直接依存をexact versionで指定し、共有`Package.resolved`は全依存のバージョンとGit revisionを固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とテストへリンクする。
+Swift Package Manager（SPM）がライブラリ依存を解決する。Xcode projectとRivePresentationのPackage.swiftは外部依存をexact versionで指定し、共有`Package.resolved`は全依存のバージョンとGit revisionを固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とテストへリンクする。RiveRuntimeは本体だけに同梱・リンクし、通常アプリ起動で解決できるFramework探索経路を設定する。
 
 AppMacrosのmanifestはswift-syntax 603.0.2をexact指定する。swift-syntaxはMac上でマクロを構築する間接依存であり、iOSアプリの実行時ライブラリとしてリンクしない。マクロ実行にはmacOS 26以上・Swift 6.3以上と、対象ソースを確認した上でのXcodeの承認が必要になる。
 
-製品の3ライブラリはMIT、swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。ライセンス通知を製品bundleへ含める。補助ツールはNix、Xcode・SDK・SimulatorはローカルのApple配布物で管理する。詳細は[依存とビルド](../library-policy.md#依存とビルド)を参照する。
+Tasking・ScopedAnimation・AppMacros・rive-iosはMIT、swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。製品bundleにライセンス通知を含め、RiveRuntimeの同梱ライセンスも保持する。CLIを含む補助ツールはNix、Xcode・SDK・SimulatorはローカルのApple配布物で管理する。詳細は[依存とビルド](../library-policy.md#依存とビルド)を参照する。
 
 保守停止、OS・ツールチェーンとの不適合、測定した応答・描画の悪化、同期や検索要件の拡大を見直し条件とする。候補技術の一次資料と比較実験は[研究資料](../../research/README.md)に置く。
 
@@ -411,6 +429,8 @@ AppMacrosのmanifestはswift-syntax 603.0.2をexact指定する。swift-syntax�
 | `OperationTests` | モデルAPIを直接awaitした時点の表示状態と永続化 |
 | `OwnedActionTests` | UI所有者の受理、重複、キャンセル、寿命 |
 | `RowComparisonTests` | 表示入力の比較、変更と復元、外観・文字サイズへの追従 |
+| `RivePresentationTests` | 実バイナリの接続契約、独立した可変状態、ループとReduce Motion、欠損リソース |
+| `rive-assets` | RMLと生成物のハッシュ、接続名・型・参照、default instanceの定義 |
 | `swift-library-policy` | タスク開始・アニメーション・View比較の構文境界 |
 | Simulator操作・画像・録画 | 日常導線、入力、共有元への復帰、表示設定とアクセシビリティ |
 
