@@ -178,6 +178,10 @@ def main():
                 wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 tab("検索")
                 focused = wait_ui("search-focused", lambda data: "Search" in identifiers(data))
+                check_navigation_title(focused, "検索")
+                if "search.prompt" not in identifiers(focused) or any(
+                        e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
+                    raise VerificationError("Empty search must show guidance instead of saved rows")
                 if "library.add" in identifiers(focused):
                     raise VerificationError("Create obscures the active search input")
                 # Identify this run's item through a unique Japanese search term.
@@ -371,7 +375,8 @@ def main():
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
-                "create_hidden_while_searching": True, "pinned_section": True, "top_filters": True,
+                "create_hidden_while_searching": True, "search_title_visible_during_input": True,
+                "empty_search_guidance": True, "pinned_section": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,
                 "settings_about": True, "left_and_right_actions": True, "side_survives_restart": True,
                 "empty_search_does_not_filter_all": True,

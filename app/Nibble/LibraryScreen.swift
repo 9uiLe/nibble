@@ -6,6 +6,7 @@ struct LibraryScreen: View {
     let model: LibraryModel
     let title: String
     let showsFilters: Bool
+    var showsSearchPrompt = false
     let searchFocused: FocusState<Bool>.Binding
     var actionButtonSide: ActionButtonSide = .right
     @Environment(\.layoutDirection) private var layoutDirection
@@ -21,7 +22,13 @@ struct LibraryScreen: View {
                 LibraryFilterBar(selection: $library.filter)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            snippetList
+            if showsSearchPrompt && model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                ContentUnavailableView("スニペットを検索", systemImage: "magnifyingglass",
+                                       description: Text("タイトルや本文の言葉で探せます。"))
+                    .accessibilityIdentifier("search.prompt")
+            } else {
+                snippetList
+            }
         }
         .background(Color.nibbleCanvas)
         .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))

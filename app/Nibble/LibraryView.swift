@@ -24,9 +24,10 @@ struct LibraryView: View {
                 }
             }
             Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
-                library(search, title: "検索")
+                library(search, title: "検索", showsSearchPrompt: true)
                     .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
                     .searchFocused($searchFocused)
+                    .searchPresentationToolbarBehavior(.avoidHidingContent)
             }
         }
         .tabViewSearchActivation(.searchTabSelection)
@@ -66,10 +67,10 @@ struct LibraryView: View {
         }
     }
 
-    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false) -> some View {
+    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
-                          searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
+                          showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
         }
     }
 
