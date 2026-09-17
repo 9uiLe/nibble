@@ -192,19 +192,20 @@ struct LibraryScreen: View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 Label(failure.title, systemImage: "exclamationmark.circle")
-                    .font(.headline)
-                Text(failure.message).font(.callout)
+                    .font(.headline).foregroundStyle(.primary)
+                    .accessibilityIdentifier("library.error")
+                Text(failure.message).font(.callout).foregroundStyle(.primary)
                 if failure.recovery == .reload {
                     Button("一覧を再読み込み") { startTask(.reload) }
+                        .buttonStyle(.bordered).frame(minHeight: 44)
                         .accessibilityIdentifier("library.reload")
                 } else {
                     Button("閉じる") { model.dismissFailure() }
+                        .buttonStyle(.bordered).frame(minHeight: 44)
                         .accessibilityIdentifier("library.dismissFailure")
                 }
             }
-            .foregroundStyle(.primary)
             .padding(.vertical, 8)
-            .accessibilityIdentifier("library.error")
         }
     }
 
