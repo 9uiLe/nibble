@@ -128,6 +128,10 @@ struct LibraryScreen: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(draft.displayTitle).font(.headline)
                                     .foregroundStyle(.primary).lineLimit(expandedRows ? nil : 2)
+                                if !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text(draft.preview).font(.subheadline).foregroundStyle(.secondary)
+                                        .lineLimit(expandedRows ? nil : 2)
+                                }
                                 Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
                                     .font(.caption).foregroundStyle(.secondary)
                             }
@@ -137,7 +141,9 @@ struct LibraryScreen: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("下書き、\(draft.displayTitle)")
-                    .accessibilityValue(Text(draft.updatedAt, format: .dateTime.month().day().hour().minute()))
+                    .accessibilityValue(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
+                        : Text("\(draft.preview)、\(draft.updatedAt, format: .dateTime.month().day().hour().minute())"))
                     .accessibilityHint("編集を再開します")
                     .accessibilityIdentifier("draft.\(draft.id)")
                 }
@@ -163,8 +169,10 @@ struct LibraryScreen: View {
                     }
                 }
             } else {
-                Section(sectionTitle) {
+                Section {
                     ForEach(visibleItems) { item in snippetRow(item) }
+                } header: {
+                    if model.filter != .pinned && model.filter != .trash { Text(sectionTitle) }
                 }
             }
             if model.filter == .trash {
