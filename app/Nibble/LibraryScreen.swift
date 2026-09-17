@@ -88,8 +88,8 @@ struct LibraryScreen: View {
                 if model.filter != .trash && !searchFocused.wrappedValue {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 20, weight: .medium))
-                            .frame(width: 48, height: 48)
+                            .font(.system(size: 18, weight: .regular))
+                            .frame(width: 56, height: 56)
                             .contentShape(.circle)
                     }
                     .buttonStyle(.plain)
@@ -198,7 +198,7 @@ struct LibraryScreen: View {
     private func copyButton(_ item: SnippetSummary) -> some View {
         Button { startTask(.copy(item.id)) } label: {
             Image(systemName: "doc.on.doc")
-                .font(.system(size: 17, weight: .regular))
+                .font(.system(size: 16, weight: .regular))
                 .frame(width: 32, height: 32)
                 .background(Color.nibbleAccent.opacity(0.07), in: .rect(cornerRadius: 10))
                 .frame(width: 44, height: 44)

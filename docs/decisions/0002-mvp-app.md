@@ -260,7 +260,7 @@ lifetimeは画面やsceneを自動監視しない。所有者が終了イベン�
 
 設定には「操作ボタンの位置」「削除した項目」「nibbleについて」を置く。操作位置は左右から選び、新規作成と各行のコピーへ同時に適用する。既定値は右側。`AppStorage`で本体専用のUserDefaultsへ保存し、再起動後も保持する。Privacy Manifestはアプリ自身の設定に使用する理由`CA92.1`を宣言する。検索タブの位置はシステムが決め、日本語UIでは右端になる。言語の表示方向を操作位置の設定として変更しない。
 
-新規作成は48 ptの円形Liquid Glassボタンとし、20 ptの＋を表示する。コピーのシンボルは17 pt、背景は32 pt、操作領域は44 ptとする。safe areaに新規作成の領域を確保し、最後の項目までスクロールできるようにする。検索フィールドにフォーカスがある間は新規作成を隠し、検索を確定してキーボードを閉じると再表示する。通知は新規作成の上に表示し、ボタンの位置を動かさない。本文はDynamic Typeに追従させる。
+新規作成は56 ptの円形Liquid Glassボタンとし、18 ptの＋を表示する。コピーのシンボルは16 pt、背景は32 pt、操作領域は44 ptとする。safe areaに新規作成の領域を確保し、最後の項目までスクロールできるようにする。検索フィールドにフォーカスがある間は新規作成を隠し、検索を確定してキーボードを閉じると再表示する。通知は新規作成の上に表示し、ボタンの位置を動かさない。本文はDynamic Typeに追従させる。
 
 Liquid Glassは標準タブと操作ボタンに使う。スニペットは読みやすい通常の一覧面に表示し、システムフォント、余白、背景色とアクセントカラーで製品の表情を作る。[AppleのLiquid Glass導入指針](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)と[検索タブの起動API](https://developer.apple.com/documentation/swiftui/view/tabviewsearchactivation(_:))に従う。使用APIは最低対応のiOS 26.0で利用できる。
 

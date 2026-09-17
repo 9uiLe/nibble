@@ -138,7 +138,7 @@ def main():
                 raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
             add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == "library.add")
             search_tab = tabs["検索"]["frame"]
-            if not (44 <= add["width"] <= 50 and 44 <= add["height"] <= 50):
+            if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
                 raise VerificationError("Create control must remain compact and tappable")
             if (add["y"] + add["height"] > search_tab["y"] or
                     abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
