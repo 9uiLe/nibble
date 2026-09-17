@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "record": "docs/design/review.json",
+  "inputs": [
+    {
+      "path": "app",
+      "kind": "tree",
+      "exclude_directories": [
+        "*Tests",
+        "build",
+        ".build",
+        "DerivedData",
+        "xcuserdata",
+        "__pycache__"
+      ],
+      "exclude_files": [
+        "*.md",
+        ".DS_Store"
+      ]
+    },
+    {
+      "path": "docs/design",
+      "kind": "tree",
+      "exclude_directories": [
+        "__pycache__"
+      ],
+      "exclude_files": [
+        ".DS_Store"
+      ],
+      "references": true
+    },
+    {
+      "path": "docs/decisions/0002-mvp-app.md",
+      "kind": "file",
+      "references": true
+    },
+    {
+      "path": "research/06-interface-design-evidence.md",
+      "kind": "file",
+      "references": true
+    },
+    {
+      "path": "tools/ui-design",
+      "kind": "tree",
+      "exclude_directories": [
+        "__pycache__"
+      ],
+      "exclude_files": [
+        "*.pyc",
+        ".DS_Store"
+      ]
+    },
+    {
+      "path": "flake.lock",
+      "kind": "file"
+    }
+  ],
+  "registries": [
+    {
+      "prefix": "C",
+      "path": "docs/design/components.md",
+      "format": "table",
+      "columns": 4
+    },
+    {
+      "prefix": "S",
+      "path": "docs/design/screens.md",
+      "format": "heading"
+    },
+    {
+      "prefix": "F",
+      "path": "docs/design/foundations.md",
+      "format": "heading"
+    },
+    {
+      "prefix": "R",
+      "path": "research/06-interface-design-evidence.md",
+      "format": "heading"
+    },
+    {
+      "prefix": "G",
+      "path": "docs/design/audit.md",
+      "format": "heading"
+    }
+  ]
+}

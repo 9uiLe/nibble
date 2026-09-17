@@ -66,6 +66,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
 | `swift-library-policy` | 所有するSwiftの禁止API、タスク開始・所有、View比較の構文境界 |
+| `ui-design` | 共通Moduleだけのruntimeで実行する照合・設定・移設・別製品の回帰テスト |
 | `ios-tooling` | driver、証跡、PR、文書、Swift規約のPython回帰テスト |
 | `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、Swift記載例、UI設計IDと実装・文書の照合 |
 
@@ -124,6 +125,8 @@ TestFlightの内部配布先は、Apple Developerアカウントと端末を管�
 署名とアップロード、Apple側の処理とグループ配信、実機インストール、実機操作を別々に確認する。配布の受け入れはiOS 26.5実機で起動・編集・コピー・共有保存を確認し、MVPのSimulator評価と区別して[検証記録](docs/testflight-validation.md)へ残す。
 
 ## UIの設計と実装
+
+[共通ツールキット](tools/ui-design/README.md)が設計手順・ひな形・照合を担当する。製品の仕様・根拠・検証結果は`docs/design/`等、検査範囲は[policy](docs/design/policy.json)に置く。共通Moduleの単独テストとnibbleのAdapter接続テストを別々に実行し、別リポジトリへ移す際も両方を維持する。
 
 [UI設計](docs/design/README.md)は、情報構造、部品の責務、採用理由、評価条件を定義する。設計の意味はMarkdownとMermaid、実装値と振る舞いはSwift、観測結果は対象ソースを持つ検証記録で管理する。
 

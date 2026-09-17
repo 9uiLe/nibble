@@ -41,11 +41,14 @@
         };
       pythonFor =
         pkgs:
-        pkgs.python3.withPackages (ps: [
-          ps.pyyaml
-          ps.markdown-it-py
-          ps.tree-sitter-language-pack
-        ]);
+        pkgs.python3.withPackages (
+          ps:
+          [
+            ps.pyyaml
+            ps.tree-sitter-language-pack
+          ]
+          ++ (import ./tools/ui-design/python-packages.nix) ps
+        );
       toolsFor =
         pkgs:
         [
@@ -73,7 +76,7 @@
               nativeBuildInputs = [ (pythonFor pkgs) ];
             }
             ''
-              python3 ${./scripts}/check_docs.py --root ${./.}
+              python3 ${./.}/scripts/check_docs.py --root ${./.}
               touch "$out"
             '';
         swift-library-policy =
@@ -96,9 +99,22 @@
             }
             ''
               cp -R ${./scripts} scripts
-              chmod -R u+w scripts
+              mkdir -p tools
+              cp -R ${./tools/ui-design} tools/ui-design
+              chmod -R u+w scripts tools
               shellcheck scripts/deploy-testflight.sh
               python3 -m unittest discover -s scripts/tests -v
+              touch "$out"
+            '';
+        ui-design =
+          pkgs.runCommand "ui-design-contracts"
+            {
+              nativeBuildInputs = [ ((import ./tools/ui-design/default.nix) pkgs) ];
+            }
+            ''
+              cp -R ${./tools/ui-design} toolkit
+              chmod -R u+w toolkit
+              python3 -m unittest discover -s toolkit/tests -v
               touch "$out"
             '';
         workflow-policy =
@@ -122,7 +138,7 @@
               nativeBuildInputs = [ pkgs.nixfmt ];
             }
             ''
-              nixfmt --check ${./flake.nix}
+              nixfmt --check ${./flake.nix} ${./tools/ui-design/default.nix} ${./tools/ui-design/python-packages.nix}
               touch "$out"
             '';
       });
