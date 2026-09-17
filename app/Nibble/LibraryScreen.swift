@@ -324,7 +324,5 @@ private struct LibraryFilterBar: View {
         .scrollIndicators(.hidden)
         .background(Color.nibbleCanvas)
         .overlay(alignment: .bottom) { Divider() }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("一覧の表示対象")
     }
 }
