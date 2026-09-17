@@ -6,6 +6,8 @@
 
 ## 一覧・設定・検索
 
+行と余白の背景色の統一は`ea637a23fb4596d5dfd437b00ecc92bcff7bfd99`で、Releaseのライト・ダーク計12画面を確認した。[リストの背景色の検証](navigation-header-validation.md#リストの背景色)に比較元・操作・媒体と確認範囲を記載する。
+
 検索入力中の見出し、未入力時の案内、標準検索欄とキーボードの配置は`0d569da43751c3d26eaf918b907473c98ae357bc`で確認した。[検索画面の検証](search-layout-validation.md)に環境・操作・媒体と確認範囲を記載する。
 
 上部の「すべて／ピン留め／下書き」は`39560fafe586dd66327c0ae3e486a89fbfdfc4f1`でReleaseテスト47件、基本操作、最大文字と外観を確認した。[一覧フィルターの検証](library-filters-validation.md)に対象・媒体・未実施条件を記載する。
