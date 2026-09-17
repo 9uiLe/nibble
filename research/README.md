@@ -4,7 +4,7 @@ nibbleは、必要なテキストを素早く探してコピーし、作成・�
 
 製品の仕様は[製品設計（ADR 0002）](../docs/decisions/0002-mvp-app.md)、使い方と再現手順は[MVPの操作と検証](../docs/mvp.md)、製品で実施した確認は[MVPの検証結果](../docs/mvp-validation.md)を参照する。研究で取り上げるAPIや方式には、製品が採用しない候補も含む。
 
-最低対応OSは**iOS 26.0**、実行検証は**iOS 26.5のみ**。26.0への適合はdeployment targetと個別APIのavailabilityで確認する。一次資料と研究用実行結果の確認日は2026-09-13。MVPの実行評価はSimulatorに限定し、実機検証は受け入れ範囲に含めない。
+最低対応OSは**iOS 26.0**、実行検証は**iOS 26.5のみ**。26.0への適合はdeployment targetと個別APIのavailabilityで確認する。01〜05の一次資料と研究用実行結果の確認日は2026-09-13。06のUI設計資料は2026-09-17に確認した。MVPの実行評価はSimulatorに限定し、実機検証は受け入れ範囲に含めない。
 
 ## MVPの採用構成と研究の役割
 
@@ -29,6 +29,7 @@ nibbleは、必要なテキストを素早く探してコピーし、作成・�
 | [03 UI/UXと性能](03-ux-and-performance.md) | 探索・誤操作・作業復帰、入力とアクセシビリティ、応答・描画の測定 |
 | [04 セキュリティ・配布・運用](04-security-distribution-and-operations.md) | 保存・コピー・公開範囲、プライバシー宣言、署名・配布、ライセンスと運用 |
 | [05 製品の検証計画](05-decisions-and-validation.md) | MVPの評価と構成の見直しに使うV0〜V8の条件、証跡、採用判断 |
+| [06 UI要素と画面構成の設計根拠](06-interface-design-evidence.md) | 2026-09-17確認のHIG・WWDC・W3Cと、部品・画面への適用限界。[UI設計](../docs/design/README.md)へ接続 |
 | [iOS 26.5の研究用実行結果](experiments/ios-26-5-validation.md) | E01〜E25の観測、測定値、対象ソースと証跡、未実施条件 |
 | [一次資料検証](experiments/primary-source-validation.md) | P01〜P13の文書上の契約、原著の閲読範囲、根拠の限界 |
 

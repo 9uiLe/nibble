@@ -23,6 +23,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | 知りたいこと | 資料 |
 | --- | --- |
 | 製品の目的、機能、構成、データ、操作の成立条件 | [製品設計](docs/decisions/0002-mvp-app.md) |
+| UI要素の目的、配置理由、共通原則、画面構成、改善課題 | [UI設計](docs/design/README.md)、[設計監査](docs/design/audit.md) |
 | 対応OS、ツール管理、検証とPRの条件 | [開発ガイド](CONTRIBUTING.md) |
 | 非同期処理、タスク所有、View比較、アニメーション、Lint | [ライブラリの実装規約](docs/library-policy.md) |
 | 固定したSwift Package構成の確認結果と未実施条件 | [Swift Package構成の検証](docs/spm-validation.md) |
