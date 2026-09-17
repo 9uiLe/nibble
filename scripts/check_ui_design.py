@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""nibble adapter for the portable UI design module; existing CLI remains available."""
+"""nibble adapter: bind the product policy to the portable UI design API and CLI."""
 
 from pathlib import Path
 import sys

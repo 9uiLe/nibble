@@ -126,23 +126,22 @@ TestFlightの内部配布先は、Apple Developerアカウントと端末を管�
 
 ## UIの設計と実装
 
-[共通ツールキット](tools/ui-design/README.md)が設計手順・ひな形・照合を担当する。製品の仕様・根拠・検証結果は`docs/design/`等、検査範囲は[policy](docs/design/policy.json)に置く。共通Moduleの単独テストとnibbleのAdapter接続テストを別々に実行し、別リポジトリへ移す際も両方を維持する。共通基盤はファイル取得と設計判定を分離し、1回の検査で同じ入力を繰り返し読まない。nibbleの文書検査も解析結果と見出しを検査内で共有し、適用する規約は文書の配置ごとに確認する。性能比較には共通ツールの`benchmarks/measure.py`と`scripts/benchmark_docs.py`を使用する。[UI設計基盤の検証結果](docs/ui-design-tooling-validation.md)に対象ソース、条件、観測と再現手順を記録する。
+UIの各画面・部品には、目的、構成、配置理由、代替案、評価条件を定義する。[nibbleのUI設計](docs/design/README.md)を製品仕様の入口とし、利用場面から設計・実装・評価・照合へ進む。
 
-[UI設計](docs/design/README.md)は、情報構造、部品の責務、採用理由、評価条件を定義する。設計の意味はMarkdownとMermaid、実装値と振る舞いはSwift、観測結果は対象ソースを持つ検証記録で管理する。
+| 管理対象 | 正本と役割 |
+| --- | --- |
+| 情報構造・配置の意味 | `docs/design/`の画面・部品・共通原則。IDで責務を対応させる |
+| 根拠と採用判断 | [根拠資料](research/06-interface-design-evidence.md)と[判断記録](docs/design/decision-template.md)。指針、製品判断、仮説を区別する |
+| 実装値と振る舞い | Swiftの製品コード。[実装規約](docs/library-policy.md)で所有者と操作の完了を定める |
+| 観測と不足 | 対象ソースを持つ検証記録と[設計監査](docs/design/audit.md)。改善候補は採用まで監査で管理する |
+| 設計手順と照合処理 | [共通ツールキット](tools/ui-design/README.md)。製品に依存しない手順・ひな形・公開Interfaceを提供する |
+| nibbleの検査範囲 | [policy](docs/design/policy.json)。Adapterが設定を選び、必須の文書検査から照合を呼ぶ |
 
-| 作業 | 記録・確認すること | 参照先 |
-| --- | --- | --- |
-| 利用場面の定義 | 目的、対象データ、操作後の復帰先、失敗・中断・復旧 | [画面構成](docs/design/screens.md) |
-| 要素の割当 | 目的、構成、配置理由、代替案、評価条件 | [部品台帳](docs/design/components.md)、[共通原則](docs/design/foundations.md) |
-| 候補の比較 | 外部指針、製品判断、仮説、比較条件 | [一次資料](research/06-interface-design-evidence.md)、[判断記録](docs/design/decision-template.md) |
-| 実装と評価 | 状態の所有者、操作の完了、表示と回復、画像・録画 | [実装規約](docs/library-policy.md)、[製品手順](docs/mvp.md) |
-| 仕様の保守 | 採用構成、対象ソースの観測、未評価条件、改善候補 | [設計監査](docs/design/audit.md)、[製品の検証結果](docs/mvp-validation.md) |
+情報構造や操作の意味に関わる選択は判断記録を作り、台帳の契約内の調整には対象の理由を記す。同じ責務には同じIDを使い、独立した意味を持つ要素にはIDを割り当てる。構成図で読み順を整理し、iOS固有の入力・スクロール・素材はSwiftUIの試作とSimulatorで確認する。
 
-情報構造や操作の意味に関わる選択には判断記録を作り、契約内の寸法や表現の調整には部品台帳へ理由を記す。同じ責務には同じIDを使い、独立した意味を持つ要素にはIDを追加する。UIと対応する設計資料は同じ変更で更新する。
+実装と資料は[照合記録の更新手順](docs/design/README.md#変更時の手順)に従って同じPRでレビューする。仕様を維持する変更にも判断要約を残す。台帳の網羅性と理由の妥当性はレビュー、ファイル・IDの整合は共通検査、動作と見た目は[ローカルiOS検証](docs/mvp.md)が担当する。PRには対象ID、判断の要点、対象ソースと評価した条件を記載する。
 
-情報の順序は構成図、iOS固有のタップ・入力・スクロール・素材はSwiftUIの実装・試作で比較する。補助的なデザインツールを使う場合は、その比較目的を定め、採用結果をリポジトリの設計資料へ反映する。
-
-台帳の網羅性、理由の妥当性、出典の適用はレビューで評価する。共通検査は文書リンク・設計IDに加え、製品ソース・設定・アセット・設計文書を照合記録へ突き合わせ、未確認の追加・変更・削除を拒否する。[照合記録の更新手順](docs/design/README.md#変更時の手順)に従い、仕様を維持する場合も確認理由を残す。動作と見た目はローカルiOS検証で確認する。PRの目的・背景には対象IDと判断の要点を記載し、評価結果は対象ソースと実施範囲に結び付ける。
+共通ツールの独立テストとnibbleの接続テストは別々に実行する。性能は`tools/ui-design/benchmarks/measure.py`と`scripts/benchmark_docs.py`で測り、対象ソース・条件・結果を[基盤の検証記録](docs/ui-design-tooling-validation.md)に残す。設計資料は契約を定義し、特定コミットの測定値は検証記録が所有する。
 
 ## UI/UXと性能の確認
 

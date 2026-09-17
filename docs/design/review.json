@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "製品ソースとF01〜F09・S01〜S08・C01〜C43の仕様は137d37c7f1f719a9f2a67978b42ed3cdc75b548cのまま。共通基盤の設定契約、ファイル取得、設計ID判定、公開操作を分離した。取得層だけが実ファイルを読み、同じ内容でhashと設計を照合する。分割読取と表の走査、文書解析の再利用を評価し、読取回数、並行呼出し、記録の独立性、配置ごとの規約を回帰テストで確認した。公開Interfaceとpolicy version 1を維持し、不正なIDの範囲表記は拒否する。G01〜G12は未実装・採否未決定であり、基盤の検査成功をUX評価成功とは扱わない。",
+  "summary": "nibbleの採用仕様はF01〜F09・S01〜S08・C01〜C43の台帳、外部指針はR01〜R19、対象実装の不足はG01〜G12の監査で管理する。製品ソース137d37c7f1f719a9f2a67978b42ed3cdc75b548cと共通照合の実装580840e2128e0d2afc9c328393fa4c784e3cf774を基準に、製品の仕様・policy・照合記録と、共通ツールの手順・ひな形・公開操作の所有者を確認した。設定・ファイル取得・設計ID判定・公開操作の依存、読取専用のcheck、候補を返すsnapshot、失敗条件、1回読取と分割ハッシュの契約を実装と照合し、文書の目的・用語・操作・検証手順が独立して理解できることを確認した。性能値は検証記録に示す対象コミットと測定条件に限定する。G01〜G12は未実装・採否未決定であり、基盤の検査成功をUIの利用者評価成功とは扱わない。",
   "references": [
     "docs/design/README.md",
     "docs/design/components.md",
@@ -40,7 +40,7 @@
     "app/Shared/ThirdPartyNotices.txt": "9f2cae03e8767bd7b529d6deb860667a22ea02dd9373b6bd5689d1f7013d3ac7",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
     "docs/decisions/0002-mvp-app.md": "a770dc4ebd5c975b2026c004c288ca4cc25b1b516fce19a172192aa508bf4c35",
-    "docs/design/README.md": "1704e45f7241911ce7c0ae19a8b8406a964ec085aa2bc2147473788833a03a37",
+    "docs/design/README.md": "e8b13f7df370775b7577fe78eab552a63ceca2425d98c13e9260dfe1201d23b1",
     "docs/design/audit.md": "c85baf0e293bf6833422c787a82b77e7f6ff9143ac485aa65d1b30dd6b4d9eda",
     "docs/design/components.md": "d85d327cc164a1f5a881f98f7b29f1a7b44628af5d0f3a01f6a1044ae5441a76",
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
@@ -49,7 +49,7 @@
     "docs/design/screens.md": "3af79ba52637047ff77aa69995fca8f209c57ca85d882c7f4a7bd183ca8b0dd6",
     "flake.lock": "abcb3d4bfdff71f41bf110917fb2a63427aee5da37a0b41c37fc7d6207cbd20d",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
-    "tools/ui-design/README.md": "3f7285536420ca1d854d27540096615bfccd358c81b321f2ef05e275f04f72a7",
+    "tools/ui-design/README.md": "565109f0c7bad79fb35d535da795aefd7b5feef692a5c5ea6ad0432e544354a0",
     "tools/ui-design/benchmarks/measure.py": "ccc52385d51c9d4502fd585e9c78da188e319a197812ea24798c9e6552831da6",
     "tools/ui-design/default.nix": "785defe5f5d45434d35fe52b9e4a9d5edc3357a229c7aab30882a80797fcd7f0",
     "tools/ui-design/python-packages.nix": "7d1ff896b4fe71ce4e7fbbd6e8c25cdddcb78057a5aa5cc29b93d85ea8cf7138",
@@ -67,6 +67,6 @@
     "tools/ui-design/ui_design/_sources.py": "c8c1f9d93496ee7b941bb518b8b27115bd119cd0e82bb627fca1378896155cf2",
     "tools/ui-design/ui_design/cli.py": "b1690407d886439d6beef9d33397a7e0d86d3b1fc4a1355425dbc8ba334110c2",
     "tools/ui-design/ui_design/engine.py": "5e1e715b97126373c467238d955f8db0330a0710aa26aacfdcb06aa06ad9e5e1",
-    "tools/ui-design/workflow.md": "cc36e706d7b113798a3faff98915f3a2f5667d659048f697b9d0938c83d64eed"
+    "tools/ui-design/workflow.md": "34748d4be6835009b0faee64dcd08b4cae0d3786f7f4906db422ecba140143d1"
   }
 }

@@ -36,7 +36,7 @@ class DesignAdapterTests(unittest.TestCase):
         return subprocess.run([sys.executable, str(path), '--root', str(self.root), *args],
                               text=True, capture_output=True, check=False)
 
-    def test_existing_adapter_command_and_python_call_pass(self):
+    def test_adapter_command_and_python_call_pass(self):
         self.assertEqual(check_ui_design.check(self.root)['errors'], [])
         result = self.run_command('check_ui_design.py', 'check')
         self.assertEqual(result.returncode, 0, result.stderr)
