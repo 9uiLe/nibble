@@ -257,6 +257,34 @@ class DocumentationTests(unittest.TestCase):
             (root / 'README.md').write_text('[bad](absent.md)')
             self.assertTrue(check_docs.check(root)['errors'])
 
+    def test_repeated_links_read_and_analyze_each_document_once(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'target.md').write_text('# Target\n')
+            (root / 'README.md').write_text('[Target](target.md#target)\n' * 200)
+            original = Path.read_text
+            reads = []
+            def read(path, *args, **kwargs):
+                reads.append(path.name)
+                return original(path, *args, **kwargs)
+            with patch.object(Path, 'read_text', read), patch.object(check_docs, 'anchors', wraps=check_docs.anchors) as headings:
+                result = check_docs.check(root)
+            self.assertEqual(result['errors'], [])
+            self.assertEqual(result['local_links'], 200)
+            self.assertCountEqual(reads, ['README.md', 'target.md'])
+            self.assertEqual(headings.call_count, 2)
+
+    def test_cached_source_keeps_each_paths_validation_rules(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / 'examples.md'
+            source.write_text('```swift\nTask {}\n```\n')
+            (root / 'docs').mkdir()
+            (root / 'docs/library-policy.md').symlink_to(source)
+            result = check_docs.check(root)
+            self.assertEqual(result['swift_examples'], 1)
+            self.assertTrue(any('library-policy.md' in error for error in result['errors']))
+
     def test_skill_metadata_and_swift_examples_are_checked(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -9,6 +9,15 @@
 - 本体とextensionのdeployment targetは26.0。実行検証はiOS 26.5のみ、MVPでは実機検証を含めない。
 - 技術はOS/API制約、性能、保守・運用、移行容易性で選ぶ。研究の候補を採用済みと扱わない。
 
+## UIの設計判断
+
+[nibbleのUI設計](docs/design/README.md)に従い、画面・部品の目的、構成、配置理由、代替案、評価条件を定義する。共通原則・画面・部品・根拠・監査課題はIDで対応させる。外部指針、製品判断、仮説、観測は区別して記録する。
+
+- 採用する仕様と設計理由は製品の台帳、対象実装の不足と改善候補は監査、実験条件と結果は検証記録へ置く。
+- [共通ツールキット](tools/ui-design/README.md)は設計手順・ひな形・照合処理を所有する。nibble固有の仕様と検査範囲は製品側に置き、共通Moduleから製品コードやパスを参照しない。
+- `docs/design/policy.json`が検査範囲を定め、`check_docs.py`が文書・設計IDと未確認変更を検査する。理由の妥当性と網羅性はレビュー、動作と見た目はローカルiOS検証で確認する。
+- 実装と設計を照合した結果を、判断要約と確認文書付きで`docs/design/review.json`へ記録する。照合記録は確認後に更新し、検査を通す目的だけで再生成しない。
+
 ## 実装の責務
 
 | 対象 | 契約 |
@@ -30,7 +39,7 @@
 | --- | --- |
 | 共通の静的検査・回帰テスト | `nix flake check --no-update-lock-file --print-build-logs` |
 | Swiftの禁止API・開始・比較境界 | `scripts/check_swift_policy.py`。本体・拡張・テスト・研究・基盤用Swiftを検査 |
-| 文書リンク・Skill・実装規約のSwift例 | `scripts/check_docs.py`。共通検査の`documentation`に含む |
+| 文書リンク・Skill・Swift例・UI設計のIDと未確認変更 | `scripts/check_docs.py`。共通検査の`documentation`に含む |
 | iOSの端末・成否・実行中のソース変化 | `scripts/ios.py`。専用UDIDとiOS 26.5を要求し、開始・終了時のファイルを照合 |
 | runとコミット、媒体、レビュー申告の一致 | `scripts/check_evidence.py`。使用方法は[証跡とPRの検査](docs/review-evidence.md) |
 | PR本文と実際の全コミット | `scripts/check_pr.py`。PRイベントのCIでも検査し、本文編集で再実行 |
