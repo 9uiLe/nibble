@@ -121,6 +121,7 @@ struct LibraryNavigationTitle: ViewModifier {
                         Text(title)
                             .font(.title3.weight(.bold))
                             .lineLimit(1)
+                            .fixedSize()
                             .accessibilityAddTraits(.isHeader)
                             .accessibilityIdentifier("navigation.title")
                     }

@@ -32,7 +32,7 @@ def main():
         headings = [e["frame"] for e in data["entries"]
                     if e.get("role") == "Heading" and e.get("label") == title]
         if not headings or not any(frame["x"] < data["screen"]["width"] / 4
-                                   and 50 <= frame["y"] < 120 for frame in headings):
+                                   and 50 <= frame["y"] < 120 and frame["width"] >= 32 for frame in headings):
             raise VerificationError("Root title must be leading inside the navigation bar: " + title)
 
     def choose_side(side):
