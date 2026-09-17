@@ -1,6 +1,7 @@
 """Regression cases for forgotten design updates, including new and deleted inputs."""
 
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 import os
@@ -280,6 +281,64 @@ class DesignChecks(unittest.TestCase):
     def test_noncanonical_id_is_rejected(self):
         self.write('design/screens.md', '## S001 Invalid padding\n')
         self.assertTrue(any('Noncanonical design ID: S001' in error for error in self.errors()))
+
+    def test_each_input_is_opened_once_even_with_overlapping_scope(self):
+        self.policy['inputs'].append({'path': 'client/screens', 'kind': 'tree'})
+        self.write('policy.json', json.dumps(self.policy))
+        self.record()
+        opened = []
+        original_open = Path.open
+        def counted(path, *args, **kwargs):
+            opened.append(path.resolve().relative_to(self.root.resolve()).as_posix())
+            return original_open(path, *args, **kwargs)
+        with patch.object(Path, 'open', counted):
+            self.assertEqual(self.errors(), [])
+        record = json.loads((self.root / RECORD).read_text())
+        self.assertCountEqual(opened, [*record['files'], RECORD])
+
+    def test_large_asset_is_streamed_and_content_changes_are_detected(self):
+        path = self.write('client/asset.bin', 'payload' * 100000)
+        self.record()
+        original_read = Path.read_bytes
+        def read_small(source):
+            if source.name == 'asset.bin':
+                self.fail('Binary input must not be loaded with read_bytes')
+            return original_read(source)
+        with patch.object(Path, 'read_bytes', read_small):
+            self.assertEqual(self.errors(), [])
+            with path.open('ab') as stream:
+                stream.write(b'changed')
+            self.assertIn('Unreviewed changed input: client/asset.bin', self.errors())
+
+    def test_range_endpoints_must_use_canonical_padding(self):
+        for reference in ('C001〜C003', 'C1〜C3'):
+            with self.subTest(reference=reference):
+                self.write('design/screens.md', f'## S01 Library\n{reference}\n')
+                with self.assertRaisesRegex(ValueError, 'Noncanonical'):
+                    self.record()
+
+    def test_snapshot_rejects_symlink_record_destination(self):
+        path = self.root / RECORD
+        path.unlink()
+        path.symlink_to(self.root / 'product.md')
+        with self.assertRaisesRegex(ValueError, 'symlinks'):
+            self.record()
+
+    def test_snapshot_owns_its_returned_metadata(self):
+        references = ['design/screens.md']
+        value = design.snapshot(self.root, 'policy.json', 'Reviewed.', references)
+        references.append('unrelated.md')
+        self.assertEqual(value['references'], ['design/screens.md'])
+
+    def test_concurrent_checks_are_deterministic_and_do_not_cache_between_calls(self):
+        self.write('design/screens.md', '## S01 Library\nC99\n')
+        expected = design.check(self.root, 'policy.json')
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(lambda _: design.check(self.root, 'policy.json'), range(12)))
+        self.assertEqual(results, [expected] * 12)
+        self.write('design/screens.md', '## S01 Library\nC01〜C03\n')
+        self.record()
+        self.assertEqual(self.errors(), [])
 
 
 class ExtractionTests(unittest.TestCase):

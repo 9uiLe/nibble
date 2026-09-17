@@ -1,9 +1,8 @@
 {
   "version": 1,
-  "summary": "製品ソースは137d37c7f1f719a9f2a67978b42ed3cdc75b548cと同じ。F01〜F09・S01〜S08・C01〜C43の採用仕様とR01〜R19の根拠を維持し、G01〜G12は未実装・採否未決定として管理する。共通の設計手順・ひな形・照合処理を単独のツールキットへ集約し、nibble固有の対象範囲をpolicyへ分離した。設定・共通ツール・依存lockの変更も照合対象とし、製品の設計IDを検査する文書範囲を明示した。独立した製品設定でのコピー後の実行、未確認変更の拒否、必須文書検査への接続を確認した。照合成功とUX評価の成功は区別する。",
+  "summary": "製品ソースとF01〜F09・S01〜S08・C01〜C43の仕様は137d37c7f1f719a9f2a67978b42ed3cdc75b548cのまま。共通基盤の設定契約、ファイル取得、設計ID判定、公開操作を分離した。取得層だけが実ファイルを読み、同じ内容でhashと設計を照合する。分割読取と表の走査、文書解析の再利用を評価し、読取回数、並行呼出し、記録の独立性、配置ごとの規約を回帰テストで確認した。公開Interfaceとpolicy version 1を維持し、不正なIDの範囲表記は拒否する。G01〜G12は未実装・採否未決定であり、基盤の検査成功をUX評価成功とは扱わない。",
   "references": [
     "docs/design/README.md",
-    "docs/design/decision-template.md",
     "docs/design/components.md",
     "docs/design/screens.md",
     "docs/design/audit.md"
@@ -50,7 +49,8 @@
     "docs/design/screens.md": "3af79ba52637047ff77aa69995fca8f209c57ca85d882c7f4a7bd183ca8b0dd6",
     "flake.lock": "abcb3d4bfdff71f41bf110917fb2a63427aee5da37a0b41c37fc7d6207cbd20d",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
-    "tools/ui-design/README.md": "31d93835e471a3bfa86d08f3fd27be6cf06f1dc32eb8808475c32c8039fa6665",
+    "tools/ui-design/README.md": "3f7285536420ca1d854d27540096615bfccd358c81b321f2ef05e275f04f72a7",
+    "tools/ui-design/benchmarks/measure.py": "ccc52385d51c9d4502fd585e9c78da188e319a197812ea24798c9e6552831da6",
     "tools/ui-design/default.nix": "785defe5f5d45434d35fe52b9e4a9d5edc3357a229c7aab30882a80797fcd7f0",
     "tools/ui-design/python-packages.nix": "7d1ff896b4fe71ce4e7fbbd6e8c25cdddcb78057a5aa5cc29b93d85ea8cf7138",
     "tools/ui-design/templates/audit.md": "1f427e30d73c5e992233fd0029bb5851024e2f1bb53815a2eb30a7039d017546",
@@ -59,11 +59,14 @@
     "tools/ui-design/templates/evidence.md": "5d2161394a846c7e951b268042ed9e064aa56aabf42a52d43f124c02759499e7",
     "tools/ui-design/templates/foundations.md": "a70efbd6f8bfa172291fe52b0520d9ffceb85834e252622119e2bed2662e22b8",
     "tools/ui-design/templates/screen.md": "5912deeba35558fb23e96d62aad7712274adfd4d46c6e1155598f678b594a423",
-    "tools/ui-design/tests/test_engine.py": "14e4467a7dece51fb1fcb8f690c99b2b2b1a102cce9145264cc7a6374cc04288",
+    "tools/ui-design/tests/test_engine.py": "f87d0d9762f86c9d5ddc5bc20ca0bde61994a414ab7b880e5ce8dca07a1ebc99",
     "tools/ui-design/ui_design/__init__.py": "9c34d0bc8f3fbdc42c68d792509bb476986b1d7228bf922560eb7d97579f7586",
     "tools/ui-design/ui_design/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "tools/ui-design/ui_design/_catalog.py": "fbfff00c3b3f234001d77246219642e08802a782eef1209cd69a92a977530f74",
+    "tools/ui-design/ui_design/_policy.py": "6b14f8028ecd0758ec4019cefce5f8e1e03408fd3f8ebfba5442cdcdaefad98f",
+    "tools/ui-design/ui_design/_sources.py": "c8c1f9d93496ee7b941bb518b8b27115bd119cd0e82bb627fca1378896155cf2",
     "tools/ui-design/ui_design/cli.py": "b1690407d886439d6beef9d33397a7e0d86d3b1fc4a1355425dbc8ba334110c2",
-    "tools/ui-design/ui_design/engine.py": "91cef8467d216e16017b18c99303fc88de2a69f67a16e092b00a5634e600046f",
+    "tools/ui-design/ui_design/engine.py": "5e1e715b97126373c467238d955f8db0330a0710aa26aacfdcb06aa06ad9e5e1",
     "tools/ui-design/workflow.md": "cc36e706d7b113798a3faff98915f3a2f5667d659048f697b9d0938c83d64eed"
   }
 }

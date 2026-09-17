@@ -12,15 +12,29 @@ UIを利用者の目的から構成し、部品の意味・配置理由・評価
 | 利用する製品 | 利用場面、画面・部品、色・寸法・文言、根拠の採否、実行評価、policy、照合記録 |
 | 製品のAdapter | 設定ファイルの選択、既存コマンドとCIへの接続、Moduleの配置場所と使用revisionの固定 |
 
+## 内部の責務と依存
+
 ```mermaid
 flowchart LR
-    Product[製品のソース・設計・policy] --> Adapter[製品のAdapter]
-    Adapter --> Module[共通Module]
-    Module --> Report[検査結果 / 照合記録の候補]
-    Runtime[Pythonとmarkdown-it-py] --> Module
+    CLI[CLI / 製品Adapter] --> Engine[engine: check / snapshot]
+    Engine --> Sources[_sources: ファイル取得]
+    Engine --> Policy[_policy: 設定の契約]
+    Engine --> Catalog[_catalog: 設計IDの判定]
+    Sources --> Policy
+    Catalog --> Policy
 ```
 
-[engine.py](ui_design/engine.py)は製品のモジュールをimportせず、Git・ネットワーク・UI実行環境も呼び出さない。共通化するのは設計と照合の仕組みであり、製品固有の画面構成やデザイン値は製品側へ置く。
+| Module | 責務 | 外部への作用 |
+| --- | --- | --- |
+| [設定契約](ui_design/_policy.py) | JSONの検証、変更不能な入力・台帳の定義 | なし。渡された内容を解析する |
+| [ファイル取得](ui_design/_sources.py) | ルート内の列挙、除外、symlink・読取失敗の拒否、hashと文書の取得 | ファイル読取をここへ集約する |
+| [設計IDの判定](ui_design/_catalog.py) | 台帳と参照の検査、件数と診断の生成 | なし。取得済みの文字列を判定する |
+| [公開操作](ui_design/engine.py) | 取得と判定の順序、照合記録の比較・候補生成 | ファイル取得Moduleを介して読む |
+| [CLI](ui_design/cli.py) / 製品Adapter | 引数、製品設定の選択、import先、出力と終了コード | 標準出力・標準エラーへの表示、実行環境への接続 |
+
+ファイルを読めるModuleは、検査対象を決定したpolicyと実ファイルを照合する。設定や文書の判定は、パスが表す実ファイルを開かない。下位Moduleは公開操作・CLI・製品のコードをimportしない。製品が依存するInterfaceは`check`と`snapshot`に限定する。
+
+hashと設計IDの解析には、同じ1回の読取内容を使う。policyも、実際に解釈した内容からhashを計算する。記録生成は値を返し、書き込みは呼出側が明示的に行う。結果は呼出しごとに独立し、入力した参照リストの後続変更は生成済みの記録に影響しない。
 
 ## 実行環境
 
@@ -49,7 +63,24 @@ PYTHONPATH=/path/to/ui-design python3 -m ui_design \
 
 `root`は製品のルート、`config`と`references`はそのルートからの相対パス。設定やファイルの不正は`ValueError` / `OSError`で返す。検査エラーがある状態ではsnapshotを作れない。ID検査やファイル列挙など内部の関数へ利用側から依存しない。
 
-CLIは`--root`、`--config`、`check`または`snapshot`を受け取る。`snapshot`には`--summary`と一つ以上の`--reference`が必要。stdoutはJSON、設定・読取エラーはstderrへ出し、成功は終了コード0、検査・設定エラーは1、引数の不正は2とする。照合は対象ファイル全体を読み、処理量はその合計サイズに比例する。
+CLIは`--root`、`--config`、`check`または`snapshot`を受け取る。`snapshot`には`--summary`と一つ以上の`--reference`が必要。stdoutはJSON、設定・読取エラーはstderrへ出し、成功は終了コード0、検査・設定エラーは1、引数の不正は2とする。読取量は入力の合計サイズに比例する。性能とメモリの契約は次節に定める。
+
+## 性能と並行実行
+
+- 同じ入力が複数の範囲に含まれても、1回の検査で各ファイルを1回だけ読む。
+- ソースやアセットのhashは128 KiBずつ計算する。文書の解析対象だけをテキストとして保持する。
+- Markdownは文書ごとに解析し、構文木をその文書の処理後に解放する。保持量は入力のパス・hash、設計文書の本文・ID・診断、および最大の文書の構文木に依存する。
+- 表は行とセルを順に走査する。各行で後続の全トークンをコピーしない。
+- parserと収集結果は呼出しごとに作る。同一processでの独立した並行呼出しを許可する。内部の列挙・解析は直列に行い、追加のworkerやキャッシュ管理を必要としない。
+
+[測定コマンド](benchmarks/measure.py)は、小規模、1,500部品、32 MiBアセットの固定条件で公開Interfaceを評価する。ウォームアップ後の7回の時間、別測定のPython割当ピーク、別processでのCLI時間、実行ソースのサイズをJSONで返す。前後の実装を同じruntimeと端末で直列に実行して比較する。
+
+```sh
+python3 /path/to/ui-design/benchmarks/measure.py \
+  --toolkit /path/to/implementation --samples 7
+```
+
+メモリ値はprocess全体のRSSではない。検査時間にOSのファイルキャッシュが影響するため、実際の製品構成でも評価する。機械の速さに依存する時間制限をCIへ入れず、1回読取・分割読取・並行呼出しの独立性を回帰テストで保つ。
 
 ## 製品設定の形式
 
@@ -114,4 +145,4 @@ python3 -m unittest discover -s /path/to/ui-design/tests -v
 
 ## 保証範囲
 
-検査は記録した内容の一致とIDの構造を確認する。設計理由の正しさ、利用者評価、実際に見直した事実、外部指針の更新は証明しない。確認せず記録を再生成することはレビューで防ぎ、UIの挙動は利用する製品の実行環境で評価する。
+検査は記録した内容の一致とIDの構造を確認する。設計理由の正しさ、利用者評価、実際に見直した事実、外部指針の更新は証明しない。確認せず記録を再生成することはレビューで防ぎ、UIの挙動は利用する製品の実行環境で評価する。ファイルシステム全体を固定するトランザクションや書込ロックは提供しないため、検査中の対象ファイルを別processから編集しない。
