@@ -286,6 +286,13 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 
 ## Riveの表示境界
 
-RivePresentationは新Apple APIのみを使うローカルSwift Packageである。[演出設計](decisions/0004-rive-presentation.md)にファイルと再生状態の寿命、Data Binding、読み込みの失敗とキャンセル、Reduce Motionの責務を定義する。SwiftUIの遷移はScopedAnimation、Riveキャンバス内はRMLのタイムラインが担当する。Riveの制御に独自のTimer・DisplayLink・生Taskを追加しない。
+[RivePresentation](../app/Packages/RivePresentation/README.md)は、新Apple runtime APIとData Bindingでローカルの`.riv`を表示するSwift Packageである。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
 
-演出の入力値とtriggerは表示への要求であり、保存・コピー等の操作APIとは分ける。Riveの`active`や完了通知を業務の成功として扱わない。新APIの実行条件はMainActorで、ロードとインスタンス作成はasyncを直接awaitする。購読はViewの`.task`で所有する。
+| 境界 | 契約 |
+| --- | --- |
+| 実行と寿命 | MainActorでロードとSession生成を直接awaitする。ホストの`.task`がロード・購読を所有し、キャンセルされた結果を表示へ採用しない |
+| 演出と業務 | 入力値とtriggerは表示への要求とする。`active`や演出完了を、保存・コピー等の成功判定に使わない |
+| 描画 | SwiftUIの独自アニメーションはScopedAnimation、キャンバス内はRMLのタイムラインが担当する。独自のTimer・DisplayLink・生Taskでフレームを進めない |
+| ホストの責務 | 説明、外観、Reduce Motion、スクロール可視性、アクセシビリティ、読込失敗と再試行を決める |
+
+所有関係、停止中の外観更新、依存の採用・更新条件は[演出設計](decisions/0004-rive-presentation.md)、アセットと検査の契約は[制作手順](../app/Animations/README.md)を正とする。Legacy APIの入口はSwift規約で検出し、実バイナリの接続と動作はiOSテスト・画面検証で確認する。
