@@ -55,7 +55,7 @@ Artboardは描画面、State Machineは演出の状態と遷移、View Modelは�
 | ホストがフレーム進行を再開 | 保持した位置から進む。停止中の入力は次の評価で反映する |
 | Sessionを破棄して新規生成 | default instanceから開始し、現在のホスト設定を適用する |
 
-アセットへ直接触れる操作や再生ボタンは設けない。図の下の説明文が文字拡大と読み上げを担う。Reduce Motionの完成図、表示範囲外での停止、停止中の配色更新は[ホストとCanvasの契約](../Packages/RivePresentation/README.md#停止と再描画)に従って接続する。
+アセットへ直接触れる操作や再生ボタンは設けない。図の下の説明文が意味と読み上げを担う。nibbleはmotionAllowedをtrueに固定する。表示範囲外での停止、停止中の配色更新は[ホストとCanvasの契約](../Packages/RivePresentation/README.md#停止と再描画)に従って接続する。
 
 ## 編集と再生成
 

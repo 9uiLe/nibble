@@ -10,6 +10,7 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        NibbleInterface.apply(to: &traitOverrides)
         view.backgroundColor = .systemBackground
         startTask()
     }
@@ -38,7 +39,8 @@ final class ShareViewController: UIViewController {
             let draft = try await SnippetStore.shared.beginDraft(body: body)
             let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: .shared) { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
-            })
+            }.modifier(NibbleInterface()))
+            NibbleInterface.apply(to: &host.traitOverrides)
             addChild(host)
             host.view.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(host.view)

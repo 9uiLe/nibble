@@ -103,15 +103,15 @@ class AboutCheck:
         self.motion(True)
         self.run.command([XCRUN, "simctl", "launch", self.device, self.run.config["bundle_id"]])
         time.sleep(0.5)
-        self.check_illustration("motion-disabled")
-        self.run.screenshot("motion-disabled")
+        self.check_illustration("reduce-motion-on")
+        self.run.screenshot("reduce-motion-on")
         time.sleep(2)
-        self.run.screenshot("motion-disabled-still")
+        self.run.screenshot("reduce-motion-on-later")
         self.motion(False)
         self.run.command([XCRUN, "simctl", "launch", self.device, self.run.config["bundle_id"]])
-        self.check_illustration("motion-restored")
+        self.check_illustration("reduce-motion-off")
         time.sleep(2)
-        self.run.screenshot("motion-restored")
+        self.run.screenshot("reduce-motion-off")
 
     def read_page(self, name):
         data = self.run.ui(name + "-top")
@@ -160,14 +160,15 @@ def main():
         with run.recording():
             flow.open_about()
             if reduced:
-                data = flow.check_illustration("reduced-first")
-                run.screenshot("reduced-first")
-                time.sleep(2)
-                run.screenshot("reduced-still")
+                data = flow.check_illustration("reduce-motion-initial")
+                run.screenshot("reduce-motion-initial")
+                # The host always requests motion; review different poses with Reduce Motion on.
+                for index in range(7):
+                    time.sleep(2.1)
+                    run.screenshot(f"reduce-motion-loop-{index}")
                 if element(data, "about.story.playback"):
-                    raise VerificationError("Reduce Motion must hide playback")
-            else:
-                flow.playback()
+                    raise VerificationError("Automatic playback must not have controls")
+            flow.playback()
             flow.read_page("light")
             flow.option("appearance", "dark")
             flow.open_about()

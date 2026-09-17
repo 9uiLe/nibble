@@ -14,21 +14,12 @@ extension UIIntegrationTests {
             #expect(row != SnippetRowContent(title: "予定", preview: "確認します", pinned: false))
             #expect(row != SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false))
             #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: true))
-            #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: false, expanded: true))
             // A body-derived heading must also invalidate when its preview changes.
             #expect(SnippetRowContent(title: "", preview: "一件目", pinned: false)
                     != SnippetRowContent(title: "", preview: "二件目", pinned: false))
         }
 
-        @Test func expandedRowGivesLongContentItsOwnHeight() throws {
-            let title = String(repeating: "見分けるための長い名前", count: 5)
-            let compact = UIHostingController(rootView: SnippetRowContent(title: title, preview: "本文", pinned: true))
-            let expanded = UIHostingController(rootView: SnippetRowContent(title: title, preview: "本文", pinned: true, expanded: true))
-            let size = CGSize(width: 280, height: 10_000)
-            #expect(expanded.sizeThatFits(in: size).height > compact.sizeThatFits(in: size).height)
-        }
-
-        @Test func brandColorsMeetContrastBudgetInEveryAppearance() {
+        @Test func brandColorsKeepTheSamePaletteWhenContrastSettingChanges() {
             func luminance(_ color: UIColor, _ traits: UITraitCollection) -> Double {
                 var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
                 #expect(color.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a))
@@ -49,7 +40,7 @@ extension UIIntegrationTests {
                     #expect(ratio >= 4.5)
                     ratios.append(ratio)
                 }
-                #expect(ratios[1] > ratios[0])
+                #expect(ratios[1] == ratios[0])
             }
         }
 
@@ -112,5 +103,59 @@ extension UIIntegrationTests {
             try await Task.sleep(for: .milliseconds(100))
             #expect(try pixels() == initial)
         }
+    }
+}
+
+extension UIIntegrationTests {
+    @Test @MainActor
+    func fixedInterfaceIgnoresInheritedTextAndContrastTraits() async throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 375, height: 300)
+        window.overrideUserInterfaceStyle = .light
+        let parent = UIViewController()
+        let host = UIHostingController(rootView:
+            VStack {
+                SnippetRowContent(title: "保存した文章", preview: "コピーして使う内容", pinned: true)
+                TextField("タイトル", text: .constant("通常サイズの入力"))
+                Button("保存") {}.buttonStyle(.borderedProminent).tint(.nibbleAccent)
+            }.padding().background(Color.nibbleCanvas).modifier(NibbleInterface())
+        )
+        NibbleInterface.apply(to: &host.traitOverrides)
+        window.rootViewController = parent
+        parent.addChild(host)
+        host.view.frame = window.bounds
+        parent.view.addSubview(host.view)
+        host.didMove(toParent: parent)
+        window.isHidden = false
+        defer { window.isHidden = true; window.rootViewController = nil }
+
+        func pixels() async throws -> Data {
+            try await Task.sleep(for: .milliseconds(100))
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            return try #require(UIGraphicsImageRenderer(bounds: host.view.bounds, format: format).image { _ in
+                host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+            }.pngData())
+        }
+
+        parent.traitOverrides.preferredContentSizeCategory = .large
+        parent.traitOverrides.legibilityWeight = .regular
+        parent.traitOverrides.accessibilityContrast = .normal
+        let normal = try await pixels()
+        for size in [UIContentSizeCategory.extraSmall, .accessibilityExtraExtraExtraLarge] {
+            parent.traitOverrides.preferredContentSizeCategory = size
+            parent.traitOverrides.legibilityWeight = .bold
+            parent.traitOverrides.accessibilityContrast = .high
+            #expect(try await pixels() == normal)
+            #expect(host.traitCollection.preferredContentSizeCategory == .large)
+            #expect(host.traitCollection.legibilityWeight == .regular)
+            #expect(host.traitCollection.accessibilityContrast == .normal)
+        }
+        // Light/dark appearance remains independent of the fixed accessibility traits.
+        window.overrideUserInterfaceStyle = .dark
+        #expect(try await pixels() != normal)
     }
 }

@@ -130,7 +130,8 @@ def main():
             raise VerificationError("MVP execution verification requires iOS 26.5")
         with run.device_lock():
             run.launch()
-            before = run.ui("before")
+            before = wait_ui("before", lambda data: data.get("appPackage") == run.config["bundle_id"]
+                             and "navigation.title" in identifiers(data))
             check_navigation_title(before, "一覧")
             filters = {e.get("uniqueId") for e in before["entries"]
                        if e.get("uniqueId", "").startswith("library.filter.")}

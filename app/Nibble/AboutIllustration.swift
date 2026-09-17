@@ -3,9 +3,7 @@ import RiveRuntime
 import SwiftUI
 
 struct AboutIllustration: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.colorSchemeContrast) private var contrast
     @State private var session: RiveSession?
     @State private var visible = true
     @State private var failed = false
@@ -57,10 +55,6 @@ struct AboutIllustration: View {
         .controlSize(.small)
         .task(id: attempt) { await load() }
         .onChange(of: colorScheme) { updatePalette() }
-        .onChange(of: contrast) { updatePalette() }
-        .onChange(of: reduceMotion) {
-            session?.data.setValue(of: BoolProperty(path: "motionAllowed"), to: !reduceMotion)
-        }
     }
 
     @MainActor
@@ -70,7 +64,7 @@ struct AboutIllustration: View {
             if session == nil {
                 let resource = try await RiveResource.load(named: "about-story", in: .main)
                 let loaded = try await resource.makeSession(Self.contract)
-                loaded.data.setValue(of: BoolProperty(path: "motionAllowed"), to: !reduceMotion)
+                loaded.data.setValue(of: BoolProperty(path: "motionAllowed"), to: true)
                 try Task.checkCancellation()
                 session = loaded
                 updatePalette()
@@ -88,12 +82,11 @@ struct AboutIllustration: View {
     private func updatePalette() {
         guard let data = session?.data else { return }
         let dark = colorScheme == .dark
-        let strong = contrast == .increased
         let colors: [(String, UInt32)] = [
             ("paper", dark ? 0xFF25282C : 0xFFFFFDFC),
             ("ink", dark ? 0xFFF1F1EF : 0xFF31373D),
-            ("accent", dark ? 0xFFFFA366 : (strong ? 0xFFA33D14 : 0xFFD66C39)),
-            ("muted", dark ? (strong ? 0xFFA3A9AF : 0xFF727980) : (strong ? 0xFF727980 : 0xFFBFC5CB))
+            ("accent", dark ? 0xFFFFA366 : 0xFFD66C39),
+            ("muted", dark ? 0xFF727980 : 0xFFBFC5CB)
         ]
         for (name, argb) in colors {
             data.setValue(of: ColorProperty(path: name), to: RiveRuntime.Color(argb))
