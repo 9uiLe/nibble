@@ -6,6 +6,8 @@
 
 ## 一覧・設定・検索
 
+上部の「すべて／ピン留め／下書き」は`39560fafe586dd66327c0ae3e486a89fbfdfc4f1`でReleaseテスト47件、基本操作、最大文字と外観を確認した。[一覧フィルターの検証](library-filters-validation.md)に対象・媒体・未実施条件を記載する。
+
 操作ボタンの寸法は`d75808f3d7edb4f1bd1af072dc2693023aee262e`でReleaseの基本操作・左右配置・外観を確認した。新規作成56 ptとコピー44 ptの操作領域を含む結果は[ボタンの寸法検証](navigation-header-validation.md#操作ボタンの寸法)を参照する。
 
 タイトルをナビゲーションバー左側へ配置する構成は、`cbe46cf161e0c91dbd739db1a34aa3718f7a901d`でReleaseの基本操作とDebugの外観を確認した。[ナビゲーションバーとリストの検証](navigation-header-validation.md)に対象・媒体・未実施条件を記載する。
