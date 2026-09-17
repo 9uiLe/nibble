@@ -83,66 +83,68 @@ struct LibraryScreen: View {
 
     private var snippetList: some View {
         List {
-            if displaysDrafts && !model.drafts.isEmpty {
-                Section {
-                    ForEach(model.drafts) { draft in
-                        Button { startTask(.open(.draft(draft.id))) } label: {
-                            Label {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("下書きを再開").font(.subheadline.weight(.semibold))
-                                    Text(draft.title.isEmpty ? "編集中のスニペット" : draft.title)
-                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                }
-                            } icon: { Image(systemName: "square.and.pencil") }
-                        }
-                        .accessibilityIdentifier("draft.\(draft.id)")
-                    }
-                }
-            }
-
-            if let error = model.error {
-                Section {
-                    Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.red)
-                    Button("再試行") { startTask(.refresh) }
-                }
-            }
-
-            if contentIsEmpty && !model.loading && model.error == nil {
-                emptyState.listRowBackground(Color.clear)
-            } else if model.filter != .drafts {
-                if showsFilters && model.filter == .all {
-                    if !model.page.pinnedItems.isEmpty {
-                        Section("ピン留め済み") {
-                            ForEach(model.page.pinnedItems) { item in snippetRow(item) }
-                        }
-                    }
-                    if !model.page.otherItems.isEmpty {
-                        Section("その他") {
-                            ForEach(model.page.otherItems) { item in snippetRow(item) }
-                        }
-                    }
-                } else {
-                    Section(sectionTitle) {
-                        ForEach(visibleItems) { item in snippetRow(item) }
-                    }
-                }
-                if model.hasMore || model.loading {
+            Group {
+                if displaysDrafts && !model.drafts.isEmpty {
                     Section {
-                        if model.hasMore {
-                            Button("さらに表示") { model.showMore() }
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                        ForEach(model.drafts) { draft in
+                            Button { startTask(.open(.draft(draft.id))) } label: {
+                                Label {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("下書きを再開").font(.subheadline.weight(.semibold))
+                                        Text(draft.title.isEmpty ? "編集中のスニペット" : draft.title)
+                                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    }
+                                } icon: { Image(systemName: "square.and.pencil") }
+                            }
+                            .accessibilityIdentifier("draft.\(draft.id)")
                         }
-                        if model.loading { ProgressView().frame(maxWidth: .infinity) }
                     }
                 }
-                if model.filter == .trash {
-                    Text("自動では消えません。必要な項目を復元できます。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                        .listRowBackground(Color.clear)
+
+                if let error = model.error {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.red)
+                        Button("再試行") { startTask(.refresh) }
+                    }
                 }
-            } else if model.loading {
-                ProgressView().frame(maxWidth: .infinity)
+
+                if contentIsEmpty && !model.loading && model.error == nil {
+                    emptyState
+                } else if model.filter != .drafts {
+                    if showsFilters && model.filter == .all {
+                        if !model.page.pinnedItems.isEmpty {
+                            Section("ピン留め済み") {
+                                ForEach(model.page.pinnedItems) { item in snippetRow(item) }
+                            }
+                        }
+                        if !model.page.otherItems.isEmpty {
+                            Section("その他") {
+                                ForEach(model.page.otherItems) { item in snippetRow(item) }
+                            }
+                        }
+                    } else {
+                        Section(sectionTitle) {
+                            ForEach(visibleItems) { item in snippetRow(item) }
+                        }
+                    }
+                    if model.hasMore || model.loading {
+                        Section {
+                            if model.hasMore {
+                                Button("さらに表示") { model.showMore() }
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                            }
+                            if model.loading { ProgressView().frame(maxWidth: .infinity) }
+                        }
+                    }
+                    if model.filter == .trash {
+                        Text("自動では消えません。必要な項目を復元できます。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                } else if model.loading {
+                    ProgressView().frame(maxWidth: .infinity)
+                }
             }
+            .listRowBackground(Color.clear)
         }
         .id(model.filter)
         .listStyle(.plain)

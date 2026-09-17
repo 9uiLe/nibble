@@ -13,32 +13,35 @@ struct LibrarySettingsView: View {
 
     var body: some View {
         List {
-            Section {
-                Picker("操作ボタンの位置", selection: $actionButtonSide) {
-                    ForEach(ActionButtonSide.allCases) { side in
-                        Text(side.title).tag(side)
-                            .accessibilityIdentifier("settings.side.\(side.rawValue)")
+            Group {
+                Section {
+                    Picker("操作ボタンの位置", selection: $actionButtonSide) {
+                        ForEach(ActionButtonSide.allCases) { side in
+                            Text(side.title).tag(side)
+                                .accessibilityIdentifier("settings.side.\(side.rawValue)")
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("settings.actionButtonSide")
+                } header: {
+                    Text("操作ボタンの位置")
+                } footer: {
+                    Text("新規作成と各行のコピーボタンを、使いやすい側に配置します。")
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("settings.actionButtonSide")
-            } header: {
-                Text("操作ボタンの位置")
-            } footer: {
-                Text("新規作成と各行のコピーボタンを、使いやすい側に配置します。")
-            }
-            Section("ライブラリ") {
-                Button("削除した項目", systemImage: "trash", action: showTrash)
-                    .accessibilityIdentifier("library.trash")
-            }
-            Section {
-                NavigationLink {
-                    AboutView()
-                } label: {
-                    Label("nibbleについて", systemImage: "info.circle")
+                Section("ライブラリ") {
+                    Button("削除した項目", systemImage: "trash", action: showTrash)
+                        .accessibilityIdentifier("library.trash")
                 }
-                .accessibilityIdentifier("settings.about")
+                Section {
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Label("nibbleについて", systemImage: "info.circle")
+                    }
+                    .accessibilityIdentifier("settings.about")
+                }
             }
+            .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
