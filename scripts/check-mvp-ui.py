@@ -388,7 +388,7 @@ def main():
                 "data": "Dummy text only; existing snippets are retained",
             })
     except Exception as caught:
-        error = str(caught)
+        error = repr(caught)
     finally:
         run.finish(error)
     if error:
