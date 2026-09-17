@@ -16,6 +16,65 @@ struct LibraryScreen: View {
 
     var body: some View {
         @Bindable var library = model
+        VStack(spacing: 0) {
+            if showsFilters {
+                LibraryFilterBar(selection: $library.filter)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            snippetList
+        }
+        .background(Color.nibbleCanvas)
+        .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
+        .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
+            VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
+                notice
+                if model.filter != .trash && !searchFocused.wrappedValue {
+                    Button { startTask(.open(.new)) } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 18, weight: .regular))
+                            .frame(width: 56, height: 56)
+                            .contentShape(.circle)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.nibbleAccent)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .accessibilityLabel("新しいスニペット")
+                    .accessibilityIdentifier("library.add")
+                    .keyboardShortcut("n", modifiers: .command)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+        .sheet(item: $library.editor, onDismiss: { startTask(.refresh) }) { draft in
+            SnippetEditor(draft: draft, store: model.store)
+        }
+        .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
+            if let item = permanentDeletion {
+                Button("完全に削除", role: .destructive) { startTask(.permanentlyDelete(item.id)); permanentDeletion = nil }
+            }
+        } message: { Text("この項目と対応する下書きは元に戻せません。") }
+        .tint(.nibbleAccent)
+        .detectAnimationLeaks()
+        // Keep native presentation transactions outside app content; local scopes own its animation.
+        .animationBarrier(warnsOnLeaks: false)
+        .sensoryFeedback(.success, trigger: model.feedback)
+        .task(id: model.notice?.id) {
+            if let id = model.notice?.id { await model.expireNotice(id: id) }
+        }
+        .onAppear { startTask(.refresh) }
+        .onChange(of: model.request) { startTask(.refresh) }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active { startTask(.refresh) }
+            else if scenePhase == .background { taskOwner.endScreen(); model.clearNotice() }
+        }
+        .onDisappear {
+            taskOwner.endScreen()
+            model.clearNotice()
+        }
+    }
+
+    private var snippetList: some View {
         List {
             if displaysDrafts && !model.drafts.isEmpty {
                 Section {
@@ -84,57 +143,6 @@ struct LibraryScreen: View {
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
         .scrollDismissesKeyboard(.interactively)
-        .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if showsFilters { LibraryFilterBar(selection: $library.filter) }
-        }
-        .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
-            VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
-                notice
-                if model.filter != .trash && !searchFocused.wrappedValue {
-                    Button { startTask(.open(.new)) } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .regular))
-                            .frame(width: 56, height: 56)
-                            .contentShape(.circle)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.nibbleAccent)
-                    .glassEffect(.regular.interactive(), in: .circle)
-                    .accessibilityLabel("新しいスニペット")
-                    .accessibilityIdentifier("library.add")
-                    .keyboardShortcut("n", modifiers: .command)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-        }
-        .sheet(item: $library.editor, onDismiss: { startTask(.refresh) }) { draft in
-            SnippetEditor(draft: draft, store: model.store)
-        }
-        .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
-            if let item = permanentDeletion {
-                Button("完全に削除", role: .destructive) { startTask(.permanentlyDelete(item.id)); permanentDeletion = nil }
-            }
-        } message: { Text("この項目と対応する下書きは元に戻せません。") }
-        .tint(.nibbleAccent)
-        .detectAnimationLeaks()
-        // Keep native presentation transactions outside app content; local scopes own its animation.
-        .animationBarrier(warnsOnLeaks: false)
-        .sensoryFeedback(.success, trigger: model.feedback)
-        .task(id: model.notice?.id) {
-            if let id = model.notice?.id { await model.expireNotice(id: id) }
-        }
-        .onAppear { startTask(.refresh) }
-        .onChange(of: model.request) { startTask(.refresh) }
-        .onChange(of: scenePhase) {
-            if scenePhase == .active { startTask(.refresh) }
-            else if scenePhase == .background { taskOwner.endScreen(); model.clearNotice() }
-        }
-        .onDisappear {
-            taskOwner.endScreen()
-            model.clearNotice()
-        }
     }
 
     private var displaysDrafts: Bool {
