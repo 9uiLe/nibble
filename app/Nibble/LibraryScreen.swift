@@ -100,8 +100,11 @@ struct LibraryScreen: View {
                     if model.hasMore || model.loading {
                         Section {
                             if model.hasMore {
-                                Button("さらに表示") { model.showMore() }
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                Button { model.showMore() } label: {
+                                    Text("さらに表示")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .contentShape(.rect)
+                                }
                                     .accessibilityIdentifier("library.loadMore")
                             }
                             if model.loading { loadingRow }
@@ -148,8 +151,10 @@ struct LibraryScreen: View {
                     .accessibilityIdentifier("draft.\(draft.id)")
                 }
                 if model.page.hasMoreDrafts {
-                    Button("下書きをすべて見る", systemImage: "arrow.right") { model.filter = .drafts }
-                        .frame(minHeight: 44)
+                    Button { model.filter = .drafts } label: {
+                        Label("下書きをすべて見る", systemImage: "arrow.right")
+                            .frame(minHeight: 44).contentShape(.rect)
+                    }
                         .accessibilityIdentifier("library.allDrafts")
                 }
             }
@@ -197,11 +202,11 @@ struct LibraryScreen: View {
                 Text(failure.message).font(.callout).foregroundStyle(.primary)
                 if failure.recovery == .reload {
                     Button("一覧を再読み込み") { startTask(.reload) }
-                        .buttonStyle(.bordered).frame(minHeight: 44)
+                        .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.reload")
                 } else {
                     Button("閉じる") { model.dismissFailure() }
-                        .buttonStyle(.bordered).frame(minHeight: 44)
+                        .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.dismissFailure")
                 }
             }
@@ -242,9 +247,12 @@ struct LibraryScreen: View {
                     .accessibilityLabel(notice.announcement)
                     .accessibilityIdentifier("library.notice")
                     if let id = notice.undoID {
-                        Button("元に戻す") { startTask(.restore(id)) }
-                            .font(.subheadline.weight(.semibold))
-                            .frame(minHeight: 44)
+                        Button { startTask(.restore(id)) } label: {
+                            Text("元に戻す")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 44).contentShape(.rect)
+                        }
+                        .buttonStyle(.borderless)
                             .accessibilityIdentifier("library.undo")
                     }
                 }
@@ -325,8 +333,11 @@ struct LibraryScreen: View {
     private func rowActions(_ item: SnippetSummary) -> some View {
         HStack(spacing: 0) {
             if model.filter == .trash {
-                Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).frame(minWidth: 44, minHeight: 44)
+                Button { startTask(.restore(item.id)) } label: {
+                    Image(systemName: "arrow.uturn.backward").font(.body)
+                        .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+                }
+                    .buttonStyle(.borderless)
                     .accessibilityLabel("\(item.displayTitle)を復元")
                     .accessibilityIdentifier("restore.\(item.id)")
             } else { copyButton(item) }
