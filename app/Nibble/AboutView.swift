@@ -1,10 +1,9 @@
 import SwiftUI
 
 struct AboutView: View {
-    @Environment(\.dismiss) private var dismiss
     var body: some View {
-        NavigationStack {
-            List {
+        List {
+            Group {
                 Section {
                     Text("言葉を、すぐ手元に。").font(.title2.weight(.semibold))
                     Text("一覧のコピーボタンで本文をコピー。項目をタップすると編集、長押しするとピン留めや削除ができます。")
@@ -19,9 +18,13 @@ struct AboutView: View {
                     Text("アカウント、広告、アクセス解析はありません。")
                 }
             }
-            .navigationTitle("nibbleについて").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完了") { dismiss() } } }
-        }.tint(.nibbleAccent)
+            .listRowBackground(Color.clear)
+        }
+        .listStyle(.plain)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .navigationTitle("nibbleについて").navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .background(Color.nibbleCanvas)
     }
 }
 

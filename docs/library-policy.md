@@ -111,7 +111,7 @@ struct ExampleView: View {
 
 `ViewTaskStore`を保持できる型は`View`、`UIViewController`、専用の`@MainActor *TaskOwner`とする。`*Model`と`@Observable`型はタスク所有者にしない。
 
-製品では`LibraryView`が一覧モデルと`LibraryTaskOwner`を`@State`で保持する。`SnippetEditor`は編集モデルと終了操作のstore、`ShareViewController`は共有データを読み込むstoreを持つ。
+製品では`LibraryView`が一覧・検索のモデルをそれぞれ`@State`で保持し、各`LibraryScreen`が`LibraryTaskOwner`を所有する。URLからの編集開始と削除シート終了後の更新は`LibraryView`の所有者が扱う。`SnippetEditor`は編集モデルと終了操作のstore、`ShareViewController`は共有データを読み込むstoreを持つ。
 
 | 設定・API | 意味と規則 |
 | --- | --- |
@@ -176,7 +176,7 @@ struct CaptionContent: @MainActor EquatableBodyView {
 }
 ```
 
-製品の`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を`let`で受け取り、3つすべてを比較する。Button、アクセシビリティの操作ラベル、コピー・編集・削除等のclosureは`LibraryView`が保持する。表示値が等しい場合も、操作は現在のモデル・項目を参照する。
+製品の`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を`let`で受け取り、3つすべてを比較する。Button、アクセシビリティの操作ラベル、コピー・編集・削除等のclosureは`LibraryScreen`が保持する。表示値が等しい場合も、操作は現在のモデル・項目を参照する。
 
 | 対象 | 契約 |
 | --- | --- |

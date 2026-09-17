@@ -24,6 +24,58 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "Button",
                      "--wait-timeout", "5", "--device", args.device])
 
+    def tab(text):
+        run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
+                     "--wait-timeout", "5", "--device", args.device])
+
+    def check_navigation_title(data, title):
+        headings = [e["frame"] for e in data["entries"]
+                    if e.get("role") == "Heading" and e.get("label") == title]
+        if not headings or not any(frame["x"] < data["screen"]["width"] / 4
+                                   and 50 <= frame["y"] < 120 and frame["width"] >= 32 for frame in headings):
+            raise VerificationError("Root title must be leading inside the navigation bar: " + title)
+
+    def choose_side(side):
+        data = wait_ui("position-picker", lambda data: "settings.actionButtonSide" in identifiers(data))
+        frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "settings.actionButtonSide")
+        # sim-use exposes this native segmented control as one TabGroup. Its two
+        # visible segments are left/right; resolve the live frame before tapping.
+        run.command(["sim-use", "tap", "-x", str(frame["x"] + frame["width"] * (0.25 if side == "left" else 0.75)),
+                     "-y", str(frame["y"] + frame["height"] / 2), "--device", args.device])
+
+    def check_side(data, side, snippet_id):
+        add = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
+        row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
+        copy = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "copy." + snippet_id)
+        if side == "left":
+            valid = copy["x"] < row["x"] and add["x"] < row["x"] + row["width"] / 2
+        else:
+            valid = copy["x"] >= row["x"] + row["width"] - 1 and add["x"] > row["x"] + row["width"] / 2
+        if not valid or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
+            raise VerificationError("Action position or minimum target size is incorrect: " + side)
+
+    def search_fields(data):
+        return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
+
+    def paste_search(text):
+        data = wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
+        # The system search field has no app-owned identifier. Resolve its live
+        # AX frame immediately before the native edit-menu gesture.
+        frame = search_fields(data)[0]["frame"]
+        run.command(["sim-use", "paste", "--via-menu",
+                     "--target-x", str(frame["x"] + frame["width"] / 2),
+                     "--target-y", str(frame["y"] + frame["height"] / 2),
+                     "--device", args.device, text])
+
+    def clear_search():
+        label("テキストを消去")
+        wait_ui("search-cleared", lambda data: not any(
+            e.get("label") == "テキストを消去" for e in data["entries"]))
+
+    def close_search():
+        label("閉じる")
+        wait_ui("search-closed", lambda data: not search_fields(data))
+
     def paste(identifier, text, replace=False):
         if replace:
             for attempt in range(2):
@@ -79,7 +131,22 @@ def main():
         with run.device_lock():
             run.launch()
             before = run.ui("before")
+            check_navigation_title(before, "一覧")
+            filters = {e.get("uniqueId") for e in before["entries"]
+                       if e.get("uniqueId", "").startswith("library.filter.")}
+            if filters != {"library.filter.all", "library.filter.pinned", "library.filter.drafts"}:
+                raise VerificationError("Expected All, Pinned and Drafts filters above the library")
             run.screenshot("before")
+            tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
+            if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
+                raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
+            add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == "library.add")
+            search_tab = tabs["検索"]["frame"]
+            if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
+                raise VerificationError("Create control must remain compact and tappable")
+            if (add["y"] + add["height"] > search_tab["y"] or
+                    abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
+                raise VerificationError("Create must sit above the trailing search button")
             with run.recording():
                 run.tap("library.add")
                 run.ui("new-editor")
@@ -93,17 +160,34 @@ def main():
                           if entry.get("uniqueId", "").startswith("draft.") and entry.get("label", "").endswith(title)]
                 if len(drafts) != 1:
                     raise VerificationError("Expected exactly one draft for this run's title")
+                run.tap("library.filter.drafts")
+                filtered_drafts = wait_ui("draft-filter", lambda data: drafts[0] in identifiers(data)
+                                         and not any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
+                run.screenshot("draft-filter")
                 run.tap(drafts[0])
                 wait_ui("draft-resumed", lambda data: "editor.body" in identifiers(data))
                 run.screenshot("resumed-draft")
                 # Native AX text can omit surrounding whitespace. Validate the
                 # resumed bytes through save/copy below, not a display value.
                 run.tap("editor.save")
-                wait_ui("saved", lambda data: "library.search" in identifiers(data))
+                wait_ui("saved", lambda data: "library.add" in identifiers(data))
+                remaining_drafts = run.ui("saved-draft-removed")
+                if drafts[0] in identifiers(remaining_drafts):
+                    raise VerificationError("Saved draft remains in the Drafts filter")
+                run.tap("library.filter.all")
+                wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
+                tab("検索")
+                focused = wait_ui("search-focused", lambda data: "Search" in identifiers(data))
+                check_navigation_title(focused, "検索")
+                if "search.prompt" not in identifiers(focused) or any(
+                        e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
+                    raise VerificationError("Empty search must show guidance instead of saved rows")
+                if "library.add" in identifiers(focused):
+                    raise VerificationError("Create obscures the active search input")
                 # Identify this run's item through a unique Japanese search term.
                 # A visible-row difference can mistake an older, newly revealed row
                 # for the saved item when the keyboard or existing pins change layout.
-                paste("library.search", title)
+                paste_search(title)
                 data = wait_ui("searched", lambda data: any(
                     e.get("uniqueId", "").startswith("snippet.") and e.get("label") == title
                     for e in data["entries"]))
@@ -117,13 +201,13 @@ def main():
                 copied = run.command([XCRUN, "simctl", "pbpaste", args.device], "copied")
                 if copied != body:
                     raise VerificationError("Copied UTF-8 text differs from input")
-                run.tap("library.search.clear")
-                wait_ui("search-cleared", lambda data: "library.search.clear" not in identifiers(data))
-                paste("library.search", title)
+                clear_search()
+                paste_search(title)
                 wait_ui("searched-again", lambda data: row in identifiers(data))
-                run.tap("library.keyboard.dismiss")
+                run.screenshot("search-keyboard")
+                run.tap("Search")
                 wait_ui("search-dismissed", lambda data: row in identifiers(data)
-                        and "Return" not in identifiers(data))
+                        and "Search" not in identifiers(data) and "library.add" in identifiers(data))
                 time.sleep(0.35)
                 run.tap(row)
                 wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
@@ -147,6 +231,78 @@ def main():
                 pinned = wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 if not any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in pinned["entries"]):
                     raise VerificationError("Pin state did not update")
+                close_search()
+                tab("一覧")
+                grouped = wait_ui("grouped-library", lambda data: row in identifiers(data))
+                if search_fields(grouped) or not any(e.get("label") == "ピン留め済み" for e in grouped["entries"]):
+                    raise VerificationError("Pinned items must have their own section in Library")
+                run.screenshot("pinned")
+                run.tap("library.filter.pinned")
+                pins = wait_ui("pinned-filter", lambda data: row in identifiers(data)
+                               and not any(e.get("uniqueId", "").startswith("draft.") for e in data["entries"]))
+                if any(e.get("uniqueId", "").startswith("snippet.") and "ピン留め" not in e.get("label", "") for e in pins["entries"]):
+                    raise VerificationError("Pinned filter contains an unpinned item")
+                run.screenshot("pinned-filter")
+                menu(row, "unpin-filter-menu")
+                label("ピン留めを外す")
+                wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
+                tab("検索")
+                wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
+                # Native search cancellation clears its query. Search this item
+                # again while the library remains scoped to pinned snippets.
+                paste_search(title)
+                wait_ui("independent-search", lambda data: row in identifiers(data))
+                run.tap("Search")
+                wait_ui("independent-search-submitted", lambda data: "Search" not in identifiers(data))
+                menu(row, "repin-filter-menu")
+                label("ピン留め")
+                wait_ui("repinned-filter", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
+                close_search()
+                tab("一覧")
+                wait_ui("pinned-filter-returned", lambda data: row in identifiers(data))
+                run.tap("library.filter.all")
+                wait_ui("all-filter-restored", lambda data: row in identifiers(data))
+                tab("設定")
+                settings = wait_ui("settings", lambda data: "settings.about" in identifiers(data))
+                check_navigation_title(settings, "設定")
+                run.screenshot("settings")
+                run.tap("settings.about")
+                wait_ui("about", lambda data: any(e.get("label") == "言葉を、すぐ手元に。" for e in data["entries"]))
+                run.screenshot("about")
+                label("設定")
+                wait_ui("settings-returned", lambda data: "settings.about" in identifiers(data))
+                choose_side("left")
+                run.ui("left-setting")
+                tab("一覧")
+                left = wait_ui("left-library", lambda data: row in identifiers(data))
+                check_side(left, "left", snippet_id)
+                run.screenshot("left-library")
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "left-copy") != edited_body:
+                    raise VerificationError("Left-side copy changed the text")
+                run.tap("library.add")
+                wait_ui("left-editor", lambda data: "editor.close" in identifiers(data))
+                run.tap("editor.close")
+                wait_ui("left-editor-closed", lambda data: "library.add" in identifiers(data))
+                run.command([XCRUN, "simctl", "launch", "--terminate-running-process", args.device,
+                             run.config["bundle_id"]], "restart-for-preference")
+                run.wait_for_launch()
+                left = wait_ui("left-after-restart", lambda data: row in identifiers(data))
+                check_side(left, "left", snippet_id)
+                tab("設定")
+                wait_ui("settings-after-restart", lambda data: "settings.about" in identifiers(data))
+                choose_side("right")
+                run.ui("right-setting")
+                tab("一覧")
+                right = wait_ui("right-library", lambda data: row in identifiers(data))
+                check_side(right, "right", snippet_id)
+                run.screenshot("right-library")
+                tab("検索")
+                wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
+                paste_search(title)
+                wait_ui("pin-search-result", lambda data: row in identifiers(data))
+                run.tap("Search")
+                wait_ui("pin-search-submitted", lambda data: "Search" not in identifiers(data))
                 menu(row, "delete-menu")
                 run.tap("trash")
                 deleted = wait_ui("deleted", lambda data: "library.undo" in identifiers(data))
@@ -172,18 +328,59 @@ def main():
                 run.tap("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "discarded-copy") != edited_body:
                     raise VerificationError("Discard changed the saved snippet's original text")
-                run.tap("library.search.clear")
+                clear_search()
+                paste_search("該当なし-" + uuid4().hex)
+                wait_ui("search-empty", lambda data: not any(
+                    e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
+                run.screenshot("search-empty")
+                close_search()
                 finished = wait_ui("finished", lambda data: row in identifiers(data)
-                                   and "library.search.clear" not in identifiers(data))
+                                   and not search_fields(data))
                 if any(entry.get("uniqueId", "").startswith("draft.")
                        and entry.get("label", "").endswith(edited_title) for entry in finished["entries"]):
                     raise VerificationError("Discarded draft is still listed")
+                menu(row, "trash-delete-menu")
+                run.tap("trash")
+                wait_ui("trash-deleted", lambda data: row not in identifiers(data))
+                tab("設定")
+                wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
+                run.tap("library.trash")
+                wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
+                paste_search("該当なし-" + uuid4().hex)
+                wait_ui("trash-search-empty", lambda data: any(
+                    e.get("label") == "見つかりませんでした" for e in data["entries"]))
+                clear_search()
+                paste_search(title)
+                wait_ui("trash-search-result", lambda data: "restore." + snippet_id in identifiers(data))
+                run.tap("Search")
+                wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))
+                run.screenshot("trash-search")
+                run.tap("restore." + snippet_id)
+                wait_ui("trash-restored", lambda data: row not in identifiers(data))
+                label("閉じる")
+                wait_ui("trash-search-closed", lambda data: "library.trash.close" in identifiers(data))
+                run.tap("library.trash.close")
+                wait_ui("trash-returned", lambda data: "settings.about" in identifiers(data)
+                        and "library.trash.close" not in identifiers(data))
+                tab("一覧")
+                wait_ui("restored-in-library", lambda data: row in identifiers(data))
+                run.tap("copy." + snippet_id)
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "trash-restored-copy") != edited_body:
+                    raise VerificationError("Trash search/restore changed the snippet's text")
+                time.sleep(2.3)
                 run.screenshot("finished")
             run.manifest.setdefault("assertions", {}).update({
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
+                "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
+                "create_hidden_while_searching": True, "search_title_visible_during_input": True,
+                "empty_search_guidance": True, "pinned_section": True, "top_filters": True,
+                "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,
+                "settings_about": True, "left_and_right_actions": True, "side_survives_restart": True,
+                "empty_search_does_not_filter_all": True,
+                "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",
             })
     except Exception as caught:

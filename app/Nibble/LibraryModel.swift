@@ -43,7 +43,10 @@ final class LibraryModel {
 
     func showMore() { request = request.expanded }
 
-    init(store: SnippetStore = .shared) { self.store = store }
+    init(store: SnippetStore = .shared, filter: LibraryFilter = .all) {
+        self.store = store
+        request = LibraryRequest(filter: filter)
+    }
 
     func clearNotice() { notice = nil }
 
@@ -88,6 +91,7 @@ final class LibraryModel {
             case .snippet(let id): draft = try await store.editingDraft(for: id)
             case .draft(let id): draft = try await store.draft(id)
             }
+            if case .new = source { filter = .all }
             editor = draft
         } catch { self.error = error.localizedDescription }
     }

@@ -28,11 +28,12 @@ struct SnippetSummary: Identifiable, Equatable, Sendable {
 }
 
 enum LibraryFilter: String, CaseIterable, Sendable {
-    case all, pinned, trash
+    case all, pinned, drafts, trash
     var title: String {
         switch self {
         case .all: "すべて"
         case .pinned: "ピン留め"
+        case .drafts: "下書き"
         case .trash: "削除した項目"
         }
     }

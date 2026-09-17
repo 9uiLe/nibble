@@ -4,6 +4,20 @@
 
 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`の構成では、コミット`f0ff5063ef42fd09742accb00699a7f306772ecd`でReleaseテスト42件とSafariからの共有保存・本体表示・本文のUTF-8完全一致を確認した。[配布の検証記録](testflight-validation.md)に実行環境と画像・録画の確認範囲を記載する。各記録の結果は、その記録に示した識別子と対象ソースに適用する。
 
+## 一覧・設定・検索
+
+「一覧」「設定」「検索」の標準タブ、固定フィルター、片手操作、共通背景の評価は[標準ナビゲーションの検証記録](native-navigation-validation.md)を入口とする。Release製品テスト、画面操作、外観、TestFlightの送信を別々の確認として記録する。
+
+| 確認する契約 | 詳細な記録 |
+| --- | --- |
+| モデルと保存層の整合性、基本操作、最新ソースとの照合 | [標準ナビゲーションの検証](native-navigation-validation.md) |
+| 一覧の区分、左右位置の反映と再起動後の保持 | [一覧と設定](library-settings-validation.md) |
+| すべて・ピン留め・下書きの分離、最大文字での選択 | [一覧フィルター](library-filters-validation.md) |
+| タイトルの配置、ボタン寸法、ライト・ダークの共通背景 | [ナビゲーションバーとリスト](navigation-header-validation.md) |
+| 入力中の見出し、検索欄、キーボード、空の検索 | [検索画面](search-layout-validation.md) |
+
+詳細記録はそれぞれ表記したソース・端末・操作条件に対する観測である。現在の画面構成と寸法の定義は[製品設計](decisions/0002-mvp-app.md#画面とフィードバック)を参照し、別ソースの観測を最終実装の確認済み項目として扱わない。
+
 ## 採用している依存構成の検証状況
 
 2026-09-16の対象ソースは`bd53d99e792241966834f0be2eb711ef0f2868e0`。依存はTasking 0.3.0、ScopedAnimation 0.2.2、AppMacros 0.3.0、swift-syntax 603.0.2である。

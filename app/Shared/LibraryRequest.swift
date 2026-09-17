@@ -19,8 +19,24 @@ struct LibraryRequest: Equatable, Sendable {
 
 /// Snippet rows, draft rows and pagination all describe the same database read snapshot.
 struct LibraryPage: Equatable, Sendable {
-    var items: [SnippetSummary] = []
-    var drafts: [DraftSummary] = []
-    var hasMore = false
+    let items: [SnippetSummary]
+    let drafts: [DraftSummary]
+    let hasMore: Bool
+    let pinnedItems: [SnippetSummary]
+    let otherItems: [SnippetSummary]
+
+    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false) {
+        self.items = items
+        self.drafts = drafts
+        self.hasMore = hasMore
+        var pinned: [SnippetSummary] = []
+        var others: [SnippetSummary] = []
+        for item in items {
+            if item.pinned { pinned.append(item) }
+            else { others.append(item) }
+        }
+        pinnedItems = pinned
+        otherItems = others
+    }
 }
 
