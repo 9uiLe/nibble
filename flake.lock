@@ -16,9 +16,22 @@
         "type": "github"
       }
     },
+    "rive-cli": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-S4hzVVtCgu1wl2K+lXGSH7Z+in8hz7/2fngQOkGwVzI=",
+        "type": "file",
+        "url": "https://releases.rive.app/cli/v1.0.4/rive-macos-arm64.tar.gz"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://releases.rive.app/cli/v1.0.4/rive-macos-arm64.tar.gz"
+      }
+    },
     "root": {
       "inputs": {
         "nixpkgs": "nixpkgs",
+        "rive-cli": "rive-cli",
         "sim-use": "sim-use"
       }
     },

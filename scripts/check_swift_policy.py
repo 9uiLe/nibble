@@ -131,6 +131,7 @@ ANIMATION_SYMBOLS = {
     "UIViewImplicitlyAnimating", "CAAnimation", "CABasicAnimation",
     "CAKeyframeAnimation", "CAAnimationGroup", "CATransaction", "NSAnimationContext",
 }
+RIVE_LEGACY_SYMBOLS = {"RiveViewModel", "RiveView", "RiveModel", "RiveFile", "RiveStateMachineInstance", "RiveSMIInput"}
 ANIMATION_MEMBERS = {"animation", "transaction", "phaseAnimator", "keyframeAnimator"}
 UIKIT_ANIMATION_MEMBERS = {"animate", "animateKeyframes", "transition", "performWithoutAnimation", "setAnimationsEnabled", "beginAnimations", "commitAnimations"}
 GENERATED = {".git", ".build", ".direnv", "DerivedData", "artifacts", "build"}
@@ -157,6 +158,8 @@ def violations(source):
             message = "Use Tasking ViewTaskStore / TaskingCore TaskSlot instead of raw Task creation, handles, or aliases."
         elif token.text in UNMANAGED_TYPES:
             message = "Use Tasking for unstructured work; raw scheduling types are prohibited."
+        elif token.text in RIVE_LEGACY_SYMBOLS:
+            message = "Use the new Rive Apple API and Data Binding; Legacy entry points are prohibited."
         elif token.text in ANIMATION_SYMBOLS:
             message = "Use ScopedAnimation AnimationScope / animationBarrier instead of raw animation transactions."
         elif previous == "." and token.text in ANIMATION_MEMBERS:

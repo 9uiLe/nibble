@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cli_version": "1.0.4",
+  "assets": [
+    {
+      "source": "app/Animations/about",
+      "output": "app/Nibble/Animations/about-story.riv",
+      "artboard": "About",
+      "state_machine": "Presentation",
+      "view_model": "AboutStory",
+      "properties": {
+        "motionAllowed": "Boolean",
+        "replay": "Trigger",
+        "active": "Boolean",
+        "paper": "Color",
+        "ink": "Color",
+        "accent": "Color",
+        "muted": "Color"
+      },
+      "sources_sha256": {
+        "rive.yaml": "d33e00043a0923d3805b0353ccccecf7e2ae453d379d55bfa816663b74de4031",
+        "scene.rml": "7744c6f28ed4913510307fec43870012d79b86043b050784d5229078cff8c7bf"
+      },
+      "output_sha256": "0fc5cf5e179c69db4e8a90818d6270eda4d1445f54762142c2079d5bd447fabf"
+    }
+  ]
+}

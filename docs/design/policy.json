@@ -35,6 +35,11 @@
       "references": true
     },
     {
+      "path": "docs/decisions/0004-rive-presentation.md",
+      "kind": "file",
+      "references": true
+    },
+    {
       "path": "research/06-interface-design-evidence.md",
       "kind": "file",
       "references": true
