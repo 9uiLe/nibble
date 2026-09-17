@@ -126,7 +126,7 @@ TestFlightの内部配布先は、Apple Developerアカウントと端末を管�
 
 ## UIの設計と実装
 
-[共通ツールキット](tools/ui-design/README.md)が設計手順・ひな形・照合を担当する。製品の仕様・根拠・検証結果は`docs/design/`等、検査範囲は[policy](docs/design/policy.json)に置く。共通Moduleの単独テストとnibbleのAdapter接続テストを別々に実行し、別リポジトリへ移す際も両方を維持する。共通基盤はファイル取得と設計判定を分離し、1回の検査で同じ入力を繰り返し読まない。nibbleの文書検査も解析結果と見出しを検査内で共有し、適用する規約は文書の配置ごとに確認する。性能比較には共通ツールの`benchmarks/measure.py`と`scripts/benchmark_docs.py`を使用する。
+[共通ツールキット](tools/ui-design/README.md)が設計手順・ひな形・照合を担当する。製品の仕様・根拠・検証結果は`docs/design/`等、検査範囲は[policy](docs/design/policy.json)に置く。共通Moduleの単独テストとnibbleのAdapter接続テストを別々に実行し、別リポジトリへ移す際も両方を維持する。共通基盤はファイル取得と設計判定を分離し、1回の検査で同じ入力を繰り返し読まない。nibbleの文書検査も解析結果と見出しを検査内で共有し、適用する規約は文書の配置ごとに確認する。性能比較には共通ツールの`benchmarks/measure.py`と`scripts/benchmark_docs.py`を使用する。[UI設計基盤の検証結果](docs/ui-design-tooling-validation.md)に対象ソース、条件、観測と再現手順を記録する。
 
 [UI設計](docs/design/README.md)は、情報構造、部品の責務、採用理由、評価条件を定義する。設計の意味はMarkdownとMermaid、実装値と振る舞いはSwift、観測結果は対象ソースを持つ検証記録で管理する。
 
