@@ -67,7 +67,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `nix-format` | Nix定義の書式 |
 | `swift-library-policy` | 所有するSwiftの禁止API、タスク開始・所有、View比較の構文境界 |
 | `ios-tooling` | driver、証跡、PR、文書、Swift規約のPython回帰テスト |
-| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、実装規約のSwift記載例 |
+| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、Swift記載例、UI設計IDと実装・文書の照合 |
 
 共通検査はApple SDK・Simulatorを起動せず、GitHub認証やPRを要求しない。Nixの依存取得にはネットワークが必要になる。iOS実行は`ios.py`と対象別driver、runの照合は`check_evidence.py`、PR本文と全コミットの照合は`check_pr.py`を使う。
 
@@ -139,7 +139,7 @@ TestFlightの内部配布先は、Apple Developerアカウントと端末を管�
 
 情報の順序は構成図、iOS固有のタップ・入力・スクロール・素材はSwiftUIの実装・試作で比較する。補助的なデザインツールを使う場合は、その比較目的を定め、採用結果をリポジトリの設計資料へ反映する。
 
-台帳の網羅性、理由の妥当性、出典の適用はレビューで評価する。文書リンクは共通検査、動作と見た目はローカルiOS検証で確認する。PRの目的・背景には対象IDと判断の要点を記載し、評価結果は対象ソースと実施範囲に結び付ける。
+台帳の網羅性、理由の妥当性、出典の適用はレビューで評価する。共通検査は文書リンク・設計IDに加え、製品ソース・設定・アセット・設計文書を照合記録へ突き合わせ、未確認の追加・変更・削除を拒否する。[照合記録の更新手順](docs/design/README.md#変更時の手順)に従い、仕様を維持する場合も確認理由を残す。動作と見た目はローカルiOS検証で確認する。PRの目的・背景には対象IDと判断の要点を記載し、評価結果は対象ソースと実施範囲に結び付ける。
 
 ## UI/UXと性能の確認
 

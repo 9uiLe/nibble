@@ -13,7 +13,7 @@
 
 [UI設計](docs/design/README.md)に従い、すべての画面・部品に目的、構成、配置理由、代替案、評価条件を定義する。共通原則・画面・部品・根拠・監査課題は台帳のIDで対応させる。外部指針、製品判断、仮説、観測を区別し、採用する仕様と改善候補を分けて管理する。
 
-情報構造や操作の意味を決める際は、構成図と候補の比較を作る。契約内の調整は台帳に理由を残し、対象ソースの評価結果へ結び付ける。設計理由と網羅性はレビュー、文書リンクは`check_docs.py`、動作と見た目はローカルiOS検証で確認する。
+情報構造や操作の意味を決める際は、構成図と候補の比較を作る。契約内の調整は台帳に理由を残し、対象ソースの評価結果へ結び付ける。設計理由と網羅性はレビュー、文書・設計IDの整合と未確認変更は`check_docs.py`、動作と見た目はローカルiOS検証で確認する。実装・設計の照合を終えたら`docs/design/review.json`を判断の要約とともに更新する。検査を通す目的だけで照合記録を再生成しない。
 
 ## 実装の責務
 
@@ -36,7 +36,7 @@
 | --- | --- |
 | 共通の静的検査・回帰テスト | `nix flake check --no-update-lock-file --print-build-logs` |
 | Swiftの禁止API・開始・比較境界 | `scripts/check_swift_policy.py`。本体・拡張・テスト・研究・基盤用Swiftを検査 |
-| 文書リンク・Skill・実装規約のSwift例 | `scripts/check_docs.py`。共通検査の`documentation`に含む |
+| 文書リンク・Skill・Swift例・UI設計のIDと未確認変更 | `scripts/check_docs.py`。共通検査の`documentation`に含む |
 | iOSの端末・成否・実行中のソース変化 | `scripts/ios.py`。専用UDIDとiOS 26.5を要求し、開始・終了時のファイルを照合 |
 | runとコミット、媒体、レビュー申告の一致 | `scripts/check_evidence.py`。使用方法は[証跡とPRの検査](docs/review-evidence.md) |
 | PR本文と実際の全コミット | `scripts/check_pr.py`。PRイベントのCIでも検査し、本文編集で再実行 |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check local Markdown links/anchors, shared skills and normative Swift examples."""
+"""Check Markdown, shared skills, Swift examples and UI design review consistency."""
 
 import argparse
 import json
@@ -10,6 +10,8 @@ from urllib.parse import unquote, urlsplit
 
 from markdown_it import MarkdownIt
 import yaml
+
+import check_ui_design
 
 from check_swift_policy import GENERATED, violations
 
@@ -94,6 +96,9 @@ def main():
     args = cli.parse_args()
     try:
         report = check(args.root.resolve())
+        design = check_ui_design.check(args.root.resolve())
+        report['ui_design'] = {key: value for key, value in design.items() if key != 'errors'}
+        report['errors'].extend('UI design: ' + error for error in design['errors'])
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return bool(report['errors'])
     except (OSError, ValueError) as error:
