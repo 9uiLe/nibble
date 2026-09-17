@@ -6,6 +6,8 @@
 
 ## 一覧・設定・検索
 
+検索入力中の見出し、未入力時の案内、標準検索欄とキーボードの配置は`0d569da43751c3d26eaf918b907473c98ae357bc`で確認した。[検索画面の検証](search-layout-validation.md)に環境・操作・媒体と確認範囲を記載する。
+
 上部の「すべて／ピン留め／下書き」は`39560fafe586dd66327c0ae3e486a89fbfdfc4f1`でReleaseテスト47件、基本操作、最大文字と外観を確認した。[一覧フィルターの検証](library-filters-validation.md)に対象・媒体・未実施条件を記載する。
 
 操作ボタンの寸法は`d75808f3d7edb4f1bd1af072dc2693023aee262e`でReleaseの基本操作・左右配置・外観を確認した。新規作成56 ptとコピー44 ptの操作領域を含む結果は[ボタンの寸法検証](navigation-header-validation.md#操作ボタンの寸法)を参照する。
