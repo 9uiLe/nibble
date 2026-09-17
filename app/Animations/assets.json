@@ -10,7 +10,6 @@
       "view_model": "AboutStory",
       "properties": {
         "motionAllowed": "Boolean",
-        "replay": "Trigger",
         "active": "Boolean",
         "paper": "Color",
         "ink": "Color",
@@ -19,9 +18,9 @@
       },
       "sources_sha256": {
         "rive.yaml": "d33e00043a0923d3805b0353ccccecf7e2ae453d379d55bfa816663b74de4031",
-        "scene.rml": "7744c6f28ed4913510307fec43870012d79b86043b050784d5229078cff8c7bf"
+        "scene.rml": "4d91ffe44747c68ecd4afe03a493563b5fe6f3b380a1487014c321a1db43d3e1"
       },
-      "output_sha256": "0fc5cf5e179c69db4e8a90818d6270eda4d1445f54762142c2079d5bd447fabf"
+      "output_sha256": "d19985127a961abb687dcea6b819fb3eda2f63bf7681ad8145daf1a0a227cffd"
     }
   ]
 }

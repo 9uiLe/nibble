@@ -69,49 +69,49 @@ class AboutCheck:
             self.scroll(data)
         raise VerificationError("About entry unavailable")
 
-    def wait_playback(self, label, name):
-        for index in range(8):
+    def check_illustration(self, name):
+        # During app switching, Simulator can report a mixed Settings/Nibble tree.
+        for index in range(10):
             data = self.run.ui(f"{name}-{index}")
-            button = element(data, "about.story.playback")
-            if button and button.get("label") == label:
-                if button["frame"]["height"] < 44:
-                    raise VerificationError("Playback target must be at least 44 pt tall")
-                return data
-            time.sleep(0.6)
-        raise VerificationError(f"Playback did not become {label}")
+            if data.get("appPackage") == self.run.config["bundle_id"]:
+                if element(data, "about.story.playback") or element(data, "about.story.retry"):
+                    raise VerificationError("Automatic illustration must load without playback controls")
+                caption = element(data, "about.story.caption")
+                if caption and "nibble" in caption.get("label", ""):
+                    return data
+            time.sleep(0.3)
+        raise VerificationError("Copy/save caption unavailable after app transition")
 
     def playback(self):
-        self.wait_playback("もう一度見る", "completed")
-        self.run.screenshot("completed")
-        self.run.tap("about.story.playback")
-        self.wait_playback("一時停止", "playing")
-        self.run.tap("about.story.playback")
-        self.wait_playback("再生", "paused")
-        time.sleep(0.3)
-        self.run.screenshot("paused")
-        time.sleep(1)
-        self.run.screenshot("paused-later")
+        self.check_illustration("automatic")
+        # Capture more than two periods. Actual motion and loop boundaries are reviewed in the video.
+        for index in range(7):
+            self.run.screenshot(f"loop-{index}")
+            time.sleep(2.1)
+        self.check_illustration("after-two-periods")
         self.option("appearance", "dark")
-        self.wait_playback("再生", "paused-dark")
-        self.run.screenshot("paused-dark")
+        self.run.screenshot("loop-dark")
         self.option("increase_contrast", "enabled")
-        self.wait_playback("再生", "paused-dark-contrast")
-        self.run.screenshot("paused-dark-contrast")
+        self.run.screenshot("loop-dark-contrast")
         self.option("appearance", "light")
         self.option("increase_contrast", "disabled")
-        self.wait_playback("再生", "paused-restored")
-        self.run.screenshot("paused-restored")
-        self.run.tap("about.story.playback")
-        self.wait_playback("もう一度見る", "resumed-completed")
-        self.run.screenshot("resumed-completed")
-        self.run.tap("about.story.playback")
-        self.wait_playback("一時停止", "before-background")
         self.run.command([XCRUN, "simctl", "launch", self.device, "com.apple.Preferences"])
-        time.sleep(5)
+        time.sleep(3)
         self.run.command([XCRUN, "simctl", "launch", self.device, self.run.config["bundle_id"]])
-        self.wait_playback("一時停止", "after-background")
+        self.check_illustration("after-background")
         self.run.screenshot("after-background")
-        self.wait_playback("もう一度見る", "background-completed")
+        self.motion(True)
+        self.run.command([XCRUN, "simctl", "launch", self.device, self.run.config["bundle_id"]])
+        time.sleep(0.5)
+        self.check_illustration("motion-disabled")
+        self.run.screenshot("motion-disabled")
+        time.sleep(2)
+        self.run.screenshot("motion-disabled-still")
+        self.motion(False)
+        self.run.command([XCRUN, "simctl", "launch", self.device, self.run.config["bundle_id"]])
+        self.check_illustration("motion-restored")
+        time.sleep(2)
+        self.run.screenshot("motion-restored")
 
     def read_page(self, name):
         data = self.run.ui(name + "-top")
@@ -160,7 +160,7 @@ def main():
         with run.recording():
             flow.open_about()
             if reduced:
-                data = run.ui("reduced-first")
+                data = flow.check_illustration("reduced-first")
                 run.screenshot("reduced-first")
                 time.sleep(2)
                 run.screenshot("reduced-still")
@@ -178,7 +178,7 @@ def main():
             flow.open_about()
             flow.read_page("largest")
         run.manifest["reading_observations"] = flow.observations
-        run.manifest["assertions"] = {"paragraphs_reachable": True, "playback_matches_motion_preference": True}
+        run.manifest["assertions"] = {"paragraphs_reachable": True, "illustration_loaded_without_playback_controls": True}
     except Exception as caught:
         error = repr(caught)
         raise

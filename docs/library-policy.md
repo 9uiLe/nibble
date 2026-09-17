@@ -24,7 +24,7 @@ nibbleは、操作の完了、タスクの寿命、表示の更新条件をコ�
 | [swift-tasking](https://github.com/9uiLe/swift-tasking/tree/0.3.0) | 0.3.0 | `Tasking`の`ViewTaskStore`と`TaskingCore`の`TaskSlot`でタスクを所有する | Swift tools 6.0、iOS 13以上 |
 | [swift-scoped-animation](https://github.com/9uiLe/swift-scoped-animation/tree/v0.2.2) | 0.2.2 | `ScopedAnimation`でscope・barrier・Debug診断を定義する | Swift tools 6.2、iOS 17以上 |
 | [swift-app-macros](https://github.com/9uiLe/swift-app-macros/tree/0.3.0) | 0.3.0 | `AppMacros`の`@Equatable`と`EquatableBodyView`で表示値の比較を定義する | Swift tools 6.3、iOS / macOS 26以上 |
-| [rive-ios](https://github.com/rive-app/rive-ios/tree/6.27.0) | 6.27.0 | RivePresentation経由で新Apple APIとData Bindingの説明イラストを表示 | Swift tools 5.10、iOS 14以上。本体のみ |
+| [rive-ios](https://github.com/rive-app/rive-ios/tree/6.27.0) | 6.27.0 | RivePresentation経由でApple runtime API（Worker・File・Rive・ViewModelInstance）とData Bindingを使用 | Swift tools 5.10、iOS 14以上。本体のみ |
 | [swift-syntax](https://github.com/swiftlang/swift-syntax/tree/603.0.2) | 603.0.2 | AppMacrosのマクロコンパイラを構築する間接依存 | [AppMacrosのPackage.swift](https://github.com/9uiLe/swift-app-macros/blob/0.3.0/Package.swift)がexact指定 |
 
 exact versionは特定のバージョンだけを依存解決に許可する指定である。[Xcode project](../app/Nibble.xcodeproj/project.pbxproj)と[RivePresentationのPackage.swift](../app/Packages/RivePresentation/Package.swift)に直接依存の要求を宣言し、[共有Package.resolved](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)に全依存のバージョンとGit revisionを固定する。
@@ -286,7 +286,7 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 
 ## Riveの表示境界
 
-[RivePresentation](../app/Packages/RivePresentation/README.md)は、新Apple runtime APIとData Bindingでローカルの`.riv`を表示するSwift Packageである。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
+[RivePresentation](../app/Packages/RivePresentation/README.md)は、rive-iosのApple runtime API（`Worker`、`File`、`Rive`、`ViewModelInstance`）とData Bindingでローカルの`.riv`を表示するSwift Packageである。このAPI世代で接続を統一する。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
 
 | 境界 | 契約 |
 | --- | --- |

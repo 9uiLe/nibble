@@ -32,26 +32,23 @@ extension UIIntegrationTests {
     }
 
     @Test @MainActor
-    func riveStorySettlesReplaysAndHonorsMotionPreference() async throws {
+    func riveStoryKeepsPlayingAndHonorsMotionPreference() async throws {
         let resource = try await RiveResource.load(named: "about-story", in: .main)
         let session = try await resource.makeSession(AboutIllustration.contract)
         let active = BoolProperty(path: "active")
         session.rive.stateMachine.advance(by: 1.0 / 60)
         #expect(try await session.data.value(of: active))
-        for _ in 0..<250 { session.rive.stateMachine.advance(by: 1.0 / 60) }
-        #expect(try await session.data.value(of: active) == false)
-        session.data.fire(trigger: TriggerProperty(path: "replay"))
-        session.rive.stateMachine.advance(by: 1.0 / 60)
+        // More than two complete 6.2-second cycles must not enter the static state.
+        for _ in 0..<800 { session.rive.stateMachine.advance(by: 1.0 / 60) }
         #expect(try await session.data.value(of: active))
         session.data.setValue(of: BoolProperty(path: "motionAllowed"), to: false)
         session.rive.stateMachine.advance(by: 1.0 / 60)
         #expect(try await session.data.value(of: active) == false)
-        session.data.fire(trigger: TriggerProperty(path: "replay"))
-        session.rive.stateMachine.advance(by: 1.0 / 60)
+        for _ in 0..<400 { session.rive.stateMachine.advance(by: 1.0 / 60) }
         #expect(try await session.data.value(of: active) == false)
         session.data.setValue(of: BoolProperty(path: "motionAllowed"), to: true)
         session.rive.stateMachine.advance(by: 1.0 / 60)
-        #expect(try await session.data.value(of: active) == false)
+        #expect(try await session.data.value(of: active))
     }
 
     @Test @MainActor
