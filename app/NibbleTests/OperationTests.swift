@@ -149,6 +149,113 @@ extension UIIntegrationTests {
             #expect(search.filter == .all)
         }
 
+        @Test func changingFilterCannotPresentUnloadedDataAsEmpty() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let saved = try await create(store, body: "ピン留めの本文")
+            try await store.setPinned(true, id: saved)
+            _ = try await store.beginDraft(body: "下書きの本文")
+            let model = LibraryModel(store: store, filter: .pinned)
+            await model.refresh()
+            #expect(!model.loading && model.drafts.isEmpty)
+
+            // SwiftUI renders the selection before onChange starts the async refresh.
+            // An empty draft array here belongs to the pinned read, not to drafts.
+            model.filter = .drafts
+            #expect(model.loading, "The newly selected filter has not been read yet")
+            #expect(model.contentRequest.filter == .pinned && !model.contentIsCurrent)
+            #expect(model.items.map(\.id) == [saved])
+            await model.refresh()
+            #expect(!model.loading && model.drafts.count == 1)
+            #expect(model.contentRequest.filter == .drafts && model.contentIsCurrent)
+
+            model.filter = .all
+            #expect(model.loading, "A draft-only result cannot establish an empty saved list")
+            await model.refresh()
+            #expect(!model.loading && model.items.map(\.id) == [saved])
+
+            model.query = "か\u{3099}"
+            await model.refresh()
+            model.query = "が"
+            #expect(model.contentIsCurrent && !model.loading,
+                    "Canonical-equivalent queries describe the same search request")
+
+            model.query = "一致しない語句"
+            #expect(model.loading)
+            await model.refresh()
+            #expect(!model.loading && model.items.isEmpty)
+        }
+
+        @Test(arguments: [false, true])
+        func staleReadCannotFinishTheNextSelection(fails: Bool) async throws {
+            let reader = ControlledLibraryReader()
+            let model = LibraryModel(filter: .pinned, libraryReader: reader)
+            let owner = LibraryTaskOwner()
+            owner.startTask(.refresh, on: model)
+            await reader.waitForRequests(1)
+            reader.finish(0, with: .success(LibraryPage()))
+            await owner.waitForIdle()
+            #expect(!model.loading)
+
+            model.filter = .drafts
+            owner.startTask(.refresh, on: model)
+            await reader.waitForRequests(2)
+            // The next onChange has not started its task when the old read finishes.
+            model.filter = .all
+            reader.finish(1, with: fails ? .failure(StoreError.unavailable) : .success(LibraryPage()))
+            await owner.waitForIdle()
+            #expect(model.loading && model.failure == nil)
+            #expect(model.contentRequest.filter == .pinned && !model.contentIsCurrent)
+
+            owner.startTask(.refresh, on: model)
+            await reader.waitForRequests(3)
+            reader.finish(2, with: .success(LibraryPage()))
+            await owner.waitForIdle()
+            #expect(!model.loading && model.contentIsCurrent && model.failure == nil)
+            #expect(model.contentRequest.filter == .all)
+        }
+
+        @Test func lateReadCannotReplaceTheLatestResult() async throws {
+            let reader = ControlledLibraryReader()
+            let model = LibraryModel(filter: .pinned, libraryReader: reader)
+            let olderOwner = LibraryTaskOwner()
+            let latestOwner = LibraryTaskOwner()
+            olderOwner.startTask(.refresh, on: model)
+            await reader.waitForRequests(1)
+            model.filter = .drafts
+            latestOwner.startTask(.refresh, on: model)
+            await reader.waitForRequests(2)
+            reader.finish(1, with: .success(LibraryPage()))
+            await latestOwner.waitForIdle()
+            #expect(!model.loading && model.contentRequest.filter == .drafts)
+            reader.finish(0, with: .failure(StoreError.unavailable))
+            await olderOwner.waitForIdle()
+            #expect(!model.loading && model.failure == nil && model.contentIsCurrent)
+            #expect(model.contentRequest.filter == .drafts)
+        }
+
+        @Test func failedFilterReadDoesNotBecomeAnEmptyResultOrLeakIntoAnotherFilter() async throws {
+            let reader = ControlledLibraryReader()
+            let model = LibraryModel(libraryReader: reader)
+            let owner = LibraryTaskOwner()
+            owner.startTask(.refresh, on: model)
+            await reader.waitForRequests(1)
+            reader.finish(0, with: .failure(StoreError.unavailable))
+            await owner.waitForIdle()
+            #expect(!model.loading && !model.contentIsCurrent && model.failure != nil)
+            model.filter = .drafts
+            #expect(model.loading && model.failure == nil && !model.contentIsCurrent)
+            owner.startTask(.refresh, on: model)
+            await reader.waitForRequests(2)
+            reader.finish(1, with: .success(LibraryPage()))
+            await owner.waitForIdle()
+            #expect(!model.loading && model.contentIsCurrent && model.drafts.isEmpty)
+            model.showMore()
+            #expect(model.loading && model.contentIsCurrent)
+            #expect(model.contentRequest.limit == LibraryRequest.pageSize)
+        }
+
         @Test(arguments: [LibraryFilter.pinned, .drafts])
         func creatingFromFilteredLibraryReturnsToAll(filter: LibraryFilter) async throws {
             let database = try TestDatabase()
@@ -351,5 +458,33 @@ extension UIIntegrationTests {
             #expect(library.notice == nil)
             #expect(library.notice?.undoID == nil)
         }
+    }
+}
+
+/// Explicit completion gates reproduce request ordering without sleeps or scheduler assumptions.
+@MainActor
+private final class ControlledLibraryReader: LibraryReading {
+    private var reads: [CheckedContinuation<LibraryPage, any Error>?] = []
+    private var waiting: (count: Int, continuation: CheckedContinuation<Void, Never>)?
+
+    func library(_ request: LibraryRequest) async throws -> LibraryPage {
+        try await withCheckedThrowingContinuation { continuation in
+            reads.append(continuation)
+            if let waiting, reads.count >= waiting.count {
+                self.waiting = nil
+                waiting.continuation.resume()
+            }
+        }
+    }
+
+    func waitForRequests(_ count: Int) async {
+        guard reads.count < count else { return }
+        await withCheckedContinuation { waiting = (count, $0) }
+    }
+
+    func finish(_ index: Int, with result: Result<LibraryPage, any Error>) {
+        let continuation = reads[index]
+        reads[index] = nil
+        continuation?.resume(with: result)
     }
 }

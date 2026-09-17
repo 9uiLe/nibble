@@ -1,5 +1,10 @@
 import Foundation
 
+/// A read completes with one request's database snapshot; it never starts background work.
+protocol LibraryReading: Sendable {
+    func library(_ request: LibraryRequest) async throws -> LibraryPage
+}
+
 struct LibraryRequest: Equatable, Sendable {
     static let pageSize = 100
     static let draftPreviewLimit = 3

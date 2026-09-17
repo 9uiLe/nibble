@@ -96,8 +96,11 @@ struct LibraryScreen: View {
                         .accessibilityIdentifier("search.prompt")
                         .listRowSeparator(.hidden)
                 } else {
-                    libraryContent
-                    if model.hasMore || model.loading {
+                    if model.loading && !model.contentIsCurrent { loadingRow }
+                    if model.contentIsCurrent || model.loading {
+                        libraryContent.disabled(!model.contentIsCurrent)
+                    }
+                    if model.contentIsCurrent && (model.hasMore || model.loading) {
                         Section {
                             if model.hasMore {
                                 Button { model.showMore() } label: {
@@ -114,7 +117,7 @@ struct LibraryScreen: View {
             }
             .listRowBackground(Color.clear)
         }
-        .id(model.filter)
+        .id(model.contentRequest.filter)
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
@@ -159,10 +162,10 @@ struct LibraryScreen: View {
                 }
             }
         }
-        if contentIsEmpty && !model.loading && model.failure == nil {
+        if model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil {
             emptyState
-        } else if model.filter != .drafts {
-            if showsFilters && model.filter == .all {
+        } else if model.contentRequest.filter != .drafts {
+            if showsFilters && model.contentRequest.filter == .all {
                 if !model.page.pinnedItems.isEmpty {
                     Section("ピン留め済み") {
                         ForEach(model.page.pinnedItems) { item in snippetRow(item) }
@@ -177,10 +180,10 @@ struct LibraryScreen: View {
                 Section {
                     ForEach(visibleItems) { item in snippetRow(item) }
                 } header: {
-                    if model.filter != .pinned && model.filter != .trash { Text(sectionTitle) }
+                    if model.contentRequest.filter != .pinned && model.contentRequest.filter != .trash { Text(sectionTitle) }
                 }
             }
-            if model.filter == .trash {
+            if model.contentRequest.filter == .trash {
                 Text("自動では消えません。必要な項目を復元できます。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -188,7 +191,7 @@ struct LibraryScreen: View {
     }
 
     private var loadingRow: some View {
-        ProgressView("読み込み中")
+        ProgressView(showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中")
             .frame(maxWidth: .infinity, minHeight: 44)
             .accessibilityIdentifier("library.loading")
     }
@@ -214,10 +217,10 @@ struct LibraryScreen: View {
         }
     }
 
-    private var displaysDrafts: Bool { showsFilters && (model.filter == .all || model.filter == .drafts) }
+    private var displaysDrafts: Bool { showsFilters && (model.contentRequest.filter == .all || model.contentRequest.filter == .drafts) }
     private var expandedRows: Bool { dynamicTypeSize.isAccessibilitySize }
     private var visibleItems: [SnippetSummary] {
-        switch model.filter {
+        switch model.contentRequest.filter {
         case .pinned: model.page.pinnedItems
         case .drafts: []
         default: model.items
@@ -226,7 +229,7 @@ struct LibraryScreen: View {
     private var contentIsEmpty: Bool { visibleItems.isEmpty && (!displaysDrafts || model.drafts.isEmpty) }
     private var showsCreationCTA: Bool {
         showsFilters && (model.filter == .all || model.filter == .drafts)
-            && contentIsEmpty && !model.loading && model.failure == nil
+            && model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil
     }
 
     private var notice: some View {
@@ -269,8 +272,8 @@ struct LibraryScreen: View {
     }
 
     private var sectionTitle: String {
-        if model.filter == .trash { return "削除した項目" }
-        return model.query.isEmpty ? (model.filter == .pinned ? "ピン留めしたスニペット" : "手元のスニペット") : "検索結果"
+        if model.contentRequest.filter == .trash { return "削除した項目" }
+        return model.contentRequest.query.isEmpty ? (model.contentRequest.filter == .pinned ? "ピン留めしたスニペット" : "手元のスニペット") : "検索結果"
     }
 
     private var emptyContent: (title: String, symbol: String, message: String) {
@@ -332,7 +335,7 @@ struct LibraryScreen: View {
 
     private func rowActions(_ item: SnippetSummary) -> some View {
         HStack(spacing: 0) {
-            if model.filter == .trash {
+            if model.contentRequest.filter == .trash {
                 Button { startTask(.restore(item.id)) } label: {
                     Image(systemName: "arrow.uturn.backward").font(.body)
                         .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
@@ -356,7 +359,7 @@ struct LibraryScreen: View {
     }
 
     @ViewBuilder private func rowContent(_ item: SnippetSummary) -> some View {
-        if model.filter == .trash {
+        if model.contentRequest.filter == .trash {
             rowLabel(item)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(item.displayTitle)
@@ -388,7 +391,7 @@ struct LibraryScreen: View {
         .padding(.vertical, 4)
         .contextMenu { rowMenu(item) }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if model.filter == .trash {
+            if model.contentRequest.filter == .trash {
                 Button("完全に削除", role: .destructive) { permanentDeletion = item }
             } else {
                 Button("削除", role: .destructive) { startTask(.delete(item.id)) }
@@ -398,7 +401,7 @@ struct LibraryScreen: View {
     }
 
     @ViewBuilder private func rowMenu(_ item: SnippetSummary) -> some View {
-        if model.filter == .trash {
+        if model.contentRequest.filter == .trash {
             Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
             Button("完全に削除", systemImage: "trash", role: .destructive) { permanentDeletion = item }
                 .accessibilityIdentifier("permanentlyDelete.\(item.id)")

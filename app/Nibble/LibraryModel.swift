@@ -23,15 +23,32 @@ final class LibraryModel {
     }
 
     private(set) var request = LibraryRequest()
-    private(set) var page = LibraryPage()
-    private(set) var loading = true
+    struct Snapshot {
+        let request: LibraryRequest
+        let page: LibraryPage
+    }
+
+    private(set) var snapshot: Snapshot?
+    private var settledRequest: LibraryRequest?
+    private var activeRefresh: UUID?
+    private let libraryReader: any LibraryReading
+    var page: LibraryPage { snapshot?.page ?? LibraryPage() }
+    var contentRequest: LibraryRequest { snapshot?.request ?? request }
+    var contentIsCurrent: Bool {
+        guard let snapshot else { return false }
+        return snapshot.request.filter == request.filter
+            && snapshot.request.query == request.query
+    }
+    // Selection changes synchronously invalidate completion, before the UI starts its task.
+    var loading: Bool { activeRefresh != nil || settledRequest != request }
     private(set) var notice: Notice?
     private(set) var feedback = 0
-    private var loadFailure: Failure?
+    private var loadFailure: (request: LibraryRequest, failure: Failure)?
     private var operationFailure: Failure?
-    var failure: Failure? { operationFailure ?? loadFailure }
+    var failure: Failure? {
+        operationFailure ?? (loadFailure?.request == request ? loadFailure?.failure : nil)
+    }
     var editor: Draft?
-    private var refreshID = UUID()
     private var opening = false
 
     var query: String {
@@ -50,13 +67,15 @@ final class LibraryModel {
     }
     var items: [SnippetSummary] { page.items }
     var drafts: [DraftSummary] { page.drafts }
-    var hasMore: Bool { page.hasMore }
+    var hasMore: Bool { contentIsCurrent && page.hasMore }
 
     func showMore() { request = request.expanded }
     func dismissFailure() { operationFailure = nil }
 
-    init(store: SnippetStore = .shared, filter: LibraryFilter = .all) {
+    init(store: SnippetStore = .shared, filter: LibraryFilter = .all,
+         libraryReader: (any LibraryReading)? = nil) {
         self.store = store
+        self.libraryReader = libraryReader ?? store
         request = LibraryRequest(filter: filter)
     }
 
@@ -82,20 +101,22 @@ final class LibraryModel {
 
     func refresh() async {
         let token = UUID()
-        refreshID = token
+        activeRefresh = token
         let requested = request
-        loading = true
-        defer { if refreshID == token { loading = false } }
+        defer { if activeRefresh == token { activeRefresh = nil } }
         do {
-            let page = try await store.library(requested)
+            let page = try await libraryReader.library(requested)
             try Task.checkCancellation()
-            guard refreshID == token, request == requested else { return }
-            self.page = page
+            guard activeRefresh == token, request == requested else { return }
+            snapshot = Snapshot(request: requested, page: page)
+            settledRequest = requested
             loadFailure = nil
         } catch is CancellationError { }
         catch {
-            if refreshID == token, request == requested {
-                loadFailure = Failure(title: "一覧を読み込めませんでした", message: error.localizedDescription, recovery: .reload)
+            if activeRefresh == token, request == requested {
+                settledRequest = requested
+                loadFailure = (requested, Failure(title: "一覧を読み込めませんでした",
+                                                   message: error.localizedDescription, recovery: .reload))
             }
         }
     }

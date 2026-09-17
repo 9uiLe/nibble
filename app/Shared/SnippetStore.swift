@@ -3,7 +3,7 @@ import SQLite3
 import OSLog
 
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
-actor SnippetStore {
+actor SnippetStore: LibraryReading {
     static let groupID = "group.nibble.9uiLe.com"
     static let shared = SnippetStore()
     private let location: URL?
