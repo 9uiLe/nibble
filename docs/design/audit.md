@@ -29,7 +29,7 @@
 | [LibraryScreen.swift](../../app/Nibble/LibraryScreen.swift) | C03〜C19・C37〜C39。一覧、フィルター、行の操作、空・読込・失敗・通知 |
 | [SnippetRowContent.swift](../../app/Nibble/SnippetRowContent.swift) | C06・C11。名前、要約、ピン、文字と行高 |
 | [SnippetEditor.swift](../../app/Shared/SnippetEditor.swift) | C20〜C32・C40・C43。入力、バー、シート、確認、共有、終了 |
-| [LibrarySettingsView.swift](../../app/Nibble/LibrarySettingsView.swift) / [AboutView.swift](../../app/Nibble/AboutView.swift) | C33〜C36。操作位置、復旧、製品情報 |
+| [LibrarySettingsView.swift](../../app/Nibble/LibrarySettingsView.swift) / [AboutView.swift](../../app/Nibble/AboutView.swift) | C33〜C36・C44。操作位置、復旧、製品情報と説明イラスト |
 | [ShareViewController.swift](../../app/NibbleShare/ShareViewController.swift) | C41・C42。受取、編集、失敗と終了 |
 | [NibbleTheme.swift](../../app/Shared/NibbleTheme.swift) | F02。ライト・ダークの色 |
 | [LibraryModel](../../app/Nibble/LibraryModel.swift) / [EditorModel](../../app/Shared/EditorModel.swift) | 通知時間、操作の結果、失敗、終了状態 |
@@ -211,3 +211,5 @@ sRGB成分は`c <= 0.04045`なら`c / 12.92`、それ以外は`((c + 0.055) / 1.
 文書ソース`8ba8dd916bacff7c0752ed583154c2e5f6e7932b`に対する2026-09-17の共通検査は成功した。ローカルMacのaarch64-darwinで`nix flake check --no-update-lock-file --print-build-logs`を実行し、42 Markdown・476ローカルリンク・2 Swift例、31 Swiftソースの規約にエラーはなかった。workflow、Nix書式、検証基盤の回帰テストは同じ入力に対するNixの成功結果を再利用した。
 
 この記録の保証範囲は文書・規約の整合性である。設計理由の妥当性、製品の操作成功、利用者評価はそれぞれの確認を必要とする。
+
+Riveの説明イラストと再生基盤の実行評価は[Rive検証](../rive-validation.md)で対象ソース・条件・限界を管理する。

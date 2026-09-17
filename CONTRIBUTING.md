@@ -46,6 +46,7 @@ nibbleはiOS向けのスニペットツール。作業中の文脈を保ちな�
 | Git / GitHub CLI | ソース、コミット、PR本文、GitHubの状態の取得 |
 | actionlint / ShellCheck | workflowの構文・式・埋め込みシェルの検査 |
 | nixfmt | Nix定義の整形 |
+| Rive CLI 1.0.4（Apple Silicon macOS） | RMLの制作、画像・データ検証、unsigned `.riv`生成 |
 | sim-use 0.14.0（macOS） | Simulatorの画面読取と操作 |
 
 nixpkgsは安定版`nixos-26.05`を入力とし、revisionをlockで固定する。Apple Silicon / IntelのmacOSと、ARM64 / x86_64のLinuxを宣言対象とする。nixpkgsのIntel Mac対応は26.05が最終版のため、入力更新時に対応範囲を確認する。
@@ -68,9 +69,12 @@ nix flake check --no-update-lock-file --print-build-logs
 | `swift-library-policy` | 所有するSwiftの禁止API、タスク開始・所有、View比較の構文境界 |
 | `ui-design` | 共通Moduleだけのruntimeで実行する照合・設定・移設・別製品の回帰テスト |
 | `ios-tooling` | driver、証跡、PR、文書、Swift規約のPython回帰テスト |
+| `rive-assets` | RMLと配布用`.riv`のハッシュ、Data Bindingの名前・型・参照 |
 | `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、Swift記載例、UI設計IDと実装・文書の照合 |
 
 共通検査はApple SDK・Simulatorを起動せず、GitHub認証やPRを要求しない。Nixの依存取得にはネットワークが必要になる。iOS実行は`ios.py`と対象別driver、runの照合は`check_evidence.py`、PR本文と全コミットの照合は`check_pr.py`を使う。
+
+Riveの制作と再生成は[アセット手順](app/Animations/README.md)、再利用する表示層は[RivePresentation](app/Packages/RivePresentation/README.md)に定義する。CLIはApple Silicon Macで使い、Ubuntuは生成契約を検査する。Editor、ログイン、署名サービスは本構成に必要ない。
 
 ### 依存の追加・更新
 
