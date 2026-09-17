@@ -243,6 +243,10 @@ def main():
                 label("ピン留めを外す")
                 wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
                 tab("検索")
+                wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
+                # Native search cancellation clears its query. Search this item
+                # again while the library remains scoped to pinned snippets.
+                paste_search(title)
                 wait_ui("independent-search", lambda data: row in identifiers(data))
                 run.tap("Search")
                 wait_ui("independent-search-submitted", lambda data: "Search" not in identifiers(data))
