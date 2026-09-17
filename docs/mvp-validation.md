@@ -6,6 +6,8 @@
 
 ## 一覧・設定・検索
 
+操作ボタンの寸法は`d75808f3d7edb4f1bd1af072dc2693023aee262e`でReleaseの基本操作・左右配置・外観を確認した。新規作成56 ptとコピー44 ptの操作領域を含む結果は[ボタンの寸法検証](navigation-header-validation.md#操作ボタンの寸法)を参照する。
+
 タイトルをナビゲーションバー左側へ配置する構成は、`cbe46cf161e0c91dbd739db1a34aa3718f7a901d`でReleaseの基本操作とDebugの外観を確認した。[ナビゲーションバーとリストの検証](navigation-header-validation.md)に対象・媒体・未実施条件を記載する。
 
 「一覧」のピン留め済み・その他の区分、「設定」の新規作成・コピーの左右配置について、製品ソース`20604eb70212578df9d5bef401fa9c70e6c4f6d4`でReleaseテスト44件が成功した。UI driverを更新した`9e97c5d70dba5fa7507a0bbd1ae150f831b0a96b`で基本操作・設定の再起動保持・外観を確認した。[一覧と設定の検証記録](library-settings-validation.md)に対象・媒体・未実施条件を記載する。
