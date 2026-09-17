@@ -1,11 +1,10 @@
 {
   "version": 1,
-  "summary": "C04・F02と採用判断を照合。フィルターを文字だけのラベルと一定の左右余白で構成し、文字・塗り・枠の配色で選択を示す。チェックと予約幅を削除し、選択による幅変化をなくす。isSelectedのアクセシビリティ情報、44 pt以上の操作領域、Dynamic Typeと選択項目へのスクロールは維持する。色の判別条件による利用者評価はG04に残す。",
+  "summary": "S01・S02とC11の整理操作を照合。保存済み行の標準swipeActionsを左右に分け、左は削除、右はピン留め／解除に固定する。両方ともフルスワイプを許可し、既存のTasking所有者と完了を待つモデル操作へ接続する。削除はUndo・削除一覧で復元可能であり、完全削除の確認とフルスワイプ禁止は維持する。可視メニューはジェスチャーの代替入口を担当する。",
   "references": [
     "docs/design/components.md",
-    "docs/design/foundations.md",
-    "docs/design/decisions/0001-library-actions.md",
-    "docs/design/audit.md"
+    "docs/design/screens.md",
+    "docs/design/decisions/0001-library-actions.md"
   ],
   "files": {
     "app/Nibble.xcodeproj/project.pbxproj": "ef3c84c2f630656b00ca42cdda2648e10523c44a05727253fa83aab7629d3979",
@@ -18,7 +17,7 @@
     "app/Nibble/Assets.xcassets/Contents.json": "e8e8ef4b27126d62305af321d12a6e64b866ca0b160f0f83efae90111f0ee576",
     "app/Nibble/Info.plist": "8b694249fb6dd95632c0baefa256d2bf07a2b0b1a7bf5ce704687df2d46b8a17",
     "app/Nibble/LibraryModel.swift": "38bd1ae06f0902fc78e29973033b9b007013fea24401e78ce0d8bf0fce7a8dce",
-    "app/Nibble/LibraryScreen.swift": "cb4ce1260ad4ab0c43043b4e8194db4f7d2596bf124798258f07624545ab02ae",
+    "app/Nibble/LibraryScreen.swift": "6e82ea6f5126ed2f0a9d9519e83765251bd63b6038a0bbde4dac8d97906ca1b3",
     "app/Nibble/LibrarySettingsView.swift": "54544dd1276414c8a3348fc68972a4f75570cd569bb0c02d32c366c4681e293e",
     "app/Nibble/LibraryTaskOwner.swift": "60937dfbca567c9fe4cb8c3c5e4727ac4a2878c0a9a19b47281ef319d8539fda",
     "app/Nibble/LibraryView.swift": "1daf4c838e1d6d80b15eabfa14d8e3c63b3b57d828b0eb73a8967e94c363adf9",
@@ -42,12 +41,12 @@
     "docs/decisions/0002-mvp-app.md": "465040463a1d739f56bdf2fafbc73aef89bde1d7e4cce8865143dfd03c2422d4",
     "docs/design/README.md": "1959abb4c7c429f97a7f69d219ac9bf33e38f19574ed4c14b538a42f606189e9",
     "docs/design/audit.md": "8834ddd78594b7e31cf53b1cbdf316547c2396ae789d08d61c6758a99c13d640",
-    "docs/design/components.md": "92573aa9464f60f7de1ffcd15a20f01d9f2cf08c4e72f19a014a04203dfc700f",
+    "docs/design/components.md": "c15dd80c3ce6ffc22ff295e16f7a1b61b0d18f40e0ee25710862079fea815711",
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
-    "docs/design/decisions/0001-library-actions.md": "f045beb153088479fc2689f7c0d73963a1d5f9deeb0af0b45d4f49c656140291",
+    "docs/design/decisions/0001-library-actions.md": "624a628ecdbc4404221e2e399d3be99b062616c5e4fbac74e0b3e769e1a2dc24",
     "docs/design/foundations.md": "f24be329794f8ca4efeaad019872f0a5adcb185e6119a5f7661bb81ebdc326dc",
     "docs/design/policy.json": "015f03e2d0c38f3363681d366467c87256e7c483e084afcd08b0f5b27dbd78cd",
-    "docs/design/screens.md": "60a0bb1a9e59497601bbdd572c6948895fcb0fea705d66a55f2b043708560dd2",
+    "docs/design/screens.md": "ba256a66435be0d9ea637f3f79b257d6b4006c0a3e22fe26d82ffbc7086fe36e",
     "flake.lock": "abcb3d4bfdff71f41bf110917fb2a63427aee5da37a0b41c37fc7d6207cbd20d",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
     "tools/ui-design/README.md": "565109f0c7bad79fb35d535da795aefd7b5feef692a5c5ea6ad0432e544354a0",

@@ -390,12 +390,21 @@ struct LibraryScreen: View {
         }
         .padding(.vertical, 4)
         .contextMenu { rowMenu(item) }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: model.contentRequest.filter != .trash) {
             if model.contentRequest.filter == .trash {
                 Button("完全に削除", role: .destructive) { permanentDeletion = item }
             } else {
-                Button("削除", role: .destructive) { startTask(.delete(item.id)) }
-                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }.tint(.nibbleAccent)
+                Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
+                    .accessibilityIdentifier("swipe.delete.\(item.id)")
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if model.contentRequest.filter != .trash {
+                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") {
+                    startTask(.pin(item))
+                }
+                .tint(.nibbleAccent)
+                .accessibilityIdentifier("swipe.pin.\(item.id)")
             }
         }
     }
