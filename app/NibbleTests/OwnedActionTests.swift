@@ -20,7 +20,7 @@ extension UIIntegrationTests {
             await owner.waitForIdle()
             #expect(library.items.map(\.id) == [id])
             #expect(!library.loading)
-            #expect(library.error == nil)
+            #expect(library.failure == nil)
         }
 
         @Test func repeatedOpenCreatesOnlyOneDraft() async throws {
@@ -69,7 +69,7 @@ extension UIIntegrationTests {
             owner.startTask(.pin(items[1]), on: library)
             await owner.waitForIdle()
             #expect(try await store.search(filter: .pinned).count == 2)
-            #expect(library.error == nil)
+            #expect(library.failure == nil)
         }
 
         @Test func rapidInputAndSaveKeepLatestTextWithoutResurrectingDraft() async throws {

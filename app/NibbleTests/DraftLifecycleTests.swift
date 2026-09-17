@@ -108,8 +108,34 @@ struct DraftLifecycleTests {
         let page = try await store.library(LibraryRequest())
         #expect(page.drafts.count == 1)
         #expect(page.drafts.first?.title.count == 180)
+        #expect(page.drafts.first?.preview.count == 180)
         #expect(try await store.draft(draft.id).body.utf8.elementsEqual(text.utf8))
         #expect(try await store.draft(draft.id).title == draft.title)
+    }
+
+    @Test func untitledDraftsRemainDistinctAndAllLibraryBoundsTheirRows() async throws {
+        let database = try TestDatabase()
+        defer { database.removeFiles() }
+        let store = database.store
+        let saved = try await create(store, body: "保存済みの本文")
+        var ids: [UUID] = []
+        for number in 0..<20 {
+            let draft = try await store.beginDraft(body: "未完了の本文 \(number)\n" + String(repeating: "長", count: 1_000))
+            ids.append(draft.id)
+        }
+        let all = try await store.library(LibraryRequest())
+        #expect(all.items.map(\.id) == [saved])
+        #expect(all.drafts.count == 3 && all.hasMoreDrafts)
+        let first = try await store.library(LibraryRequest(filter: .drafts, limit: 2))
+        #expect(first.drafts.count == 2 && first.hasMore)
+        let expanded = try await store.library(LibraryRequest(filter: .drafts, limit: 2).expanded)
+        #expect(expanded.drafts.count == 20 && !expanded.hasMore)
+        #expect(Set(expanded.drafts.map(\.id)) == Set(ids))
+        #expect(Set(expanded.drafts.map(\.displayTitle)).count == 20)
+        #expect(expanded.drafts.allSatisfy { $0.preview.count == 180 && $0.updatedAt.timeIntervalSince1970 > 0 })
+        #expect(Array(expanded.drafts.prefix(3)) == all.drafts)
+        let chosen = try #require(expanded.drafts.first)
+        #expect(try await store.draft(chosen.id).body.count > chosen.preview.count)
     }
 
     @Test func pageLookaheadAndFiltersStayConsistent() async throws {
@@ -151,7 +177,7 @@ extension UIIntegrationTests {
             await library.open(resumeByID ? .draft(draft.id) : .snippet(id))
             #expect(library.editor?.id == draft.id)
             #expect(library.editor?.body == draft.body)
-            #expect(library.error == nil)
+            #expect(library.failure == nil)
         }
 
         @Test func removedDraftCannotBeReopenedFromAnOldRow() async throws {
@@ -164,7 +190,7 @@ extension UIIntegrationTests {
             try await store.discardDraft(draft)
             await library.open(.draft(draft.id))
             #expect(library.editor == nil)
-            #expect(library.error != nil)
+            #expect(library.failure != nil)
             #expect(try await store.drafts().isEmpty)
         }
 
@@ -179,7 +205,7 @@ extension UIIntegrationTests {
             try await store.setDeleted(true, id: id)
             await library.open(.snippet(id))
             #expect(library.editor == nil)
-            #expect(library.error != nil)
+            #expect(library.failure != nil)
         }
 
         @Test func aFailedFinishRemainsEditableAndSuccessfulFinishIsTerminal() async throws {

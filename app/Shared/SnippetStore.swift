@@ -35,11 +35,16 @@ actor SnippetStore {
         try Task.checkCancellation()
         let db = try database()
         return try db.readTransaction {
-            if request.filter == .drafts { return LibraryPage(drafts: try drafts()) }
+            if request.filter == .drafts {
+                let values = try drafts(limit: request.limit + 1)
+                return LibraryPage(drafts: Array(values.prefix(request.limit)), hasMore: values.count > request.limit)
+            }
             let values = try search(request.query, filter: request.filter, limit: request.limit + 1)
+            let drafts = request.filter == .all ? try drafts(limit: LibraryRequest.draftPreviewLimit + 1) : []
             return LibraryPage(items: Array(values.prefix(request.limit)),
-                               drafts: request.filter == .all ? try drafts() : [],
-                               hasMore: values.count > request.limit)
+                               drafts: Array(drafts.prefix(LibraryRequest.draftPreviewLimit)),
+                               hasMore: values.count > request.limit,
+                               hasMoreDrafts: drafts.count > LibraryRequest.draftPreviewLimit)
         }
     }
 
@@ -59,6 +64,15 @@ actor SnippetStore {
             """, [.int(filter == .trash ? 1 : 0), .int(filter == .pinned ? 1 : 0), .text(key), .text(key), .int(max(1, limit))]) { row in
             return SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2), pinned: row.int(3) == 1, revision: row.int(4))
         }
+    }
+
+    func summary(_ id: UUID) throws -> SnippetSummary {
+        let values = try database().rows("SELECT id,title,substr(body,1,180),pinned,revision FROM snippets WHERE id=?",
+                                         [.text(id.uuidString)]) { row in
+            SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2), pinned: row.int(3) == 1, revision: row.int(4))
+        }
+        guard let value = values.first else { throw StoreError.missing }
+        return value
     }
 
     func snippet(_ id: UUID) throws -> Snippet {
@@ -99,9 +113,11 @@ actor SnippetStore {
         return draft
     }
 
-    func drafts() throws -> [DraftSummary] {
-        try database().rows("SELECT id,substr(title,1,180) FROM drafts ORDER BY updated DESC,id", []) { row in
-            DraftSummary(id: try row.uuid(0), title: row.text(1))
+    func drafts(limit: Int = Int.max) throws -> [DraftSummary] {
+        try database().rows("SELECT id,substr(title,1,180),substr(body,1,180),updated FROM drafts ORDER BY updated DESC,id LIMIT ?",
+                            [.int(max(1, limit))]) { row in
+            DraftSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2),
+                         updatedAt: Date(timeIntervalSince1970: row.double(3)))
         }
     }
 
@@ -227,6 +243,8 @@ private final class Database {
                 try execute("PRAGMA user_version=1")
             }
         }
+        // Derived lookup structure; safe for every version-1 database and shared connection.
+        try execute("CREATE INDEX IF NOT EXISTS drafts_order ON drafts(updated DESC,id)")
         try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
     }
 

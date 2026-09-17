@@ -2,6 +2,7 @@ import Foundation
 
 struct LibraryRequest: Equatable, Sendable {
     static let pageSize = 100
+    static let draftPreviewLimit = 3
     let query: String
     let filter: LibraryFilter
     let limit: Int
@@ -22,13 +23,15 @@ struct LibraryPage: Equatable, Sendable {
     let items: [SnippetSummary]
     let drafts: [DraftSummary]
     let hasMore: Bool
+    let hasMoreDrafts: Bool
     let pinnedItems: [SnippetSummary]
     let otherItems: [SnippetSummary]
 
-    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false) {
+    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false, hasMoreDrafts: Bool = false) {
         self.items = items
         self.drafts = drafts
         self.hasMore = hasMore
+        self.hasMoreDrafts = hasMoreDrafts
         var pinned: [SnippetSummary] = []
         var others: [SnippetSummary] = []
         for item in items {

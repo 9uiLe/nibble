@@ -26,8 +26,15 @@ struct Draft: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Library rows never retain draft bodies. Opening a row reads the current draft by ID.
+/// Library rows retain only a bounded preview of each draft. Opening a row reads the current draft by ID.
 struct DraftSummary: Identifiable, Equatable, Sendable {
     let id: UUID
     let title: String
+    let preview: String
+    let updatedAt: Date
+
+    var displayTitle: String {
+        let value = Snippet.displayTitle(title: title, body: preview)
+        return value.isEmpty ? "新しい下書き" : value
+    }
 }

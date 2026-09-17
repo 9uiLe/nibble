@@ -14,9 +14,43 @@ extension UIIntegrationTests {
             #expect(row != SnippetRowContent(title: "予定", preview: "確認します", pinned: false))
             #expect(row != SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false))
             #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: true))
+            #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: false, expanded: true))
             // A body-derived heading must also invalidate when its preview changes.
             #expect(SnippetRowContent(title: "", preview: "一件目", pinned: false)
                     != SnippetRowContent(title: "", preview: "二件目", pinned: false))
+        }
+
+        @Test func expandedRowGivesLongContentItsOwnHeight() throws {
+            let title = String(repeating: "見分けるための長い名前", count: 5)
+            let compact = UIHostingController(rootView: SnippetRowContent(title: title, preview: "本文", pinned: true))
+            let expanded = UIHostingController(rootView: SnippetRowContent(title: title, preview: "本文", pinned: true, expanded: true))
+            let size = CGSize(width: 280, height: 10_000)
+            #expect(expanded.sizeThatFits(in: size).height > compact.sizeThatFits(in: size).height)
+        }
+
+        @Test func brandColorsMeetContrastBudgetInEveryAppearance() {
+            func luminance(_ color: UIColor, _ traits: UITraitCollection) -> Double {
+                var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                #expect(color.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a))
+                func linear(_ value: CGFloat) -> Double {
+                    let v = Double(value)
+                    return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+                }
+                return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+            }
+            for style in [UIUserInterfaceStyle.light, .dark] {
+                var ratios: [Double] = []
+                for contrast in [UIAccessibilityContrast.normal, .high] {
+                    let traits = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: style),
+                                                               UITraitCollection(accessibilityContrast: contrast)])
+                    let accent = luminance(UIColor(Color.nibbleAccent), traits)
+                    let canvas = luminance(UIColor(Color.nibbleCanvas), traits)
+                    let ratio = (max(accent, canvas) + 0.05) / (min(accent, canvas) + 0.05)
+                    #expect(ratio >= 4.5)
+                    ratios.append(ratio)
+                }
+                #expect(ratios[1] > ratios[0])
+            }
         }
 
         @Test func mountedRowUpdatesAndReturnsToTheSamePixels() async throws {

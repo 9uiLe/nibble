@@ -8,12 +8,12 @@ final class LibraryTaskOwner {
     private let tasks = ViewTaskStore()
 
     enum Action {
-        case refresh, open(LibraryModel.EditorSource), copy(UUID), pin(SnippetSummary)
+        case refresh, reload, open(LibraryModel.EditorSource), copy(UUID), pin(SnippetSummary)
         case delete(UUID), restore(UUID), permanentlyDelete(UUID)
 
         var id: ActionID {
             switch self {
-            case .refresh: "library.refresh"
+            case .refresh, .reload: "library.refresh"
             case .open: "library.open"
             case .copy: "library.copy"
             case .pin(let item): ActionID("library.pin.\(item.id)")
@@ -30,7 +30,7 @@ final class LibraryTaskOwner {
 
         var policy: TaskStartPolicy {
             switch self {
-            case .refresh, .copy: .cancelExisting
+            case .refresh, .reload, .copy: .cancelExisting
             default: .ignoreNew
             }
         }
@@ -43,6 +43,7 @@ final class LibraryTaskOwner {
             guard let model else { return }
             switch action {
             case .refresh: await model.refresh()
+            case .reload: await model.reload()
             case .open(let source): await model.open(source)
             case .copy(let id): await model.copy(id)
             case .pin(let item): await model.pin(item)

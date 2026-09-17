@@ -37,11 +37,20 @@ struct SnippetEditor: View {
                         HStack {
                             Text("本文").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
                             Spacer()
-                            PasteButton(payloadType: String.self) { texts in
-                                if let text = texts.first { model.body += text }
+                            VStack(alignment: .trailing, spacing: 4) {
+                                PasteButton(payloadType: String.self) { texts in
+                                    if let text = texts.first { model.body += text }
+                                }
+                                .labelStyle(.iconOnly)
+                                .controlSize(.large)
+                                .accessibilityLabel("本文の末尾にペースト")
+                                Text("末尾に追加").font(.caption).foregroundStyle(.secondary)
                             }
-                            .labelStyle(.iconOnly)
-                            .accessibilityLabel("本文にペースト")
+                        }
+                        if !model.hasBody {
+                            Text("保存するには本文を入力してください。空白や改行だけでは保存できません。")
+                                .font(.footnote).foregroundStyle(.secondary)
+                                .accessibilityIdentifier("editor.bodyRequirement")
                         }
                         // A growing native multiline field lets the entire page scroll on small screens.
                         TextField("繰り返し使う言葉を、ここに。", text: $editor.body, axis: .vertical)
@@ -62,7 +71,7 @@ struct SnippetEditor: View {
                                 .buttonStyle(.borderedProminent)
                         }
                     }
-                    Text("閉じても下書きが残ります。空白と改行も、そのまま保存します。")
+                    Text("「閉じる」で編集内容を下書きに保持して戻ります。空白と改行も、そのまま保存します。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding(24)
@@ -92,7 +101,9 @@ struct SnippetEditor: View {
                     }
                     .accessibilityIdentifier("editor.more")
                     Spacer()
-                    if model.phase == .finishing { ProgressView().accessibilityLabel("保存中") }
+                    if case .finishing(let operation) = model.phase {
+                        ProgressView(operation.progressTitle)
+                    }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()

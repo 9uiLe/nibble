@@ -34,7 +34,7 @@ extension UIIntegrationTests {
             await library.delete(item.id)
             await library.permanentlyDelete(item.id)
             #expect(try await store.search(filter: .trash).isEmpty)
-            #expect(library.error == nil)
+            #expect(library.failure == nil)
         }
 
         @Test func librarySectionsKeepSearchIndependentAndRefreshSharedChanges() async throws {
@@ -144,7 +144,7 @@ extension UIIntegrationTests {
             await owner.waitForIdle()
             #expect(library.request.limit == LibraryRequest.pageSize)
             #expect(library.items.isEmpty && library.drafts.map(\.id) == [draft.id])
-            #expect(!library.loading && library.error == nil)
+            #expect(!library.loading && library.failure == nil)
             #expect(search.items.map(\.id) == [saved] && search.query == "検索対象")
             #expect(search.filter == .all)
         }
@@ -246,6 +246,85 @@ extension UIIntegrationTests {
             await owner.waitForIdle()
             #expect(library.items.map(\.id) == [last])
             #expect(!library.loading)
+        }
+
+        @Test func emptySearchPreservesOperationFailureUntilExplicitRecovery() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let library = LibraryModel(store: database.store)
+            library.query = "  "
+            await library.copy(UUID())
+            let failure = try #require(library.failure)
+            #expect(failure.title == "コピーできませんでした")
+            #expect(failure.recovery == .reload)
+            await library.refresh()
+            #expect(library.failure == failure)
+            #expect(library.query == "  " && !library.loading)
+            let feedback = library.feedback
+            await library.reload()
+            #expect(library.failure == nil && library.notice == nil)
+            #expect(library.feedback == feedback) // Reload never retries a clipboard operation.
+            #expect(library.query == "  ")
+        }
+
+        @Test func loadingFailureIsSeparateFromFailedCreation() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let directory = database.url.deletingLastPathComponent()
+            let file = directory.appending(path: "not-a-directory")
+            try Data([1]).write(to: file)
+            let library = LibraryModel(store: SnippetStore(location: file.appending(path: "db.sqlite")))
+            await library.refresh()
+            #expect(library.failure?.title == "一覧を読み込めませんでした")
+            #expect(library.failure?.recovery == .reload)
+            await library.open()
+            #expect(library.failure?.title == "編集を始められませんでした")
+            #expect(library.editor == nil)
+            library.dismissFailure()
+            #expect(library.failure?.title == "一覧を読み込めませんでした")
+            try FileManager.default.removeItem(at: file)
+            await library.reload()
+            #expect(library.failure == nil && !library.loading)
+        }
+
+        @Test func consecutiveDeletionsKeepTheUndoSubjectAndIdentityTogether() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let first = try await create(store, title: "一つ目", body: "原文1")
+            let second = try await create(store, title: "二つ目", body: "原文2")
+            let library = LibraryModel(store: store)
+            await library.refresh()
+            await library.delete(first)
+            #expect(library.notice?.subject == "一つ目" && library.notice?.undoID == first)
+            await library.delete(second)
+            #expect(library.notice?.subject == "二つ目" && library.notice?.undoID == second)
+            #expect(library.notice?.announcement.contains("二つ目") == true)
+            await library.restore(try #require(library.notice?.undoID))
+            #expect(library.notice?.subject == "二つ目")
+            #expect(try await store.snippet(first).deleted)
+            #expect(try await store.snippet(second).body == "原文2")
+            #expect(try await store.snippet(second).deleted == false)
+            await library.permanentlyDelete(first)
+            #expect(library.notice?.subject == "一つ目")
+        }
+
+        @Test func editorExplainsRequiredBodyWithoutChangingOriginalInput() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let draft = try await database.store.beginDraft()
+            let editor = EditorModel(draft: draft, store: database.store)
+            editor.title = "名前だけ"
+            for body in ["", "  ", "\n\t"] {
+                editor.body = body
+                #expect(!editor.hasBody && !editor.canSave)
+                #expect(editor.body.utf8.elementsEqual(body.utf8))
+            }
+            let original = "  原文\n👩🏽‍💻  "
+            editor.body = original
+            #expect(editor.hasBody && editor.canSave)
+            #expect(await editor.finish(.keep))
+            #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(original.utf8))
         }
 
         @Test func noticeExpiryIsSeparateAndCancellationPreservesNotice() async throws {
