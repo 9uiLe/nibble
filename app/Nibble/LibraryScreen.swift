@@ -425,11 +425,7 @@ private struct LibraryFilterBar: View {
                 HStack(spacing: 8) {
                     ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
                         Button { selection = filter } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark").opacity(selection == filter ? 1 : 0)
-                                    .accessibilityHidden(true)
-                                Text(filter.title)
-                            }
+                            Text(filter.title)
                             .font(.subheadline.weight(.semibold))
                             .fixedSize()
                             .padding(.horizontal, 12)
