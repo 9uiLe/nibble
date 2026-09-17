@@ -216,3 +216,14 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 | iOS検証環境の確認 | `nix develop --command python3 scripts/ios.py doctor` |
 
 依存の追加・更新は[開発ツールの管理](CONTRIBUTING.md#開発ツールの管理)、実装・証跡・PRは[開発ガイド](CONTRIBUTING.md)に従います。
+
+## Riveの説明イラスト
+
+「nibbleについて」は、保存した言葉を選び、コピーし、入力先で使う流れを図と動きで補足します。文章と操作はSwiftUI、図形と時間はRML、ファイルの読み込みと表示は独立したSwift Packageが担当します。
+
+| 目的 | 参照先 |
+| --- | --- |
+| 構成、責務、採用理由を理解する | [演出設計](docs/decisions/0004-rive-presentation.md) |
+| 図や動きを編集し、同梱する`.riv`を再生成する | [アセットの制作と配布](app/Animations/README.md) |
+| iOSへ接続する、表示基盤を他製品で利用する | [RivePresentationの利用契約](app/Packages/RivePresentation/README.md) |
+| 対象ソースの実行結果と未確認条件を調べる | [検証記録](docs/rive-validation.md) |

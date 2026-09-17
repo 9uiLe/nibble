@@ -7,8 +7,18 @@
     flake = false;
   };
 
+  inputs.rive-cli = {
+    url = "file+https://releases.rive.app/cli/v1.0.4/rive-macos-arm64.tar.gz";
+    flake = false;
+  };
+
   outputs =
-    { nixpkgs, sim-use, ... }:
+    {
+      nixpkgs,
+      sim-use,
+      rive-cli,
+      ...
+    }:
     let
       systems = [
         "aarch64-darwin"
@@ -39,6 +49,22 @@
             platforms = pkgs.lib.platforms.darwin;
           };
         };
+      riveCLIFor =
+        pkgs:
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = "rive-cli";
+          version = "1.0.4";
+          src = rive-cli;
+          unpackPhase = ''tar -xzf "$src"'';
+          dontBuild = true;
+          dontFixup = true;
+          installPhase = ''
+            mkdir -p "$out/bin"
+            cp -R rive docs samples "$out/bin/"
+            chmod +x "$out/bin/rive"
+          '';
+          meta.platforms = [ "aarch64-darwin" ];
+        };
       pythonFor =
         pkgs:
         pkgs.python3.withPackages (
@@ -58,7 +84,8 @@
           pkgs.gh
           pkgs.git
         ]
-        ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ];
+        ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ]
+        ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-darwin") [ (riveCLIFor pkgs) ];
     in
     {
       devShells = forAllSystems (pkgs: {
@@ -70,6 +97,11 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
       checks = forAllSystems (pkgs: {
+        rive-assets = pkgs.runCommand "nibble-rive-assets" { nativeBuildInputs = [ (pythonFor pkgs) ]; } ''
+          python3 ${./.}/scripts/rive_assets.py check --root ${./.}
+          touch "$out"
+        '';
+
         documentation =
           pkgs.runCommand "nibble-documentation"
             {
