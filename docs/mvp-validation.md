@@ -6,19 +6,17 @@
 
 ## 一覧・設定・検索
 
-行と余白の背景色の統一は`ea637a23fb4596d5dfd437b00ecc92bcff7bfd99`で、Releaseのライト・ダーク計12画面を確認した。[リストの背景色の検証](navigation-header-validation.md#リストの背景色)に比較元・操作・媒体と確認範囲を記載する。
+「一覧」「設定」「検索」の標準タブ、固定フィルター、片手操作、共通背景の評価は[標準ナビゲーションの検証記録](native-navigation-validation.md)を入口とする。Release製品テスト、画面操作、外観、TestFlightの送信を別々の確認として記録する。
 
-検索入力中の見出し、未入力時の案内、標準検索欄とキーボードの配置は`0d569da43751c3d26eaf918b907473c98ae357bc`で確認した。[検索画面の検証](search-layout-validation.md)に環境・操作・媒体と確認範囲を記載する。
+| 確認する契約 | 詳細な記録 |
+| --- | --- |
+| モデルと保存層の整合性、基本操作、最新ソースとの照合 | [標準ナビゲーションの検証](native-navigation-validation.md) |
+| 一覧の区分、左右位置の反映と再起動後の保持 | [一覧と設定](library-settings-validation.md) |
+| すべて・ピン留め・下書きの分離、最大文字での選択 | [一覧フィルター](library-filters-validation.md) |
+| タイトルの配置、ボタン寸法、ライト・ダークの共通背景 | [ナビゲーションバーとリスト](navigation-header-validation.md) |
+| 入力中の見出し、検索欄、キーボード、空の検索 | [検索画面](search-layout-validation.md) |
 
-上部の「すべて／ピン留め／下書き」は`39560fafe586dd66327c0ae3e486a89fbfdfc4f1`でReleaseテスト47件、基本操作、最大文字と外観を確認した。[一覧フィルターの検証](library-filters-validation.md)に対象・媒体・未実施条件を記載する。
-
-操作ボタンの寸法は`d75808f3d7edb4f1bd1af072dc2693023aee262e`でReleaseの基本操作・左右配置・外観を確認した。新規作成56 ptとコピー44 ptの操作領域を含む結果は[ボタンの寸法検証](navigation-header-validation.md#操作ボタンの寸法)を参照する。
-
-タイトルをナビゲーションバー左側へ配置する構成は、`cbe46cf161e0c91dbd739db1a34aa3718f7a901d`でReleaseの基本操作とDebugの外観を確認した。[ナビゲーションバーとリストの検証](navigation-header-validation.md)に対象・媒体・未実施条件を記載する。
-
-「一覧」のピン留め済み・その他の区分、「設定」の新規作成・コピーの左右配置について、製品ソース`20604eb70212578df9d5bef401fa9c70e6c4f6d4`でReleaseテスト44件が成功した。UI driverを更新した`9e97c5d70dba5fa7507a0bbd1ae150f831b0a96b`で基本操作・設定の再起動保持・外観を確認した。[一覧と設定の検証記録](library-settings-validation.md)に対象・媒体・未実施条件を記載する。
-
-初回の「すべて」「ピン留め」「検索」構成に対する評価は、対象ソースを明記した[標準ナビゲーションの検証記録](native-navigation-validation.md)に保持する。
+詳細記録はそれぞれ表記したソース・端末・操作条件に対する観測である。現在の画面構成と寸法の定義は[製品設計](decisions/0002-mvp-app.md#画面とフィードバック)を参照し、別ソースの観測を最終実装の確認済み項目として扱わない。
 
 ## 採用している依存構成の検証状況
 

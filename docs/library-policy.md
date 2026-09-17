@@ -111,7 +111,7 @@ struct ExampleView: View {
 
 `ViewTaskStore`を保持できる型は`View`、`UIViewController`、専用の`@MainActor *TaskOwner`とする。`*Model`と`@Observable`型はタスク所有者にしない。
 
-製品では`LibraryView`がタブごとの一覧モデルを`@State`で保持し、各`LibraryScreen`が`LibraryTaskOwner`を所有する。URLからの編集開始と削除シート終了後の更新は`LibraryView`の所有者が扱う。`SnippetEditor`は編集モデルと終了操作のstore、`ShareViewController`は共有データを読み込むstoreを持つ。
+製品では`LibraryView`が一覧・検索のモデルをそれぞれ`@State`で保持し、各`LibraryScreen`が`LibraryTaskOwner`を所有する。URLからの編集開始と削除シート終了後の更新は`LibraryView`の所有者が扱う。`SnippetEditor`は編集モデルと終了操作のstore、`ShareViewController`は共有データを読み込むstoreを持つ。
 
 | 設定・API | 意味と規則 |
 | --- | --- |
