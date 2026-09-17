@@ -290,10 +290,13 @@ struct LibraryScreen: View {
             if showsCreationCTA {
                 Button("新しいスニペットを作る") { startTask(.open(.new)) }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                     .accessibilityIdentifier("library.createFirst")
                     .keyboardShortcut("n", modifiers: .command)
             } else if showsFilters && model.filter == .pinned {
                 Button("すべてを見る") { model.filter = .all }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .accessibilityIdentifier("library.showAll")
             }
         }
