@@ -252,7 +252,7 @@ lifetimeは画面やsceneを自動監視しない。所有者が終了イベン�
 
 本体は「一覧」「設定」「検索」の3タブで構成する。`TabView`と`Tab(role: .search)`により、画面の切り替えと検索の表示をシステムに任せる。検索欄は検索タブの`NavigationStack`へ`.searchable`を適用し、選択と入力開始を`.tabViewSearchActivation(.searchTabSelection)`で結び付ける。タブのシンボルは一覧を表す線形の`list.bullet`と設定の`gearshape`を使い、標準タブバーの寸法と操作領域を維持する。
 
-一覧・検索・設定の画面タイトルは標準ナビゲーションバーの`topBarLeading`へ置き、スクロールしても同じ位置に保つ。`LibraryNavigationTitle`が標準タイトルの表示を除き、Dynamic Typeに対応する`title3`の見出しを配置する。見出しは操作ボタンではないため、共有のガラス背景を付けない。リストは`plain`スタイルで横幅を使い、スクロール内容の上余白を0にしてバーの直下から始める。Aboutは標準の戻る操作、削除一覧は閉じる操作を保つため、タイトルを`inline`とする。タイトルの置換は[標準toolbar項目の制御](https://developer.apple.com/documentation/swiftui/toolbardefaultitemkind)を使い、独自のナビゲーションバーは作らない。
+一覧・検索・設定の画面タイトルは標準ナビゲーションバーの`topBarLeading`へ置き、スクロールしても同じ位置に保つ。`LibraryNavigationTitle`が標準タイトルの表示を除き、意味に応じた標準フォント`title3`の見出しを配置する。文字サイズの適用範囲は標準toolbarに従う。見出しは操作ボタンではないため、共有のガラス背景を付けない。リストは`plain`スタイルで横幅を使い、スクロール内容の上余白を0にしてバーの直下から始める。Aboutは標準の戻る操作、削除一覧は閉じる操作を保つため、タイトルを`inline`とする。タイトルの置換は[標準toolbar項目の制御](https://developer.apple.com/documentation/swiftui/toolbardefaultitemkind)を使い、独自のナビゲーションバーは作らない。検索入力中のバー表示は標準検索の挙動に従う。
 
 「一覧」は「ピン留め済み」を上段、「その他」を下段に表示する。該当する項目がない区分は表示しない。取得済みの1ページを区分へ一度だけ分配し、同じ項目を重複表示しない。並び順と取得上限は共通なので、ピン留め済みだけで上限に達する場合は「さらに表示」で続きを取得する。下書きの再開は一覧の先頭に置く。
 
