@@ -104,3 +104,28 @@ private struct DeletedSnippetsView: View {
         .onSubmit(of: .search) { searchFocused = false }
     }
 }
+
+/// Root screens keep their heading in the navigation bar while content scrolls.
+struct LibraryNavigationTitle: ViewModifier {
+    let title: String
+    var leading = true
+
+    func body(content: Content) -> some View {
+        content
+            .navigationTitle(title)
+            .toolbarTitleDisplayMode(.inline)
+            .toolbar(removing: leading ? .title : nil)
+            .toolbar {
+                if leading {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text(title)
+                            .font(.title3.weight(.bold))
+                            .lineLimit(1)
+                            .accessibilityAddTraits(.isHeader)
+                            .accessibilityIdentifier("navigation.title")
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                }
+            }
+    }
+}

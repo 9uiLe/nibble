@@ -44,7 +44,6 @@ struct LibrarySettingsView: View {
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
-        .navigationTitle("設定")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .modifier(LibraryNavigationTitle(title: "設定"))
     }
 }

@@ -81,8 +81,7 @@ struct LibraryScreen: View {
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle(title)
-        .toolbarTitleDisplayMode(model.filter == .trash ? .inline : .inlineLarge)
+        .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
                 notice
