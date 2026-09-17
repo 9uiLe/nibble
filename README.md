@@ -219,7 +219,9 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 
 ## Riveの説明イラスト
 
-「nibbleについて」は、保存した言葉を選び、コピーし、入力先で使う流れを図と動きで補足します。文章と操作はSwiftUI、図形と時間はRML、ファイルの読み込みと表示は独立したSwift Packageが担当します。
+「nibbleについて」では、ほかのアプリの文章を選んでコピーし、nibbleに保存する流れを図と動きで説明します。元の文章を残したまま複製が保存先へ移る演出を6.2秒周期で自動再生し、Reduce Motionでは完成図を表示します。
+
+説明文と表示設定はSwiftUI、図形と時間はRML、ファイルの読み込みと独立した再生状態の表示はSwift PackageのRivePresentationが担当します。図は説明用であり、コピーや保存を実行しません。
 
 | 目的 | 参照先 |
 | --- | --- |

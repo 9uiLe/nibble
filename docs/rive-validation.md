@@ -1,129 +1,121 @@
-# Rive表示基盤の検証
+# コピー・保存アニメーションの検証
 
-RivePresentation、AboutIllustration、AboutStoryアセットを対象とする実行記録。採用する責務と振る舞いは[演出設計](decisions/0004-rive-presentation.md)、再生成は[アセット手順](../app/Animations/README.md)に定義する。本書は観測した結果と、その保証範囲を記録する。
-
-## モバイル画面のコピー・保存ループ
-
-2026-09-18の評価対象はRML SHA-256 `4d91ffe44747c68ecd4afe03a493563b5fe6f3b380a1487014c321a1db43d3e1`、生成した`.riv` SHA-256 `d19985127a961abb687dcea6b819fb3eda2f63bf7681ad8145daf1a0a227cffd`。CLI 1.0.4 / rive-ios 6.27.0を維持し、480×300の図を6.2秒で繰り返す。
-
-- CLIのverify・unsigned生成はエラー・警告0。6プロパティの名前・型・default instance・参照を検査した。
-- `--fit=contain --viewport=960x600`で90、462、834フレームを出力し、3周期の同じ時点のPNGが完全一致した。全時点で`active=true`を読み戻した。
-- `motionAllowed=false`では`active=false`となり、通常再生の保存後330フレームと完成図のPNGが一致した。
-- コピー選択、複製の移動、保存後の完成図を原本PNGで確認した。ログ・画像・読み戻し・照合結果は`artifacts/mobile-integration/`に保存する。
-- 配布用アセットは4,884 bytesから80,316 bytesへ増加した（+75,432 bytes）。ラベルのベクター輪郭とモバイル画面の図形を含む。外部フォント・画像・新しい依存は追加していない。
-
-CLIの900フレーム測定は制作キャンバス400×208と480×300で実行された。`--viewport`を指定してもベンチマークの出力ログは各制作サイズを示したため、同寸法の性能比較として扱わない。並行したXcodeコンパイルもあり、iOSのfpsやGPU時間はこの値から判断しない。測定ログは`before-bench-fit.log`と`after-bench-fit.log`に保持する。
-
-### iOSと配布の評価
-
-同じXcode 26.5 / Swift 6.3.2、iPhone SE第3世代・iOS 26.5（23F77）で評価した。対象ソースは各runの開始・終了時のハッシュで保持する。
-
-| run ID | 結果 |
-| --- | --- |
-| `20260917T162046Z-test-d286ec` | 最終入力のRelease製品テスト61件成功。実.rivの独立Session、800フレーム後のループ状態、Reduce Motionによる停止・解除後の再開、契約不一致と欠損リソースを含む |
-| `20260917T161619Z-rive-about-b44d0c` | 通常起動、2周期以上の再生、再生ボタンなし、ライト・ダーク・コントラスト、背景復帰、Reduce Motionの有効化・解除、最大文字の末尾到達が成功 |
-| `20260917T161843Z-rive-about-reduced-b5794d` | Reduce Motion有効での初回静止、再生ボタンなし、ライト・ダーク・最大文字の末尾到達が成功。設定は元へ復元 |
-
-通常runの`motion-disabled.png`と`motion-disabled-still.png`は2秒間隔で完全一致した。静止・再開・ダーク・大文字の原本PNGを開いて確認した。通常録画は101.162秒で、5.088秒の抽出画像、および通常速度再生中の11.050 / 17.345 / 44.583秒を画面観測した。Reduce Motion録画は62.322秒で、30.492秒の抽出画像を確認した。全編の連続目視レビューとはしない。未公開のローカル媒体と観測は各runの`review.json`へ保持する。
-
-`20260917T161424Z-rive-about-a38952`はアプリ切替途中のSettingsとNibbleが混在するAXツリーを読み、復帰判定で失敗した。driverは対象bundleと説明文の出現を待つ条件に修正し、上記の最終runで再確認した。初回テスト`20260917T160745Z-test-6ccc45`も61件成功したが、driver修正後の入力照合には最終テストを使用する。
-
-同じReleaseの通常SimulatorビルドからテストbundleとdSYMを除いた本体（拡張込み）のファイル合計は17,825,550 → 17,877,158 bytes（+51,608 bytes）。RiveRuntimeの版とバイナリサイズは同一。`artifacts/mobile-integration/simulator-size.json`へ集計条件を保存した。App Storeの圧縮・端末別サイズ、実機のfps・電力、VoiceOverの音声操作、不可視中のGPU停止は未測定。
-
-TestFlightの署名・送信は配布用manifest、Apple側の配信状態と実機の確認は配布担当者の観測として分ける。
-
-## 基盤導入時の評価記録
-
-以下は`d127c4dfa682ebf4e2119c7d4aca0af6a9afa7f0`の一回再生アセットに対する記録で、モバイル画面の自動ループ版の確認結果には流用しない。
+RivePresentation、AboutIllustration、同梱アセットabout-story.rivの実行記録。対象は、メモ画面で文章を選んでコピーし、nibbleへ保存する6.2秒の自動ループである。採用する構成は[演出設計](decisions/0004-rive-presentation.md)、生成手順は[アセット手順](../app/Animations/README.md)に定義する。
 
 ## 対象ソースと環境
 
-評価する製品ソースは `d127c4dfa682ebf4e2119c7d4aca0af6a9afa7f0`。下表の成功runは、実行開始・終了時の入力ファイルとこのコミットの内容が証跡検査で一致した記録である。実行時の作業ツリーには未コミットの変更が含まれるため、manifestのHEAD名だけでは対象を判断しない。
+評価対象コミットは`33fdbef9d2f074eba58f76c9aa8123009bf16541`。下記の成功runは、開始・終了時に記録した入力ファイルとこのコミットの内容が証跡検査で一致した。実行時のHEAD名だけで対象ソースを判定しない。
 
 | 条件 | 値 |
 | --- | --- |
-| 実行日 | 2026-09-17 |
+| 実行日 | 2026-09-18（JST。run IDはUTC） |
 | Mac / ツールチェーン | Apple Silicon、macOS 26.2、Xcode 26.5（17F42）、Swift 6.3.2 |
 | 依存 | Nix固定のRive CLI 1.0.4、exact指定・共有lockのrive-ios 6.27.0 |
 | 端末 | iPhone SE第3世代 Simulator、iOS 26.5（23F77） |
 | 画面 | 375×667 pt、PNG 750×1334 px |
 | 専用UDID | `AED98CBE-D67C-44EB-8B9D-F94719466B1A` |
-| 生成物 | about-story.riv、4,884 bytes |
-| SHA-256 | `0fc5cf5e179c69db4e8a90818d6270eda4d1445f54762142c2079d5bd447fabf` |
+| アセット | Artboard 480×300、372 frames / 60 fps、80,316 bytes |
+| RML SHA-256 | `4d91ffe44747c68ecd4afe03a493563b5fe6f3b380a1487014c321a1db43d3e1` |
+| `.riv` SHA-256 | `d19985127a961abb687dcea6b819fb3eda2f63bf7681ad8145daf1a0a227cffd` |
 
-最低対応OSはiOS 26.0、実行評価は26.5である。文書のみを変更したコミットで結果を再利用する際も、[証跡検査](review-evidence.md)で入力と媒体の一致を確認する。MarkdownはiOSの検証入力に含めない。
+最低対応OSはiOS 26.0、実行評価は26.5である。MarkdownはiOS runの入力に含まれない。文書のみの変更で結果を再利用する場合も、[証跡検査](review-evidence.md)で対象コミットの入力と媒体を照合する。
 
 ## 確認結果
 
-### CLIによる生成・構造・表示
+### CLIの生成・構造・状態
 
-- verify、inspect、unsigned生成はエラー・警告0。
-- About / Presentation / AboutStory.Defaultと7つのData Bindingプロパティを確認した。
-- 開始、持ち上げ、移動、ペースト、収束、Reduce Motionを800×416で出力した。開始・移動・収束・静止の原本を開き、元のカードが残ること、複製が前面を移ること、入力先の行と確認記号が現れることを確認した。
-- データ読み戻しでは、通常再生後にactive=falseとなった。motionAllowed=falseで初期化した出力は完成図となった。
+| 観点 | 実行と観測 |
+| --- | --- |
+| 生成 | verifyとunsigned生成が成功。エラー・警告0 |
+| 接続 | About / Presentation / AboutStory.Default、6プロパティの名前・型、default instanceと参照を検査 |
+| 反復 | `--fit=contain --viewport=960x600`で90・462・834フレームを出力。3周期の同じ時点のPNGが完全一致し、いずれも`active=true` |
+| Reduce Motion | `motionAllowed=false`で`active=false`。完成図のPNGが通常再生の保存後330フレームと一致 |
+| 視覚 | コピー選択、複製の移動、保存後の完成図を原本PNGで確認 |
 
-ログ、画像、data-dumpは `artifacts/rive/` に保存した。時刻別画像と読み戻しは連続再生の観測と区別する。ハッシュ照合は宣言済みソースと出力の対応を検査するもので、生成の実行やバイナリの意味を証明しない。実際の生成物の契約はiOSテストでも検査した。
+ログ、画像、読み戻し、照合結果は`artifacts/mobile-integration/`に保存した。同じ位相の画像一致は反復の確認であり、周期境界の動きやiOS描画性能の評価とは分ける。
 
-### iOSのビルド・挙動・閲覧
+### iOSのテスト・操作
 
-| run ID | 内容 | 結果 |
+| run ID | 結果 |
+| --- | --- |
+| `20260917T162046Z-test-d286ec` | Release製品テスト61件成功。実バイナリの契約、独立Session、800フレーム後のループ状態、Reduce Motionの切替、型不一致、欠損リソースを含む |
+| `20260917T161619Z-rive-about-b44d0c` | 通常起動、2周期以上の再生、再生ボタンなし、ライト・ダーク・コントラスト、背景復帰、Reduce Motionの有効化・解除、最大文字の末尾到達が成功 |
+| `20260917T161843Z-rive-about-reduced-b5794d` | Reduce Motion有効での初回静止、再生ボタンなし、ライト・ダーク・最大文字の末尾到達が成功 |
+
+UI driverは設定値を読み戻し、終了時に元へ復元した。通常runの`motion-disabled.png`と`motion-disabled-still.png`は2秒間隔で完全一致した。runごとのmanifest、媒体、観測は`artifacts/ios/<run ID>/`に保持する。
+
+### 画像と録画のレビュー範囲
+
+通常runでは静止図、動作設定の解除後、大きな文字での上端と末尾を原本PNGで確認した。Reduce Motion runでは初回の完成図とダーク配色を確認した。コピー元に文章が残り、保存先に確認記号があること、背景面と本文の読みやすさを観察した。
+
+| 録画 | 原本の長さ | 確認した範囲 |
 | --- | --- | --- |
-| `20260917T141448Z-test-55ddb0` | Release製品テスト | 61件成功、失敗0。実.rivの契約、File共有と独立した可変状態、完了・再視聴・Reduce Motion、欠損リソースを含む |
-| `20260917T141124Z-rive-about-aed5e7` | 通常起動・再生・一時停止・配色・復帰・閲覧 | 成功。再生操作のAX高さ44 pt、5秒のバックグラウンド滞在後の再生位置保持、ライト・ダーク・最大文字で末尾と設定への戻りを確認 |
-| `20260917T141552Z-rive-about-reduced-b1efcf` | Reduce Motion・静止図・閲覧 | 成功。設定false→true→falseを読み戻し、再生ボタンなし、ライト・ダーク・最大文字で末尾へ到達 |
+| 通常 | 101.162秒 | 5.088秒の抽出画像。通常速度のローカル再生中、11.050 / 17.345 / 44.583秒を間欠的に観測し、複数周期の移動場面と保存ボタンを確認 |
+| Reduce Motion | 62.322秒 | 30.492秒の抽出画像で最大文字の設定画面を確認。アプリの静止図は別途原本PNGを確認 |
 
-各runのmanifest、媒体、レビュー申告は `artifacts/ios/<run ID>/` に保存する。通常runの一時停止中のライト→ダーク→コントラスト強調→ライトのPNGでは、配色が反映され、カードの位置と形が保たれた。説明文と図は重ならず、最大文字でも末尾の段落まで到達した。Reduce MotionのPNGは完成図と通常時と同じ説明文を示した。
-
-| 録画 | 原本の長さ | 確認した抽出時刻 |
-| --- | --- | --- |
-| 通常 | 92.082秒 | 4.575 / 46.510 / 82.773秒 |
-| Reduce Motion | 60.183秒 | 3.405 / 30.090 / 54.335秒 |
-
-原本PNGと上記の抽出フレームを目視した。全編を連続再生した確認とは扱わない。PR添付のブラウザー確認は、ログインした所有者の閲覧条件で画像の読込サイズと動画プレーヤーの読込を確認したもの。アクセス条件と原本・プレーヤーそれぞれの動画時間は各runのreview.jsonに記録する。
+全編を連続して目視したレビューではない。媒体はローカル保存で、GitHubへの添付と公開先の閲覧確認は未実施。各runの`review.json`には実際の観測範囲を記入し、URLと公開閲覧欄は未記入としている。録画にはdriverの待機を含むため、長さをアプリの応答時間へ換算しない。
 
 ### 共通検査
 
-`nix flake check --no-update-lock-file --print-build-logs`の7項目が成功した。Python回帰99件には生成契約の5件とLegacy API検出を含む。共通UI設計の回帰35件、Swift規約、文書、workflow、Nix整形、生成物の照合も成功した。
+`nix flake check --no-update-lock-file --print-build-logs`の7項目が成功した。Python回帰99件、共通UI設計の回帰35件、Swift規約、文書、workflow、Nix整形、生成物の照合を含む。ログは`artifacts/mobile-nix-final.log`に保存した。
 
-これらは検査規則と記録の整合性を評価する。例えばRML検査は初期値定義の存在を確認するが、その値の意味を判定しない。SwiftのLegacy API検査は指定した6つの入口識別子を検出する構文検査であり、全APIの型解決ではない。
+これらは構造と記録の整合を検査する。RML検査は初期値定義の存在を確認するが、その値の意味は判定しない。ハッシュ照合だけでは生成物の動作を保証せず、実バイナリの接続はiOSテストでも確認した。
 
-## 検証で区別する失敗条件
+## 容量と描画負荷
 
-以下は評価対象の完成版とは異なる作業ツリーの観測である。対象ファイルは各runのmanifestのハッシュで識別し、成功runへ上書きしない。
+### 同条件のSimulator用アプリ容量
 
-| 条件と記録 | 観測 | 完成版の確認境界 |
-| --- | --- | --- |
-| Frameworkの探索経路。`20260917T134530Z-rive-about-852d43`、`20260917T134730Z-rive-about-d49595` | テストhostの起動だけでは通常アプリ起動時のRiveRuntime解決を保証できなかった | 本体のDebug / Releaseに必要なrunpathを設定。通常のinstall・launchを含むRelease UI runで起動を確認 |
-| 一時停止中の外観。`20260917T140536Z-rive-lifecycle-aacdd7` | Data Bindingの配色変更が描画されなかった。driverの操作成功は視覚品質の合格を意味しない | `renderingRevision`で表示用Viewを更新する実装を、通常runの停止中の配色変更と位置保持で確認 |
-| SimulatorのReduce Motion操作 | Settingsの行中央へのタップではswitch値が変化しない実行があった | driverはAXからswitch位置を取得し、設定値を読み戻す。成功runは変更と復元の両方を記録 |
+比較元は`d127c4dfa682ebf4e2119c7d4aca0af6a9afa7f0`の製品入力、比較先は本書の評価対象。同じXcode、Release、iOS Simulator 26.5の通常ビルドについて、テストbundleとdSYMを除いた非圧縮ファイルの合計を集計した。集計条件とファイル別の値は`artifacts/mobile-integration/simulator-size.json`にある。
 
-## サイズと描画コスト
+| 対象 | 比較元 | 評価対象 | 差 |
+| --- | ---: | ---: | ---: |
+| 本体（共有拡張を含む） | 17,825,550 bytes | 17,877,158 bytes | +51,608 bytes |
+| about-story.riv | 4,884 bytes | 80,316 bytes | +75,432 bytes |
+| RiveRuntimeの実行バイナリ | 10,140,992 bytes | 10,140,992 bytes | 0 bytes |
 
-### Simulator用アプリの容量
+アセットにはモバイル画面とラベルのベクター輪郭を含む。外部フォント・画像・新しい依存の追加はない。この集計はApp Storeの圧縮後サイズや端末別ダウンロード量を示さない。比較元の環境・実行記録は[固定コミットの検証資料](https://github.com/9uiLe/nibble/blob/414fba981fe5d60284fd016bcb371a1dcd38e492/docs/rive-validation.md)を参照する。
 
-比較元は `584142d32dbc9be907bb20513d0c1e1d446d8001`、比較先は上記の評価対象と一致する製品入力。同じXcode、Release、iOS Simulator 26.5、arm64 + x86_64で、テストbundleとdSYMを除いた非圧縮ファイルの合計を比較した。集計は `artifacts/rive/simulator-size.json` に保存した。
+### CLIベンチマークの限界
 
-| 非圧縮Simulator bundle | 比較元 | Riveを含む構成 |
-| --- | ---: | ---: |
-| 本体（共有拡張を含む） | 7,345,008 bytes | 17,825,550 bytes |
-| 同梱RiveRuntime.framework | 0 bytes | 10,144,296 bytes |
-| 共有拡張 | 2,082,519 bytes | 2,083,317 bytes |
+900フレームの測定で`--viewport=960x600 --fit=contain`を指定したが、ログはそれぞれ制作キャンバスの400×208と480×300を示した。同寸法の比較は成立せず、並行したXcodeコンパイルもある。ログ`before-bench-fit.log`と`after-bench-fit.log`は上記のartifactsディレクトリに保持し、性能改善の根拠には使用しない。iOSのfps・GPU時間・電力はこの測定から判断しない。
 
-本体は10,480,542 bytes増加した。拡張の798 bytes増加は共有ライセンス文書で、拡張にRiveRuntimeはリンクしない。アニメーション自体は4,884 bytes。この結果はApp Storeの圧縮・端末別ダウンロード量を示さない。
+## TestFlightへの送信
 
-### CLIの描画
+評価対象コミットから配布スクリプトを実行し、共通検査、依存解決、署名付きarchive、アップロードが成功した。
 
-headlessベンチマークの条件は400×208、300 frames。advance平均0.001 ms、render平均0.142 ms / p95 0.383 ms / 最大0.486 msだった。CLIの測定値であり、iOSのfpsやGPU時間には換算しない。
+| 公開メタデータ | 値 |
+| --- | --- |
+| version / build | 0.1.0 / `202609171623` |
+| 構成 | Release、最低iOS 26.0、SDK 26.5 |
+| 本体 / 共有拡張 | `nibble.9uiLe.com` / `nibble.9uiLe.com.share` |
+| manifest | `artifacts/testflight/202609171623/manifest.json` |
+| 完了状態 | `destination=upload`、`stage=upload`、`completed=true` |
+| 暗号化申告 | `uses_non_exempt_encryption=false` |
+
+確認したのはスクリプトが返す工程の成否と公開manifestである。認証設定、秘密鍵、Keychain、保護された生ログは直接参照していない。Apple側の処理、「本人用」への配信、端末でのインストールと動作は、このビルドでは未確認。配布構成と各工程の責務は[TestFlight手順](testflight.md)に定義する。
+
+## 成功判定に使用しない実行
+
+| run ID | 観測と扱い |
+| --- | --- |
+| `20260917T161424Z-rive-about-a38952` | アプリ切替途中にSettingsとNibbleが混在するAXツリーを読み、復帰判定で失敗。対象bundleと説明文を待つdriverの条件を用いた成功runと分けて保持 |
+| `20260917T160745Z-test-6ccc45` | 製品テスト61件は成功したが、driver変更前の入力。本書の対象ソース照合には`20260917T162046Z-test-d286ec`を使用 |
+
+失敗runの記録は成功runで上書きしない。対象は各manifestの入力ハッシュで識別する。
 
 ## 未評価の条件
 
-実機はMVPの評価範囲外。iOS 26.0での実行、GPUのフレーム時間・電力、VoiceOverの音声・ローター操作、利用者調査による理解度は未評価。AXラベル・操作領域とSimulatorの画像だけでこれらの成功を主張しない。
+- iOS 26.0での実行、実機の描画時間・電力・応答、App Storeの配信サイズ。
+- 画面外でのGPU停止の直接計測。停止条件の実装照合とGPUの観測は別の確認である。
+- VoiceOverの音声・ローター操作、利用者調査による理解度とループの注意への影響。
+- 読込失敗・キャンセル時の画面操作による回復確認。テストによる欠損リソース検出と分ける。
+- 録画全編の連続レビュー、公開添付の閲覧確認、TestFlightビルド`202609171623`の実機確認。
 
-スクロールによる画面外停止は実装を照合したが、不可視中のGPU停止は直接計測していない。待機時のプロセス計測はロード、OSキャッシュ、他のUIも含むため、Rive単独のコストには使わない。署名配布とTestFlightでの動作は本記録の対象に含めない。
+CLIの成功、画像一致、Simulatorの操作成功だけで、これらを確認済みとはしない。
 
-## 再実行の手順
+## 再実行
 
-[セットアップ](../README.md#セットアップ)を済ませ、専用のiOS 26.5 Simulatorを指定する。以下のUDIDは本記録の端末であり、別環境ではその環境の専用端末へ置き換える。UI driverの実行前に、SimulatorのSettingsで「アクセシビリティ→動作」を開く。
+[セットアップ](../README.md#セットアップ)後、専用のiOS 26.5 Simulatorを指定する。以下のUDIDは本記録の端末であり、別環境ではその環境の専用端末へ置き換える。UI driverの実行前に、SimulatorのSettingsで「アクセシビリティ→動作」を開く。
 
 ```sh
 nix develop --command python3 scripts/ios.py test \
@@ -135,4 +127,4 @@ nix develop --command python3 scripts/check-about-ui.py \
   --device AED98CBE-D67C-44EB-8B9D-F94719466B1A --reduce-motion enabled
 ```
 
-UI driverはReduce Motionの実値を読み、指定値へ変更し、終了時に元へ戻す。外観、文字サイズ、コントラストも保存・復元する。コマンドの成功後に、対象コミットとの照合、原本と録画の観察、レビュー申告と添付の確認を[証跡の手順](review-evidence.md)に従って行う。
+UI driverはReduce Motion・外観・文字サイズ・コントラストの実値を保存し、変更後の値を確認し、終了時に復元する。成功後は対象コミットとの照合、原本と録画の観察、レビュー申告と必要な添付を[証跡の手順](review-evidence.md)に従って行う。

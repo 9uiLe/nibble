@@ -286,7 +286,7 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 
 ## Riveの表示境界
 
-[RivePresentation](../app/Packages/RivePresentation/README.md)は、新Apple runtime APIとData Bindingでローカルの`.riv`を表示するSwift Packageである。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
+[RivePresentation](../app/Packages/RivePresentation/README.md)は、rive-iosのApple runtime API（`Worker`、`File`、`Rive`、`ViewModelInstance`）とData Bindingでローカルの`.riv`を表示するSwift Packageである。このAPI世代で接続を統一する。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
 
 | 境界 | 契約 |
 | --- | --- |

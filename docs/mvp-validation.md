@@ -4,6 +4,10 @@
 
 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`の構成では、コミット`f0ff5063ef42fd09742accb00699a7f306772ecd`でReleaseテスト42件とSafariからの共有保存・本体表示・本文のUTF-8完全一致を確認した。[配布の検証記録](testflight-validation.md)に実行環境と画像・録画の確認範囲を記載する。各記録の結果は、その記録に示した識別子と対象ソースに適用する。
 
+## 製品情報と利用説明
+
+「nibbleについて」のコピー・保存アニメーションは[Riveの検証記録](rive-validation.md)を入口とする。自動ループ、Reduce Motion、外観、画面の寿命、説明文の文字拡大を対象とし、製品テスト、画像・録画の観察、容量、TestFlightへの送信と未確認条件を対象ソースに対応付けて記録する。
+
 ## 操作・識別・回復のUI
 
 [UI改善の検証](ui-ux-validation.md)は、フィルターの取得待ちと結果・空表示の整合性、可視の整理メニュー、下書きの識別と表示上限、文字拡大、検索の失敗と回復、対象名付き復旧、編集の説明を対象とする。対象ソース・端末・実操作・性能の値と制約は同記録を正とする。設計理由は[採用判断](design/decisions/0001-library-actions.md)に定義する。
