@@ -112,7 +112,7 @@ def main():
         return {e.get("uniqueId", "") for e in data["entries"]}
 
     def menu(row, name):
-        run.command(["sim-use", "long-press", "--id", row, "--device", args.device])
+        run.tap("more." + row.removeprefix("snippet."))
         time.sleep(0.35)
         run.ui(name)
 
@@ -140,15 +140,19 @@ def main():
             tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
             if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
                 raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
-            add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == "library.add")
-            search_tab = tabs["検索"]["frame"]
-            if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
-                raise VerificationError("Create control must remain compact and tappable")
-            if (add["y"] + add["height"] > search_tab["y"] or
-                    abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
-                raise VerificationError("Create must sit above the trailing search button")
+            create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"
+            if create_id == "library.add":
+                add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
+                search_tab = tabs["検索"]["frame"]
+                if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
+                    raise VerificationError("Create control must remain compact and tappable")
+                if (add["y"] + add["height"] > search_tab["y"] or
+                        abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
+                    raise VerificationError("Create must sit above the trailing search button")
+            elif create_id not in identifiers(before):
+                raise VerificationError("Empty library must expose one labelled creation action")
             with run.recording():
-                run.tap("library.add")
+                run.tap(create_id)
                 run.ui("new-editor")
                 paste("editor.title", title)
                 paste("editor.body", body)
@@ -170,7 +174,7 @@ def main():
                 # Native AX text can omit surrounding whitespace. Validate the
                 # resumed bytes through save/copy below, not a display value.
                 run.tap("editor.save")
-                wait_ui("saved", lambda data: "library.add" in identifiers(data))
+                wait_ui("saved", lambda data: "library.add" in identifiers(data) or "library.createFirst" in identifiers(data))
                 remaining_drafts = run.ui("saved-draft-removed")
                 if drafts[0] in identifiers(remaining_drafts):
                     raise VerificationError("Saved draft remains in the Drafts filter")
@@ -304,7 +308,7 @@ def main():
                 run.tap("Search")
                 wait_ui("pin-search-submitted", lambda data: "Search" not in identifiers(data))
                 menu(row, "delete-menu")
-                run.tap("trash")
+                run.tap("delete." + snippet_id)
                 deleted = wait_ui("deleted", lambda data: "library.undo" in identifiers(data))
                 if row in identifiers(deleted):
                     raise VerificationError("Deleted row is still visible")
@@ -340,7 +344,7 @@ def main():
                        and entry.get("label", "").endswith(edited_title) for entry in finished["entries"]):
                     raise VerificationError("Discarded draft is still listed")
                 menu(row, "trash-delete-menu")
-                run.tap("trash")
+                run.tap("delete." + snippet_id)
                 wait_ui("trash-deleted", lambda data: row not in identifiers(data))
                 tab("設定")
                 wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
@@ -372,7 +376,7 @@ def main():
             run.manifest.setdefault("assertions", {}).update({
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
-                "pin": True, "delete_absent": True, "undo_same_id": True,
+                "visible_row_menu": True, "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
@@ -384,7 +388,7 @@ def main():
                 "data": "Dummy text only; existing snippets are retained",
             })
     except Exception as caught:
-        error = str(caught)
+        error = repr(caught)
     finally:
         run.finish(error)
     if error:

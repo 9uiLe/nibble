@@ -10,10 +10,11 @@ struct LibraryScreen: View {
     let searchFocused: FocusState<Bool>.Binding
     var actionButtonSide: ActionButtonSide = .right
     @Environment(\.layoutDirection) private var layoutDirection
-    @State private var taskOwner = LibraryTaskOwner()
-    @State private var permanentDeletion: SnippetSummary?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @State private var taskOwner = LibraryTaskOwner()
+    @State private var permanentDeletion: SnippetSummary?
 
     var body: some View {
         @Bindable var library = model
@@ -22,24 +23,18 @@ struct LibraryScreen: View {
                 LibraryFilterBar(selection: $library.filter)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if showsSearchPrompt && model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                ContentUnavailableView("スニペットを検索", systemImage: "magnifyingglass",
-                                       description: Text("タイトルや本文の言葉で探せます。"))
-                    .accessibilityIdentifier("search.prompt")
-            } else {
-                snippetList
-            }
+            snippetList
         }
         .background(Color.nibbleCanvas)
         .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
                 notice
-                if model.filter != .trash && !searchFocused.wrappedValue {
+                if model.filter != .trash && !searchFocused.wrappedValue && !showsCreationCTA {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .regular))
-                            .frame(width: 56, height: 56)
+                            .font(.title3.weight(.medium))
+                            .frame(minWidth: 56, minHeight: 56)
                             .contentShape(.circle)
                     }
                     .buttonStyle(.plain)
@@ -59,8 +54,13 @@ struct LibraryScreen: View {
         .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
             if let item = permanentDeletion {
                 Button("完全に削除", role: .destructive) { startTask(.permanentlyDelete(item.id)); permanentDeletion = nil }
+                    .accessibilityIdentifier("library.confirmPermanentDelete")
             }
-        } message: { Text("この項目と対応する下書きは元に戻せません。") }
+        } message: {
+            if let item = permanentDeletion {
+                Text("「\(item.displayTitle)」と対応する下書きは元に戻せません。")
+            }
+        }
         .tint(.nibbleAccent)
         .detectAnimationLeaks()
         // Keep native presentation transactions outside app content; local scopes own its animation.
@@ -81,72 +81,43 @@ struct LibraryScreen: View {
         }
     }
 
+    private var searchPrompt: Bool {
+        showsSearchPrompt && model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var snippetList: some View {
         List {
             Group {
-                if displaysDrafts && !model.drafts.isEmpty {
-                    Section {
-                        ForEach(model.drafts) { draft in
-                            Button { startTask(.open(.draft(draft.id))) } label: {
-                                Label {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("下書きを再開").font(.subheadline.weight(.semibold))
-                                        Text(draft.title.isEmpty ? "編集中のスニペット" : draft.title)
-                                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                                    }
-                                } icon: { Image(systemName: "square.and.pencil") }
-                            }
-                            .accessibilityIdentifier("draft.\(draft.id)")
-                        }
+                if let failure = model.failure { failureSection(failure) }
+                if searchPrompt {
+                    if model.loading { loadingRow }
+                    ContentUnavailableView("スニペットを検索", systemImage: "magnifyingglass",
+                                           description: Text("タイトルや本文の言葉で探せます。"))
+                        .accessibilityIdentifier("search.prompt")
+                        .listRowSeparator(.hidden)
+                } else {
+                    if model.loading && !model.contentIsCurrent { loadingRow }
+                    if model.contentIsCurrent || model.loading {
+                        libraryContent.disabled(!model.contentIsCurrent)
                     }
-                }
-
-                if let error = model.error {
-                    Section {
-                        Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.red)
-                        Button("再試行") { startTask(.refresh) }
-                    }
-                }
-
-                if contentIsEmpty && !model.loading && model.error == nil {
-                    emptyState
-                } else if model.filter != .drafts {
-                    if showsFilters && model.filter == .all {
-                        if !model.page.pinnedItems.isEmpty {
-                            Section("ピン留め済み") {
-                                ForEach(model.page.pinnedItems) { item in snippetRow(item) }
-                            }
-                        }
-                        if !model.page.otherItems.isEmpty {
-                            Section("その他") {
-                                ForEach(model.page.otherItems) { item in snippetRow(item) }
-                            }
-                        }
-                    } else {
-                        Section(sectionTitle) {
-                            ForEach(visibleItems) { item in snippetRow(item) }
-                        }
-                    }
-                    if model.hasMore || model.loading {
+                    if model.contentIsCurrent && (model.hasMore || model.loading) {
                         Section {
                             if model.hasMore {
-                                Button("さらに表示") { model.showMore() }
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                Button { model.showMore() } label: {
+                                    Text("さらに表示")
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .contentShape(.rect)
+                                }
+                                    .accessibilityIdentifier("library.loadMore")
                             }
-                            if model.loading { ProgressView().frame(maxWidth: .infinity) }
+                            if model.loading { loadingRow }
                         }
                     }
-                    if model.filter == .trash {
-                        Text("自動では消えません。必要な項目を復元できます。")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                } else if model.loading {
-                    ProgressView().frame(maxWidth: .infinity)
                 }
             }
             .listRowBackground(Color.clear)
         }
-        .id(model.filter)
+        .id(model.contentRequest.filter)
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
@@ -154,38 +125,141 @@ struct LibraryScreen: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
-    private var displaysDrafts: Bool {
-        showsFilters && (model.filter == .all || model.filter == .drafts)
+    @ViewBuilder private var libraryContent: some View {
+        if displaysDrafts && !model.drafts.isEmpty {
+            Section("下書き") {
+                ForEach(model.drafts) { draft in
+                    Button { startTask(.open(.draft(draft.id))) } label: {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(draft.displayTitle).font(.headline)
+                                    .foregroundStyle(.primary).lineLimit(expandedRows ? nil : 2)
+                                if !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text(draft.preview).font(.subheadline).foregroundStyle(.secondary)
+                                        .lineLimit(expandedRows ? nil : 2)
+                                }
+                                Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        } icon: { Image(systemName: "square.and.pencil").font(.body) }
+                        .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("下書き、\(draft.displayTitle)")
+                    .accessibilityValue(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
+                        : Text("\(draft.preview)、\(draft.updatedAt, format: .dateTime.month().day().hour().minute())"))
+                    .accessibilityHint("編集を再開します")
+                    .accessibilityIdentifier("draft.\(draft.id)")
+                }
+                if model.page.hasMoreDrafts {
+                    Button { model.filter = .drafts } label: {
+                        Label("下書きをすべて見る", systemImage: "arrow.right")
+                            .frame(minHeight: 44).contentShape(.rect)
+                    }
+                        .accessibilityIdentifier("library.allDrafts")
+                }
+            }
+        }
+        if model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil {
+            emptyState
+        } else if model.contentRequest.filter != .drafts {
+            if showsFilters && model.contentRequest.filter == .all {
+                if !model.page.pinnedItems.isEmpty {
+                    Section("ピン留め済み") {
+                        ForEach(model.page.pinnedItems) { item in snippetRow(item) }
+                    }
+                }
+                if !model.page.otherItems.isEmpty {
+                    Section("その他") {
+                        ForEach(model.page.otherItems) { item in snippetRow(item) }
+                    }
+                }
+            } else {
+                Section {
+                    ForEach(visibleItems) { item in snippetRow(item) }
+                } header: {
+                    if model.contentRequest.filter != .pinned && model.contentRequest.filter != .trash { Text(sectionTitle) }
+                }
+            }
+            if model.contentRequest.filter == .trash {
+                Text("自動では消えません。必要な項目を復元できます。")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
     }
 
+    private var loadingRow: some View {
+        ProgressView(showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中")
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .accessibilityIdentifier("library.loading")
+    }
+
+    private func failureSection(_ failure: LibraryModel.Failure) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(failure.title, systemImage: "exclamationmark.circle")
+                    .font(.headline).foregroundStyle(.primary)
+                    .accessibilityIdentifier("library.error")
+                Text(failure.message).font(.callout).foregroundStyle(.primary)
+                if failure.recovery == .reload {
+                    Button("一覧を再読み込み") { startTask(.reload) }
+                        .buttonStyle(.bordered).controlSize(.large)
+                        .accessibilityIdentifier("library.reload")
+                } else {
+                    Button("閉じる") { model.dismissFailure() }
+                        .buttonStyle(.bordered).controlSize(.large)
+                        .accessibilityIdentifier("library.dismissFailure")
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+
+    private var displaysDrafts: Bool { showsFilters && (model.contentRequest.filter == .all || model.contentRequest.filter == .drafts) }
+    private var expandedRows: Bool { dynamicTypeSize.isAccessibilitySize }
     private var visibleItems: [SnippetSummary] {
-        switch model.filter {
+        switch model.contentRequest.filter {
         case .pinned: model.page.pinnedItems
         case .drafts: []
         default: model.items
         }
     }
-
-    private var contentIsEmpty: Bool {
-        visibleItems.isEmpty && (!displaysDrafts || model.drafts.isEmpty)
+    private var contentIsEmpty: Bool { visibleItems.isEmpty && (!displaysDrafts || model.drafts.isEmpty) }
+    private var showsCreationCTA: Bool {
+        showsFilters && (model.filter == .all || model.filter == .drafts)
+            && model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil
     }
 
     private var notice: some View {
         AnimationScope(.easeOut(duration: reduceMotion ? 0 : 0.16), value: model.notice != nil, name: "Library.Notice") {
             if let notice = model.notice {
-                HStack(spacing: 16) {
-                    Label(notice.message, systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.medium))
-                        .accessibilityIdentifier("library.notice")
-                    Spacer(minLength: 0)
+                let layout = expandedRows ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout(spacing: 16))
+                layout {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(notice.message, systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.medium))
+                        if let subject = notice.subject {
+                            Text(subject).font(.subheadline).lineLimit(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(notice.announcement)
+                    .accessibilityIdentifier("library.notice")
                     if let id = notice.undoID {
-                        Button("元に戻す") { startTask(.restore(id)) }
-                            .font(.subheadline.weight(.semibold))
-                            .frame(minHeight: 44)
+                        Button { startTask(.restore(id)) } label: {
+                            Text("元に戻す")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 44).contentShape(.rect)
+                        }
+                        .buttonStyle(.borderless)
                             .accessibilityIdentifier("library.undo")
                     }
                 }
-                .padding(.horizontal, 20).padding(.vertical, 6)
+                .padding(.horizontal, 20).padding(.vertical, 8)
                 .background(.regularMaterial, in: .rect(cornerRadius: 20))
                 .transition(.opacity)
             }
@@ -198,8 +272,8 @@ struct LibraryScreen: View {
     }
 
     private var sectionTitle: String {
-        if model.filter == .trash { return "削除した項目" }
-        return model.query.isEmpty ? (model.filter == .pinned ? "ピン留めしたスニペット" : "手元のスニペット") : "検索結果"
+        if model.contentRequest.filter == .trash { return "削除した項目" }
+        return model.contentRequest.query.isEmpty ? (model.contentRequest.filter == .pinned ? "ピン留めしたスニペット" : "手元のスニペット") : "検索結果"
     }
 
     private var emptyContent: (title: String, symbol: String, message: String) {
@@ -213,7 +287,7 @@ struct LibraryScreen: View {
             return ("下書きはありません", "square.and.pencil", "編集中の内容を閉じると、ここから再開できます。")
         }
         if model.filter == .pinned {
-            return ("ピン留めした項目はありません", "text.quote", "項目を長押ししてピン留めすると、すぐに見つかります。")
+            return ("ピン留めした項目はありません", "pin", "項目の「その他」からピン留めできます。")
         }
         return ("言葉を、すぐ手元に。", "text.quote", "よく使う言葉を保存して、\n次からはワンタップでコピー。")
     }
@@ -224,18 +298,21 @@ struct LibraryScreen: View {
         } description: {
             Text(emptyContent.message)
         } actions: {
-            if showsFilters {
-                if model.filter == .pinned {
-                    Button("すべてを見る") { model.filter = .all }
-                        .accessibilityIdentifier("library.showAll")
-                } else {
-                    Button("新しいスニペットを作る") { startTask(.open(.new)) }
-                        .buttonStyle(.borderedProminent).controlSize(.large)
-                        .accessibilityIdentifier("library.createFirst")
-                }
+            if showsCreationCTA {
+                Button("新しいスニペットを作る") { startTask(.open(.new)) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("library.createFirst")
+                    .keyboardShortcut("n", modifiers: .command)
+            } else if showsFilters && model.filter == .pinned {
+                Button("すべてを見る") { model.filter = .all }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("library.showAll")
             }
         }
         .padding(.vertical, 30)
+        .listRowSeparator(.hidden)
     }
 
     private var actionsAtLeading: Bool {
@@ -245,10 +322,10 @@ struct LibraryScreen: View {
     private func copyButton(_ item: SnippetSummary) -> some View {
         Button { startTask(.copy(item.id)) } label: {
             Image(systemName: "doc.on.doc")
-                .font(.system(size: 16, weight: .regular))
-                .frame(width: 32, height: 32)
+                .font(.body)
+                .padding(8)
                 .background(Color.nibbleAccent.opacity(0.07), in: .rect(cornerRadius: 10))
-                .frame(width: 44, height: 44)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
         .buttonStyle(.borderless)
@@ -256,44 +333,92 @@ struct LibraryScreen: View {
         .accessibilityIdentifier("copy.\(item.id)")
     }
 
-    private func snippetRow(_ item: SnippetSummary) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            if model.filter != .trash && actionsAtLeading { copyButton(item) }
-            Button { if model.filter != .trash { startTask(.open(.snippet(item.id))) } } label: {
-                SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
-            }
-            .buttonStyle(.plain)
-            .disabled(model.filter == .trash)
-            .accessibilityIdentifier("snippet.\(item.id)")
-            .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
-            .accessibilityHint(model.filter == .trash ? "" : "編集します")
-
-            if model.filter == .trash {
-                Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).frame(minWidth: 44, minHeight: 44)
+    private func rowActions(_ item: SnippetSummary) -> some View {
+        HStack(spacing: 0) {
+            if model.contentRequest.filter == .trash {
+                Button { startTask(.restore(item.id)) } label: {
+                    Image(systemName: "arrow.uturn.backward").font(.body)
+                        .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+                }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("\(item.displayTitle)を復元")
                     .accessibilityIdentifier("restore.\(item.id)")
-            } else if !actionsAtLeading {
-                copyButton(item)
+            } else { copyButton(item) }
+            Menu { rowMenu(item) } label: {
+                Image(systemName: "ellipsis").font(.body)
+                    .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+            }
+            .menuStyle(.borderlessButton)
+            .accessibilityLabel("\(item.displayTitle)のその他の操作")
+            .accessibilityIdentifier("more.\(item.id)")
+        }
+    }
+
+    private func rowLabel(_ item: SnippetSummary) -> some View {
+        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned, expanded: expandedRows)
+    }
+
+    @ViewBuilder private func rowContent(_ item: SnippetSummary) -> some View {
+        if model.contentRequest.filter == .trash {
+            rowLabel(item)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(item.displayTitle)
+                .accessibilityIdentifier("snippet.\(item.id)")
+        } else {
+            Button { startTask(.open(.snippet(item.id))) } label: { rowLabel(item) }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("snippet.\(item.id)")
+                .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
+                .accessibilityHint("編集します")
+        }
+    }
+
+    private func snippetRow(_ item: SnippetSummary) -> some View {
+        Group {
+            if expandedRows {
+                VStack(alignment: .leading, spacing: 8) {
+                    rowContent(item)
+                    rowActions(item).frame(maxWidth: .infinity, alignment: actionsAtLeading ? .leading : .trailing)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    if actionsAtLeading { rowActions(item) }
+                    rowContent(item)
+                    if !actionsAtLeading { rowActions(item) }
+                }
             }
         }
         .padding(.vertical, 4)
-        .contextMenu {
-            if model.filter == .trash {
-                Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
-                Button("完全に削除", systemImage: "trash", role: .destructive) { permanentDeletion = item }
-            } else {
-                Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }
-                Button("編集", systemImage: "square.and.pencil") { startTask(.open(.snippet(item.id))) }
-                Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
-            }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if model.filter == .trash {
+        .contextMenu { rowMenu(item) }
+        .swipeActions(edge: .trailing, allowsFullSwipe: model.contentRequest.filter != .trash) {
+            if model.contentRequest.filter == .trash {
                 Button("完全に削除", role: .destructive) { permanentDeletion = item }
             } else {
-                Button("削除", role: .destructive) { startTask(.delete(item.id)) }
-                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }.tint(.nibbleAccent)
+                Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
+                    .accessibilityIdentifier("swipe.delete.\(item.id)")
             }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if model.contentRequest.filter != .trash {
+                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") {
+                    startTask(.pin(item))
+                }
+                .tint(.nibbleAccent)
+                .accessibilityIdentifier("swipe.pin.\(item.id)")
+            }
+        }
+    }
+
+    @ViewBuilder private func rowMenu(_ item: SnippetSummary) -> some View {
+        if model.contentRequest.filter == .trash {
+            Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
+            Button("完全に削除", systemImage: "trash", role: .destructive) { permanentDeletion = item }
+                .accessibilityIdentifier("permanentlyDelete.\(item.id)")
+        } else {
+            Button("編集", systemImage: "square.and.pencil") { startTask(.open(.snippet(item.id))) }
+            Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }
+            Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
+                .accessibilityIdentifier("delete.\(item.id)")
         }
     }
 }
@@ -301,37 +426,43 @@ struct LibraryScreen: View {
 /// These controls change the contents of one library, while the tab bar changes screens.
 private struct LibraryFilterBar: View {
     @Binding var selection: LibraryFilter
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
-                    Button { selection = filter } label: {
-                        Text(filter.title)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
+                        Button { selection = filter } label: {
+                            Text(filter.title)
                             .font(.subheadline.weight(.semibold))
                             .fixedSize()
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 12)
                             .frame(minHeight: 36)
                             .foregroundStyle(selection == filter ? Color.nibbleAccent : Color.primary)
                             .background(selection == filter ? Color.nibbleAccent.opacity(0.14) : Color.clear,
                                         in: .rect(cornerRadius: 10))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(selection == filter ? Color.nibbleAccent.opacity(0.4) : Color.secondary.opacity(0.25))
+                                    .strokeBorder(selection == filter ? Color.nibbleAccent : Color.secondary.opacity(0.4))
                             }
                             .frame(minHeight: 44)
                             .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selection == filter ? [.isSelected] : [])
+                        .accessibilityIdentifier("library.filter.\(filter.rawValue)")
+                        .id(filter)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == filter ? [.isSelected] : [])
-                    .accessibilityIdentifier("library.filter.\(filter.rawValue)")
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
+            .scrollIndicators(.hidden)
+            .background(Color.nibbleCanvas)
+            .overlay(alignment: .bottom) { Divider() }
+            .onChange(of: selection) { proxy.scrollTo(selection, anchor: .center) }
+            .onChange(of: dynamicTypeSize) { proxy.scrollTo(selection, anchor: .center) }
         }
-        .scrollIndicators(.hidden)
-        .background(Color.nibbleCanvas)
-        .overlay(alignment: .bottom) { Divider() }
     }
 }

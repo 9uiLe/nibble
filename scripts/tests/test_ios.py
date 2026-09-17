@@ -197,3 +197,19 @@ class ProcessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProductDriverFailureTests(unittest.TestCase):
+    def test_empty_exception_message_cannot_report_a_passed_run(self):
+        spec = importlib.util.spec_from_file_location("mvp_ui", Path(__file__).parents[1] / "check-mvp-ui.py")
+        driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(driver)
+        run = Mock()
+        run.setup.side_effect = StopIteration()
+        with patch.object(driver, "Run", return_value=run), patch.object(
+                sys, "argv", ["check-mvp-ui.py", "--device", "selected"]):
+            with self.assertRaises(SystemExit) as stopped:
+                driver.main()
+        self.assertTrue(str(stopped.exception))
+        run.finish.assert_called_once()
+        self.assertTrue(run.finish.call_args.args[0])

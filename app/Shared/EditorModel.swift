@@ -3,8 +3,17 @@ import Observation
 
 @MainActor @Observable
 final class EditorModel {
-    enum Phase: Equatable { case editing, finishing, finished }
-    enum FinishOperation { case save, saveAsNew, keep, discard }
+    enum Phase: Equatable { case editing, finishing(FinishOperation), finished }
+    enum FinishOperation: Equatable {
+        case save, saveAsNew, keep, discard
+        var progressTitle: String {
+            switch self {
+            case .save, .saveAsNew: "保存中"
+            case .keep: "下書きを保持中"
+            case .discard: "下書きを破棄中"
+            }
+        }
+    }
 
     struct Failure: Equatable {
         let message: String
@@ -31,9 +40,8 @@ final class EditorModel {
         set { if phase == .editing { draft.body = newValue } }
     }
 
-    var canSave: Bool {
-        phase == .editing && !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    var hasBody: Bool { !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var canSave: Bool { phase == .editing && hasBody }
 
     func persist(_ snapshot: Draft) async {
         guard phase == .editing, snapshot.id == draft.id else { return }
@@ -52,7 +60,7 @@ final class EditorModel {
     func finish(_ operation: FinishOperation) async -> Bool {
         guard !Task.isCancelled, phase == .editing else { return false }
         let snapshot = draft
-        phase = .finishing
+        phase = .finishing(operation)
         failure = nil
         do {
             switch operation {
