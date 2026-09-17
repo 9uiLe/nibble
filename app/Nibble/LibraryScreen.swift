@@ -5,7 +5,7 @@ import ScopedAnimation
 struct LibraryScreen: View {
     let model: LibraryModel
     let title: String
-    let showsDrafts: Bool
+    let showsFilters: Bool
     let searchFocused: FocusState<Bool>.Binding
     var actionButtonSide: ActionButtonSide = .right
     @Environment(\.layoutDirection) private var layoutDirection
@@ -17,7 +17,7 @@ struct LibraryScreen: View {
     var body: some View {
         @Bindable var library = model
         List {
-            if showsDrafts && !model.drafts.isEmpty {
+            if displaysDrafts && !model.drafts.isEmpty {
                 Section {
                     ForEach(model.drafts) { draft in
                         Button { startTask(.open(.draft(draft.id))) } label: {
@@ -41,10 +41,10 @@ struct LibraryScreen: View {
                 }
             }
 
-            if model.items.isEmpty && !model.loading && model.error == nil {
+            if contentIsEmpty && !model.loading && model.error == nil {
                 emptyState.listRowBackground(Color.clear)
-            } else {
-                if showsDrafts {
+            } else if model.filter != .drafts {
+                if showsFilters && model.filter == .all {
                     if !model.page.pinnedItems.isEmpty {
                         Section("ピン留め済み") {
                             ForEach(model.page.pinnedItems) { item in snippetRow(item) }
@@ -57,7 +57,7 @@ struct LibraryScreen: View {
                     }
                 } else {
                     Section(sectionTitle) {
-                        ForEach(model.items) { item in snippetRow(item) }
+                        ForEach(visibleItems) { item in snippetRow(item) }
                     }
                 }
                 if model.hasMore || model.loading {
@@ -74,14 +74,20 @@ struct LibraryScreen: View {
                         .font(.footnote).foregroundStyle(.secondary)
                         .listRowBackground(Color.clear)
                 }
+            } else if model.loading {
+                ProgressView().frame(maxWidth: .infinity)
             }
         }
+        .id(model.filter)
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
         .scrollDismissesKeyboard(.interactively)
         .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if showsFilters { LibraryFilterBar(selection: $library.filter) }
+        }
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
                 notice
@@ -131,6 +137,22 @@ struct LibraryScreen: View {
         }
     }
 
+    private var displaysDrafts: Bool {
+        showsFilters && (model.filter == .all || model.filter == .drafts)
+    }
+
+    private var visibleItems: [SnippetSummary] {
+        switch model.filter {
+        case .pinned: model.page.pinnedItems
+        case .drafts: []
+        default: model.items
+        }
+    }
+
+    private var contentIsEmpty: Bool {
+        visibleItems.isEmpty && (!displaysDrafts || model.drafts.isEmpty)
+    }
+
     private var notice: some View {
         AnimationScope(.easeOut(duration: reduceMotion ? 0 : 0.16), value: model.notice != nil, name: "Library.Notice") {
             if let notice = model.notice {
@@ -170,8 +192,11 @@ struct LibraryScreen: View {
         if model.filter == .trash {
             return ("削除した項目はありません", "trash", "削除したスニペットはここから復元できます。")
         }
+        if model.filter == .drafts {
+            return ("下書きはありません", "square.and.pencil", "編集中の内容を閉じると、ここから再開できます。")
+        }
         if model.filter == .pinned {
-            return ("よく使う言葉を、手前に。", "text.quote", "項目を長押ししてピン留めすると、すぐに見つかります。")
+            return ("ピン留めした項目はありません", "text.quote", "項目を長押ししてピン留めすると、すぐに見つかります。")
         }
         return ("言葉を、すぐ手元に。", "text.quote", "よく使う言葉を保存して、\n次からはワンタップでコピー。")
     }
@@ -182,10 +207,15 @@ struct LibraryScreen: View {
         } description: {
             Text(emptyContent.message)
         } actions: {
-            if showsDrafts {
-                Button("最初のスニペットを作る") { startTask(.open(.new)) }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
-                    .accessibilityIdentifier("library.createFirst")
+            if showsFilters {
+                if model.filter == .pinned {
+                    Button("すべてを見る") { model.filter = .all }
+                        .accessibilityIdentifier("library.showAll")
+                } else {
+                    Button("新しいスニペットを作る") { startTask(.open(.new)) }
+                        .buttonStyle(.borderedProminent).controlSize(.large)
+                        .accessibilityIdentifier("library.createFirst")
+                }
             }
         }
         .padding(.vertical, 30)
@@ -251,3 +281,42 @@ struct LibraryScreen: View {
     }
 }
 
+/// These controls change the contents of one library, while the tab bar changes screens.
+private struct LibraryFilterBar: View {
+    @Binding var selection: LibraryFilter
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
+                    Button { selection = filter } label: {
+                        Text(filter.title)
+                            .font(.subheadline.weight(.semibold))
+                            .fixedSize()
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 36)
+                            .foregroundStyle(selection == filter ? Color.nibbleAccent : Color.primary)
+                            .background(selection == filter ? Color.nibbleAccent.opacity(0.14) : Color.clear,
+                                        in: .rect(cornerRadius: 10))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(selection == filter ? Color.nibbleAccent.opacity(0.4) : Color.secondary.opacity(0.25))
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection == filter ? [.isSelected] : [])
+                    .accessibilityIdentifier("library.filter.\(filter.rawValue)")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .scrollIndicators(.hidden)
+        .background(Color.nibbleCanvas)
+        .overlay(alignment: .bottom) { Divider() }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("一覧の表示対象")
+    }
+}

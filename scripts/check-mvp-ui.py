@@ -132,6 +132,10 @@ def main():
             run.launch()
             before = run.ui("before")
             check_navigation_title(before, "一覧")
+            filters = {e.get("uniqueId") for e in before["entries"]
+                       if e.get("uniqueId", "").startswith("library.filter.")}
+            if filters != {"library.filter.all", "library.filter.pinned", "library.filter.drafts"}:
+                raise VerificationError("Expected All, Pinned and Drafts filters above the library")
             run.screenshot("before")
             tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
             if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
@@ -156,6 +160,10 @@ def main():
                           if entry.get("uniqueId", "").startswith("draft.") and entry.get("label", "").endswith(title)]
                 if len(drafts) != 1:
                     raise VerificationError("Expected exactly one draft for this run's title")
+                run.tap("library.filter.drafts")
+                filtered_drafts = wait_ui("draft-filter", lambda data: drafts[0] in identifiers(data)
+                                         and not any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
+                run.screenshot("draft-filter")
                 run.tap(drafts[0])
                 wait_ui("draft-resumed", lambda data: "editor.body" in identifiers(data))
                 run.screenshot("resumed-draft")
@@ -163,6 +171,11 @@ def main():
                 # resumed bytes through save/copy below, not a display value.
                 run.tap("editor.save")
                 wait_ui("saved", lambda data: "library.add" in identifiers(data))
+                remaining_drafts = run.ui("saved-draft-removed")
+                if drafts[0] in identifiers(remaining_drafts):
+                    raise VerificationError("Saved draft remains in the Drafts filter")
+                run.tap("library.filter.all")
+                wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 tab("検索")
                 focused = wait_ui("search-focused", lambda data: "Search" in identifiers(data))
                 if "library.add" in identifiers(focused):
@@ -220,6 +233,27 @@ def main():
                 if search_fields(grouped) or not any(e.get("label") == "ピン留め済み" for e in grouped["entries"]):
                     raise VerificationError("Pinned items must have their own section in Library")
                 run.screenshot("pinned")
+                run.tap("library.filter.pinned")
+                pins = wait_ui("pinned-filter", lambda data: row in identifiers(data)
+                               and not any(e.get("uniqueId", "").startswith("draft.") for e in data["entries"]))
+                if any(e.get("uniqueId", "").startswith("snippet.") and "ピン留め" not in e.get("label", "") for e in pins["entries"]):
+                    raise VerificationError("Pinned filter contains an unpinned item")
+                run.screenshot("pinned-filter")
+                menu(row, "unpin-filter-menu")
+                label("ピン留めを外す")
+                wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
+                tab("検索")
+                wait_ui("independent-search", lambda data: row in identifiers(data))
+                run.tap("Search")
+                wait_ui("independent-search-submitted", lambda data: "Search" not in identifiers(data))
+                menu(row, "repin-filter-menu")
+                label("ピン留め")
+                wait_ui("repinned-filter", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
+                close_search()
+                tab("一覧")
+                wait_ui("pinned-filter-returned", lambda data: row in identifiers(data))
+                run.tap("library.filter.all")
+                wait_ui("all-filter-restored", lambda data: row in identifiers(data))
                 tab("設定")
                 settings = wait_ui("settings", lambda data: "settings.about" in identifiers(data))
                 check_navigation_title(settings, "設定")
@@ -333,7 +367,8 @@ def main():
                 "pin": True, "delete_absent": True, "undo_same_id": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
-                "create_hidden_while_searching": True, "pinned_section": True,
+                "create_hidden_while_searching": True, "pinned_section": True, "top_filters": True,
+                "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,
                 "settings_about": True, "left_and_right_actions": True, "side_survives_restart": True,
                 "empty_search_does_not_filter_all": True,
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,

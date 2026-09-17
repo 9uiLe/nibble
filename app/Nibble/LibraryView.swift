@@ -16,7 +16,7 @@ struct LibraryView: View {
         @Bindable var searchableLibrary = search
         TabView(selection: $selectedTab) {
             Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
-                library(all, title: "一覧", showsDrafts: true)
+                library(all, title: "一覧", showsFilters: true)
             }
             Tab("設定", systemImage: "gearshape", value: TabID.settings) {
                 NavigationStack {
@@ -47,6 +47,7 @@ struct LibraryView: View {
             showsTrash = false
             searchFocused = false
             search.query = ""
+            all.filter = .all
             selectedTab = .library
             if route == .create { routeOwner.startTask(.open(.new), on: all) }
         }
@@ -65,9 +66,9 @@ struct LibraryView: View {
         }
     }
 
-    private func library(_ model: LibraryModel, title: String, showsDrafts: Bool = false) -> some View {
+    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false) -> some View {
         NavigationStack {
-            LibraryScreen(model: model, title: title, showsDrafts: showsDrafts,
+            LibraryScreen(model: model, title: title, showsFilters: showsFilters,
                           searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
         }
     }
@@ -88,7 +89,7 @@ private struct DeletedSnippetsView: View {
     var body: some View {
         @Bindable var library = model
         NavigationStack {
-            LibraryScreen(model: model, title: "削除した項目", showsDrafts: false,
+            LibraryScreen(model: model, title: "削除した項目", showsFilters: false,
                           searchFocused: $searchFocused)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {

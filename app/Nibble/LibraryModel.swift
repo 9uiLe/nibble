@@ -91,6 +91,7 @@ final class LibraryModel {
             case .snippet(let id): draft = try await store.editingDraft(for: id)
             case .draft(let id): draft = try await store.draft(id)
             }
+            if case .new = source { filter = .all }
             editor = draft
         } catch { self.error = error.localizedDescription }
     }

@@ -90,6 +90,77 @@ extension UIIntegrationTests {
             #expect(model.items.count == model.page.pinnedItems.count + model.page.otherItems.count)
         }
 
+        @Test func libraryFiltersSeparateSavedPinnedAndDraftContent() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let pinned = try await create(store, body: "よく使う本文")
+            let other = try await create(store, body: "保存済み")
+            let deleted = try await create(store, body: "削除した本文")
+            try await store.setPinned(true, id: pinned)
+            try await store.setDeleted(true, id: deleted)
+            let draft = try await store.beginDraft(body: "  未保存\n👩🏽‍💻  ")
+            let all = try await store.library(LibraryRequest())
+            #expect(Set(all.items.map(\.id)) == [pinned, other])
+            #expect(all.drafts.map(\.id) == [draft.id])
+            let pins = try await store.library(LibraryRequest(filter: .pinned))
+            #expect(pins.items.map(\.id) == [pinned])
+            #expect(pins.drafts.isEmpty)
+            let drafts = try await store.library(LibraryRequest(filter: .drafts, limit: 1))
+            #expect(drafts.items.isEmpty && !drafts.hasMore)
+            #expect(drafts.drafts.map(\.id) == [draft.id])
+            let trash = try await store.library(LibraryRequest(filter: .trash))
+            #expect(trash.items.map(\.id) == [deleted] && trash.drafts.isEmpty)
+            #expect(try await store.search(filter: .drafts).isEmpty)
+            let model = LibraryModel(store: store, filter: .drafts)
+            await model.open(.draft(draft.id))
+            let resumed = try #require(model.editor)
+            #expect(resumed.id == draft.id && resumed.body == draft.body)
+            _ = try await store.save(resumed)
+            await model.refresh()
+            #expect(model.drafts.isEmpty && model.items.isEmpty && model.filter == .drafts)
+            model.filter = .all
+            await model.refresh()
+            #expect(model.items.count == 3)
+        }
+
+        @Test func latestFilterResetsPagingAndKeepsSearchIndependent() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let saved = try await create(store, body: "検索対象")
+            let draft = try await store.beginDraft(body: "下書き")
+            let library = LibraryModel(store: store)
+            let search = LibraryModel(store: store)
+            search.query = "検索対象"
+            await search.refresh()
+            library.showMore()
+            #expect(library.request.limit > LibraryRequest.pageSize)
+            let owner = LibraryTaskOwner()
+            library.filter = .pinned
+            owner.startTask(.refresh, on: library)
+            library.filter = .drafts
+            owner.startTask(.refresh, on: library)
+            await owner.waitForIdle()
+            #expect(library.request.limit == LibraryRequest.pageSize)
+            #expect(library.items.isEmpty && library.drafts.map(\.id) == [draft.id])
+            #expect(!library.loading && library.error == nil)
+            #expect(search.items.map(\.id) == [saved] && search.query == "検索対象")
+            #expect(search.filter == .all)
+        }
+
+        @Test(arguments: [LibraryFilter.pinned, .drafts])
+        func creatingFromFilteredLibraryReturnsToAll(filter: LibraryFilter) async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let model = LibraryModel(store: database.store, filter: filter)
+            await model.open(.new)
+            let draft = try #require(model.editor)
+            #expect(model.filter == .all)
+            await model.refresh()
+            #expect(model.drafts.map(\.id) == [draft.id])
+        }
+
         @Test func settersOnlyChangeMemoryAndPersistenceIsAwaitable() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }

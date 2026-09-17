@@ -35,8 +35,10 @@ actor SnippetStore {
         try Task.checkCancellation()
         let db = try database()
         return try db.readTransaction {
+            if request.filter == .drafts { return LibraryPage(drafts: try drafts()) }
             let values = try search(request.query, filter: request.filter, limit: request.limit + 1)
-            return LibraryPage(items: Array(values.prefix(request.limit)), drafts: try drafts(),
+            return LibraryPage(items: Array(values.prefix(request.limit)),
+                               drafts: request.filter == .all ? try drafts() : [],
                                hasMore: values.count > request.limit)
         }
     }
@@ -45,6 +47,8 @@ actor SnippetStore {
         let interval = signposter.beginInterval("Search")
         defer { signposter.endInterval("Search", interval) }
         try Task.checkCancellation()
+        // Drafts are editing sessions, exposed by library(_:) rather than saved-snippet search.
+        guard filter != .drafts else { return [] }
         let key = SnippetText.searchKey(query).trimmingCharacters(in: .whitespacesAndNewlines)
         // instr treats %, _ and backslash literally and supports one-character Japanese queries.
         let db = try database()
