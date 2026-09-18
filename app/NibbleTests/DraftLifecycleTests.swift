@@ -240,8 +240,10 @@ extension UIIntegrationTests {
             #expect(try await database.store.snippet(saved.id).body == draft.body)
         }
 
-        @Test func changingSearchCriteriaResetsPaginationWithoutViewCallbacks() {
-            let library = LibraryModel()
+        @Test func changingSearchCriteriaResetsPaginationWithoutViewCallbacks() throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let library = LibraryModel(store: database.store)
             library.showMore()
             #expect(library.request.limit == 200)
             library.filter = .all

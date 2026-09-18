@@ -6,7 +6,7 @@ nibbleのUI部品は、内容を選ぶ、操作する、結果を理解すると
 
 ## ナビゲーションと一覧
 
-実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)、[SnippetRowContent](../../app/Nibble/SnippetRowContent.swift)。
+実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/LibraryFilterBar.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ nibbleのUI部品は、内容を選ぶ、操作する、結果を理解すると
 
 ## 検索と状態表示
 
-実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/LibraryModel.swift)。
+実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/LibraryNotice.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
 | --- | --- | --- | --- |

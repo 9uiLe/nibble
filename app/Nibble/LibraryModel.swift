@@ -1,9 +1,10 @@
-import SwiftUI
+import Foundation
 import Observation
 
 @MainActor @Observable
 final class LibraryModel {
     let store: SnippetStore
+    private let effects: any LibraryEffects
     enum EditorSource { case new, snippet(UUID), draft(UUID) }
 
     struct Notice: Identifiable, Equatable {
@@ -72,9 +73,10 @@ final class LibraryModel {
     func showMore() { request = request.expanded }
     func dismissFailure() { operationFailure = nil }
 
-    init(store: SnippetStore = .shared, filter: LibraryFilter = .all,
+    init(store: SnippetStore, effects: any LibraryEffects, filter: LibraryFilter = .all,
          libraryReader: (any LibraryReading)? = nil) {
         self.store = store
+        self.effects = effects
         self.libraryReader = libraryReader ?? store
         request = LibraryRequest(filter: filter)
     }
@@ -147,7 +149,7 @@ final class LibraryModel {
             let snippet = try await store.snippet(id)
             try Task.checkCancellation()
             guard !snippet.deleted else { throw StoreError.missing }
-            UIPasteboard.general.setItems([["public.utf8-plain-text": snippet.body]], options: [.localOnly: true])
+            effects.copy(snippet.body)
             feedback += 1
             announce("コピーしました")
         } catch is CancellationError { }
@@ -207,6 +209,6 @@ final class LibraryModel {
     private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil) {
         let value = Notice(message: text, subject: subject, undoID: undo)
         notice = value
-        UIAccessibility.post(notification: .announcement, argument: value.announcement)
+        effects.announce(value.announcement)
     }
 }

@@ -78,6 +78,8 @@ nix develop --command python3 scripts/ios.py run \
   --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
+Releaseのbuildはサイズ優先の`-Osize`で生成する。`ios.py test`は同じ最適化に`ENABLE_TESTABILITY=YES`を追加し、内部APIを検査する。配布archiveとUI操作のbuildにはこの追加を行わない。
+
 Swift Testingでは使い捨てのDBと製品のモデル・保存層を使用する。利用者の保存データを試験へ流用しない。
 
 | 検査する契約 | 確認方法 |

@@ -13,6 +13,8 @@ MEMBERS = {
     "tasks": {"start", "cancel", "cancelAll", "waitForIdle", "awaitCompletion", "isRunning", "runningCount"},
     "taskSlot": {"replace", "cancel", "close", "cancelAndWaitForIdle", "waitForIdle"},
 }
+# Reviewed product callbacks invoked synchronously by Button actions only.
+PRODUCT_EVENTS = {"SnippetRow": "perform", "LibraryNotice": "restore"}
 SCOPES = {"function_declaration", "lambda_literal", "computed_property", "willset_didset_block", "init_declaration", "deinit_declaration", "class_declaration"}
 
 
@@ -104,6 +106,9 @@ def event_closure(node):
     if call.type != "call_expression":
         return False
     callee = called_identifier(call)
+    if callee in PRODUCT_EVENTS:
+        # Require the explicit label; an unlabeled/content closure is not an event.
+        return label == PRODUCT_EVENTS[callee]
     if callee == "Button":
         if label is not None:
             return label == "action"

@@ -1,32 +1,22 @@
 import Foundation
-import SQLite3
 import OSLog
 
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
 actor SnippetStore: LibraryReading {
-    static let groupID = "group.nibble.9uiLe.com"
-    static let shared = SnippetStore()
-    private let location: URL?
-    private var connection: Database?
+    private let location: @Sendable () throws -> URL
+    private var connection: SQLiteDatabase?
     private let signposter = OSSignposter(subsystem: "nibble.9uiLe.com", category: "Store")
 
-    init(location: URL? = nil) { self.location = location }
+    init(location: URL) { self.location = { location } }
+    init(location: @escaping @Sendable () throws -> URL) { self.location = location }
 
-    private func database() throws -> Database {
+    private func database() throws -> SQLiteDatabase {
         if let connection { return connection }
-        let url: URL
-        if let location {
-            url = location
-        } else {
-            guard let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.groupID) else {
-                throw StoreError.unavailable
-            }
-            url = group.appending(path: "Library/snippets.sqlite")
-        }
+        let url = try location()
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
             attributes: [.protectionKey: FileProtectionType.complete])
-        let db = try Database(url: url)
-        try db.prepare(at: url)
+        let db = try SQLiteDatabase(url: url)
+        try SnippetSchema.prepare(db, at: url)
         connection = db
         return db
     }
@@ -57,11 +47,18 @@ actor SnippetStore: LibraryReading {
         let key = SnippetText.searchKey(query).trimmingCharacters(in: .whitespacesAndNewlines)
         // instr treats %, _ and backslash literally and supports one-character Japanese queries.
         let db = try database()
+        // SQL varies only by these fixed predicates; user text is always bound.
+        // A pinned request can seek directly into the (deleted, pinned, updated, id) index.
+        let pinned = filter == .pinned ? " AND pinned=1" : ""
+        let matching = key.isEmpty ? "" : " AND instr(search_key,?)>0"
+        var values: [SQLValue] = [.int(filter == .trash ? 1 : 0)]
+        if !key.isEmpty { values.append(.text(key)) }
+        values.append(.int(max(1, limit)))
         return try db.rows("""
             SELECT id,title,substr(body,1,180),pinned,revision FROM snippets
-            WHERE deleted=? AND (?=0 OR pinned=1) AND (?='' OR instr(search_key,?)>0)
+            WHERE deleted=?\(pinned)\(matching)
             ORDER BY pinned DESC,updated DESC,id ASC LIMIT ?
-            """, [.int(filter == .trash ? 1 : 0), .int(filter == .pinned ? 1 : 0), .text(key), .text(key), .int(max(1, limit))]) { row in
+            """, values) { row in
             return SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2), pinned: row.int(3) == 1, revision: row.int(4))
         }
     }
@@ -102,7 +99,7 @@ actor SnippetStore: LibraryReading {
         }
     }
 
-    private func insertDraft(snippetID: UUID?, body: String, into db: Database) throws -> Draft {
+    private func insertDraft(snippetID: UUID?, body: String, into db: SQLiteDatabase) throws -> Draft {
         let snippet = try snippetID.map { try self.snippet($0) }
         guard snippet?.deleted != true else { throw StoreError.missing }
         let draft = Draft(id: UUID(), snippetID: snippetID, baseRevision: snippet?.revision ?? 0,
@@ -156,7 +153,7 @@ actor SnippetStore: LibraryReading {
         }
     }
 
-    private func removeDraft(_ id: UUID, from db: Database) throws {
+    private func removeDraft(_ id: UUID, from db: SQLiteDatabase) throws {
         try db.execute("DELETE FROM drafts WHERE id=?", [.text(id.uuidString)])
     }
 
@@ -207,110 +204,5 @@ actor SnippetStore: LibraryReading {
             guard db.changes == 1 else { throw StoreError.missing }
             try db.execute("DELETE FROM drafts WHERE snippet_id=?", [.text(id.uuidString)])
         }
-    }
-}
-
-private enum SQLValue {
-    case text(String), int(Int), real(Double)
-}
-
-/// Non-Sendable handle owner, used only inside SnippetStore; no pointer escapes.
-private final class Database {
-    private let handle: OpaquePointer
-    var changes: Int { Int(sqlite3_changes(handle)) }
-
-    init(url: URL) throws {
-        var opened: OpaquePointer?
-        guard sqlite3_open_v2(url.path, &opened, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
-              let opened else {
-            if let opened { sqlite3_close_v2(opened) }
-            throw StoreError.database
-        }
-        handle = opened
-    }
-
-    func prepare(at url: URL) throws {
-        sqlite3_busy_timeout(handle, 2_000)
-        let version = try rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
-        guard version <= 1 else { throw StoreError.newerVersion }
-        try execute("PRAGMA journal_mode=WAL")
-        try execute("PRAGMA synchronous=FULL")
-        if version == 0 {
-            try writeTransaction {
-                try execute("CREATE TABLE IF NOT EXISTS snippets(id TEXT PRIMARY KEY,title TEXT NOT NULL,body TEXT NOT NULL,search_key TEXT NOT NULL,pinned INTEGER NOT NULL,revision INTEGER NOT NULL,updated REAL NOT NULL,deleted INTEGER NOT NULL)")
-                try execute("CREATE INDEX IF NOT EXISTS snippets_order ON snippets(deleted,pinned DESC,updated DESC,id)")
-                try execute("CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY,snippet_id TEXT NOT NULL,base_revision INTEGER NOT NULL,title TEXT NOT NULL,body TEXT NOT NULL,sequence INTEGER NOT NULL,updated REAL NOT NULL)")
-                try execute("PRAGMA user_version=1")
-            }
-        }
-        // Derived lookup structure; safe for every version-1 database and shared connection.
-        try execute("CREATE INDEX IF NOT EXISTS drafts_order ON drafts(updated DESC,id)")
-        try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
-    }
-
-    deinit { sqlite3_close_v2(handle) }
-
-    func readTransaction<T>(_ work: () throws -> T) throws -> T {
-        try performTransaction("BEGIN", work)
-    }
-
-    func writeTransaction<T>(_ work: () throws -> T) throws -> T {
-        try performTransaction("BEGIN IMMEDIATE", work)
-    }
-
-    private func performTransaction<T>(_ begin: String, _ work: () throws -> T) throws -> T {
-        try execute(begin)
-        do {
-            let result = try work()
-            try execute("COMMIT")
-            return result
-        } catch {
-            try? execute("ROLLBACK")
-            throw error
-        }
-    }
-
-    func execute(_ sql: String, _ values: [SQLValue] = []) throws {
-        _ = try rows(sql, values) { _ in true }
-    }
-
-    func rows<T>(_ sql: String, _ values: [SQLValue], map: (Row) throws -> T) throws -> [T] {
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK, let statement else { throw StoreError.database }
-        defer { sqlite3_finalize(statement) }
-        for (offset, value) in values.enumerated() {
-            let index = Int32(offset + 1)
-            let result: Int32
-            switch value {
-            case .text(let text):
-                result = text.utf8CString.withUnsafeBufferPointer {
-                    sqlite3_bind_text(statement, index, $0.baseAddress, Int32($0.count - 1), unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-                }
-            case .int(let number): result = sqlite3_bind_int64(statement, index, Int64(number))
-            case .real(let number): result = sqlite3_bind_double(statement, index, number)
-            }
-            guard result == SQLITE_OK else { throw StoreError.database }
-        }
-        var output: [T] = []
-        while true {
-            let result = sqlite3_step(statement)
-            if result == SQLITE_DONE { return output }
-            guard result == SQLITE_ROW else { throw StoreError.database }
-            output.append(try map(Row(statement: statement)))
-        }
-    }
-}
-
-private struct Row {
-    let statement: OpaquePointer
-    func uuid(_ column: Int32) throws -> UUID {
-        guard let value = UUID(uuidString: text(column)) else { throw StoreError.database }
-        return value
-    }
-    func int(_ column: Int32) -> Int { Int(sqlite3_column_int64(statement, column)) }
-    func double(_ column: Int32) -> Double { sqlite3_column_double(statement, column) }
-    func text(_ column: Int32) -> String {
-        guard let bytes = sqlite3_column_text(statement, column) else { return "" }
-        return String(decoding: UnsafeBufferPointer(start: bytes, count: Int(sqlite3_column_bytes(statement, column))), as: UTF8.self)
     }
 }

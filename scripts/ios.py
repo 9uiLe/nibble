@@ -181,7 +181,8 @@ class Run:
         command = [XCODEBUILD, "-project", ROOT / self.config["project"], "-scheme", self.config["scheme"],
                    "-configuration", self.args.configuration, "-destination", f"platform=iOS Simulator,id={self.args.device}",
                    "-derivedDataPath", derived, "-resultBundlePath", result_path,
-                   "-parallel-testing-enabled", "NO", *simulator_signing_arguments(self.config), action]
+                   "-parallel-testing-enabled", "NO", *simulator_signing_arguments(self.config),
+                   *(["ENABLE_TESTABILITY=YES"] if test else []), action]
         try:
             self.command(command, "xcodebuild-" + action, timeout=900)
         finally:

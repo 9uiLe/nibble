@@ -57,6 +57,8 @@ xcodebuild -resolvePackageDependencies \
 
 直接依存はMITライセンスで提供される。RiveRuntimeは本体だけがリンクし、SDKの同梱ライセンスを保持する。本体と共有拡張のbundleへ[ThirdPartyNotices.txt](../app/Shared/ThirdPartyNotices.txt)を含める。swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。
 
+Releaseのコード生成は`-Osize`・whole-module、テスト可能性は無効とする。内部APIを使う製品テストは`ios.py test`がテスト可能性だけを有効にする。モデルの同期OS操作は`LibraryEffects`を介し、UIKitの実装は`SystemLibraryEffects`へ閉じ込める。操作テストには記録用の実装を注入し、実OSの状態を使うテストを区別する。
+
 ## 操作APIと開始API
 
 ### 操作の完了
@@ -78,6 +80,8 @@ xcodebuild -resolvePackageDependencies \
 | 単一処理を置換する専用所有者 | `@MainActor *TaskOwner`の`TaskSlot`と`startTask` | 所有者が終了待ちを提供。製品MVPでは未使用 |
 
 actor、checked continuation、`CancellationError`を利用できる。既存タスク内での待機・協調には`Task.sleep`・`yield`・`checkCancellation`・`isCancelled`・`currentPriority`を使える。
+
+`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知・触覚状態を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。どちらの部品にもタスク所有者を渡さない。Lintはこの2つの呼出箇所を明示的に許可し、未登録のコンストラクタ、表示用closure、別名化された開始関数を拒否する。
 
 ### 実装例
 
@@ -177,7 +181,7 @@ struct CaptionContent: @MainActor EquatableBodyView {
 }
 ```
 
-製品の`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を`let`で受け取り、3つすべてを比較する。Button、アクセシビリティの操作ラベル、コピー・編集・削除等のclosureは`LibraryScreen`が保持する。表示値が等しい場合も、操作は現在のモデル・項目を参照する。
+製品の`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を`let`で受け取り、3つすべてを比較する。Buttonとアクセシビリティの操作ラベルは`SnippetRow`が保持する。コピー・編集・削除等の操作意図は`SnippetRow`が画面へ返し、`LibraryScreen`がタスクを開始する。表示値が等しい場合も、操作は現在のモデル・項目を参照する。
 
 | 対象 | 契約 |
 | --- | --- |
@@ -237,7 +241,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | 開始メソッドの使用 | 許可した開始境界からの直接呼出し。通常メソッドによるラップ、関数参照、別名化は不可 |
 | 所有者のテスト | `@Test`の本体でローカルstoreの直接構築と開始を許可。operation内の再開始やaliasは不可 |
 
-開始境界は`startTask`、Buttonのaction、`onAppear`・`onDisappear`・`onChange`・`onOpenURL`、sheet/fullScreenCoverの`onDismiss`、UIViewControllerのoverride `viewDidLoad`・`viewDidAppear`・`viewWillAppear`、`@Test`の本体とする。Buttonのlabelやsheetのcontentなど、表示を構築するclosureは含めない。
+開始境界は`startTask`、Buttonのaction、`SnippetRow.perform`・`LibraryNotice.restore`の同期イベント、`onAppear`・`onDisappear`・`onChange`・`onOpenURL`、sheet/fullScreenCoverの`onDismiss`、UIViewControllerのoverride `viewDidLoad`・`viewDidAppear`・`viewWillAppear`、`@Test`の本体とする。Buttonのlabelやsheetのcontentなど、表示を構築するclosureは含めない。
 
 通常の同期/asyncメソッド、initializer、getter・setter・observer、任意のclosure、SwiftUI `.task`、Taskingのoperationからの開始を拒否する。ViewTaskStore.startをasyncで包む形も許可しない。予約名以外の任意の`.replace`はこの規則の対象外である。
 
