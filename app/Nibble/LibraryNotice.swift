@@ -1,9 +1,14 @@
+import AppMacros
 import SwiftUI
 import ScopedAnimation
 
 /// Observes transient feedback separately from the list's persisted content.
+@Equatable
 struct LibraryNotice: View {
-    let model: LibraryModel
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
+    @SkipEquatable let model: LibraryModel
     let restore: (UUID) -> Void
 
     var body: some View {

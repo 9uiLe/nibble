@@ -1,6 +1,8 @@
 # 一覧行の比較・表示更新の検証
 
-swift-app-macros 0.2.0を使う`SnippetRowContent`について、表示入力の等価比較、保存後の表示反映、外観・文字サイズへの追従、比較境界のLintを評価した記録である。設計上の契約は[製品設計](decisions/0002-mvp-app.md#値による表示更新の制御)、許可するコードは[実装規約](library-policy.md#viewの比較境界)に定義する。
+swift-app-macros 0.2.0を使う`SnippetRowContent`について、表示入力の等価比較、保存後の表示反映、外観・文字サイズへの追従、比較境界のLintを評価した記録である。設計上の契約は[製品設計](decisions/0002-mvp-app.md#viewの比較と表示更新)、許可するコードは[実装規約](library-policy.md#viewの比較境界)に定義する。
+
+本書の結果は下記の対象ソースに限る。AppMacros 0.3.0を使う全15型の宣言と入力反映の評価は[View比較の検証](view-comparison-validation.md)を参照する。
 
 ## 対象ソースと環境
 

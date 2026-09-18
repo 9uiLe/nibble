@@ -4,7 +4,7 @@ iOS 26.0以上のSwiftUIアプリで、ローカルの`.riv`を読み込み、�
 
 ## 依存とAPI世代
 
-[Package.swift](Package.swift)はSwift tools 6.0とrive-ios 6.27.0のexact指定を持つ。利用アプリは解決済みの依存をPackage.resolvedで共有する。
+[Package.swift](Package.swift)はSwift tools 6.0、rive-ios 6.27.0、swift-app-macros 0.3.0のexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンが必要である。利用アプリは解決済みの依存をPackage.resolvedで共有する。
 
 使用するのはApple runtime APIの`Worker`、`File`、`Rive`、`ViewModelInstance`とData Bindingである。Legacy APIやState Machineの旧inputsへの接続は提供しない。Data Bindingの型付きプロパティ操作はランタイムのAPIを直接使い、このパッケージで重複実装しない。
 
@@ -46,7 +46,17 @@ ResourceとSessionの生成・操作はMainActorで行う。生成APIはasyncで
 
 入力値やtriggerの書込みは演出への要求である。読み戻しは演出の状態を示し、保存・通信・コピーなどの業務処理の成功を判定するものではない。非同期処理の失敗、キャンセル後の結果を採用しない処理、再試行の条件はホストの責務とする。
 
-## 停止と再描画
+## 比較と停止・再描画
+
+Canvasは、ホスト入力の反映、フレームの停止、停止中の描画更新を別々に扱う。
+
+| 制御 | 所有者と役割 |
+| --- | --- |
+| `inputRevision` | Canvasのprivateな比較用UUID。新しいView値の生成時に作り、ホストが渡すSessionや設定を比較で取りこぼさない |
+| `paused`・Viewの離脱・`scenePhase` | ホストとSwiftUIが停止条件を提供する。同じSessionのフレーム進行を止める |
+| `renderingRevision` | ホストが渡す描画更新番号。停止中の設定変更を描画するため、表示用Viewの再生成を指定する |
+
+Canvasは`@Equatable`を宣言する。Session参照は不変の`let`として保持し、`@SkipEquatable`で比較から除外する。代わりに`inputRevision`を比較するため、新しく構築されたCanvasの入力は更新省略の対象にならない。View値のコピーは同じUUIDを持つ。比較用UUIDを`.id()`やSessionの生成条件には使用しない。
 
 Canvasは次のいずれかが成立するとフレーム進行を止める。
 
@@ -54,7 +64,7 @@ Canvasは次のいずれかが成立するとフレーム進行を止める。
 - CanvasのViewが離脱している。
 - `scenePhase`がactive以外である。
 
-すべて解除されると同じSessionの位置から進む。スクロールで見えなくてもViewは生存し得るため、ホストが可視性を判定して`paused`へ渡す。再生の方針はホストがアセット固有のData Bindingへ渡し、フレーム停止とは分けて扱う。OSのReduce Motionに追従する製品はホストで接続できる。nibbleはmotionAllowedをtrueに固定する。
+すべて解除されると同じSessionの位置から進む。スクロールで見えなくてもViewは生存し得るため、ホストが可視性を判定して`paused`へ渡す。再生の方針はホストがアセット固有のData Bindingへ渡し、フレーム停止とは分けて扱う。OSのReduce Motionに追従する製品はホストで接続できる。
 
 `renderingRevision`は、停止中の配色変更などを反映する描画更新番号である。rive-ios 6.27.0では停止中のData Binding変更だけでは再描画されない。番号が変わると表示用Viewを作り直し、同じSessionを時間差0で描画する。FileやSessionの再生成、演出のリセットには使わない。必要な値変更時だけ更新し、フレームごとや通常のbody評価では変えない。
 

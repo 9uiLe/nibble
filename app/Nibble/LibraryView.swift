@@ -1,14 +1,19 @@
+import AppMacros
 import SwiftUI
 
+@Equatable
 struct LibraryView: View {
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
     private enum TabID: Hashable { case library, settings, search }
 
     @State private var selectedTab = TabID.library
     @AppStorage(ActionButtonSide.storageKey) private var actionButtonSide = ActionButtonSide.right
     @State private var all: LibraryModel
     @State private var search: LibraryModel
-    private let store: SnippetStore
-    private let effects: any LibraryEffects
+    @SkipEquatable private let store: SnippetStore
+    @SkipEquatable private let effects: any LibraryEffects
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
     @FocusState private var searchFocused: Bool
@@ -99,6 +104,7 @@ struct LibraryView: View {
     }
 }
 
+@Equatable
 private struct DeletedSnippetsView: View {
     @State private var model: LibraryModel
     @FocusState private var searchFocused: Bool

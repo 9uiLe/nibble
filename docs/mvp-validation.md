@@ -2,6 +2,17 @@
 
 本書は、本体`Nibble`と共有拡張`NibbleShare`の評価記録を案内する。設計の正本は[製品設計](decisions/0002-mvp-app.md)、再現する操作と期待結果は[MVP手順](mvp.md)とする。各記録は対象ソース・環境・確認方法を持ち、設計上の契約と実施した検証を区別する。
 
+## Viewの比較と入力反映
+
+対象ソースは`f1ef9eb6d69c7d550e202983df231da25b04d127`。[View比較の評価記録](view-comparison-validation.md)に、自作View全15型の比較方式、Binding・操作先の差し替え、環境更新、状態寿命に関する結果をまとめる。
+
+| 確認項目 | 結果と範囲 |
+| --- | --- |
+| 自動検査 | ReleaseのSwiftテスト74件（パラメーター展開後80件）、Python回帰106件、ローカルNix全7 checkが成功 |
+| 実操作 | 一覧・検索・編集・設定・削除復元、共有拡張からの保存と原文コピー、Aboutの配色・背景復帰をiOS 26.5 Simulatorで確認 |
+| 媒体 | 原本PNGと録画の抽出フレームを確認し、[PR #23](https://github.com/9uiLe/nibble/pull/23)へ画像9枚・録画2本を添付。所有者のChromeで読込確認。本体録画は全区間の再圧縮版で、全編再生と未認証の閲覧は未確認 |
+| 性能 | 宣言数による高速化は評価しない。比較時間・描画時間・メモリ・電力の比較測定は未実施 |
+
 ## 状態の整合性とSwiftUI
 
 対象ソースは`f14c5008008b44ea6ca25c67ceeb685775ec0522`。[SwiftUIの評価記録](swiftui-investigation.md)に、全ターゲットの調査範囲、状態とTaskの所有、画面の寿命、UIKit接続、実行結果と未確認条件をまとめる。
@@ -51,7 +62,8 @@
 | 検索中の見出し、検索欄、キーボード | [検索画面](search-layout-validation.md) |
 | 要約読込、下書き照合、編集終了、入力の比較 | [一覧と編集](library-validation.md) |
 | 操作APIの完了、所有者、通知期限 | [非同期API](async-policy-validation.md) |
-| 表示値の比較、入力と環境の更新 | [比較View](app-macros-validation.md) |
+| 全Viewの比較宣言、入力・操作先の差し替え、状態の更新 | [View比較](view-comparison-validation.md) |
+| AppMacros 0.2.0での一覧行の比較・環境更新 | [一覧行の比較](app-macros-validation.md) |
 | Tasking・ScopedAnimationの採用構成 | [タスクとアニメーション](library-policy-validation.md) |
 | SPM解決、マクロ承認、採用版の互換性 | [Swift Package構成](spm-validation.md) |
 | 署名・送信・内部配信と実機確認 | [TestFlight](testflight-validation.md) |

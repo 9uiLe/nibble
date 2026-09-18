@@ -4,13 +4,16 @@ nibbleのSwift実装は、依存の所有者、外部状態への作用、操作
 
 ## 責務と用語
 
-モデルは処理と状態を持ち、UIは処理を開始するタイミングとタスクの寿命を管理する。表示専用のViewは値を受け取り、必要な箇所で等価比較を表示更新の条件にする。アニメーションは変化させる表示部分へ適用する。
+モデルは処理と状態を持ち、UIは処理を開始するタイミングとタスクの寿命を管理する。すべての自作Viewに比較を宣言し、表示値、親からの入力、Viewが所有する状態に応じて更新条件を定める。アニメーションは変化させる表示部分へ適用する。
 
 | 用語 | 意味 | 実装する場所 |
 | --- | --- | --- |
 | 操作API | 処理と結果反映を完了まで待てる`async`メソッド | モデル・保存層 |
 | タスク所有者 | タスクの開始、重複判定、終了時のキャンセルを管理するUI側の型 | View・UIViewController・専用の`*TaskOwner` |
 | 比較境界 | 入力値の等価比較で表示更新を制御するViewの範囲 | 値だけを受け取る表示用View |
+| 親入力 | 親Viewが渡す表示値、Binding、操作closure、モデル参照、子のcontent | 受け取るViewの格納プロパティ |
+| `inputRevision` | View値の生成ごとに作る比較用UUID。同じ表示値でも接続先が異なり得る親入力を区別する | 親入力を持つ通常のView |
+| Viewのidentity | SwiftUIが同じ表示とその状態寿命を対応付ける識別。Viewの構造と明示的なIDで決まる | View階層、`ForEach`、必要な箇所の`.id()` |
 | アニメーションscope | 値の変化または明示的な操作にアニメーションを付ける範囲 | `AnimationScope`で囲む表示部分 |
 | barrier | 親から届くアニメーションを取り除く境界 | `animationBarrier()`を付ける表示部分 |
 | snapshot | ある時点の下書きを固定した値。処理待ちの間に画面の入力が進んでも変化しない | 編集画面からモデルへ渡す`Draft` |
@@ -37,13 +40,13 @@ nibbleのSwift実装は、依存の所有者、外部状態への作用、操作
 | --- | --- | --- | --- |
 | [swift-tasking](https://github.com/9uiLe/swift-tasking/tree/0.3.0) | 0.3.0 | `Tasking`の`ViewTaskStore`と`TaskingCore`の`TaskSlot`でタスクを所有する | Swift tools 6.0、iOS 13以上 |
 | [swift-scoped-animation](https://github.com/9uiLe/swift-scoped-animation/tree/v0.2.2) | 0.2.2 | `ScopedAnimation`でscope・barrier・Debug診断を定義する | Swift tools 6.2、iOS 17以上 |
-| [swift-app-macros](https://github.com/9uiLe/swift-app-macros/tree/0.3.0) | 0.3.0 | `AppMacros`の`@Equatable`と`EquatableBodyView`で表示値の比較を定義する | Swift tools 6.3、iOS / macOS 26以上 |
+| [swift-app-macros](https://github.com/9uiLe/swift-app-macros/tree/0.3.0) | 0.3.0 | `AppMacros`の`@Equatable`でViewの比較を生成し、`EquatableBodyView`で値表示の比較境界を定義する | Swift tools 6.3、iOS / macOS 26以上 |
 | [rive-ios](https://github.com/rive-app/rive-ios/tree/6.27.0) | 6.27.0 | RivePresentation経由でApple runtime API（Worker・File・Rive・ViewModelInstance）とData Bindingを使用 | Swift tools 5.10、iOS 14以上。本体のみ |
 | [swift-syntax](https://github.com/swiftlang/swift-syntax/tree/603.0.2) | 603.0.2 | AppMacrosのマクロコンパイラを構築する間接依存 | [AppMacrosのPackage.swift](https://github.com/9uiLe/swift-app-macros/blob/0.3.0/Package.swift)がexact指定 |
 
 exact versionは特定のバージョンだけを依存解決に許可する指定である。[Xcode project](../app/Nibble.xcodeproj/project.pbxproj)と[RivePresentationのPackage.swift](../app/Packages/RivePresentation/Package.swift)に直接依存の要求を宣言し、[共有Package.resolved](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)に全依存のバージョンとGit revisionを固定する。
 
-本体と共有拡張は同じTasking・ScopedAnimationをリンクする。AppMacrosは比較Viewを持つ本体とそのテストで使う。swift-syntaxはMacで実行するマクロのビルドに使い、iOSアプリの実行時ライブラリとしてリンクしない。Tasking・ScopedAnimationに追加の外部パッケージ依存はない。
+本体と共有拡張はTasking・ScopedAnimation・AppMacrosを使う。ローカルPackageのRivePresentationもAppMacrosへ直接依存し、自身のViewに比較を宣言する。本体のテストは生成された比較と画面への反映を検査する。swift-syntaxはMacで実行するマクロのビルドに使い、iOSアプリの実行時ライブラリとしてリンクしない。Tasking・ScopedAnimationに追加の外部パッケージ依存はない。
 
 swift-syntaxの版はAppMacrosの要求を満たす必要がある。AppMacrosと独立したバージョン選択は行わない。検証する依存の組み合わせは、直接依存の要求と共有lockの両方で定義する。
 
@@ -108,13 +111,16 @@ Lintはコンストラクタの`perform:`・`restore:`という明示ラベル�
 `ExampleModel.refresh()`は読込と状態反映を完了まで待つ操作を表す。`ExampleView`はボタンからタスクを開始し、画面終了時にキャンセルを要求する。
 
 ```swift
+import AppMacros
 import SwiftUI
 import Tasking
 
 @MainActor
+@Equatable
 struct ExampleView: View {
+    private let inputRevision = UUID()
     @State private var tasks = ViewTaskStore()
-    let model: ExampleModel
+    @SkipEquatable let model: ExampleModel
 
     var body: some View {
         Button("更新") { startTask() }
@@ -183,9 +189,21 @@ Taskingのstoreへ流出した非キャンセルエラーはDebug assertionの�
 
 ## Viewの比較境界
 
-値の比較で表示更新を制御するViewは`@Equatable`を付けたstructとし、`@MainActor EquatableBodyView`へ直接準拠する。MainActorはUIの処理を実行するactorであり、準拠と生成される等価比較を同じactorに限定する。比較はViewの表示入力を対象とする。
+比較の目的は、表示値が等しい場合に省略できる更新を明示し、入力や操作先が変わった場合はその変更を画面へ反映することである。View値の比較、動的な状態の観測、状態の寿命はそれぞれ独立して設計する。
 
-内容は同じstructの`equatableBody`に書く。ライブラリが提供する`body`に比較の適用を任せ、呼出元は通常のViewとして配置する。
+### 適用範囲と方式の選択
+
+自作のSwiftUI Viewはstructへ`@Equatable`を直接宣言する。本体、共有拡張、ローカルPackage、UIKit接続用のrepresentableを対象とする。`App`、`ViewModifier`、UIKitのクラス、外部パッケージの実装は対象外である。比較はMainActorへ隔離し、representableには`@Equatable(.mainActor)`を指定する。
+
+| Viewが持つ入力 | 宣言と表示本体 | 比較と更新の方針 |
+| --- | --- | --- |
+| 値型の表示入力だけ | `@Equatable`、`@MainActor EquatableBodyView`、`equatableBody` | 全入力を比較し、等しい場合は入力比較による更新を省略できる |
+| Binding・操作・参照などの親入力 | `@Equatable`、`View`、`body` | `inputRevision`を比較し、新しく構築されたViewの入力を反映する |
+| 所有するState・Environment等だけ、または格納入力なし | `@Equatable`、`View`またはrepresentable | 動的な依存の更新をSwiftUIに任せる。親入力を区別するUUIDは持たない |
+
+### 値だけを受け取る表示
+
+表示を決める全入力を通常の値型`let`で保持し、同じstructの`equatableBody`に内容を書く。`EquatableBodyView`が提供する`body`が比較を適用する。呼出元はそのViewを通常どおり配置する。
 
 ```swift
 import AppMacros
@@ -201,19 +219,36 @@ struct CaptionContent: @MainActor EquatableBodyView {
 }
 ```
 
-製品の`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を`let`で受け取り、3つすべてを比較する。Buttonとアクセシビリティの操作ラベルは`SnippetRow`が保持する。コピー・編集・削除等の操作意図は`SnippetRow`が画面へ返し、`LibraryScreen`がタスクを開始する。表示値が等しい場合も、操作は現在のモデル・項目を参照する。
+`SnippetRowContent`はタイトル・本文プレビュー・ピン状態、`AboutURL`は見出しとURLを比較する。操作closure、DynamicProperty、参照モデル、globalな可変状態はこの境界の外に置く。比較対象の値だけで表示内容を判断できることをレビューし、値型に含まれる参照や独自の等価比較にも注意する。標準部品の外観・文字サイズはSwiftUIのenvironmentで更新する。
 
-| 対象 | 契約 |
+### 親入力を受け取る表示と操作
+
+Bindingの現在値が同じでも、その書込先は異なり得る。操作closureも、表示値を変えずに異なる項目やモデルを参照できる。AppMacrosはDynamicPropertyと直接記載されたclosureを比較から除外するため、これらの接続先の違いを表示値の比較だけでは判定できない。
+
+親入力を持つ通常のViewは、最初の格納プロパティに`private let inputRevision = UUID()`を置く。UUIDはView値の生成時に作り、生成された等価比較に含める。View値をコピーするとUUIDも引き継ぎ、新しく構築すると別のUUIDになる。親が渡し直したBinding・操作・参照・contentを、以前の接続と同じものとして省略しないための契約である。
+
+比較できないモデル参照やgenericなcontentは、不変の`let`に限り`@SkipEquatable`で除外できる。除外した入力を持つViewには、同じstruct内で比較される`inputRevision`が必須である。`let`が固定するのは格納された参照や値であり、参照先モデルの内部状態が不変になるわけではない。
+
+| 入力 | 更新の責務 |
 | --- | --- |
-| 比較Viewの入力 | wrapperや所有修飾子を持たない値型の`let`。表示を決める全入力を比較 |
-| 状態・注入・操作 | `@State`・`@Binding`・`@Bindable`・`@Environment`等と操作closureは呼出元の通常のViewに保持 |
-| 表示の依存 | 独自の参照モデルやglobal状態を比較境界から読まない。標準部品の外観・文字サイズはSwiftUIのenvironmentで更新 |
-| 比較を使わない表示 | 状態や入力を持つ画面、参照依存がある表示、比較が高価な表示は通常のViewで構成 |
-| データの等価比較 | 値型・enumの標準Equatable合成とgenericなEquatable制約を許可 |
+| Binding / Bindable / ObservedObject、FocusStateのBinding | 書込先・観測先を親が決める。Viewは新しい接続を受け取る |
+| 操作closure | 親が操作対象と処理を接続する。Viewは現在のclosureを呼ぶ |
+| モデル・Store・Session | 親が参照の寿命を持つ。内容の変化はObservationや各ランタイムの更新経路で反映する |
+| genericなcontent | 親が子の構成を渡す。受け取るViewは値比較で同一性を推測しない |
 
-AppMacrosが比較から除外できる入力でも、closureやDynamicPropertyをnibbleの比較Viewへ渡さない。`@SkipEquatable`、直接の`.equatable()`・`EquatableView`・`equatableBody`参照、手書き`==`は使用しない。
+### 状態の所有と寿命
 
-入力の変更・復元と、入力が等しい状態での外観・文字サイズの追従をマウント済みViewで検査する。比較による描画回数や応答時間への効果は、同条件の測定で判断する。
+State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関係で扱う。通常の格納入力を持たないViewには`inputRevision`を置かない。initializerでStateの初期値を受け取る場合は、その初期値と、表示中も差し替わる親入力を区別する。Stateの保持期間はViewのidentityに従う。
+
+`inputRevision`は比較専用であり、`.id()`、`ForEach`、永続データのIDには使わない。入力の差し替えのために、編集内容、フォーカス、タスク所有者、RiveのSessionを作り直さない。RiveCanvasの描画更新番号`renderingRevision`は別の役割を持ち、[RivePresentationの契約](../app/Packages/RivePresentation/README.md#比較と停止再描画)に従う。
+
+### 実装上の制約と受入条件
+
+比較はAppMacrosで生成し、手書き`==`、直接の`.equatable()`・`EquatableView`・`equatableBody`参照を使わない。データ型ではSwiftの標準Equatable合成とgenericなEquatable制約を使用できる。
+
+検査するのは、全Viewの比較宣言、表示値の変更・復元、同じ現在値を持つ別Bindingへの差し替え、操作先の更新、同じ入力での環境更新である。構文Lintとcompilerで宣言を検査し、マウント済みViewのテストと実操作で反映を確認する。実行条件と結果は[View比較の検証](view-comparison-validation.md)に記録する。
+
+`inputRevision`を持つViewは、親が構築し直した入力に対する比較による更新省略を行わない。この方式は接続先の整合性を優先する。描画・応答性能は比較宣言の数から判断せず、同条件の計測で評価する。フレームワークの比較と寿命の前提は、[Appleの比較API](https://developer.apple.com/documentation/swiftui/view/equatable())と[identity・寿命・依存関係](https://developer.apple.com/videos/play/wwdc2021/10022/)を参照する。
 
 ## アニメーションの境界
 
@@ -255,7 +290,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | 別scheduler | `DispatchQueue`、`DispatchWorkItem`、`DispatchSource`、`OperationQueue`、`BlockOperation`、`Thread`、`Timer` | Taskingによる所有、協調的なsleep |
 | SwiftUIの直接アニメーション | `withAnimation`、`withTransaction`、`Transaction`、`.animation`、`.transaction`、`.phaseAnimator`、`.keyframeAnimator` | scope・proxy・barrier |
 | UIKit / Core Animationの直接アニメーション | `UIView.animate`・`transition`等、`UIViewPropertyAnimator`、CAAnimation系、`CATransaction`等 | ScopedAnimation |
-| 直接の比較と比較除外 | `.equatable`、`EquatableView`、`.equatableBody`、`@SkipEquatable`、手書き`==` | AppMacrosの比較View、データの標準Equatable合成 |
+| 直接の比較 | `.equatable`、`EquatableView`、`.equatableBody`、手書き`==` | AppMacros、データの標準Equatable合成 |
 
 対象名は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)に定義する。予約名は別用途にも使わない。SQLiteのhelperには`readTransaction`・`writeTransaction`を使い、共通の確定・rollbackをprivateな`performTransaction`へ閉じ込める。
 
@@ -284,10 +319,11 @@ nix flake check --no-update-lock-file --print-build-logs
 
 | 検査対象 | 許可する形 |
 | --- | --- |
-| 比較Viewの宣言 | `@Equatable`と`EquatableBodyView`をstructへ直接宣言。MainActor付きの準拠も検査対象。`View`・`Equatable`の重複準拠は不可 |
-| 表示本体 | 同じstructの`equatableBody`。独自`body`による既定実装の上書きは不可 |
-| 格納する入力 | 1つ以上の通常の`let`。可変入力、wrapper、所有修飾子、構文上の関数型・closureは不可 |
-| 準拠の可視性 | `View`・`Equatable`・`EquatableBodyView`のtypealias、Viewの派生protocol、EquatableBodyViewの派生protocol・extension準拠は不可 |
+| 全Viewの宣言 | `View`・representable・`EquatableBodyView`のstructへ`@Equatable`を直接宣言 |
+| 値比較の境界 | `@MainActor EquatableBodyView`と同じstructの`equatableBody`。1つ以上の通常の値型`let`入力を比較。wrapper、可変入力、closure、比較除外、独自bodyは不可 |
+| 通常のView | `body`を実装する。所有するDynamicProperty以外の格納入力には`private let inputRevision = UUID()`が必要 |
+| 比較除外 | revisionを持つ通常のViewの不変`let`に限り`@SkipEquatable`を許可。revision自身の除外・可変化・外部注入は不可 |
+| 準拠の可視性 | View・representable・Equatableのtypealias、Viewの派生protocol、EquatableBodyViewの派生protocol・extension準拠は不可 |
 | 宣言の配置 | `body`・`equatableBody`・Equatable準拠をextensionへ移さない |
 
 これらは比較境界を宣言から読み取るためのリポジトリ規約である。MainActorへの隔離と生成される比較の型適合はAppMacrosの診断とSwift compilerで確認する。Lintだけで型と隔離の正しさを判定しない。
@@ -315,7 +351,7 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 | --- | --- | --- |
 | Tasking | タスク所有・寿命・重複方針を共通APIで宣言できる | 操作ごとのID、終了イベント、キャンセル後の結果反映を定義 |
 | ScopedAnimation | アニメーションの適用範囲と伝播の遮断をView構造で表せる | OS遷移との境界、診断位置、Reduce Motionを検証 |
-| AppMacros | 全表示値の比較を生成し、View定義側に比較境界を置ける | 値入力とMainActor準拠の設計、マクロソースの確認、ビルド時間とツールチェーン要件の管理 |
+| AppMacros | View定義側に比較を宣言し、値表示の更新条件と親入力の差し替え方針を明示できる | 比較入力、状態寿命、MainActor準拠の設計、マクロソースの確認、ビルド時間とツールチェーン要件の管理 |
 
 依存の組み合わせを変更するときは、exact version・共有lock・ソース・ライセンス・対応OSを照合する。iOS 26.5で、操作の直接await、重複・キャンセル、入力直後の保存・閉じる、共有元への復帰、通知の伝播、比較入力・外観・文字サイズの表示反映を確認する。
 

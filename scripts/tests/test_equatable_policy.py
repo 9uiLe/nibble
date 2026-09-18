@@ -32,7 +32,7 @@ class EquatablePolicyTests(unittest.TestCase):
             'struct ModelValue: Sendable, Equatable { var title: String }',
             'enum Route: Equatable { case home, edit(Int) }',
             '@Equatable struct Value { let id: Int; var text: String }',
-            'struct Screen: View { @State private var model = Model(); var body: some View { Row(title: model.title, pinned: false) } }',
+            '@Equatable struct Screen: View { @State private var model = Model(); var body: some View { Row(title: model.title, pinned: false) } }',
             'func equal<T: Equatable>(_ a: T, _ b: T) -> Bool { a == b }',
         ]:
             with self.subTest(source=source):
@@ -60,7 +60,7 @@ class EquatablePolicyTests(unittest.TestCase):
                 self.assertTrue(any('handwritten' in v[2] for v in violations(source)))
         self.assertEqual(violations('let same = first == second'), [])
 
-    def test_views_cannot_omit_the_macro_or_the_gate(self):
+    def test_views_require_a_declared_comparison_policy(self):
         for source in [
             'struct Row: EquatableBodyView { let value: Int; var equatableBody: some View { Text("x") } }',
             '@Equatable struct Row: View { let value: Int; var body: some View { Text("x") } }',
@@ -106,3 +106,37 @@ class EquatablePolicyTests(unittest.TestCase):
         source = '// 日本語\nlet view = Row().equatable()'
         result = violations(source)
         self.assertEqual(result[0][:2], (2, 18))
+
+    def test_all_view_kinds_require_the_macro(self):
+        for base in ("View", "SwiftUI.View", "UIViewRepresentable", "UIViewControllerRepresentable"):
+            with self.subTest(base=base):
+                self.assertTrue(violations(f"struct Content: {base} {{}}"))
+                self.assertEqual(violations(f"@Equatable(.mainActor) struct Content: {base} {{}}"), [])
+        self.assertEqual(violations("struct Root: App {}\nstruct Style: ViewModifier {}"), [])
+
+    def test_owned_state_and_environment_do_not_require_parent_revision(self):
+        self.assertEqual(violations('@Equatable struct Screen: View { @State var count = 0; @Environment(\\.colorScheme) var scheme; var body: some View { Text("x") } }'), [])
+
+    def test_parent_input_replacement_requires_a_fresh_revision(self):
+        for prop in ('@Binding var selected: Int', '@Bindable var model: Model',
+                     '@ObservedObject var model: Model', 'let action: () -> Void',
+                     '@SkipEquatable let model: Model', '@SkipEquatable let content: Content'):
+            with self.subTest(prop=prop):
+                body = prop + '; var body: some View { Text("x") }'
+                self.assertTrue(violations('@Equatable struct Screen: View { ' + body + ' }'))
+                self.assertEqual(violations('@Equatable struct Screen: View { private let inputRevision = UUID(); ' + body + ' }'), [])
+
+    def test_reused_or_excluded_revisions_cannot_hide_changes(self):
+        for revision in ('let inputRevision = UUID()', 'private var inputRevision = UUID()',
+                         'private let inputRevision = sharedRevision', 'private let inputRevision = 0',
+                         '@State private var inputRevision = UUID()',
+                         '@SkipEquatable private let inputRevision = UUID()'):
+            with self.subTest(revision=revision):
+                self.assertTrue(violations('@Equatable struct Screen: View { ' + revision + '; @SkipEquatable let content: Content; var body: some View { content } }'))
+        self.assertTrue(violations('@Equatable struct Screen: View { private let inputRevision = UUID(); @SkipEquatable var content: Content; var body: some View { content } }'))
+        self.assertTrue(violations('@Equatable struct Value { private let inputRevision = UUID(); @SkipEquatable let content: Content }'))
+
+    def test_revision_name_cannot_hide_a_replaceable_source(self):
+        self.assertTrue(violations('@Equatable struct Screen: View { @Binding var inputRevision: Int; var body: some View { Text("x") } }'))
+        with self.assertRaises(ValueError):
+            violations('@Equatable struct Screen: View {\n#if DEBUG\n@Binding var selection: Int\n#endif\nvar body: some View { Text("x") }\n}')

@@ -1,13 +1,18 @@
+import AppMacros
 import SwiftUI
 import Tasking
 import ScopedAnimation
 
+@Equatable
 struct LibraryScreen: View {
-    let model: LibraryModel
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
+    @SkipEquatable let model: LibraryModel
     let title: String
     let showsFilters: Bool
     var showsSearchPrompt = false
-    let searchFocused: FocusState<Bool>.Binding
+    @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     var actionButtonSide: ActionButtonSide = .right
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.scenePhase) private var scenePhase

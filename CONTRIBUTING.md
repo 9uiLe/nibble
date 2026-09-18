@@ -90,13 +90,15 @@ flakeが参照するファイルはGitの追跡対象にする。nixpkgsの更�
 | --- | --- | --- |
 | 操作の完了 | 受理した処理と結果反映を待つ`async` API。モデルへ所有者や開始用closureを渡さない | APIを直接awaitし、戻った時点の状態と永続化を検査 |
 | 開始と所有 | `startTask`の境界とswift-taskingの`ViewTaskStore` / `TaskSlot`でID・寿命・重複方針を定義 | 所有者の受理・重複・キャンセル・終了を検査 |
-| 表示値の比較 | swift-app-macrosの`@Equatable`＋`@MainActor EquatableBodyView`で通常の値型`let`入力をすべて比較。状態・操作は呼出元に保持 | 入力の変更・復元と、同じ入力での外観・文字サイズの更新を検査 |
+| Viewの比較と入力 | 自作Viewは`@Equatable`を宣言。値表示は`@MainActor EquatableBodyView`で全入力を比較。親入力を持つ通常のViewは生成ごとの比較用UUID（`inputRevision`）で接続先の差し替えを反映 | 表示値の変更・復元、Binding・操作先の差し替え、同じ入力での外観・文字サイズの更新を検査 |
 | SwiftUIのアニメーション | swift-scoped-animationの`AnimationScope` / `animationBarrier`で適用範囲を定義 | Debug診断、入力・通知・Reduce Motionの画像・録画を確認 |
 | 説明イラスト | RMLが図形・時間・演出状態を持ち、RivePresentationが読込・接続検査・表示を担当する | 生成契約、実バイナリ、複数周期、配色・Reduce Motion・画面寿命を確認 |
 
 同期メソッド・setterによる隠れた開始や、タスク開始後に完了を待たず戻る操作APIは禁止する。入力setterは値と入力順序の番号だけを更新し、UIはその時点の下書きを固定して渡す。保存・閉じるは最新入力を永続化し、コピーと通知期限は別の操作にする。
 
-生のTask・別scheduler・直接アニメーション・直接比較ゲート・手書き`==`・比較除外をLintで禁止する。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task API、通常のView、値型・enumの標準Equatable合成は許可する。
+Viewを実装するときは、値だけで表示が決まる部品、親から接続先を受け取る部品、StateやEnvironmentだけを持つ画面のどれに当たるかを判断する。[比較規約](docs/library-policy.md#viewの比較境界)が宣言方法、状態の寿命、比較除外の条件を定める。比較用UUIDを表示のIDに使わず、入力更新で編集内容や再生状態が失われない構成にする。
+
+生のTask・別scheduler・直接アニメーション・直接比較ゲート・手書き`==`をLintで禁止する。`@SkipEquatable`は、同じViewで`inputRevision`を比較する不変`let`の親入力に限る。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task API、値型・enumの標準Equatable合成は許可する。
 
 Lintは構文を検査する。型解決・マクロ展開・外部APIの副作用・操作の完了はcompiler、テスト、レビューで確認する。抑制コメントを設けず、許可する入口や構文の変更は規則と回帰テストに反映する。
 
