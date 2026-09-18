@@ -1,6 +1,6 @@
-# 非同期処理・アニメーション・View比較の実装規約
+# Swift実装の責務と境界
 
-nibbleは、操作の完了、タスクの寿命、表示の更新条件をコードから読み取れる構成にする。この規約は本体・共有拡張・テスト・研究用アプリ・検証用Swiftへ適用する。製品の機能とデータの契約は[製品設計](decisions/0002-mvp-app.md)、実行手順は[MVP手順](mvp.md)、対象ソースごとの観測は[検証結果](mvp-validation.md)に定義する。
+nibbleのSwift実装は、依存の所有者、外部状態への作用、操作の完了、タスクの寿命、表示の更新条件をコードから読み取れる構成にする。この規約は本体・共有拡張・テスト・研究用アプリ・検証用Swiftへ適用する。製品の機能とデータの契約は[製品設計](decisions/0002-mvp-app.md)、実行手順は[MVP手順](mvp.md)、対象ソースごとの観測は[検証結果](mvp-validation.md)に定義する。
 
 ## 責務と用語
 
@@ -14,6 +14,20 @@ nibbleは、操作の完了、タスクの寿命、表示の更新条件をコ�
 | アニメーションscope | 値の変化または明示的な操作にアニメーションを付ける範囲 | `AnimationScope`で囲む表示部分 |
 | barrier | 親から届くアニメーションを取り除く境界 | `animationBarrier()`を付ける表示部分 |
 | snapshot | ある時点の下書きを固定した値。処理待ちの間に画面の入力が進んでも変化しない | 編集画面からモデルへ渡す`Draft` |
+
+## 依存の構成と副作用
+
+本体の入口は`NibbleApp`、共有拡張の入口は`ShareViewController`である。入口が`SnippetStorage.sharedContainer()`で保存層を作り、画面とモデルへinitializerで渡す。本体の一覧・検索・削除一覧は同じ保存層を使い、表示状態は各モデルが独立して保持する。拡張は自身の保存層を共通編集へ渡す。
+
+| 境界 | 実装する契約 |
+| --- | --- |
+| 保存先 | `SnippetStorage`がApp Groupを解決する。最初の操作時に解決し、取得失敗を回復可能なエラーとして返す |
+| 永続化 | `SnippetStore`が業務単位を定義し、`SnippetSchema`がschema、`SQLiteDatabase`が接続とstatementを管理する。トランザクション中は中断しない |
+| 同期OS操作 | `LibraryModel`は`LibraryEffects`を参照する。`SystemLibraryEffects`がMainActor上でコピー・読み上げ通知を実行し、処理の終了前に戻らない |
+| UIイベント | 行は表示値と意味のある操作意図を受け渡す。親画面が意図をモデルの操作へ接続し、タスクを所有する |
+| 一時的な表示 | `LibraryNotice`が通知・触覚を観測する。通知期限はSwiftUIのタスク、復元操作は親画面の所有者へ接続する |
+
+モデルのテストには一時URLの保存層と記録用の`LibraryEffects`を注入する。OSの状態を使う統合テストは、実装を明示して直列に実行する。業務上の状態とOS作用の順序をテストできること、画面から保存先やグローバルな保存層を探索しないことをレビューする。
 
 ## 依存とビルド
 
@@ -57,7 +71,11 @@ xcodebuild -resolvePackageDependencies \
 
 直接依存はMITライセンスで提供される。RiveRuntimeは本体だけがリンクし、SDKの同梱ライセンスを保持する。本体と共有拡張のbundleへ[ThirdPartyNotices.txt](../app/Shared/ThirdPartyNotices.txt)を含める。swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。
 
-Releaseのコード生成は`-Osize`・whole-module、テスト可能性は無効とする。内部APIを使う製品テストは`ios.py test`がテスト可能性だけを有効にする。モデルの同期OS操作は`LibraryEffects`を介し、UIKitの実装は`SystemLibraryEffects`へ閉じ込める。操作テストには記録用の実装を注入し、実OSの状態を使うテストを区別する。
+### Releaseとテストの構成
+
+Releaseは`-Osize`・whole-moduleでコードを生成し、`ENABLE_TESTABILITY=NO`を使う。`ios.py test`はテスト時に`ENABLE_TESTABILITY=YES`を指定し、内部APIを`@testable`で検査する。UI操作用buildと配布archiveは製品のRelease設定で評価する。
+
+容量は本体・共有拡張・runtime・アセットを含む成果物で測り、テストやビルドcacheを含めない。最適化の採否は、同じデータと環境における応答・メモリ・容量を併せて判断する。[保存と容量の契約](decisions/0002-mvp-app.md#技術選定と配布容量)と[測定記録](product-architecture-validation.md)を参照する。
 
 ## 操作APIと開始API
 
@@ -81,7 +99,9 @@ Releaseのコード生成は`-Osize`・whole-module、テスト可能性は無�
 
 actor、checked continuation、`CancellationError`を利用できる。既存タスク内での待機・協調には`Task.sleep`・`yield`・`checkCancellation`・`isCancelled`・`currentPriority`を使える。
 
-`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知・触覚状態を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。どちらの部品にもタスク所有者を渡さない。Lintはこの2つの呼出箇所を明示的に許可し、未登録のコンストラクタ、表示用closure、別名化された開始関数を拒否する。
+`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知・触覚状態を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。どちらの部品にもタスク所有者を渡さない。
+
+Lintはコンストラクタの`perform:`・`restore:`という明示ラベル付きのclosureだけを開始境界として許可し、未登録のコンストラクタ、表示用closure、別名化された開始関数を拒否する。
 
 ### 実装例
 
@@ -201,9 +221,22 @@ AppMacrosが比較から除外できる入力でも、closureやDynamicProperty�
 
 製品の通知scopeは`Library.Notice`とし、通知の有無をvalueで検知する。表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
 
-`LibraryView`と`SnippetEditor`の外側の`animationBarrier(warnsOnLeaks: false)`は、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks()`と編集入力領域の警告付きbarrierは、アプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOS部品が管理する。
+`LibraryScreen`と`SnippetEditor`の外側の`animationBarrier(warnsOnLeaks: false)`は、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks()`と編集入力領域の警告付きbarrierは、アプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOS部品が管理する。
 
 診断の対象はmodifierの位置へ届くtransactionであり、子孫の全表示変化やUIKitの動作は検査しない。同じ状態更新による変化をscopeが自動分離するわけではない。Reduce Motion、入力・スクロール・遷移は実際の画面で確認する。
+
+## Riveの表示境界
+
+[RivePresentation](../app/Packages/RivePresentation/README.md)は、rive-iosのApple runtime API（`Worker`、`File`、`Rive`、`ViewModelInstance`）とData Bindingでローカルの`.riv`を表示するSwift Packageである。このAPI世代で接続を統一する。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
+
+| 境界 | 契約 |
+| --- | --- |
+| 実行と寿命 | MainActorでロードとSession生成を直接awaitする。ホストの`.task`がロード・購読を所有し、キャンセルされた結果を表示へ採用しない |
+| 演出と業務 | 入力値とtriggerは表示への要求とする。`active`や演出完了を、保存・コピー等の成功判定に使わない |
+| 描画 | SwiftUIの独自アニメーションはScopedAnimation、キャンバス内はRMLのタイムラインが担当する。独自のTimer・DisplayLink・生Taskでフレームを進めない |
+| ホストの責務 | 説明、外観、再生方針、スクロール可視性、アクセシビリティ、読込失敗と再試行を決める |
+
+所有関係、停止中の外観更新、依存の採用・更新条件は[演出設計](decisions/0004-rive-presentation.md)、アセットと検査の契約は[制作手順](../app/Animations/README.md)を正とする。Legacy APIの入口はSwift規約で検出し、実バイナリの接続と動作はiOSテスト・画面検証で確認する。
 
 ## Lintと禁止する直接使用
 
@@ -287,16 +320,3 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 依存の組み合わせを変更するときは、exact version・共有lock・ソース・ライセンス・対応OSを照合する。iOS 26.5で、操作の直接await、重複・キャンセル、入力直後の保存・閉じる、共有元への復帰、通知の伝播、比較入力・外観・文字サイズの表示反映を確認する。
 
 保守停止、OS・ツールチェーンとの不適合、実測した応答・描画の悪化、必要な表現への不適合を採用の見直し条件とする。検証結果には対象ソースと環境を記録する。各手段の実施状況は[検証結果の索引](mvp-validation.md)、固定した依存構成の確認結果は[Swift Package構成の検証](spm-validation.md)から参照する。
-
-## Riveの表示境界
-
-[RivePresentation](../app/Packages/RivePresentation/README.md)は、rive-iosのApple runtime API（`Worker`、`File`、`Rive`、`ViewModelInstance`）とData Bindingでローカルの`.riv`を表示するSwift Packageである。このAPI世代で接続を統一する。読み込んだファイルは機能内で再利用でき、可変の再生状態は表示ごとのSessionが所有する。一つのSessionを複数の表示へ同時に渡さない。
-
-| 境界 | 契約 |
-| --- | --- |
-| 実行と寿命 | MainActorでロードとSession生成を直接awaitする。ホストの`.task`がロード・購読を所有し、キャンセルされた結果を表示へ採用しない |
-| 演出と業務 | 入力値とtriggerは表示への要求とする。`active`や演出完了を、保存・コピー等の成功判定に使わない |
-| 描画 | SwiftUIの独自アニメーションはScopedAnimation、キャンバス内はRMLのタイムラインが担当する。独自のTimer・DisplayLink・生Taskでフレームを進めない |
-| ホストの責務 | 説明、外観、再生方針、スクロール可視性、アクセシビリティ、読込失敗と再試行を決める |
-
-所有関係、停止中の外観更新、依存の採用・更新条件は[演出設計](decisions/0004-rive-presentation.md)、アセットと検査の契約は[制作手順](../app/Animations/README.md)を正とする。Legacy APIの入口はSwift規約で検出し、実バイナリの接続と動作はiOSテスト・画面検証で確認する。

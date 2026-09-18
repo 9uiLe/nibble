@@ -1,465 +1,376 @@
-# 0002：nibble MVPの製品設計
+# 0002：nibbleの製品設計
 
 状態：採用。設計基準日：2026-09-18。
 
-nibbleは、よく使うテキストをiPhoneに保存し、必要なときに探してコピーするアプリである。この文書は、製品の目的、データの意味、各構成要素の責務、操作の成立条件を定義する。実装規約は[ライブラリ規約](../library-policy.md)、利用者の操作と確認手順は[MVP手順](../mvp.md)、実行したソースと観測結果は[検証結果](../mvp-validation.md)に記載する。
+nibbleは、よく使うテキストをiPhoneへ保存し、探してコピーするアプリである。本書は、製品の目的、データの意味、構成要素の責務、操作が成立する条件を定義する。
 
-## 目的と設計原則
-
-利用者の基本的な流れは「テキストを保存する → 探す → コピーする → 入力先のアプリへ戻ってペーストする」である。目的は、繰り返し入力する手間を減らし、少ない操作で作業を続けられるようにすること。
-
-| 原則 | 設計上の扱い |
+| 読みたい内容 | 正本 |
 | --- | --- |
-| 原文を保つ | 保存・編集・コピーで空白、改行、タブ、UnicodeのUTF-8を保持する。検索用の加工は別の値へ適用する |
-| 編集内容を失わせない | 保存済み項目と下書きを分け、保存失敗時は入力を残す。競合時は別項目として保存できる |
-| 操作の結果を明確にする | 永続化と画面状態の反映を待ってから操作を完了する。成功した終了操作だけが編集画面を閉じる |
-| 読み込む量を用途に合わせる | 一覧には要約を渡し、編集・コピーの対象となる1件の本文を必要な時点で読む |
-| 責務を局所化する | UIがタスクを所有し、モデルが処理と状態を持ち、保存層が整合性を判断する |
+| 製品の機能、依存関係、保存と操作の契約 | 本書 |
+| 画面・部品の目的、配置理由、寸法、評価条件 | [UI設計](../design/README.md) |
+| Swiftの非同期処理、表示比較、アニメーションの実装規則 | [実装規約](../library-policy.md) |
+| ビルド、操作、撮影の手順 | [MVP手順](../mvp.md) |
+| 対象コミットごとの測定・観察・未確認条件 | [検証結果の索引](../mvp-validation.md) |
 
-## 利用シーンと提供範囲
+## 目的と提供範囲
 
-対象は日本語UIの本体アプリ`Nibble`と共有拡張`NibbleShare`。最低対応OSはiOS 26.0、実行評価はiOS 26.5 Simulatorとする。
+利用者は「保存する → 探す → コピーする → 入力先へ戻ってペーストする」という流れでテキストを再利用する。少ない操作で作業を続けられ、編集中の原文を失わないことを優先する。
 
-| 利用シーン | 提供する機能 |
+| 利用場面 | 提供する機能 |
 | --- | --- |
-| 定型文を探して使う | タイトル・本文の部分一致検索、ピン留め、本文のコピー |
-| テキストを作成・編集する | 任意タイトル、プレーンテキスト本文、明示保存、下書きの保存・再開・破棄 |
-| 項目を整理する | 削除、直後の取り消し、削除一覧からの復元、確認付きの完全削除 |
-| 他アプリの内容を保存する | 共有シートからテキストまたはURLを1件取り込み、内容を確認して保存 |
-| 作業中にnibbleを開く | 本体起動、Apple「ショートカット」の標準URLアクションによる一覧・作成画面の表示 |
+| 定型文を利用する | タイトル・本文の部分一致検索、ピン留め、本文のコピー |
+| 内容を作る | 任意タイトルとプレーンテキスト本文、明示保存、下書きの保持・再開・破棄 |
+| 内容を整理する | 削除、直後の取り消し、削除一覧からの復元、確認付きの完全削除 |
+| 他アプリから取り込む | 共有シートで受け取ったテキストまたはURLを確認して保存 |
+| 作業中に呼び出す | 本体起動、標準ショートカットのURLアクションによる一覧・作成画面の表示 |
 
-日常操作は端末内で完結し、アカウントと通信を必要としない。入力先への復帰とペーストは利用者が行う。
+日本語UIの本体`Nibble`と共有拡張`NibbleShare`を提供する。最低対応OSはiOS 26.0、開発上の実行評価はiOS 26.5 Simulatorとする。日常操作は端末内で完結し、アカウントと通信を必要としない。入力先への復帰とペーストは利用者が行う。
 
-MVPの範囲はプレーンテキストの保存と再利用である。同期、独自バックアップ、書式付きテキスト、画像・ファイル、変数展開、AI、課金は提供しない。呼び出しには共有拡張とURLを使い、キーボード拡張、Widget、Controls、App Shortcutsの自動登録、任意アプリへの重ね合わせ表示や自動挿入は含めない。
-
-## 画面とフィードバック
-
-以下は製品の機能と操作の契約を定める。UI要素の意味、配置の理由、代替案、共通の視覚原則は[UI設計](../design/README.md)、状態を含む配置は[画面構成](../design/screens.md)に記載する。対象ソースと評価基準の照合結果、未評価条件、改善候補は[設計監査](../design/audit.md)で管理する。
-
-### タブと片手操作
-
-本体は、保存した内容を選ぶ「一覧」、アプリの使い方を調整する「設定」、言葉で探す「検索」の3画面を持つ。画面の切り替えには下部の標準タブバーを使い、同じ一覧の表示対象の変更には上部フィルターを使う。新規作成とコピーを片手で操作できる位置に置く。
-
-| 画面 | 内容 | 主な移動先 |
-| --- | --- | --- |
-| 一覧 | 上部フィルターと、下書き・保存済みスニペットのリスト | 新規作成、下書きの再開、保存済み項目の編集 |
-| 設定 | 操作ボタンの左右位置、削除した項目、製品情報 | 削除一覧のシート、製品情報のページ |
-| 検索 | 保存済みの未削除項目をタイトル・本文で検索 | 結果の編集・コピー、新規作成 |
-
-`TabView`の各タブに`NavigationStack`を置く。検索は`Tab(role: .search)`、入力開始は`.tabViewSearchActivation(.searchTabSelection)`で構成する。検索タブの位置とタブバーの寸法はシステムに従い、日本語UIでは検索が右端に配置される。タブバーはスクロールで縮小しない。
-
-一覧と検索は、それぞれ検索語・フィルター・取得上限・編集対象を持つ`LibraryModel`を保持する。データの保存先は共通で、画面の表示時と編集終了時に再取得する。検索結果が0件でも、一覧の表示対象は変わらない。
-
-### 一覧のフィルターと区分
-
-タイトルの直下に「すべて」「ピン留め」「下書き」を固定し、リストだけを縦にスクロールする。
-
-| フィルター | 表示対象と順序 | 空の場合 |
-| --- | --- | --- |
-| すべて | 直近3件の下書きと全下書きへの入口、保存済みの「ピン留め済み」、「その他」 | 用途の案内と作成の入口 |
-| ピン留め | 未削除でピン留めした保存済み項目 | ピン留め方法と「すべてを見る」 |
-| 下書き | 未完了の編集セッション | 下書きの説明と作成の入口 |
-
-該当する項目がない区分は表示しない。保存済み項目の1ページをピン留め済みとその他へ一度だけ分配し、重複なく表示する。取得上限は両区分で共通であり、続きは「さらに表示」で取得する。下書きフィルターも100件ずつ追加取得し、一覧の「すべて」では3件と続きの有無だけを返す。
-
-各フィルターは独立したButtonで、文字・塗り・枠の色とアクセシビリティの選択traitを持つ。操作領域は44 pt以上とし、幅を超える場合は横スクロールで全フィルターへ到達できる。
-
-フィルター変更は取得上限とリストのスクロール位置を初期化する。選択はタブ移動中は保持し、アプリ起動時は「すべて」とする。一覧からの新規作成とURLによる一覧・作成の呼び出しも「すべて」を選択する。下書きは保存後に下書き一覧から外れ、ピンを解除した項目はピン留め一覧から外れる。
-
-### 検索の状態
-
-検索タブの`NavigationStack`に`.searchable`を適用する。入力と閉じる操作、キーボードとの配置は標準検索UIが担当する。上部の見出しは`.searchPresentationToolbarBehavior(.avoidHidingContent)`で入力中も表示する。
-
-| 状態・操作 | 表示と結果 |
-| --- | --- |
-| 検索開始・検索語が空白のみ | タイトルや本文で探せることを案内する |
-| 語句の入力 | 保存済みの未削除項目全体から一致する結果を表示する |
-| 一致する項目がない | 語句を変える案内を表示する |
-| 入力中 | 新規作成を隠し、検索欄と閉じる操作をキーボードの直上へ表示する |
-| キーボードの検索で確定 | フォーカスを外してキーボードを閉じ、新規作成を表示する |
-| 標準検索の終了 | システムの検索状態を終了する |
-
-検索結果の項目は一覧と同じ編集・コピー・ピン留め・削除操作を持つ。削除済み項目は設定から開く専用シートで扱い、そのシートの標準検索欄で絞り込む。
-
-### 設定と操作ボタン
-
-「操作ボタンの位置」は左側・右側から選び、新規作成と各行のコピーに同時に適用する。既定値は右側で、本体専用のUserDefaultsへ`AppStorage`で保存する。Privacy Manifestはアプリ自身の設定に使用する理由`CA92.1`を宣言する。左右の設定は物理的な位置を表し、言語の表示方向や標準検索タブの位置を変更しない。
-
-| 操作 | 見た目と操作領域 | 配置 |
-| --- | --- | --- |
-| 新規作成 | 最小56 ptの円形Liquid Glass、title3に従う＋ | 一覧・検索の下部、タブバーの上。設定した側に配置 |
-| コピー | bodyに従うシンボル、8 ptの内余白、最小44×44 ptの操作領域 | 保存済み項目の各行で設定した側に配置 |
-| 復元 | 標準シンボル、44 pt以上の操作領域 | 削除一覧の各行 |
-
-新規作成は`safeAreaInset`で領域を確保し、リストの最後の項目までスクロールできるようにする。通知はその上に置き、表示・消去でボタンの位置を動かさない。設定タブには新規作成を置かない。
-
-設定から「削除した項目」のシートを開き、復元または確認付きの完全削除を行う。削除した項目は自動消去しない。「nibbleについて」は設定のNavigationStack内で開き、標準の戻る操作で設定へ戻る。
-
-### タイトル、背景、標準部品
-
-一覧・検索・設定のタイトルは、標準ナビゲーションバーの左側でスクロール中も位置を保つ。`LibraryNavigationTitle`が標準タイトル表示を除き、`topBarLeading`に`title3`の見出しを配置する。見出しは1行の本来の幅を確保し、操作部品のガラス背景を付けない。文字サイズの適用範囲は標準toolbarに従う。製品情報と削除一覧は、戻る・閉じる操作と標準のinlineタイトルを使う。
-
-一覧・検索・設定・削除一覧のListは`plain`スタイルで横幅を使う。行の背景を透明にし、行・見出し・余白を共通の`nibbleCanvas`で統一する。行の境界は標準の区切り線で示す。スクロール内容の上余白は0とし、一覧ではフィルター、検索と設定ではバーの直下から内容を表示する。製品情報は同じ背景面のScrollViewに文章と説明イラストを置く。
-
-色は`NibbleTheme`で定義する。ライトはクリーム色の背景と錆色のアクセント、ダークは暗いグレーと明るいオレンジを使う。本文はシステムフォントと固定したDynamic Typeのlargeで表示する。文字・太字・コントラストの扱いは[表示設定の固定](../design/decisions/0002-fixed-interface.md)に従う。Liquid Glassは標準タブバーと新規作成に用い、スニペット本文は共通の一覧面に表示する。
-
-採用APIはiOS 26.0で利用できる。[Liquid Glassの導入指針](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)、[検索タブの起動](https://developer.apple.com/documentation/swiftui/view/tabviewsearchactivation(_:))、[標準toolbar項目](https://developer.apple.com/documentation/swiftui/toolbardefaultitemkind)、[検索時のtoolbar表示](https://developer.apple.com/documentation/swiftui/searchpresentationtoolbarbehavior/avoidhidingcontent)を実装の参照先とする。
-
-### 製品情報と利用説明
-
-「nibbleについて」は、導入、コピー・保存のイラスト、基本操作、他アプリからの取り込み、ショートカット、データの扱いを一列に読む画面である。本文と見出しは一緒にスクロールし、余白と文字の階層で読み順を示す。標準文字で省略せず末尾まで読める構成とする。
-
-イラストは、メモ画面で文章を選び、元の文章を残したまま複製をnibbleへ保存する流れを示す。表示範囲では自動ループし、Reduce Motionの設定にかかわらずループする。図の下の説明文が意味と読み上げを担う。読み込み中・失敗時にも文章を残し、失敗時には再読み込み手段を提供する。
-
-説明の図形は実際のコピー・保存を行わず、アプリ間の関係を表す。配置は[画面S05](../design/screens.md#s05-nibbleについて)、表現・状態・表示基盤は[演出設計](0004-rive-presentation.md)に定義する。
-
-### 失敗と回復
-
-一覧取得の失敗と操作の失敗を別々に保持する。失敗は検索前の案内より先に表示し、検索語・表示対象を保持する。「一覧を再読み込み」は最新状態の取得を行い、失敗したコピーや削除を再実行しない。操作の失敗は対象処理の説明と回復方法を示す。
-
-### 編集と操作結果
-
-行をタップすると編集、コピーボタンを押すと本文をコピーする。可視の「その他」メニューと長押しでピン留め・削除を選ぶ。保存済み行は左スワイプで削除、右スワイプでピン留め／解除を示し、フルスワイプでも実行する。削除一覧の完全削除はフルスワイプで実行せず、確認を必要とする。内容と行の操作は横並びにし、文字設定で変更しない。削除・復元の通知と完全削除の確認には対象名を示す。コピーは触覚と通知で完了を伝え、通知本文をアクセシビリティのannouncementにも送る。
-
-編集画面はタイトル・本文・保存・閉じる・キーボードを閉じる操作を持つ。その他メニューには本文共有と下書き破棄を置く。本文領域は内容に応じて伸び、ページ全体をスクロールできる。編集シートのスワイプ終了は無効とし、永続化に成功した終了操作だけが画面を閉じる。保存失敗時は入力・理由・可能な回復操作を残す。
+同期、独自バックアップ、書式付きテキスト、画像・ファイル、変数展開、AI、課金は提供範囲に含めない。呼び出しは共有拡張とURLで構成し、キーボード拡張、Widget、Controls、App Shortcutsの自動登録、他アプリへの自動挿入は提供しない。
 
 ## データの意味と永続化
 
 ### 保存済み項目と下書き
 
-保存済み項目はコピーして利用する内容、下書きは編集中の内容である。編集画面への入力は下書きに保存し、明示的な保存操作で保存済み項目へ反映する。
+保存済み項目はコピーして利用する内容、下書きは編集中の内容である。入力中は下書きだけを更新し、明示的な保存によって保存済み項目へ反映する。
 
-| 用語・型 | 内容と用途 |
+| 用語・型 | 保持する値と用途 |
 | --- | --- |
-| スニペット / `Snippet` | UUID、タイトル、本文、ピン状態、更新番号、更新日時、削除状態を持つ保存済み項目 |
-| スニペット要約 / `SnippetSummary` | UUID、タイトル、本文の先頭180文字、ピン状態、更新番号。一覧の表示と項目の識別に使う |
-| 下書き / `Draft` | UUID、タイトル、本文、入力番号。既存項目を編集する場合は対象UUIDと編集開始時の更新番号も持つ |
-| 下書き要約 / `DraftSummary` | 下書きUUID、タイトルと本文の先頭180文字、更新日時。再開する下書きを一覧から選ぶために使う |
-| 一覧要求 / `LibraryRequest` | 検索語、フィルタ、取得上限をまとめた不変の値 |
-| 一覧結果 / `LibraryPage` | 同じDB読取時点のスニペット要約、下書き要約、続きの有無 |
+| `Snippet` | 保存済み項目。UUID、タイトル、本文、ピン状態、更新番号、更新日時、削除状態 |
+| `SnippetSummary` | 一覧用の要約。UUID、タイトル、本文の先頭180文字、ピン状態、更新番号 |
+| `Draft` | 編集セッション。下書きUUID、タイトル、本文、入力番号。既存項目の編集では対象UUIDと編集開始時の更新番号も持つ |
+| `DraftSummary` | 一覧から再開対象を選ぶ値。下書きUUID、タイトルと本文の先頭180文字、更新日時 |
+| `LibraryRequest` | 検索語・フィルター・取得上限を固定した一覧要求 |
+| `LibraryPage` | 同じDB読取時点のスニペット要約、下書き要約、続きの有無 |
+| snapshot | ある時点の値を固定したもの。編集では`Draft`、一覧では要求と結果の組を指す |
 
-UUIDは項目の一意な識別子である。下書きと保存済み項目はそれぞれ独立したUUIDを持つ。一覧用の要約には編集可能な本文全体を含めず、再開やコピーはUUIDから対象を読み込む。
+`revision`は保存済み項目の変更番号、`baseRevision`は編集開始時のその番号、`sequence`は同じ下書き内の入力順序である。保存済み内容の競合と、遅れた下書き書込を別々に検出する。
 
-### 変更を識別する値
+### 原文と検索用の値
 
-| 値 | 意味 |
-| --- | --- |
-| `revision` | 保存済み項目の更新番号。保存、ピン状態、削除状態の更新で増える |
-| `baseRevision` | 下書きが編集対象の項目を読み込んだ時点の`revision`。保存時の競合検出に使う |
-| `sequence` | 下書きの入力番号。`Draft`のタイトルまたは本文のUTF-8が変わるたびに増える |
-| snapshot | ある時点の`Draft`を固定した値。書込を待つ間に画面の入力が進んでも、この値は変わらない |
+タイトルと本文は、空白・改行・タブ・NUL・UnicodeのUTF-8を保持する。表示用の要約や検索用の正規化を原文へ適用しない。コピーは保存済み本文の全文を使う。
 
-`revision`は保存済み項目の変更、`sequence`は同じ下書きに対する入力の順序を扱う。両者は別の比較に使う。
+原文の同一性は`SnippetText.hasSameBytes`でバイト列を比較する。SwiftのString比較では等しい「が」と「か＋結合濁点」も、原文としては区別する。連続したUTF-8バッファの比較を使い、長文入力ごとの要素反復を避ける。
 
-Swiftの通常のString比較では、例えば「が」と「か＋結合濁点」が等しいと判定される。原文の同一性と入力番号の更新はUTF-8で比較し、検索では文字を正規化する。
-
-原文の比較は`SnippetText.hasSameBytes`に集約する。連続したUTF-8バッファの長さと内容を比較し、NULを含む文字列も途中で打ち切らない。長文の入力時にUTF-8の各要素をSwiftのiteratorで反復するコストを避ける。
-
-### 保存形式と接続
-
-本体と共有拡張は、両方からアクセスできる共有領域（App Group）`group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。SQLiteのschema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
-
-下書きの一覧には更新日時・ID順の索引、再開と関連下書きの削除には対象スニペットID・更新日時・ID順の索引を使い、必要な行を取得する。索引は接続時に存在を確認して作成する派生構造であり、schema version 1の原文・列構造を変更しない。
-
-`NibbleApp`と`ShareViewController`は、それぞれ`SnippetStorage.sharedContainer()`で作った保存層を保持する。保存層を必要とするモデルと編集画面にはそのインスタンスを明示的に渡す。グローバルな保存層を画面やモデルから取得しない。App Groupの解決は最初の操作まで遅らせ、利用できない場合はモデルの回復可能なエラーにする。テストは専用の一時URLを渡す。
-
-各プロセスの`SnippetStore` actorが、Sendableではない`SQLiteDatabase`を一つ所有する。actorは同一接続の操作を直列化し、SQLiteがプロセス間の排他を担う。`SnippetSchema`はテーブル・索引・versionの検査、`SQLiteDatabase`は接続・statement・binding・トランザクションの解放を担当する。設定はWAL、`synchronous=FULL`、busy timeout 2秒とする。
-
-準備済みSQLは接続ごとに最大32件を再利用し、最も長く使われていないものから解放する。実行中のstatementはcacheから外すため、入れ子のクエリでも使い回さない。完了時はresetの成否を確認して全bindingを解除し、本文のバッファを保持しない。失敗したstatementは破棄する。引数の個数不一致を拒否し、書込では結果配列を作らず最後まで実行する。
-
-読取トランザクションには`BEGIN`、書込トランザクションには`BEGIN IMMEDIATE`を使う。処理・commit・rollbackはactor内で完了させ、トランザクション中に`await`による中断点を置かない。
-
-接続時に`user_version`を確認する。未対応のschemaや破損DBはエラーにし、データを消して初期化する復旧は行わない。schemaの変更には明示的なmigrationと旧版データの検証を必要とする。
+確定保存と共有の取り込みでは、本文が空白・改行だけでないこと、タイトルが512 UTF-8 bytes以内、本文が1,000,000 bytes以内であることを検査する。編集中の入力は、修正して保存できるように画面へ残す。
 
 ## 構成と責務
 
-SwiftUIが画面を構成し、Observationがモデルの表示状態を伝える。UIモデルは`@MainActor`上で動作する。Swift language mode 6、strict concurrency complete、default isolation nonisolatedを使う。
+アプリと共有拡張の入口が依存を組み立て、UIはタスクの寿命、モデルは操作と表示状態、保存層はデータの整合性を管理する。Swift language modeは6、strict concurrencyはcomplete、default actor isolationはnonisolatedとする。UIモデルとOS操作は`@MainActor`に置く。
 
 ```mermaid
 flowchart TB
-    App[NibbleApp] -->|保存層とOS操作を注入| Tabs[LibraryView]
-    Tabs -->|一覧・検索のモデル| Library[LibraryScreen]
-    Tabs --> Settings[LibrarySettingsView]
-    Settings --> About[AboutView]
-    About --> Illustration[AboutIllustration]
-    Illustration --> Presentation[RivePresentation]
-    Tabs --> Trash[DeletedSnippetsView]
-    Trash -->|削除済みのモデル| Library
-    Library -->|開始要求| Owner[LibraryTaskOwner]
-    Owner -->|await| Model[LibraryModel]
-    Model -->|一覧結果・通知・編集対象| Library
-    Library -->|値と操作意図の受付| Row[SnippetRow]
-    Row --> Content[SnippetRowContent]
-    Library --> Notice[LibraryNotice]
-    Library --> Editor[SnippetEditor]
-    Host[共有元アプリ] --> Share[ShareViewController]
+    App[NibbleApp] --> Factory[SnippetStorage]
+    Share[ShareViewController] --> Factory
+    Factory --> Store[SnippetStore actor]
+    App --> Tabs[LibraryView]
+    App --> Effects[SystemLibraryEffects]
+    Tabs --> Screen[LibraryScreen]
+    Screen --> Owner[LibraryTaskOwner]
+    Owner --> Model[LibraryModel]
+    Model --> Store
+    Model -->|LibraryEffectsの契約| Effects
+    Screen --> Row[SnippetRow / LibraryFilterBar]
+    Screen --> Notice[LibraryNotice]
+    Screen --> Editor[SnippetEditor]
     Share --> Editor
-    Editor -->|await| Editing[EditorModel]
-    Model --> Store[SnippetStore actor]
+    Editor --> Editing[EditorModel]
     Editing --> Store
-    Share --> Store
-    Store --> SQL[SQLiteDatabase]
     Store --> Schema[SnippetSchema]
-    SQL --> DB[(App Group / SQLite)]
-    Model --> Effects[LibraryEffects]
-    Effects --> System[SystemLibraryEffects / UIKit]
+    Store --> SQL[SQLiteDatabase]
+    Schema --> SQL
+    SQL --> DB[(App Group内のSQLite)]
+    Tabs --> Settings[LibrarySettingsView]
+    Settings --> About[AboutView / AboutIllustration]
+    About --> Rive[RivePresentation / RML]
 ```
 
-| 構成要素 | 責務と所有する状態 |
-| --- | --- |
-| `NibbleApp` / `SnippetStorage` | 保存層とOS操作の構成。保存先の解決をモデルから分離する |
-| `LibraryView` | 選択タブ、一覧・検索の独立したモデル、検索フォーカス、左右設定、削除一覧シート、URLからの入口を保持する |
-| `LibrarySettingsView` | 左右設定の編集、削除一覧と製品情報への入口 |
-| `AboutView` / `AboutIllustration` | 説明の読み順、Session（一つの表示の再生状態）、外観・動作設定・可視性、読込失敗時の回復 |
-| `RivePresentation` | 同梱ファイルの読込、接続契約の検査、表示ごとの独立した再生状態、画面・アプリの寿命に従うフレーム停止 |
-| RML / `about-story.riv` | コピー・保存の図形、時間、演出状態、型付きデータ。編集可能な制作ソースと同梱する生成物 |
-| `DeletedSnippetsView` | 削除済み項目の専用モデルと検索フォーカス、シートの閉じる操作 |
-| `LibraryScreen` | 一覧状態の配置、空・失敗・取得待ち、新規作成、編集シート、完全削除の確認、操作意図からタスクへの接続 |
-| `SnippetRow` / `LibraryFilterBar` | 値から行・操作・フィルターを構成する。行は意味のある操作意図だけを呼出元へ返す |
-| `LibraryNotice` | 通知状態の観測、局所的な遷移、期限と触覚フィードバック。復元の意図を画面へ返す |
-| `LibraryTaskOwner` | 一覧操作のタスクを所有。開始、重複判定、キャンセルをTaskingで管理する |
-| `LibraryModel` | 検索要求、一覧結果、編集対象、通知、エラー。読込・コピー・項目更新の待機可能なAPIを提供する |
-| `SnippetRowContent` | タイトル・本文プレビュー・ピン状態の値から行の内容を描画する |
-| `SnippetEditor` | 編集モデル、入力フォーカス、終了操作のタスクを所有。永続化成功後に画面または共有処理を終了する |
-| `EditorModel` | 下書き、編集の状態、失敗内容と回復方法。自動保存と終了操作を実行する |
-| `ShareViewController` | 共有データの取得、入力検証、共通編集画面の表示、共有元への完了通知 |
-| `SnippetStore` | 検索、読込、更新、競合判定、トランザクションの業務単位。UIへは値型を返す |
-| `SQLiteDatabase` / `SnippetSchema` | 接続とSQLの資源管理 / テーブル・索引・versionの契約 |
-| `LibraryEffects` / `SystemLibraryEffects` | コピー・読み上げ通知の同期契約 / UIKitによる実行。業務状態とタスクを保持しない |
-| `NibbleTheme` / `LibraryNavigationTitle` | 共通色と、標準ナビゲーションバー内の見出しの表示 |
+矢印は構成・呼出しの関係を示す。`LibraryModel`が参照するOS操作の型は`LibraryEffects`であり、UIKitを使う実装を入口から渡す。
 
-モデルはタスクを開始するstoreやclosureを持たず、呼出元のタスクで処理を完了する。表示専用の行はモデルや操作closureを持たず、渡された表示値を使う。
+### 所有者と依存の受け渡し
+
+| 構成要素 | 責務・所有するもの |
+| --- | --- |
+| `NibbleApp` | 本体で使う保存層を保持し、`LibraryView`へ保存層とOS操作を渡す |
+| `SnippetStorage` | App Group内の保存先を解決する保存層の生成。呼出しごとにインスタンスを作る |
+| `LibraryView` | タブ、検索フォーカス、左右設定、URL経路、一覧・検索の独立したモデル。削除一覧にも同じ保存層とOS操作を渡す |
+| `LibraryScreen` | 一覧状態の配置、編集シート、完全削除の確認、行の操作意図とタスク所有者の接続 |
+| `SnippetRow` / `LibraryFilterBar` | 行の表示値と操作意図 / フィルター選択。行はモデル・保存層・タスク所有者を保持しない |
+| `SnippetRowContent` | タイトル・要約・ピン状態だけから描画する比較境界 |
+| `LibraryNotice` | モデルの通知・触覚状態を観測し、表示と期限を管理。復元の意図を画面へ返す |
+| `LibraryTaskOwner` | 操作の開始、重複、キャンセル。業務処理はモデルをawaitする |
+| `LibraryModel` | 一覧要求と結果、編集対象、通知、失敗。保存層と`LibraryEffects`を使う完了待ち可能な操作 |
+| `SnippetEditor` / `EditorModel` | 入力・フォーカス・終了タスクの所有 / 下書き・自動保存・終了状態・回復可能な失敗 |
+| `ShareViewController` | 拡張の保存層と読込タスクを保持し、取得した本文を共通編集へ渡す。終了結果を共有元へ通知 |
+| `SnippetStore` | 検索、更新、競合検出、業務単位のトランザクション。UIには値型を返す |
+| `SnippetSchema` / `SQLiteDatabase` | テーブル・索引・version / 接続・準備済みSQL・引数・トランザクションの資源管理 |
+| `LibraryEffects` / `SystemLibraryEffects` | コピーと読み上げ通知の同期契約 / UIKitによる実行 |
+| `AboutIllustration` / `RivePresentation` | 説明と表示設定・再生Sessionの保持 / 読込・接続検査・表示・フレーム停止 |
+
+保存層を必要とする画面・モデルはinitializerで受け取る。本体の各モデルは一つの保存層を共有し、拡張は自身の保存層を持つ。App Groupの解決は最初の保存操作まで遅らせ、利用できない場合は回復可能なエラーとして表示する。テストには専用の一時URLを渡す。
+
+### 副作用の境界
+
+| 外部状態への作用 | 実行する場所 | モデル・UIへ返す契約 |
+| --- | --- | --- |
+| DB読書き、保存先作成、ファイル保護 | `SnippetStore`と保存用helper | 値または`StoreError`。書込の確定単位を保つ |
+| クリップボード書込、読み上げ通知 | `SystemLibraryEffects` | MainActorで同期的に完了。保存・検索の状態を保持しない |
+| 触覚と通知の表示時間 | `LibraryNotice` | 成功状態に応じて表示・触覚を更新し、通知IDごとに期限を待つ |
+| 共有データ取得、拡張の終了通知 | `ShareViewController` | 取得の前後でキャンセルを確認し、編集終了の成功を共有元へ返す |
+| 左右設定の永続化 | `LibraryView`の`AppStorage` | 本体のUserDefaultsへ選択を保持 |
+| 説明イラストの読込・再生 | `RivePresentation` | 表示ごとの独立したSessionと、読込失敗の状態 |
+
+## 保存形式と接続
+
+本体`nibble.9uiLe.com`と共有拡張`nibble.9uiLe.com.share`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
+
+各`SnippetStore` actorが一つの非Sendableな`SQLiteDatabase`を所有する。同一接続の操作はactorが直列化し、別プロセス・別接続の排他はSQLiteが担う。トランザクション内に`await`を置かず、読取には`BEGIN`、書込には`BEGIN IMMEDIATE`を使う。失敗時はrollbackを試み、元のエラーを返す。
+
+| 設定・構造 | 目的と契約 |
+| --- | --- |
+| WAL、`synchronous=FULL`、busy timeout 2秒 | 共有DBの読書きと確定を管理し、競合の待機時間を制限する |
+| `snippets_order` | 削除状態、ピン状態、更新日時、UUIDで一覧を取得する |
+| `drafts_order` | 下書きを更新日時・UUID順に取得する |
+| `drafts_snippet` | 対象スニペットの下書きの再開・除去を支える |
+| schemaの確認 | 未対応version・破損DBをエラーにする。既存データを消して初期化しない |
+
+索引は接続時に存在を確認して作成する。列構造を変更する場合はmigrationと既存データの検証を必要とする。
+
+`SQLiteDatabase`は準備済みSQL（statement）を接続ごとに最大32件保持し、最も長く使われていないものから解放する。実行中のstatementは保持対象から外すため、入れ子の同じSQLにも独立したstatementを使う。
+
+SQLの引数はbindingで渡し、個数不一致を拒否する。正常終了時はresetの成否を確認して全bindingを解除し、本文のバッファを保持しない。失敗したstatementは破棄する。書込は結果配列を作らず実行を完了し、接続の解放時は保持しているstatementも解放する。
 
 ## 検索と一覧の性能
 
-### 一覧の取得
+### 一覧要求と表示の整合性
 
-1. 検索語・フィルタ・取得上限を`LibraryRequest`に固定する。初期上限は100件で、検索語またはフィルタの変更時に100件へ戻す。
-2. `LibraryModel.refresh()`が要求ごとの識別子と検索条件を保持し、保存層の`library(_:)`を待つ。
-3. 保存層は1つの読取トランザクションでフィルターに対応する要約を取得する。保存済み項目は上限より1件多く読み、続きの有無を判定する。下書き専用要求も上限より1件多い下書き要約から続きの有無を判定する。
-4. モデルはキャンセル状態・要求識別子・検索条件を照合し、有効な結果だけを`LibraryPage`として反映する。「さらに表示」は上限を100件増やして先頭から再取得する。
+1. モデルは検索語・フィルター・取得上限を`LibraryRequest`として保持する。語句・フィルターの変更時は上限を100件へ戻す。
+2. `refresh()`は要求と実行識別子を固定し、保存層の`library(_:)`をawaitする。
+3. 保存層は一つの読取トランザクションで要約を取得する。必要数より1件多く読み、続きの有無を判定する。
+4. モデルはキャンセル、実行識別子、要求の一致を確認し、有効な結果だけを要求と一緒に反映する。
 
-検索キーはタイトルと本文をUnicode正規化形式のNFCへ正規化し、日本語localeで英字大小・半角/全角を同一視して作る。NULは検索キー上で置換文字へ変換する。キーは原文と別に保存するため、検索のたびに全本文を正規化する必要はない。
+選択した要求と、表示中の結果に対応する要求を分けて保持する。フィルター変更直後から未完了として扱い、取得中は以前の内容を操作不可で表示する。現在の要求が完了したときだけ空状態を確定するため、タスクが始まる前の空表示や、遅い結果による選択の逆戻りを防ぐ。
 
-| 項目 | 契約 |
+「すべて」は保存済み項目100件と直近の下書き3件を返し、残りの下書きへの入口を示す。下書き専用フィルターは下書きを100件ずつ取得する。「さらに表示」は上限を100件増やし、先頭から再取得する。
+
+### 検索条件と読込量
+
+検索キーはタイトルと本文から作り、原文とは別に保存する。UnicodeのNFC正規化、日本語localeでの英字大小・半角全角のfolding、検索キー内のNULの置換を行う。検索語の前後空白・改行を除き、SQLiteの`instr`で部分一致を判定する。
+
+| 条件 | 動作 |
 | --- | --- |
-| 一致条件 | 検索語の前後空白・改行を除き、SQLiteの`instr`で部分一致。日本語1文字から検索可能 |
-| 区別する文字 | ひらがなとカタカナ、清音と濁音。`%`・`_`・バックスラッシュは通常文字として扱う |
-| フィルタ | 未削除の全項目、未削除のピン留め項目、下書き、削除済み項目。下書き専用要求は保存済み項目を取得しない |
+| 日本語・記号 | 日本語1文字から検索可能。ひらがなとカタカナ、清音と濁音を区別し、`%`・`_`・バックスラッシュを通常文字として扱う |
+| フィルター | 全項目・ピン留めは未削除、削除一覧は削除済み。下書きの検索語による絞り込みは行わない |
 | 並び順 | ピン留め優先、更新日時降順、UUID昇順 |
-| 下書き | 全項目・下書きの要求でUUIDとタイトル要約を取得。検索語では絞り込まず、UIは「一覧」のすべて・下書きで表示する |
-| 全文の取得 | コピー時は保存済み本文、編集開始時は対象下書きの全文を1件取得する |
+| SQLの選択 | ピン条件・検索語の有無から固定した述語を選ぶ。ユーザー文字列は常にbindingで渡す |
+| 読込量 | 一覧は要約、コピーと再開は対象1件の全文。検索語が空なら部分一致を評価しない |
 
-検索SQLは、ピン条件と検索語の有無に対応する固定した述語だけを組み立てる。ユーザーの文字列はSQLへ埋め込まずbindingで渡す。ピン一覧は`deleted, pinned, updated, id`の索引へ直接絞り込み、検索語が空なら部分一致を評価しない。
-
-### 配布容量と評価範囲
-
-ReleaseはSwiftの`-Osize`とwhole-module最適化を使い、`ENABLE_TESTABILITY=NO`とする。`ios.py test`だけが`ENABLE_TESTABILITY=YES`を明示し、`@testable`で内部の契約を検査する。UI操作用のbuildと配布archiveは製品の設定を使う。サイズ優先の最適化は応答速度とトレードオフがあるため、保存・検索・入力の同条件比較と操作検証を採用条件とする。
-
-外部依存を増やさず、RiveRuntimeは説明イラストを表示する本体だけにリンクする。共有拡張にRiveとそのアセットを含めない。容量比較は同じSDK・architecture・Releaseのunsigned archive内にあるファイルの実バイト数を使い、dSYM・テスト・DerivedDataを製品容量へ加えない。App Storeの圧縮・thinning後のダウンロードサイズは別の指標である。
-
-一覧へ渡す下書きデータ量は本文長に依存しない。ただし下書き件数の上限はなく、要約一覧のメモリは件数に比例する。部分一致検索には全件走査が生じ、「さらに表示」も先頭からの再取得になる。
-
-性能はデータ件数・本文量・端末・OS・構成を固定して測る。保存層の検索時間、入力から表示までの遅延、スクロール、メモリをそれぞれ評価する。構造上の読込量と実測した応答時間を区別し、Simulatorの数値を実機の保証に換算しない。測定条件と値は[一覧と編集の検証結果](../library-validation.md)に記録する。
+ピン一覧は一覧用索引で絞り込む。部分一致検索には全件走査が生じ、表示件数を増やすほど要約のメモリも増える。下書き一覧へ渡すデータ量は本文の長さに依存しない。画面更新・描画と保存層の処理時間は別々に測定する。
 
 ## 編集の開始と再開
 
-編集入口は`LibraryModel.EditorSource`で表す。
-
-| 入口 | 保存層の処理 |
+| `LibraryModel.EditorSource` | 保存層の処理 |
 | --- | --- |
 | `.new` | 独立したUUIDの下書きを作成する |
-| `.snippet(id)` | 1つの書込トランザクションで保存済み項目の存在と未削除状態を確認する。対応する下書きがあれば更新日時が最新のものを読み、なければ作成する |
-| `.draft(id)` | 指定された下書きの全文をDBから読み直す。存在しなければエラーを表示する |
+| `.snippet(id)` | 保存済み項目の未削除状態を確認し、最新の対応下書きを読む。なければ作成する |
+| `.draft(id)` | 指定した下書きの全文をDBから読む。存在しなければエラーを表示する |
 
-一覧を取得してから別プロセスが下書きを更新しても、再開時には保存層にある内容を使う。既存項目の下書きの検索と作成を同じ書込トランザクションに入れることで、同時に開いた処理がそれぞれ下書きを作ることを防ぐ。`beginDraft`は独立した編集セッションを作るAPIとし、既存項目の再開には`editingDraft(for:)`を使う。
+既存項目の下書きの検索と作成は、`editingDraft(for:)`の一つの書込トランザクションで行う。同時に再開しても重複して作成しない。`beginDraft`は独立した編集セッションを作るAPIである。
 
-モデルは編集画面を表示中、または編集開始処理中なら別の編集開始を受け付けない。URLを受信した場合も表示中の編集内容を維持する。
+再開時には一覧の要約を編集値として使わず、その時点のDBを読む。モデルは編集画面の表示中・編集開始処理中の追加開始を受け付けず、URLを受信しても表示中の入力を保持する。
 
 ## 入力の保存と編集の終了
 
 ### 自動保存
 
-タイトル・本文のsetterは、編集中のメモリ上の入力だけを更新する。`Draft`がUTF-8の変化に応じて`sequence`を増やし、`SnippetEditor`は描画時のsnapshotを`.task(id: snapshot.sequence)`から`persist(_:)`へ渡す。
+タイトル・本文のsetterはメモリ上の値だけを変更する。`Draft`はUTF-8の変化に応じて`sequence`を増やし、`SnippetEditor`は固定したsnapshotを`.task(id: snapshot.sequence)`から`persist(_:)`へ渡す。
 
-自動保存は、同じUUIDの既存行に対し、DBより大きい`sequence`だけをUPDATEする。同じ番号・小さい番号・除去済みの下書きへの書込は変更を行わない。これにより、遅れた書込が保存済みの下書きを再生成することはない。
+自動保存は同じUUIDの既存行へ、DBより大きい入力番号だけをUPDATEする。同じ番号・小さい番号・除去済みの下書きには書き込まない。保存・破棄の後に遅れた書込が届いても、下書きを再生成しない。
 
-SwiftUIによる入力更新の集約を許容する。全キーストロークの個別保存や、異常終了直前に書込が完了していない入力の保持は保証しない。保存・閉じる操作は、自動保存の開始を待たずに現在の入力を永続化する。
+SwiftUIによる入力更新の集約を許容する。全キーストロークの個別保存と、異常終了直前の未確定書込は保証しない。保存・閉じるは自動保存の開始に依存せず、現在の入力を固定して永続化する。
 
-### 終了操作と状態遷移
+### 終了状態と確定条件
 
-`EditorModel.finish(_:)`が終了処理を担当する。`phase`は次の3状態である。
+`EditorModel.finish(_:)`は入力を固定し、一つの終了結果を確定する。
 
 ```mermaid
 stateDiagram-v2
     [*] --> editing
     editing --> finishing: 終了要求を受理して入力を固定
     finishing --> finished: 永続化成功
-    finishing --> editing: 失敗と入力を保持
+    finishing --> editing: 入力と失敗理由を保持
 ```
 
-`editing`だけが入力変更と終了要求を受け付ける。`finishing`では入力と操作を無効にし、`finished`では再実行を受け付けない。画面は成功結果を受け取ってから閉じる。
+`editing`だけが入力変更と終了要求を受け付ける。画面は`finished`となった成功結果を受け取って閉じる。終了処理中の入力と二重終了、シートのスワイプ終了は受け付けない。
 
 | 終了操作 | 成功時の結果 |
 | --- | --- |
-| `.save` | 保存済み項目を作成または更新し、対応する下書きを同じトランザクションで除去 |
-| `.saveAsNew` | 入力を別UUIDの保存済み項目として保存。置き換え可能な下書きだけ除去 |
-| `.keep` | 下書きを保持。タイトルと本文が両方空、または既存項目の下書きで`sequence == 0`の場合は除去 |
-| `.discard` | 下書きを除去。保存済み項目の本文は変更しない |
+| `.save` | 保存済み項目の作成・更新と、対応下書きの除去を同時に確定 |
+| `.saveAsNew` | 別UUIDへ保存し、置き換え可能な下書きだけ除去 |
+| `.keep` | 下書きを保持。ただしタイトルと本文がともに空文字、または既存項目の編集で`sequence == 0`なら除去 |
+| `.discard` | 下書きを除去し、保存済み項目を維持 |
 
-保存時には、本文が空白・改行だけでないこと、タイトルが512 UTF-8 bytes以内、本文が1,000,000 bytes以内であることを確認する。
+通常の保存・保持・破棄は、トランザクション内で下書きUUID、対象UUID、`baseRevision`を照合する。入力番号はDBより大きいか、同じ番号かつタイトル・本文のUTF-8が一致する必要がある。既存項目への保存は、未削除で現在の`revision`が`baseRevision`と等しいことも要求する。
 
-### トランザクション内の照合
+### 失敗と回復
 
-通常の保存・閉じる・破棄は、対象下書きをDBから読み、次をすべて満たす場合に実行する。
-
-- 下書きUUID、編集対象のUUID、`baseRevision`が一致する。
-- 入力の`sequence`がDBより大きい、または同じ番号でタイトル・本文のUTF-8も一致する。
-
-既存項目への保存には、対象が未削除で、現在の`revision`と下書きの`baseRevision`が一致することも必要になる。例えば編集中に別の操作で項目が更新された場合、その編集内容を元の項目へ上書きしない。
-
-「新しい項目として保存」は、画面にある入力を独立した項目へ保存する回復手段である。DBの下書きが上記条件で置き換え可能なら除去し、条件に合わない下書きは保持する。下書きが除去済みでも、この明示的な保存を利用できる。
-
-### 失敗時の動作
-
-失敗は`Failure`に説明文と別項目として保存できるかをまとめ、`phase`を`editing`へ戻す。
-
-| 失敗 | 表示と回復 |
+| 失敗 | 扱い |
 | --- | --- |
-| 保存済み項目の更新競合 / `conflict` | 入力を保持し、「新しい項目として保存」を提示 |
-| 下書きの照合不一致 / `staleDraft` | DBの下書きを保持し、画面の入力は別項目として保存可能 |
-| 対象の消失 / `missing` | 成功として閉じず、画面の入力を別項目として保存可能 |
-| 空本文・サイズ超過 | 入力を保持し、修正して再試行 |
-| 保存先・DB・schemaのエラー | データを保持し、エラーを表示。保存先の問題を解決して再試行 |
+| 更新競合、下書きの照合不一致、対象消失 | 入力を保持し、「新しい項目として保存」を提示 |
+| 空本文・サイズ超過 | 入力を保持し、修正後に再試行 |
+| 保存先・DB・schemaの問題 | エラーを表示し、データを維持したまま再試行可能にする |
 
-古いsnapshotの自動保存エラーは、新しい入力や終了結果の表示を上書きしない。
+別項目への保存は画面にある入力を独立した項目へ残す。DBの下書きを置き換えられない場合はその下書きも保持し、除去済みの場合も明示的な別項目保存を許可する。自動保存の失敗は、snapshotの入力番号と現在の編集状態を確認してから表示する。
 
 ## 非同期操作の完了契約
 
-モデルの`async`操作は、受理した処理と結果反映を完了まで待つ。UIイベントから開始する場合は所有者の`startTask`を使い、既存タスクからはモデルを直接awaitする。同期setterとinitializerはタスクを開始しない。
+モデルの操作APIは、受理した処理と結果反映を待ってから戻る。既存の非同期処理はモデルを直接awaitし、同期UIイベントは所有者の`startTask`から開始する。モデルはタスクを開始するstoreやclosureを受け取らない。
 
-| API | 呼出元が待つ範囲 |
+| 操作 | awaitが待つ範囲 |
 | --- | --- |
-| `refresh()` | 一覧読込と有効な要求の状態反映 |
-| `open(_:)` | 下書きの読込または作成と編集対象への反映 |
-| `copy(_:)` | 保存済み本文の読込、クリップボード書込、通知の設定 |
-| `pin`・`delete`・`restore`・`permanentlyDelete` | DB更新、一覧の再取得、該当する通知またはエラーの反映 |
-| `persist(_:)` | 受理したsnapshotの条件付きDB更新 |
-| `finish(_:)` | 入力の固定、永続化、成功または失敗状態の確定 |
-| `expireNotice(id:)` | 期限までの待機と、同じIDの通知の消去 |
+| 一覧取得・再試行 | 読込と、有効な要求に対する結果または失敗の反映 |
+| 編集開始 | 下書きの読込・作成と編集対象の設定 |
+| コピー | 最新の保存済み本文の読込、クリップボード書込、完了通知の設定 |
+| ピン・削除・復元・完全削除 | DB更新、一覧の再取得、該当する通知または失敗の反映 |
+| 下書き書込 | 受理したsnapshotの条件付き更新 |
+| 編集終了 | 入力の固定、永続化、成功・失敗状態の確定 |
+| 通知期限 | 指定時間の待機と、同じIDの通知の消去 |
 
-削除・復元は同じUUIDの削除状態を変更し、本文とピン状態を保持する。完全削除は削除済み項目と関連下書きを1つのトランザクションで除去する。
+コピーは読込の前後でキャンセルを確認し、対象が未削除である場合だけ`LibraryEffects.copy`を呼ぶ。書込後に触覚用の状態を更新し、通知を設定する。コピー失敗を成功通知へ変換しない。
 
-通知は`Notice`にUUID、本文、取り消し対象をまとめる。コピー通知の期限は2秒、削除の取り消し通知は6秒。期限待ちはコピーや削除の完了に含めず、通知IDを照合して置き換わった通知を消さないようにする。
+削除・復元は同じUUIDの削除状態を変更し、本文とピン状態を保持する。完全削除は削除済み項目と関連下書きを一つのトランザクションで除去する。
+
+`Notice`はID、メッセージ、対象名、取り消し対象をまとめる。通常通知は2秒、取り消し付きは6秒で消す。表示期間はコピー・削除の完了に含めず、期限処理はIDを照合して新しい通知を消さないようにする。一覧読込の失敗と項目操作の失敗は別々に保持し、再読込による回復を項目操作の再実行と区別する。
 
 ## 操作の寿命と整合性
 
-Taskingの`ActionID`は重複判定の単位、`ActionLifetime`は所有者がキャンセル対象を分類する値である。`cancelExisting`は同じIDの実行へキャンセルを要求して次を開始し、`ignoreNew`は実行中の同じIDへの開始要求を受け付けない。
+タスク所有者はTaskingのID・寿命・重複方針を設定する。`cancelExisting`は同じIDの処理へ停止を要求して次を開始し、`ignoreNew`は実行中の同じIDへの要求を受け付けない。
 
-| 操作 | 所有者・ID | 寿命 / 重複方針 |
+| 操作 | 所有者 / ID | 寿命 / 重複方針 |
 | --- | --- | --- |
 | 一覧読込 | `LibraryTaskOwner` / `library.refresh` | sceneBound / cancelExisting |
 | コピー | `LibraryTaskOwner` / `library.copy` | sceneBound / cancelExisting |
 | 編集開始 | `LibraryTaskOwner` / `library.open` | screenBound / ignoreNew |
-| ピン・削除・復元・完全削除 | `LibraryTaskOwner` / 操作種別と項目UUID | sceneBound / ignoreNew |
+| ピン・削除・復元・完全削除 | `LibraryTaskOwner` / 操作種別とUUID | sceneBound / ignoreNew |
 | 編集終了 | `SnippetEditor` / `editor.finish` | screenBound / ignoreNew |
-| 共有データの読込 | `ShareViewController` / `share.load` | screenBound / ignoreNew |
-| 下書き書込 | `SnippetEditor`の`.task(id: snapshot.sequence)` | SwiftUIが入力番号の変更とview終了に応じてキャンセル |
-| 通知期限 | `LibraryNotice`の`.task(id: notice?.id)` | SwiftUIが通知IDの変更とview終了に応じてキャンセル |
+| 共有読込 | `ShareViewController` / `share.load` | screenBound / ignoreNew |
+| 下書き書込 | `SnippetEditor` / `.task(id: snapshot.sequence)` | SwiftUIがID変更・View終了でキャンセルを要求 |
+| 通知期限 | `LibraryNotice` / `.task(id: notice?.id)` | SwiftUIがID変更・View終了でキャンセルを要求 |
 
-lifetimeは画面やsceneを自動監視しない。所有者が終了イベントを接続する。一覧の有限なsceneBound操作はシート表示や一時的な非active化をまたいで完了する。background化では編集開始をキャンセルし、通知を消す。編集終了と共有データの読込は、それぞれの画面が消えたときにscreenBoundをキャンセルする。
+lifetimeはキャンセル対象の分類であり、OSのイベントは所有者が接続する。一覧の有限なsceneBound操作はシート開閉や一時的な非active化をまたいで完了する。background化では編集開始を止め、通知を消す。編集終了と共有読込は、それぞれの画面終了時にscreenBoundをキャンセルする。
 
-キャンセルは協調的な停止要求であり、確定済みのDB変更を取り消さない。コピーと共有データの読込は取得の前後、一覧は結果反映前にキャンセルを確認する。受理済みの下書き書込はDBの条件で適用を判断する。編集終了の永続化が成功した場合、途中でキャンセルが届いても画面へ成功を返す。
+キャンセルは協調的な停止要求であり、確定済みのDB変更を取り消さない。受理済みの下書き書込は入力番号で適用を判断する。編集終了の永続化が成功した場合は、途中でキャンセルが届いても成功を返す。独立したUI操作を並行して受け付けても、同一接続の書込はactor内で直列に確定する。
+
+## 画面とフィードバック
+
+### タブと片手操作
+
+本体は`TabView`の「一覧」「設定」「検索」に、それぞれ`NavigationStack`を置く。一覧と検索のモデルは独立した要求・結果・編集対象を保持し、表示時と編集終了時に再取得する。
+
+| 画面 | 内容と操作 |
+| --- | --- |
+| 一覧 | 固定した「すべて／ピン留め／下書き」フィルター、要約リスト、新規作成 |
+| 設定 | 操作ボタンの左右選択、削除一覧、製品情報への入口 |
+| 検索 | 未削除の保存済み項目のタイトル・本文検索、結果の編集・コピー・整理 |
+| 編集 | 任意タイトル、本文、保存、閉じる、本文共有、下書き破棄 |
+| 削除一覧 | 削除済みだけの検索、復元、確認付き完全削除 |
+| 製品情報 | 利用の説明、コピー・保存の図、ショートカットとデータの扱い |
+
+検索は`Tab(role: .search)`と`.searchable`を使い、タブ選択時の入力開始を`.tabViewSearchActivation(.searchTabSelection)`で指定する。`.searchPresentationToolbarBehavior(.avoidHidingContent)`で見出しを保ち、入力中は新規作成を隠す。検索語が空白のみの案内と検索0件を分ける。タブバーはスクロールで縮小せず、検索の位置はOSへ委ねる。
+
+左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。`safeAreaInset`で通知と作成の領域を確保する。
+
+### 一覧の選択と行操作
+
+「すべて」は直近の下書き、ピン留め済み、その他の順に表示し、空区分を省く。「ピン留め」はピン項目、「下書き」は未完了の編集だけを示す。フィルターは文字・塗り・枠の色で選択を表し、チェックマークを付けない。横スクロールと44 pt以上の操作領域を使う。
+
+行の内容をタップすると編集、コピーアイコンは本文をコピーする。メニューと長押しで整理操作を選べる。保存済み行は左フルスワイプで削除、右フルスワイプでピン留め／解除を実行する。削除一覧の完全削除はフルスワイプで実行せず、確認を必要とする。
+
+### 外観と説明
+
+一覧・設定・検索の見出しはナビゲーションバーの左側、階層内とシートは標準inlineタイトルを使う。Listはplainスタイル、透明な行背景、共通の`nibbleCanvas`と標準の区切り線で構成する。`NibbleTheme`はライトのクリーム色・錆色と、ダークのグレー・オレンジを定義する。
+
+[固定表示の方針](../design/decisions/0002-fixed-interface.md)に従い、文字サイズ・太字・独自配色のコントラスト・独自演出を固定する。ライト・ダークには追従し、意味情報と操作ラベルは保持する。OS所有の標準部品の内部表現はOSが管理する。
+
+「nibbleについて」は一つのScrollViewに説明文とRiveの図を配置する。元の文章を残したまま複製を保存する流れを6.2秒周期で自動再生し、Reduce Motionでも同じ演出を使う。再生・停止ボタンは置かない。隣接する文章が意味と読み上げを担い、図はコピー・保存の実処理を行わない。配置と全要素の理由は[画面構成](../design/screens.md)と[部品台帳](../design/components.md)を参照する。
 
 ## 値による表示更新の制御
 
-比較境界は、入力値が等しいときに親からの表示更新を省けるViewの範囲である。一覧行の`SnippetRowContent`は、タイトル・本文プレビュー・ピン状態の3つを通常の値型`let`として受け取り、すべてを比較する。
+`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を通常の値型`let`で受け取る。`@Equatable`と`@MainActor EquatableBodyView`で全入力の比較を生成し、同じstructの`equatableBody`に表示を定義する。
 
-Viewには`@Equatable`を付け、`@MainActor EquatableBodyView`へ直接準拠する。MainActorはUI処理を実行するactorであり、準拠と生成される等価比較を同じactorに限定する。内容は同じstructの`equatableBody`へ定義し、比較の適用にはライブラリが提供する`body`を使う。
+操作closureと参照モデルは通常のViewである`SnippetRow`側へ置き、操作意図を`LibraryScreen`へ返す。比較対象の入力が等しい場合も、操作は現在の項目へ接続される。通知の観測は`LibraryNotice`で行い、一覧の内容と一時的なフィードバックの責務を分ける。
 
-`SnippetRow`はButton、操作用のアクセシビリティラベル、編集・コピー・復元・メニューを持つ。行が返す操作意図を`LibraryScreen`が`LibraryTaskOwner`へ渡す。表示専用の行にはclosure・参照モデル・`@State`等のDynamicPropertyを渡さない。表示値が等しくても、操作は現在のモデルと項目を参照する。状態と入力を持つ一覧全体・編集画面は通常のViewとして構成する。
-
-標準部品の外観・文字サイズはSwiftUIのenvironmentで更新する。マウント済みViewのテストで入力の変更・復元と、入力が等しい状態での外観・文字サイズへの追従を確認する。描画回数や応答時間への効果は実測で判断する。
+標準部品はSwiftUIのenvironmentを参照する。比較View単体のテストでは、入力の変更・復元と、同じ入力での外観・文字サイズの更新を確認する。本体の固定表示方針は、比較Viewの契約とは別に画面の入口へ適用する。
 
 ## アニメーションの適用範囲
 
-動きは、操作への応答と利用方法の説明で責務を分ける。SwiftUIの表示変化はScopedAnimation、説明イラスト内の図形と時間はRML、システムの遷移は標準部品が管理する。
+| 対象 | 管理する仕組みと契約 |
+| --- | --- |
+| 通知 | `Library.Notice`の`AnimationScope`で有無を監視し、0.16秒のopacity遷移。Reduce Motionでも同じ時間 |
+| アプリ内部の伝播 | `LibraryScreen`と`SnippetEditor`外側の警告なしbarrierでOSのシートtransactionを遮断。内側のDebug診断と入力領域のbarrierで伝播を検査 |
+| 標準シート・メニュー・キーボード | OS部品の遷移 |
+| 説明イラスト | RMLが図形と時間、`RivePresentation`が読込・型付き接続・表示を担当 |
 
-通知の表示・消去は`Library.Notice`という名前の`AnimationScope`内で0.16秒のopacity遷移を使う。Reduce Motionの設定でもdurationを変更しない。通知本文の更新と通知の有無を区別し、scopeは有無の変化を監視する。
-
-一覧と編集画面の外側には`animationBarrier(warnsOnLeaks: false)`を置き、OSのシートtransactionの伝播を遮断する。内側の`detectAnimationLeaks`と入力領域の警告付きbarrierがアプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOSが管理する。
-
-比較境界は表示値の一致、アニメーションscopeは変化を適用する範囲を扱う。入力・スクロール・通知・Reduce Motionの実際の表示は画像と録画で確認する。
-
-説明イラストはRiveの時計でフレームを進める。AboutIllustrationはSessionを保持し、motionAllowed=trueと外観の配色をData Bindingへ渡す。Canvasは可視性・Viewの寿命・scenePhaseに従って停止し、同じSessionで復帰する。演出の完了表示を、モデルの操作完了や保存の成功判定へ流用しない。
+`AboutIllustration`は表示ごとのSessionを保持し、配色と`motionAllowed=true`をData Bindingで渡す。Canvasは可視性・Viewの寿命・scenePhaseに応じてフレームを停止し、同じSessionで復帰する。演出完了を業務処理の成功判定へ使わない。詳細は[演出設計](0004-rive-presentation.md)と[RivePresentation](../../app/Packages/RivePresentation/README.md)に定義する。
 
 ## 呼び出しと共有の契約
 
-| 入口 | 契約 |
+| 入口 | 成立条件と結果 |
 | --- | --- |
-| `nibble://library` | 検索語を空にし、「一覧」タブを表示 |
-| `nibble://new` | 独立した下書きを作成し、編集画面を表示 |
-| 編集中のURL受信 | 表示中の編集内容を維持 |
-| URLの許可条件 | 上記2種類だけを受理。path・query・fragment・認証情報・port付きURLは拒否 |
-| Share Extension | 共有元が渡す最初の対応データ提供元（provider）から1件取得。plain textを優先し、URLは文字列として扱う |
-| コピー | DBから読んだ保存済み本文を`localOnly`でクリップボードへ書く |
+| `nibble://library` | 検索語とフィルターを初期状態にし、一覧タブを表示 |
+| `nibble://new` | 一覧から独立した下書きを開く |
+| URLの許可範囲 | 上記2種類だけを受理。path・query・fragment・認証情報・port付きは拒否。編集中は入力を維持 |
+| 共有拡張 | 最初の対応providerから1件取得。plain textを優先し、URLは文字列として扱う |
+| コピー | 保存済み本文を`localOnly`でクリップボードへ書く |
 
-共有拡張は、取得した本文を検証して下書きに保存し、本体と同じ`SnippetEditor`を表示する。終了操作の成功時に共有元へ完了を通知する。「閉じる」で保持した下書きは本体から再開できる。非対応形式・無効入力はエラーを表示する。
+共有拡張は取得の前後でキャンセルを確認し、本文を検査して下書きを作り、同じ保存層を渡した`SnippetEditor`を表示する。終了操作が成功したら共有元へ完了を通知する。「閉じる」で保持した下書きは本体で再開できる。非対応形式と取得失敗は説明して終了できる状態にする。
 
-対応する共有形式は共有元のアプリが渡す内容に依存する。providerのcallbackはchecked continuationでawait可能な処理へ接続する。URLのWebページ取得、クリップボードの自動読取は行わず、ペーストは利用者が開始する。custom URL schemeは所有権を保証しないため、本文や保存・削除指示をURLへ載せない。
+共有元の形式対応は提供元アプリに依存する。callbackはchecked continuationでawait可能な処理へ接続する。Webページ本文の取得とクリップボードの自動読取は行わず、ペーストは利用者が開始する。custom URL schemeは所有権を保証しないため、本文や保存・削除指示を載せない。
 
-## 技術選定と保守
+## 技術選定と配布容量
 
-| 採用技術 | 判断理由と保守上の条件 |
+| 選定 | 目的・保守条件 |
 | --- | --- |
-| SwiftUI + Observation | 標準部品とMainActor上の状態で画面を構成する。IME・フォーカス・表示の問題を標準部品で解決できることを評価する |
-| swift-tasking 0.3.0 | タスクの所有・寿命・重複方針を共通APIで表す。操作ごとのIDと終了イベントは製品側で定義する |
-| swift-scoped-animation 0.2.2 | 表示変化の範囲と伝播をscope・barrierで表す。OS遷移との境界とReduce Motionを確認する |
-| swift-app-macros 0.3.0 | MainActor上の表示入力の比較を生成し、View定義に比較境界を置く。Mac上のマクロ実行とswift-syntaxのビルドを必要とする |
-| rive-ios 6.27.0 / Rive CLI 1.0.4 | RMLから再生成できるベクター演出を、Apple runtime APIとData Bindingで画面へ接続する。CLIの制作可否とiOSの実行可否を別々に確認する |
-| Apple同梱SQLite | 共有DB、更新番号の照合、項目と下書きの同時確定をSQLで表現できる。SQLとmigrationを手動管理する |
-| 保存済み検索キー + `instr` | 原文を保持しながら日本語1〜2文字の部分一致を扱う。件数に応じた検索遅延を測る |
-| Share Extension + 標準URLアクション | 公開APIで取り込みと画面呼び出しを提供する。共有元の形式対応と利用者のショートカット設定が必要 |
+| SwiftUI・Observation | 標準UIとMainActor上の状態で画面を構成。入力・フォーカス・表示を実画面で評価 |
+| Tasking | UIタスクの所有・寿命・重複管理。IDと終了イベントは製品側が定義 |
+| ScopedAnimation・AppMacros | 表示変化の範囲と値比較の境界を明示。生成コード・隔離・実表示を検査 |
+| RivePresentation・rive-ios | RMLから再生成する図をApple runtime APIとData Bindingで接続。本体だけにruntimeを同梱 |
+| Apple同梱SQLite | 共有DB、更新番号照合、項目と下書きの同時確定。SQLとmigrationを製品側が管理 |
+| 保存済み検索キー・`instr` | 原文を保持した日本語の短い部分一致。全件走査の負荷は同条件で測定 |
+| Share Extension・標準URLアクション | 公開APIによる取り込み・呼び出し。共有元の形式と利用者の設定が必要 |
 
-Swift Package Manager（SPM）がライブラリ依存を解決する。Xcode projectとRivePresentationのPackage.swiftは外部依存をexact versionで指定し、共有`Package.resolved`は全依存のバージョンとGit revisionを固定する。Tasking・ScopedAnimationは本体と共有拡張、AppMacrosは比較Viewを使う本体とテストへリンクする。RiveRuntimeは本体だけに同梱・リンクし、通常アプリ起動で解決できるFramework探索経路を設定する。
+依存の採用版・対応条件・ライセンスは[依存とビルド](../library-policy.md#依存とビルド)で管理する。直接依存はexact version、全依存は共有`Package.resolved`で固定する。AppMacrosのswift-syntaxはMac上のビルド用であり、製品runtimeへ含めない。補助ツールはNix、Xcode・SDK・SimulatorはApple配布物を使う。
 
-AppMacrosのmanifestはswift-syntax 603.0.2をexact指定する。swift-syntaxはMac上でマクロを構築する間接依存であり、iOSアプリの実行時ライブラリとしてリンクしない。マクロ実行にはmacOS 26以上・Swift 6.3以上と、対象ソースを確認した上でのXcodeの承認が必要になる。
+Releaseは`-Osize`、whole-module、`ENABLE_TESTABILITY=NO`とする。製品テストは`ios.py test`がテスト可能性を有効にし、`@testable`で内部契約を検査する。UI操作のbuildと配布archiveは製品の設定を使う。
 
-Tasking・ScopedAnimation・AppMacros・rive-iosはMIT、swift-syntaxはApache-2.0とRuntime Library Exceptionで提供される。製品bundleにライセンス通知を含め、RiveRuntimeの同梱ライセンスも保持する。CLIを含む補助ツールはNix、Xcode・SDK・SimulatorはローカルのApple配布物で管理する。詳細は[依存とビルド](../library-policy.md#依存とビルド)を参照する。
+容量は同じSDK・architecture・Release条件のarchive内で、本体・拡張・runtime・アセットの実バイト数を比較する。dSYM・テスト・DerivedDataは製品容量へ加えない。App Storeの圧縮・thinning後のダウンロード容量は別に扱う。索引とstatement保持によるメモリ・保存容量、サイズ最適化による応答時間の変化も評価対象とする。
 
-保守停止、OS・ツールチェーンとの不適合、測定した応答・描画の悪化、同期や検索要件の拡大を見直し条件とする。候補技術の一次資料と比較実験は[研究資料](../../research/README.md)に置く。
+保守停止、OSやツールチェーンの不適合、測定した応答・描画の悪化、同期・検索要件の拡大を見直し条件とする。比較候補は[研究資料](../../research/README.md)、計測した値は[製品基盤の検証](../product-architecture-validation.md)へ記録する。
 
 ## データ保護と配布
 
-保存先ディレクトリとDBにData Protectionのcompleteを指定する。本体は非activeの一覧とbackgroundの編集画面で本文を隠す。共有拡張は独立したapp sceneを持たないため、同じscene条件の隠蔽を適用しない。ロック時の保護とアプリ切替画面の露出は実機で評価する。
+保存先ディレクトリとDBにData Protectionのcompleteを指定する。本体は非activeの一覧とbackgroundの編集画面で本文を隠す。独立したapp sceneを持たない共有拡張には同じscene条件の覆いを適用しない。
 
-本文・検索語はログ、システム検索、analyticsへ送らない。本体・共有拡張にデータ収集・trackingなしのPrivacy Manifestを含め、依存更新と配布時に実際のデータフロー・APIと照合する。
+本文・検索語をログ、システム検索、analyticsへ送らない。本体・拡張はデータ収集・trackingなしのPrivacy Manifestを持ち、本体の左右設定用UserDefaultsには理由`CA92.1`を宣言する。依存更新と配布時に、宣言と実際のAPI・データフローを照合する。
 
-保存層の変更時はUUID・本文・下書き・削除状態の移行を検査する。WALを欠くDB本体のコピーをバックアップとして扱わない。独自export/importやアプリ削除後の復旧は保証範囲外とする。
+保存形式の変更ではUUID・原文・下書き・削除状態を検査する。WALを欠くDB本体のコピーはバックアップとして扱わない。独自export/importと、アプリ削除後の復旧は提供しない。
 
-内部配布は[ローカルMacからのTestFlight配布](0003-testflight-distribution.md)を使用する。本体・共有拡張を同じDeveloper Teamで署名し、両方のprofileに共有App Groupを含める。App Store Connectの内部グループ「本人用」へ各ビルドを自動配信する。外部テスト・App Store公開の配布方法、App Privacy回答、privacy policy、サポート窓口は、それぞれの配布設計で定義する。
+TestFlightは[配布設計](0003-testflight-distribution.md)に従う。同じDeveloper Teamで本体と拡張を署名し、双方のprofileにApp Groupを含める。内部グループ「本人用」への配信、秘密情報の扱い、配布担当者の操作は[配布手順](../testflight.md)に定義する。
 
 ## 機械検査と受け入れ条件
 
-テストは責務ごとに配置する。保存層のテストは使い捨てDBで実際のSQLiteを操作する。クリップボードやマウント済みwindowを使うテストは、プロセス共有状態の干渉を避けるため`UIIntegrationTests`の下で直列に実行する。
-
 | 対象 | 確認する契約 |
 | --- | --- |
-| `PersistenceBoundaryTests` | SQL再利用、入れ子、失敗後の復旧、他接続の更新、OS操作の順序と未実行条件 |
-| `SnippetStoreTests` | 原文、検索、削除・復元、競合、未知schema、破損DB |
-| `DraftLifecycleTests` | 下書き照合、再開時の読込、同時再開、終了状態と回復、一覧要求と要約 |
-| `OperationTests` | モデルAPIを直接awaitした時点の表示状態と永続化 |
-| `OwnedActionTests` | UI所有者の受理、重複、キャンセル、寿命 |
-| `RowComparisonTests` | 表示入力の比較、変更と復元、外観・文字サイズへの追従 |
-| `RivePresentationTests` | 実バイナリの接続契約、独立した可変状態、ループと明示的な静止入力、欠損リソース |
-| `rive-assets` | RMLと生成物のハッシュ、接続名・型・参照、default instanceの定義 |
-| `swift-library-policy` | タスク開始・アニメーション・View比較の構文境界 |
-| Simulator操作・画像・録画 | 日常導線、入力、共有元への復帰、表示設定とアクセシビリティ |
+| `PersistenceBoundaryTests` | statement再利用、入れ子、失敗回復、他接続の更新、OS操作の順序・未実行条件 |
+| `SnippetStoreTests` / `DraftLifecycleTests` | 原文・検索・削除・競合、下書き照合、再開、同時操作、終了と回復、未知schema・破損DB |
+| `OperationTests` / `OwnedActionTests` | await直後の状態と永続化 / UI所有者の受理・重複・キャンセル |
+| `RowComparisonTests` / `RivePresentationTests` | 入力と環境の表示反映 / 実バイナリの接続、独立した状態、再生とリソース失敗 |
+| 共通検査 | Swift規約、Rive生成契約、設計と実装の照合、文書、検証ツール、workflow |
+| Simulator操作・画像・録画 | 編集・コピー・検索・フィルター・整理・共有、入力と固定表示、画面の寿命 |
+| 同条件の性能測定 | 保存層の応答、入力から表示までの遅延、描画、メモリ、製品容量 |
 
-Lintは型解決・マクロ展開・全プログラムの副作用や操作の完了を証明しない。compiler、製品テスト、レビュー、実画面の確認を組み合わせる。
+保存テストは使い捨てDBで実際のSQLiteを操作する。OS作用の順序は記録用の`LibraryEffects`、実クリップボードとマウント済みwindowは`UIIntegrationTests`配下の直列テストで確認する。構文Lintは型解決・マクロ展開・全プログラムの副作用を証明しないため、compiler、製品テスト、レビュー、実画面の確認を組み合わせる。
 
-[検証基盤](0001-local-ios-verification.md)に従い、Ubuntu CIはNix共通検査とPR本文の照合を行う。ローカルMacはApple CLIでビルド・テスト・撮影、sim-useでSimulatorを操作する。GitHub Actionsの各ジョブは`ubuntu-24.04`を直接指定し、macOS runnerは間接起動を含めて使用しない。
+[検証基盤](0001-local-ios-verification.md)に従い、ローカルMacがiOSのビルド・テスト・操作・撮影を担当する。GitHub Actionsは各jobへ`runs-on: ubuntu-24.04`を直接指定し、共通検査とPR本文の照合を行う。macOS runnerは間接起動も使用しない。
 
-最低対応OS 26.0への適合はdeployment targetとAPI availability、実行評価は26.5で確認する。受け入れはSimulator評価に限定する。実機性能・ロック時保護・Handoff・署名配布・審査は別の評価を要する。
-
-実行記録は[検証結果](../mvp-validation.md)から参照する。対象ソースと媒体を[証跡検査](../review-evidence.md)で照合し、PRには画像・動画、端末・OS、操作、観測範囲、未確認条件を記載する。設計上の契約と実施済みの検証を区別する。
+最低対応OSへの適合はdeployment targetとAPI availability、実行はiOS 26.5で評価する。実機性能・ロック時保護・触覚・Handoff・署名配布・審査はそれぞれ固有の確認を必要とする。測定条件と実施済みの範囲を[検証結果](../mvp-validation.md)へ記録し、[証跡検査](../review-evidence.md)で対象ソースと媒体を照合する。

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "summary": "C04・C06・C10・C11・C18・C19・C37・C41とS01・S02・S03・S06・S07を実装と照合。行は値と操作意図、通知は表示状態と期限、画面は操作の開始と所有を担当する。保存層とOS操作は構成時に注入する。フィルターの色、横並びの行操作、左右のフルスワイプ、Undo、共有保存、固定表示の契約を維持する。MVP・スワイプ・共有の操作と画像・抽出フレームを確認し、描画性能の改善は未計測とする。",
+  "summary": "製品設計を目的、データ用語、所有者と依存、副作用、保存・操作・画面・評価の契約として構成し、SnippetStore、LibraryModel、EditorModel、LibraryTaskOwner、共有拡張の実装と照合した。S01〜S07および行・フィルター・通知の部品契約を維持する。文字設定の固定とRiveの寿命は各正本を参照する。製品コード・検証driver・依存は変更していない。",
   "references": [
-    "docs/design/screens.md",
+    "docs/decisions/0002-mvp-app.md",
     "docs/design/components.md",
-    "docs/decisions/0002-mvp-app.md"
+    "docs/design/screens.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -55,7 +55,7 @@
     "app/Shared/SnippetStore.swift": "fb97fbf0f45cb65df5f450fef3382b0144fa3dcc185adf0ad6e868fc3279d75f",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "af6f2a0c855f239a7e078705ea13a28e72037c1475ed77abe67af1234d6f32e0",
+    "docs/decisions/0002-mvp-app.md": "77002a5d6038308dd44aaf275aaf8e4f31c385b7963b4eb22a7079a6af4c5c51",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
     "docs/design/README.md": "9aba81eeca343e13b42ab63a8f5d4213974bb226e04c6863d62a9b96e299203f",
     "docs/design/audit.md": "e4fc26e2eb87505f8f51d5676df5f882daefd33b5763baa75885770ed7575b4e",

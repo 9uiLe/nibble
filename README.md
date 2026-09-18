@@ -41,32 +41,30 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 
 ## アプリの構成
 
-画面、操作を実行するモデル、データを保存するactorで責務を分けます。本体と共有拡張は共通の編集画面・保存層を使い、App GroupのSQLiteにアクセスします。
+本体と共有拡張の入口が保存層を作り、画面とモデルへ渡します。モデルは操作と状態、UIはタスクの開始と寿命、保存層はデータの整合性を担当します。本体と拡張はApp Group内の同じSQLiteを、別々の接続から利用します。
 
-| 配置・構成要素 | 責務 |
+| 読む場所 | 責務 |
 | --- | --- |
-| `app/Nibble/LibraryView.swift` | 標準タブ、検索フォーカス、タブごとの一覧状態、URLからの入口 |
-| `app/Nibble/LibraryScreen.swift` | 上部フィルター、一覧・検索結果、新規作成、通知、編集画面と項目操作 |
-| `app/Nibble/LibrarySettingsView.swift` | 操作ボタンの左右設定、削除一覧と製品情報への入口 |
-| `app/Nibble/AboutView.swift` / `AboutIllustration` | 製品の説明、イラストの再生状態の保持、外観・動作設定、読み込みと回復 |
-| `app/Packages/RivePresentation/` | ローカルのRiveファイルの読込、接続契約の検査、表示ごとの独立した再生状態、フレーム停止 |
-| `app/Animations/` | 編集可能なRML、CLI設定、同梱アセットの生成契約 |
-| `LibraryModel` / `LibraryTaskOwner` | 一覧の状態と待機可能な操作、操作タスクの開始・寿命・重複方針 |
-| `app/Shared/SnippetEditor.swift` / `EditorModel` | 入力、自動保存、保存・閉じる・破棄の状態遷移 |
-| `Draft` / `LibraryRequest` / `LibraryPage` | 編集中の値、一覧の取得条件、同じDB読取時点の一覧結果 |
-| `app/Shared/SnippetStore.swift` | SQLite接続、検索、トランザクション、更新順序と競合の検査 |
-| `app/NibbleShare/ShareViewController.swift` | 共有テキスト・URLの取得と、共通編集画面の表示 |
-| `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較、Rive接続のテスト |
+| `NibbleApp` / `SnippetStorage` / `ShareViewController` | 依存の構成、保存先の解決、本体と共有拡張の入口 |
+| `LibraryView` / `LibraryScreen` | タブごとの状態、一覧の配置、編集・整理の操作を所有者へ接続 |
+| `SnippetRow` / `SnippetRowContent` / `LibraryFilterBar` / `LibraryNotice` | 行の意図、値だけの表示、集合の選択、一時的な通知 |
+| `LibraryTaskOwner` / `LibraryModel` | タスクの所有・重複・寿命 / 一覧状態と完了を待てる操作 |
+| `SnippetEditor` / `EditorModel` / `Draft` | 入力、自動保存、保存・保持・破棄の確定と失敗回復 |
+| `SnippetStore` / `SnippetSchema` / `SQLiteDatabase` | 検索・更新・競合 / 保存構造 / 接続・SQL資源の管理 |
+| `LibraryEffects` / `SystemLibraryEffects` | コピーと通知の同期契約 / UIKitによる実行 |
+| `LibrarySettingsView` / `AboutView` / `AboutIllustration` | 操作位置、製品情報、説明イラストの表示設定と寿命 |
+| `app/Packages/RivePresentation/` / `app/Animations/` | Riveの読込・表示 / 再生成可能なRMLとアセットの契約 |
+| `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較、固定表示、Rive接続の検査 |
 
-一覧は保存済み項目と下書きの要約を使います。下書きの再開と本文のコピーは、その時点のDBから対象1件を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
+一覧は要約を使い、再開とコピーはその時点のDBから対象1件の全文を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
 
-SwiftUI・Observationが表示状態を扱い、swift-taskingがUI側のタスクを所有します。一覧行の表示値の比較にはswift-app-macros、アニメーションの適用範囲にはswift-scoped-animationを使います。操作APIの完了は直接awaitしてテストし、開始・比較・アニメーションの構文はLintで検査します。
+SwiftUI・Observationが表示状態、Taskingがタスク所有、AppMacrosが表示値の比較、ScopedAnimationが表示変化の範囲を扱います。Releaseはサイズを優先して最適化し、製品容量と応答を同じ条件で評価します。契約の詳細は[製品設計](docs/decisions/0002-mvp-app.md)、Swiftの記述規則は[実装規約](docs/library-policy.md)を参照してください。
 
 | 検証対象 | 用途 | 設定 |
 | --- | --- | --- |
 | `Nibble` / `NibbleShare` | 製品の本体・共有拡張 | `app/project.json` |
-| `VerificationApp` | コマンド、テスト、文字列反映、撮影の成立を確認するfixture | `validation/project.json` |
-| `ResearchProbe` | 保存方式、検索、復旧、入力、コピー、OS連携の比較実験 | `validation/research-project.json` |
+| `VerificationApp` | コマンド、テスト、文字列反映、撮影を確認するfixture | `validation/project.json` |
+| `ResearchProbe` | 保存方式、検索、復旧、入力、OS連携の比較実験 | `validation/research-project.json` |
 
 製品のXcode projectは`app/Nibble.xcodeproj`、shared schemeは`Nibble`です。基盤・研究用は`validation/<対象名>.xcodeproj`と同名schemeを使います。
 
@@ -129,7 +127,9 @@ nix flake check --no-update-lock-file --print-build-logs
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | driver、証跡、PR、文書、Swift規約のPython回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
-| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、実装規約のSwift記載例 |
+| `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、UI設計IDと照合記録 |
+| `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
+| `rive-assets` | RML・生成物のhash、Data Bindingの名前・型・参照 |
 
 GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。PRイベントでは本文と全コミットも検査し、mainは`workflow-policy`の成功をマージ条件にします。共通検査にはGitHub認証は不要です。
 
@@ -153,6 +153,7 @@ Swift Package Manager（SPM）がアプリのライブラリ依存を解決し�
 | swift-scoped-animation | 0.2.2 | アニメーションの適用範囲と伝播の制御 |
 | swift-app-macros | 0.3.0 | MainActor上での表示入力の等価比較 |
 | swift-syntax | 603.0.2 | Mac上でAppMacrosのマクロを構築する間接依存 |
+| rive-ios | 6.27.0 | RivePresentationを通じた説明イラストの表示。本体のみ |
 
 swift-syntaxはAppMacrosのmanifestが指定する版を使います。製品の構成と依存の対応条件は[依存とビルド](docs/library-policy.md#依存とビルド)に定義しています。ネットワーク接続のあるMacで依存を解決してください。
 
