@@ -7,7 +7,15 @@
 - 2026-09-18、Xcode 26.5（17F42）、Swift 6.3.2、macOS 26.2 arm64。
 - iPhone 17 Pro、iOS 26.5（23F77）。専用Simulator `D099A849-386F-4EAE-AE12-02D8DC623AF2`。
 - 最低対応OS 26.0。署名はSimulator用ad hoc。Apple Developerの認証設定・秘密鍵は参照していない。
-- 要件を先に`0ce0ce3270f44f7f6df9638267d2869da7917584`で記録し、`codex/snippet-keyboard`で実装した。runの開始・終了ファイルhashを対象ソースの正本とし、最終commitとの照合結果を記録する。
+- 要件は`0ce0ce3270f44f7f6df9638267d2869da7917584`、実装は`1839313261f4200e8502b8dd589c662cb4d2143d`。以下の3 runについて、開始・終了時のiOS入力ファイルが実装commitと一致し、媒体hashが変わっていないことを`check_evidence.py --integrity-only`で確認した。
+
+| run | 確認範囲 | 結果 |
+| --- | --- | --- |
+| `20260918T115834Z-test-15cc28` | Releaseの全製品テスト | 成功・ソース照合済み |
+| `20260918T114010Z-keyboard-ui-54ce58` | Releaseのキーボード・利用案内 | 成功・ソースと媒体照合済み |
+| `20260918T115402Z-mvp-ui-5f4953` | Releaseの本体標準操作 | 成功・ソースと媒体照合済み |
+
+UI runの`review.json`には実際に確認した画像と抽出時刻を記録した。公開URLとブラウザー閲覧欄は未記入であり、外部添付を含むレビュー完了の検査は実行していない。
 
 ## データと非同期操作
 
