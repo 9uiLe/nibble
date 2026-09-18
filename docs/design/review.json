@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "S09・S10とC45〜C48をKeyboardView・KeyboardViewController・KeyboardGuideViewへ照合。全幅の標準セグメント、6ptの間隔、一つの入力Buttonと独立コピー、固定した上下操作と伸縮する中央を採用仕様として記述。読取専用DB、要求世代と操作ID、入力先・権限の照合、公開APIと製品判断を分けて説明した。製品コードは変更していない。実行済みの画像・原文照合・配布と未実施の横向き・狭幅・複数ページ・性能は検証記録へ対応付けた。",
+  "summary": "S09・S10とC45〜C48をKeyboardView・KeyboardViewController・KeyboardGuideViewへ照合。全幅セグメント、一列の入力キー、常設の「入力」、独立コピー、固定した上下操作と伸縮する中央という採用仕様を維持する。製品コードの変更はない。採用ソースのReleaseテスト82件、本体回帰、0件・53件のページ操作、狭幅・横向きの表示と権限別操作、保存層の同条件比較を検証記録へ対応付ける。描画時間・実機・VoiceOver音声の未確認範囲を分離し、CIのPR完了判定と実際の検証結果の整合を確認する。",
   "references": [
     "docs/decisions/0005-snippet-keyboard.md",
     "docs/design/screens.md",
