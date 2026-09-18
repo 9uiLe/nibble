@@ -128,7 +128,26 @@ AXはアクセシビリティ要素から取得した値・位置を指す。AXX
 | `20260918T045528Z-mvp-ui-51531a` | 背景復帰後の編集2枚と完了一覧 / 193.767、9.240・96.930・174.525 | シートと入力の保持、保存・閉じる、検索とキーボード、削除一覧の0件案内 |
 | `20260918T050932Z-fixed-interface-1420c0` | 14枚中6枚 / 53.105、1.872・26.627・47.040 | 通常/AXXXL一覧、XS設定、AXXXL About、長文編集の背景移行前後。タイトルの折り返しと操作領域 |
 
-全編再生、fps評価、媒体の公開・ブラウザー閲覧確認は未実施。通知遷移の滑らかさは合格と判定していない。長文編集の画像で見える本文は数行であり、末尾へのスクロールやIME変換確定を確認した結果にはしない。
+全編再生とfps評価は未実施。対象Cの本体・小画面と対象Bの共有の画像11枚・録画3本は[PR #22](https://github.com/9uiLe/nibble/pull/22)へ添付し、2026-09-18にログイン済みリポジトリ所有者のChromeで読み込みを確認した。通知遷移の滑らかさは合格と判定していない。長文編集の画像で見える本文は数行であり、末尾へのスクロールやIME変換確定を確認した結果にはしない。
+
+### 公開媒体と原本の対応
+
+画像はiPhone 17 Proが1206×2622、小画面が750×1334で読み込まれた。動画3本は`readyState=4`、`error=null`を確認した。これは読込確認であり、全編再生や未認証ユーザーのアクセスを確認した結果ではない。
+
+| 対象 | 画像 | 画面録画・ブラウザーの表示時間 |
+| --- | --- | --- |
+| C・本体 | [変更後の基本操作後の一覧](https://github.com/user-attachments/assets/a66dd16e-a085-49a9-9caf-303de741dfb5)、[一覧からの編集で背景復帰した画面](https://github.com/user-attachments/assets/ff6962a0-a802-4ba3-bd57-5b3f3462ef05)、[検索からの編集で背景復帰した画面](https://github.com/user-attachments/assets/332de574-6212-4441-8cfb-0b6395a0d449) | [録画](https://github.com/user-attachments/assets/2be7f3db-106f-4cf5-8885-3e5249df0fca)・193.767秒 |
+| C・小画面 | [SEの標準表示](https://github.com/user-attachments/assets/f85ac449-7baa-4136-86dd-b9c70c394160)、[SEのAXXXL高コントラスト表示](https://github.com/user-attachments/assets/b6848007-ba5f-48b9-9c00-f39c14337d53)、[SEの設定](https://github.com/user-attachments/assets/8b32e116-7cb8-48fb-828f-5fab3c84b64e)、[SEのnibbleについて](https://github.com/user-attachments/assets/329d9888-775c-465b-abd4-a42360185309)、[SEの長文編集とキーボード](https://github.com/user-attachments/assets/eb3b32bd-2b4a-417f-b6f2-f7449dd4f6e4)、[SEの長文編集で背景復帰した画面](https://github.com/user-attachments/assets/1abf44b7-df80-4ec5-a37f-543c7b6ded8d) | [録画](https://github.com/user-attachments/assets/5bd6d7df-7609-4781-a8d5-a84f4b4e2312)・53.105秒 |
+| B・共有 | [共有拡張の編集画面（対象B）](https://github.com/user-attachments/assets/12664cbd-36b0-44c3-b6c0-2d0e6cbaac4e)、[共有保存後の本体一覧（対象B）](https://github.com/user-attachments/assets/f8b29e55-3a14-4c75-aa63-0afb1195de19) | [録画](https://github.com/user-attachments/assets/3f2a968b-7525-4b51-bdc5-a22ac772c200)・344.245秒 |
+
+本体録画の原本は119,255,819 bytesで、GitHubの動画上限100 MBを超える。Apple標準の`avconvert --preset Preset1280x720`で全区間を再圧縮した閲覧用動画（588×1280、60,475,326 bytes）を公開した。原本と閲覧用はともに193.767秒で、区間の切除は行っていない。他の録画とPNGは原本を添付した。
+
+| 本体録画 | SHA-256 |
+| --- | --- |
+| 原本 | `ca6668bd8752ae337f35be3eb672f1b95e89f0a926a3dc3c922cf13258b90428` |
+| 閲覧用 | `d9abfbbe6ba972a13a996e80534c2d82272decdaa96f2c500e7156e806b5cf80` |
+
+閲覧用の9.207・96.857・174.588秒も画像で開き、ホーム、検索、0件案内の表示を確認した。再圧縮によりフレームの抽出時刻と画質は原本と異なる。原本の実行入力・媒体hashの照合と、公開媒体の変換・閲覧確認は独立した記録であり、公開先とのバイト一致を自動検査したものではない。対応は`artifacts/pr-media/publication.json`と各runの`review.json`に記録した。
 
 ### 完了しなかった操作・診断run
 
