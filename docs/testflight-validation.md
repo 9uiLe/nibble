@@ -10,9 +10,17 @@
 | `scripts/deploy-testflight.sh --dry-run` | 共通検査、依存解決、Release archive、署名したIPAの書き出しが成功 |
 | 同梱構成 | 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`の3 bundleを検査 |
 | 実行記録 | `artifacts/testflight/202609181309/manifest.json`。`destination: export`、`stage: export`、`completed: true` |
-| TestFlight・実機 | 未送信。Apple側の処理、本人用グループへの反映、実機操作は未確認 |
+| dry-runの範囲 | IPA生成まで。アップロード結果は下記に記載 |
 
 環境はXcode 26.5、iPhoneOS SDK 26.5、最低iOS 26.0、Release。認証設定・秘密鍵・Keychain・生ログを直接参照せず、スクリプトの工程結果と公開manifestを確認した。Xcodeによるprovisioning更新と署名・exportが成立したことと、実機でのApp Group読み取り・挿入・コピーが成立することは別の検証である。Simulatorの評価は[キーボードの検証](keyboard-validation.md)を参照する。
+
+### TestFlightへのアップロード
+
+2026-09-18、対象ソース`96edc861282173a5378ea4607e61698794f3b2f8`から`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行し、`0.1.0 (202609181319)`をApp Store Connectへアップロードした。dry-runの対象ソースとの差分は検証記録のMarkdownだけで、アプリ・配布コードと依存は同一である。
+
+共通検査、依存解決、Release archive、3 bundleのメタデータ検査、uploadが成功し、終了コードは0。公開記録`artifacts/testflight/202609181319/manifest.json`は`destination: upload`、`stage: upload`、`completed: true`を示す。本体・共有拡張・キーボードの識別子、version・build、最低OS 26.0、SDK 26.5、輸出申告のBoolean falseを確認した。
+
+配布先は設定済みの内部グループ「本人用」で、Apple側の処理後に自動配信する構成である。配布担当者の希望に従いブラウザー確認は実施していない。このビルドのApple側の処理完了、グループ反映、実機インストール・操作は未確認。認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。
 
 ## 初期配布の確認範囲
 
