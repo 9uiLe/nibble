@@ -1,6 +1,20 @@
 # TestFlight配布の検証記録
 
-## 確認範囲
+## キーボードを含む署名済みIPA
+
+2026-09-18、対象ソース`0e401c19cd75c429dcc135e17aafb37b0e7cf242`から`0.1.0 (202609181309)`の署名付きarchiveとIPAを生成した。配布担当者から`nibble.9uiLe.com.keyboard`の登録完了の報告を受け、レビュー済みの配布スクリプトで確認した。
+
+| 工程 | 結果 |
+| --- | --- |
+| `scripts/deploy-testflight.sh --check-config` | 成功。値・鍵の内容を非表示で設定の利用可否を確認 |
+| `scripts/deploy-testflight.sh --dry-run` | 共通検査、依存解決、Release archive、署名したIPAの書き出しが成功 |
+| 同梱構成 | 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`の3 bundleを検査 |
+| 実行記録 | `artifacts/testflight/202609181309/manifest.json`。`destination: export`、`stage: export`、`completed: true` |
+| TestFlight・実機 | 未送信。Apple側の処理、本人用グループへの反映、実機操作は未確認 |
+
+環境はXcode 26.5、iPhoneOS SDK 26.5、最低iOS 26.0、Release。認証設定・秘密鍵・Keychain・生ログを直接参照せず、スクリプトの工程結果と公開manifestを確認した。Xcodeによるprovisioning更新と署名・exportが成立したことと、実機でのApp Group読み取り・挿入・コピーが成立することは別の検証である。Simulatorの評価は[キーボードの検証](keyboard-validation.md)を参照する。
+
+## 初期配布の確認範囲
 
 2026-09-16に確認した、nibbleのローカルビルド・署名・TestFlight内部配布の結果を記録する。[配布設計](decisions/0003-testflight-distribution.md)が定義する各工程について、実行したソースと観測条件を対応付ける。操作方法は[配布手順](testflight.md)を参照する。
 

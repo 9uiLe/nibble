@@ -87,4 +87,6 @@ Simulatorのソフトウェアキーボード表示は[AppleのSimulator解説](
 
 ## 検証の境界
 
-Apple側のApp ID・profile登録、TestFlight配布、実機のメモリ上限・ロック中のData Protection、他のすべての入力先による文字受理は未検証。Simulatorの起動・挿入成功から保証しない。VoiceOver音声、secure入力への切替、小さい幅の端末、実画面での50件を超えるページ移動は未検証。ページ取得・対象集合・操作寿命は上記の単体テストで確認する。
+Apple側のキーボードApp ID登録は配布担当者から完了の報告を受けた。`0e401c19cd75c429dcc135e17aafb37b0e7cf242`から`0.1.0 (202609181309)`の署名付きarchive・IPA生成が成功した。実行した工程と秘密情報の確認範囲は[配布の検証記録](testflight-validation.md#キーボードを含む署名済みipa)に記載する。
+
+TestFlight配布、実機のApp Group読み取り・挿入・コピー、メモリ上限・ロック中のData Protection、他のすべての入力先による文字受理は未検証。Simulatorの起動・挿入成功や署名済みIPAの生成から保証しない。VoiceOver音声、secure入力への切替、小さい幅の端末、実画面での50件を超えるページ移動は未検証。ページ取得・対象集合・操作寿命は上記の単体テストで確認する。
