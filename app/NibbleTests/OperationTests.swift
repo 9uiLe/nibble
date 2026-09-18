@@ -321,6 +321,59 @@ extension UIIntegrationTests {
             #expect(try await store.search().isEmpty)
         }
 
+        @Test(arguments: [false, true])
+        func cancelledReadSettlesWithoutReportingAnError(providerFails: Bool) async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let reader = ControlledLibraryReader()
+            let library = LibraryModel(store: database.store, libraryReader: reader)
+            let tasks = ViewTaskStore()
+            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
+            await reader.waitForRequests(1)
+            tasks.cancelAll()
+            reader.finish(0, with: providerFails ? .failure(StoreError.missing) : .success(LibraryPage()))
+            await tasks.waitForIdle()
+            #expect(!library.loading)
+            #expect(library.failure == nil)
+            #expect(library.snapshot == nil)
+            #expect(library.loadingInterrupted)
+            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
+            await reader.waitForRequests(2)
+            #expect(library.loading && !library.loadingInterrupted)
+            reader.finish(1, with: .success(LibraryPage()))
+            await tasks.waitForIdle()
+            #expect(library.contentIsCurrent && !library.loading && !library.loadingInterrupted)
+            #expect(library.failure == nil)
+        }
+
+        @Test func cancelledFilterReadRetainsThePreviousSnapshotUntilRetry() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let id = try await create(database.store, body: "前の表示")
+            let page = try await database.store.library(LibraryRequest())
+            let reader = ControlledLibraryReader()
+            let library = LibraryModel(store: database.store, libraryReader: reader)
+            let tasks = ViewTaskStore()
+            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
+            await reader.waitForRequests(1)
+            reader.finish(0, with: .success(page))
+            await tasks.waitForIdle()
+            library.filter = .pinned
+            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
+            await reader.waitForRequests(2)
+            tasks.cancelAll()
+            reader.finish(1, with: .success(LibraryPage()))
+            await tasks.waitForIdle()
+            #expect(library.items.map(\.id) == [id])
+            #expect(library.contentRequest.filter == .all && library.filter == .pinned)
+            #expect(!library.contentIsCurrent && library.loadingInterrupted && !library.loading)
+            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
+            await reader.waitForRequests(3)
+            reader.finish(2, with: .success(LibraryPage()))
+            await tasks.waitForIdle()
+            #expect(library.contentIsCurrent && library.items.isEmpty && !library.loadingInterrupted)
+        }
+
         @Test func cancelledCallerCannotBeginAnOperation() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }

@@ -46,9 +46,6 @@ struct LibraryScreen: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
         }
-        .sheet(item: $library.editor, onDismiss: { startTask(.refresh) }) { draft in
-            SnippetEditor(draft: draft, store: model.store)
-        }
         .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
             if let item = permanentDeletion {
                 Button("完全に削除", role: .destructive) { startTask(.permanentlyDelete(item.id)); permanentDeletion = nil }
@@ -83,6 +80,14 @@ struct LibraryScreen: View {
         List {
             Group {
                 if let failure = model.failure { failureSection(failure) }
+                if model.loadingInterrupted {
+                    Button { startTask(.refresh) } label: {
+                        Label("読み込みを再開", systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityIdentifier("library.resumeLoading")
+                }
                 if searchPrompt {
                     if model.loading { loadingRow }
                     ContentUnavailableView("スニペットを検索", systemImage: "magnifyingglass",
@@ -91,7 +96,7 @@ struct LibraryScreen: View {
                         .listRowSeparator(.hidden)
                 } else {
                     if model.loading && !model.contentIsCurrent { loadingRow }
-                    if model.contentIsCurrent || model.loading {
+                    if model.contentIsCurrent || model.loading || model.loadingInterrupted {
                         libraryContent.disabled(!model.contentIsCurrent)
                     }
                     if model.contentIsCurrent && (model.hasMore || model.loading) {
@@ -156,7 +161,7 @@ struct LibraryScreen: View {
                 }
             }
         }
-        if model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil {
+        if model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil {
             emptyState
         } else if model.contentRequest.filter != .drafts {
             if showsFilters && model.contentRequest.filter == .all {
@@ -222,7 +227,7 @@ struct LibraryScreen: View {
     private var contentIsEmpty: Bool { visibleItems.isEmpty && (!displaysDrafts || model.drafts.isEmpty) }
     private var showsCreationCTA: Bool {
         showsFilters && (model.filter == .all || model.filter == .drafts)
-            && model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil
+            && model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil
     }
 
     private func startTask(_ action: LibraryTaskOwner.Action) {

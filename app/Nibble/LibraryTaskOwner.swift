@@ -6,6 +6,8 @@ import Tasking
 @MainActor
 final class LibraryTaskOwner {
     private let tasks = ViewTaskStore()
+    private weak var openingModel: LibraryModel?
+    private var openingID: UUID?
 
     enum Action {
         case refresh, reload, open(LibraryModel.EditorSource), copy(UUID), pin(SnippetSummary)
@@ -38,13 +40,17 @@ final class LibraryTaskOwner {
 
     @discardableResult
     func startTask(_ action: Action, on model: LibraryModel) -> TaskStartOutcome {
-        tasks.start(id: action.id, lifetime: action.lifetime, policy: action.policy) { [weak model] cancellation in
+        let requestID = UUID()
+        return tasks.start(id: action.id, lifetime: action.lifetime, policy: action.policy) { [weak self, weak model] cancellation in
             try cancellation.check()
             guard let model else { return }
             switch action {
             case .refresh: await model.refresh()
             case .reload: await model.reload()
-            case .open(let source): await model.open(source)
+            case .open(let source):
+                self?.openingModel = model
+                self?.openingID = requestID
+                await model.open(source, requestID: requestID)
             case .copy(let id): await model.copy(id)
             case .pin(let item): await model.pin(item)
             case .delete(let id): await model.delete(id)
@@ -54,6 +60,11 @@ final class LibraryTaskOwner {
         }
     }
 
-    func endScreen() { tasks.cancel(lifetime: .screenBound) }
+    func endScreen() {
+        tasks.cancel(lifetime: .screenBound)
+        if let openingID { openingModel?.cancelOpening(id: openingID) }
+        openingModel = nil
+        openingID = nil
+    }
     func waitForIdle() async { await tasks.waitForIdle() }
 }

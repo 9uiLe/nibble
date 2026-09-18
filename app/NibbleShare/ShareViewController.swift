@@ -38,6 +38,8 @@ final class ShareViewController: UIViewController {
             try Task.checkCancellation()
             try SnippetText.validate(title: "", body: body)
             let draft = try await store.beginDraft(body: body)
+            // Persisted shared text remains recoverable, but a departed host must not present UI.
+            try Task.checkCancellation()
             let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: store) { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
             }.modifier(NibbleInterface()))
@@ -53,6 +55,10 @@ final class ShareViewController: UIViewController {
         } catch is CancellationError {
             extensionContext?.cancelRequest(withError: CancellationError())
         } catch {
+            guard !Task.isCancelled else {
+                extensionContext?.cancelRequest(withError: CancellationError())
+                return
+            }
             let alert = UIAlertController(title: "取り込めませんでした", message: error.localizedDescription, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "閉じる", style: .cancel) { [weak self] _ in
                 self?.extensionContext?.cancelRequest(withError: ShareError.unsupported)

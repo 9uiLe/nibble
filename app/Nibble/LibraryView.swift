@@ -22,6 +22,7 @@ struct LibraryView: View {
     }
 
     var body: some View {
+        @Bindable var allLibrary = all
         @Bindable var searchableLibrary = search
         TabView(selection: $selectedTab) {
             Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
@@ -46,6 +47,13 @@ struct LibraryView: View {
         .onSubmit(of: .search) { searchFocused = false }
         .sheet(isPresented: $showsTrash, onDismiss: { routeOwner.startTask(.refresh, on: currentLibrary) }) {
             DeletedSnippetsView(store: store, effects: effects)
+        }
+        // Scene presentations outlive the system tab's content during background transitions.
+        .sheet(item: $allLibrary.editor, onDismiss: { routeOwner.startTask(.refresh, on: all) }) { draft in
+            SnippetEditor(draft: draft, store: store)
+        }
+        .sheet(item: $searchableLibrary.editor, onDismiss: { routeOwner.startTask(.refresh, on: search) }) { draft in
+            SnippetEditor(draft: draft, store: store)
         }
         .tint(.nibbleAccent)
         .onChange(of: selectedTab) {
