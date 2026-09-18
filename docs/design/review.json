@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "全15 ViewへのAppMacros付与を確認。値表示の比較と親入力の差し替えを分離し、Binding・callback・参照はprivate revisionで反映する。画面構成、操作の意味、StateとSessionの寿命、固定表示方針を維持する。",
+  "summary": "Viewの比較、親入力の接続、状態寿命を独立した契約として照合。製品設計は全15型を入力の役割で分類し、値表示・Binding・操作・モデル参照・Rive Sessionの責務を定義する。画面構成と固定表示方針は製品台帳に一致する。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
@@ -55,7 +55,7 @@
     "app/Shared/SnippetStore.swift": "fb97fbf0f45cb65df5f450fef3382b0144fa3dcc185adf0ad6e868fc3279d75f",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "dd5e1315d52ae127bf97fd5035cc0563e6b76d03737a199b7797bdd9520cc661",
+    "docs/decisions/0002-mvp-app.md": "fabb6ebc31218cecf3e6009be2e87ebae6899aee9195a9a0f7b198c4051e326e",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
     "docs/design/README.md": "9aba81eeca343e13b42ab63a8f5d4213974bb226e04c6863d62a9b96e299203f",
     "docs/design/audit.md": "e4fc26e2eb87505f8f51d5676df5f882daefd33b5763baa75885770ed7575b4e",

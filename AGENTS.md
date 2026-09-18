@@ -27,9 +27,9 @@
 | モデルの操作 | 受理した処理と結果反映を完了まで待つ`async` API。同期メソッド・setterの隠れた開始や、タスク開始直後に戻る操作APIは禁止 |
 | UIのタスク所有 | `startTask`の境界とswift-taskingの`ViewTaskStore` / `TaskSlot`で、所有者・寿命・重複方針を定義 |
 | アニメーション | SwiftUIの表示変化はswift-scoped-animationの`AnimationScope` / `animationBarrier`、説明イラスト内の時間と状態はRMLで定義 |
-| Viewの比較 | 全Viewへswift-app-macrosの`@Equatable`を付与。値だけの部品は`@MainActor EquatableBodyView`で全入力を比較。通常のViewの親入力はprivateな`inputRevision`で差し替えを反映 |
+| Viewの比較 | 自作Viewは`@Equatable`を宣言。値表示は`@MainActor EquatableBodyView`で全入力を比較。親入力を持つ通常のViewは生成ごとの比較用UUID（`inputRevision`）で接続先の差し替えを反映。状態の寿命はSwiftUIのidentityで管理 |
 
-生のTask生成・別scheduler・直接アニメーション・直接比較ゲート・手書き`==`は禁止。比較除外はライブラリ規約のrevision付きViewの不変入力だけに限定。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task API、通常のView、値型・enumの標準Equatable合成は許可する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。
+生のTask生成・別scheduler・直接アニメーション・直接比較ゲート・手書き`==`は禁止。`@SkipEquatable`は、同じViewで`inputRevision`を比較する不変`let`の親入力に限る。具体的な宣言と適用範囲は[Viewの比較規約](docs/library-policy.md#viewの比較境界)に従う。構造化されたasync/await・task group・SwiftUI `.task`・協調用Task API、値型・enumの標準Equatable合成は許可する。抑制コメントを使わず、依存はexact versionと共有`Package.resolved`で固定する。
 
 操作テストはAPIを直接awaitし、戻った時点の状態・永続化を検査する。重複・キャンセルは所有者を検査し、Viewは入力の変更・復元と、同一入力での環境更新を検査する。構文Lint、compiler、テスト、画面の確認にはそれぞれ異なる保証範囲がある。
 

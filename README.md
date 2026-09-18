@@ -58,7 +58,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 
 一覧は要約を使い、再開とコピーはその時点のDBから対象1件の全文を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
 
-SwiftUI・Observationが表示状態、Taskingがタスク所有、AppMacrosが表示値の比較、ScopedAnimationが表示変化の範囲を扱います。Releaseはサイズを優先して最適化し、製品容量と応答を同じ条件で評価します。契約の詳細は[製品設計](docs/decisions/0002-mvp-app.md)、Swiftの記述規則は[実装規約](docs/library-policy.md)を参照してください。
+SwiftUI・Observationが表示状態、Taskingがタスク所有、AppMacrosがViewの比較、ScopedAnimationが表示変化の範囲を扱います。自作Viewは比較を宣言し、値表示の更新条件、親から渡される操作やBindingの反映、状態の保持期間をそれぞれ定義します。Releaseはサイズを優先して最適化し、製品容量と応答を同じ条件で評価します。契約の詳細は[製品設計](docs/decisions/0002-mvp-app.md)、Swiftの記述規則は[実装規約](docs/library-policy.md)を参照してください。
 
 | 検証対象 | 用途 | 設定 |
 | --- | --- | --- |
@@ -151,7 +151,7 @@ Swift Package Manager（SPM）がアプリのライブラリ依存を解決し�
 | --- | --- | --- |
 | swift-tasking | 0.3.0 | UIが開始するタスクの所有・寿命・重複管理 |
 | swift-scoped-animation | 0.2.2 | アニメーションの適用範囲と伝播の制御 |
-| swift-app-macros | 0.3.0 | MainActor上での表示入力の等価比較 |
+| swift-app-macros | 0.3.0 | 本体・共有拡張・RivePresentationのViewにMainActor上の比較を定義 |
 | swift-syntax | 603.0.2 | Mac上でAppMacrosのマクロを構築する間接依存 |
 | rive-ios | 6.27.0 | RivePresentationを通じた説明イラストの表示。本体のみ |
 

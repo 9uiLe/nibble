@@ -48,7 +48,15 @@ ResourceとSessionの生成・操作はMainActorで行う。生成APIはasyncで
 
 ## 比較と停止・再描画
 
-Canvasは`@Equatable`を宣言し、privateな`inputRevision`でホストが渡し直したSessionと設定を反映する。Sessionは比較から除外する不変の参照であり、同じView値のコピーだけが同じrevisionを持つ。このrevisionは表示のidentityやSessionの寿命に使わない。
+Canvasは、ホスト入力の反映、フレームの停止、停止中の描画更新を別々に扱う。
+
+| 制御 | 所有者と役割 |
+| --- | --- |
+| `inputRevision` | Canvasのprivateな比較用UUID。新しいView値の生成時に作り、ホストが渡すSessionや設定を比較で取りこぼさない |
+| `paused`・Viewの離脱・`scenePhase` | ホストとSwiftUIが停止条件を提供する。同じSessionのフレーム進行を止める |
+| `renderingRevision` | ホストが渡す描画更新番号。停止中の設定変更を描画するため、表示用Viewの再生成を指定する |
+
+Canvasは`@Equatable`を宣言する。Session参照は不変の`let`として保持し、`@SkipEquatable`で比較から除外する。代わりに`inputRevision`を比較するため、新しく構築されたCanvasの入力は更新省略の対象にならない。View値のコピーは同じUUIDを持つ。比較用UUIDを`.id()`やSessionの生成条件には使用しない。
 
 Canvasは次のいずれかが成立するとフレーム進行を止める。
 
@@ -56,7 +64,7 @@ Canvasは次のいずれかが成立するとフレーム進行を止める。
 - CanvasのViewが離脱している。
 - `scenePhase`がactive以外である。
 
-すべて解除されると同じSessionの位置から進む。スクロールで見えなくてもViewは生存し得るため、ホストが可視性を判定して`paused`へ渡す。再生の方針はホストがアセット固有のData Bindingへ渡し、フレーム停止とは分けて扱う。OSのReduce Motionに追従する製品はホストで接続できる。nibbleはmotionAllowedをtrueに固定する。
+すべて解除されると同じSessionの位置から進む。スクロールで見えなくてもViewは生存し得るため、ホストが可視性を判定して`paused`へ渡す。再生の方針はホストがアセット固有のData Bindingへ渡し、フレーム停止とは分けて扱う。OSのReduce Motionに追従する製品はホストで接続できる。
 
 `renderingRevision`は、停止中の配色変更などを反映する描画更新番号である。rive-ios 6.27.0では停止中のData Binding変更だけでは再描画されない。番号が変わると表示用Viewを作り直し、同じSessionを時間差0で描画する。FileやSessionの再生成、演出のリセットには使わない。必要な値変更時だけ更新し、フレームごとや通常のbody評価では変えない。
 

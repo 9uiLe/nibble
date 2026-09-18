@@ -1,71 +1,73 @@
-# View比較の検証
+# View比較と入力反映の検証
 
-比較の宣言、入力の差し替え、SwiftUIが所有する状態の更新を検査する。実装の契約は[Viewの比較境界](library-policy.md#viewの比較境界)、実操作と証跡の要件は[製品検証](mvp.md)を参照する。
+対象ソースは`f1ef9eb6d69c7d550e202983df231da25b04d127`。全15型の自作Viewについて、比較宣言、親入力の差し替え、所有する状態の更新を評価した記録である。方式の選択と状態寿命の契約は[実装規約](library-policy.md#viewの比較境界)、各Viewの役割は[製品設計](decisions/0002-mvp-app.md#viewの比較と表示更新)を参照する。
 
-## 対象
+## 対象と実行条件
 
-| 領域 | View | 比較の方式 |
-| --- | --- | --- |
-| 本体の入口 | LibraryView、SceneInterfaceDefaults | 親からのStore・effectsはrevision、状態を持たないUIKit接続はMainActorのマクロ比較 |
-| 一覧・検索・削除 | LibraryScreen、DeletedSnippetsView、LibraryFilterBar | 外部モデル・Focus / Filter Bindingはrevision、所有するStateはSwiftUIで更新 |
-| 行・通知 | SnippetRow、SnippetRowContent、LibraryNotice | 操作とモデルはrevision、行の表示値はEquatableBodyView |
-| 設定 | LibrarySettingsView | 設定のBindingと画面を開く操作はrevision |
-| 製品情報 | AboutView、AboutSection、AboutURL、AboutIllustration | generic contentはrevision、URLの表示値はEquatableBodyView、演出のState・EnvironmentはSwiftUIで更新 |
-| 共通編集 | SnippetEditor（本体・共有拡張） | 終了callbackはrevision、EditorModelと入力・タスクの寿命はState |
-| 再利用Package | RiveCanvas | Sessionとホスト設定はrevision、画面寿命・scenePhaseはSwiftUIで更新 |
+対象は本体`Nibble`、共有拡張`NibbleShare`が使う共通エディター、ローカルPackage `RivePresentation`。値表示の2型、親入力を持つ9型、親入力を格納しない4型を含む。`App`、`ViewModifier`、UIKitのクラス、外部パッケージのView実装は比較宣言の検査対象外である。
 
-自作Viewは15型。App、ViewModifier、UIKitのクラス、外部依存のView実装は対象外とする。外部依存の直接編集やバージョン更新は行わない。
-
-## 自動検査
-
-- 全View / representableのマクロ欠落をLintで拒否する。
-- revisionを持たないBinding・closure・参照入力、revisionの除外・可変化・共有値化、不変let以外の比較除外を拒否する。
-- 値比較の境界への状態・操作の持込み、比較ゲートの直接使用、手書きの等価演算を拒否する。
-- 新しいBindingの現在値が古いBindingと同じ場合も比較で更新を省略せず、新しい保存先に書き込むことを検査する。
-- マウント済みフィルターのBindingを置き換え、古い保存先の変更では表示が変わらず、新しい保存先の変更・復元に表示が追従することを検査する。
-- 既存の行表示テストで表示入力・配色・文字サイズの反映を検査する。
-
-## 実行記録
-
-2026-09-18、macOS 26.2、Xcode 26.5（17F42）、Swift 6.3.2を使用した。実行先はiPhone 17 Pro / iOS 26.5（23F77）の専用Simulator、UDIDは`D099A849-386F-4EAE-AE12-02D8DC623AF2`。依存はAppMacros 0.3.0、SwiftSyntax 603.0.2、Rive iOS 6.27.0を維持する。
-
-| 検査 | 結果 |
+| 項目 | 条件 |
 | --- | --- |
-| 検証ツールのPython回帰 | 106件成功 |
-| 本体・共有拡張のReleaseビルドとSwift Testing | 74テスト（parameter展開80件）成功、失敗・skipなし |
-| 一覧・検索・編集・設定・製品情報の実操作 | Releaseで成功。下書きの再開、同じUUIDの編集・削除取消・復元、フィルター、設定の保存、編集後のUTF-8完全一致を確認 |
-| 共有元からの取込みと復帰 | Releaseで成功。今回の本体に埋め込まれた共有拡張の起動、保存後のSafari復帰、本体からのコピーのUTF-8完全一致を確認 |
-| Riveの表示更新 | 異なる時点の演出、ライト／ダーク切替、バックグラウンドからの復帰を確認 |
-| Nix共通検査 | aarch64-darwinの全7 check成功。Swift規約は46ファイルを検査 |
+| 実施日 | 2026-09-18 |
+| ツールチェーン | macOS 26.2、Xcode 26.5（17F42）、Swift 6.3.2 |
+| 実行端末 | iPhone 17 Pro Simulator、iOS 26.5（23F77） |
+| UDID | `D099A849-386F-4EAE-AE12-02D8DC623AF2` |
+| 製品ビルド | Release。本体・共有拡張を同じrunでビルド |
+| 依存 | AppMacros 0.3.0、SwiftSyntax 603.0.2、Rive iOS 6.27.0 |
+| 操作と撮影 | Nixのsim-use 0.14.0、Appleのsimctl |
 
-### runと実操作
+1回の検証実行をrunと呼ぶ。`artifacts/ios/<run>/manifest.json`はソース・媒体のハッシュ、端末、コマンドと終了コードを記録する。以下の3 runは開始・終了時の入力が変化しておらず、対象コミットの検証入力とも一致した。媒体のハッシュ照合も成功した。照合結果はローカルの`artifacts/evidence-integrity-final.json`にある。
 
-各runは`artifacts/ios/`に保存する。`manifest.json`がビルドコマンド、実行中のソース、媒体のハッシュを持ち、`test-summary.json`が実行済みテスト数を持つ。対象ソースはコミット後に`check_evidence.py --integrity-only --ref HEAD`で照合する。
+## 自動検査の結果
 
-| run | 対象と観測 |
+| 検査 | 結果と保証範囲 |
 | --- | --- |
-| `20260918T065900Z-test-43b81f` | Releaseテスト。Bindingの差し替え、マウント済みフィルター、callbackの更新を含む74テストが成功 |
-| `20260918T065928Z-mvp-ui-214fa8` | 標準UI driver。作成→下書き保持→再開→保存→検索→編集→コピー→ピン留め→削除→Undo→破棄、3タブ、左右の操作位置と再起動後の保持、削除済み一覧の検索・復元 |
-| `20260918T071049Z-equatable-share-about-16e999` | 補助driver。Safariから共有→タイトル入力→保存→共有元へ復帰→本体で検索・コピー、Aboutの配色変更・背景移行・復帰 |
+| Nix共通検査 | aarch64-darwinの全7 check成功。Ubuntu上の実行結果は含めない |
+| Python回帰テスト | 106件成功。View・representableのマクロ欠落、不正な比較除外、比較用UUIDの再利用・可変化・除外を検出 |
+| Swift規約 | 所有する46ファイルを検査し違反なし。型解決とマクロ展開は含めない |
+| Releaseビルド・Swift Testing | 74テスト、パラメーター展開後80件が成功。失敗・skipなし。run `20260918T065900Z-test-43b81f` |
 
-標準UI driverの対象はダミー項目`日本語コピー 83398ca3`、UUIDは`37F93DBB-2D7D-4611-86EF-3CC36603F814`。共有の対象は`共有境界検証-9be740ec`、UUIDは`248D7A38-6164-40BB-95AB-0BB8545B89DF`。文字列の保持は空白、改行、結合文字、絵文字を含むコピー結果のUTF-8で判定した。
+`RowComparisonTests`は次の契約を検査した。
 
-### 画像・録画のレビュー
+- 行の表示入力を変えると比較結果と描画が変わり、値を戻すと表示も復元する。
+- 表示入力が同じでも、新しく構築された行のcallbackは比較で同一視されない。呼出先が新しいclosureであることを確認する。
+- 現在値が等しい別のBindingを渡すと、書込先は新しいBindingの保存先になる。
+- マウント済みフィルターのBindingを差し替えた後、古い保存先の変更では画像が変わらず、新しい保存先の変更・復元には追従する。
+- 値表示の入力を固定した状態で、外観・文字サイズのtrait変更が描画へ反映される。これは部品単体の環境更新の検査であり、製品の固定表示方針を変更するものではない。
 
-原本PNGと録画から抽出したフレームを開いて確認した。録画は全編再生ではなく、以下の時刻を抽出したサンプルレビューである。ローカルの`review.json`へ観測を記録し、公開先URLと閲覧確認は未記入とする。PR添付と公開先の閲覧確認は本記録の完了項目に含めない。
+## 本体・共有拡張の操作結果
 
-| run | 確認した媒体と範囲 |
+| run | 操作と結果 |
 | --- | --- |
-| 標準UI | `finished.png`、`resumed-draft.png`、`about.png`、`left-library.png`、`right-library.png`。一覧の選択・表示、保持された編集内容、Aboutの構成、左右の操作配置を確認。194.698秒の録画から9.207 / 97.085 / 175.220秒を確認し、背景移行、検索とキーボード、削除済み一覧の復元操作を観察 |
-| 共有・About | `share-sheet-position.png`、`share-editor.png`、`about-motion-1.png`〜`about-motion-3.png`、`about-dark.png`、`about-returned.png`、`about-resumed-confirmed.png`。共有本文、保存の表示と次の演出周期、配色、背景移行後の画面を確認。388.885秒の録画から8.697 / 194.202 / 350.428秒を確認し、共有先の選択、入力中の共有エディター、Aboutの演出を観察 |
+| `20260918T065928Z-mvp-ui-214fa8` | 標準UI driverで作成、下書き保持・再開、保存、日本語検索、同じUUIDの編集、原文コピー、ピン留め・解除、削除・Undo、破棄、削除済み一覧の検索・復元が成功。3タブ、左右の操作位置と再起動後の保持、一覧・検索から開いた編集画面の背景復帰も確認 |
+| `20260918T071049Z-equatable-share-about-16e999` | Safariから共有拡張を開き、タイトル入力、保存、Safariへの復帰、本体での検索・コピーが成功。Aboutの演出進行、ライト／ダーク切替、SpringBoardへの移行と復帰を確認 |
 
-### 操作自動化の観測
+標準UI driverの対象はダミー項目`日本語コピー 83398ca3`、UUIDは`37F93DBB-2D7D-4611-86EF-3CC36603F814`。共有の対象は`共有境界検証-9be740ec`、UUIDは`248D7A38-6164-40BB-95AB-0BB8545B89DF`。編集後と共有後の本文は、空白、改行、結合文字、絵文字を含むコピー結果のUTF-8完全一致で判定した。
 
-- 標準UI driverではsim-use 0.14.0の日本語「すべてを選択」の照合失敗を記録した。既存の限定fallbackでネイティブメニューを操作し、編集後コピーの完全一致を確認した。
-- 共有ポップオーバーの最初のラベル指定タップは、要素のローカル座標を画面座標として使用し、共有先が起動せずSafariでAbortErrorになった。画像で確認したポップオーバーの原点と要素位置からタップ位置を補正した。起動したNibbleShareのプロセスパスが、今回インストールした本体の`PlugIns/NibbleShare.appex`と一致することを確認した。製品コードの変更やエラーの無視で回避していない。
+標準操作は[製品検証手順](mvp.md#基本操作の自動検証)で再現する。共有・Aboutの補助driverは対応runの`driver.py`に保存し、manifestにSHA-256を記録している。runの成功は操作結果を示し、すべての録画フレームを目視したことは意味しない。
+
+## 媒体の観察と公開状況
+
+原本PNGと録画の抽出フレームを開いて観察した。画像の大きさは1206×2622。録画は下表の時刻を対象としたサンプルレビューであり、全編再生は実施していない。観測は各runの`review.json`に保存している。
+
+| run | 画像と録画の観察範囲 |
+| --- | --- |
+| 本体UI | `finished.png`、`resumed-draft.png`、`about.png`、`left-library.png`、`right-library.png`。一覧の選択・表示、保持された編集内容、Aboutの構成、左右の操作配置を確認。194.698秒の録画から9.207 / 97.085 / 175.220秒を確認し、背景移行、検索とキーボード、削除済み一覧の復元操作を観察 |
+| 共有・About | `share-sheet-position.png`、`share-editor.png`、`about-motion-1.png`〜`about-motion-3.png`、`about-dark.png`、`about-returned.png`、`about-resumed-confirmed.png`。共有本文、保存の表示と次の演出周期、配色、背景移行後の画面を確認。388.885秒の録画から8.697 / 194.202 / 350.428秒を確認し、共有先選択、入力中の共有エディター、Aboutの演出を観察 |
+
+媒体はローカル保存であり、新しいcheckoutには含まれない。PR添付とブラウザーでの公開先閲覧確認は未実施。`review.json`の公開URLと閲覧確認欄は未記入で、完全な公開証跡レビューの検査には合格していない。ソース・媒体の整合性検査とは区別する。
+
+## 操作自動化の制約
+
+| 条件 | 観測と処理 |
+| --- | --- |
+| 日本語の編集メニュー | sim-use 0.14.0が「すべてを選択」を照合できず、標準UI driverに終了コード1を記録した。対象エラーに限定したネイティブメニュー操作を行い、編集後コピーの完全一致で回復を確認 |
+| 共有ポップオーバー | 最初のラベル指定タップは要素のローカル座標を画面座標として使い、共有先が起動せずSafariにAbortErrorが表示された。画像で確認したポップオーバーの原点と要素位置から座標を補正して起動。実行中のNibbleShareのパスが、検証でインストールした本体の`PlugIns/NibbleShare.appex`と一致することを確認 |
+
+これらは操作自動化で観測した制約である。失敗した操作と回復後の結果をrunに保持し、製品コードを変更して回避した結果として扱わない。
 
 ## 評価の限界
 
-revision付きViewは、親が再構築した入力を必ず反映するための保守的な比較を行う。すべてのViewにマクロがあることは、すべてのViewで更新回数が減ることを意味しない。FPS、body回数、応答時間の改善をこの宣言数から算出しない。
+本記録の受入条件は表示・入力・保存・再生の整合性である。`inputRevision`を持つ9型は親入力の反映を優先し、新しく構築されたViewの更新を比較で省略しない。マクロの宣言数からbody評価回数、FPS、応答時間の改善率を算出できない。
 
-表示・入力・保存・再生の整合性を受入条件とする。比較の速度、フレーム時間、電力、実機での性能改善は別の計測が必要であり、本記録から保証しない。今回追加した実操作は上記Simulatorに限り、別の画面サイズ・回転・RTL・実機での再検証は行っていない。Riveの画像差分と時刻別の観察は演出の進行を示すが、全フレームの連続性やフレームレートの測定ではない。
+比較処理の時間、フレーム時間、メモリ、電力、実機性能の比較測定は未実施。実操作は上記Simulatorに限り、別の画面サイズ・回転・RTLは評価に含まれない。Riveの時刻別画像は演出の進行を示すが、全フレームの連続性やフレームレートを保証しない。

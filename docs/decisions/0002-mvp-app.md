@@ -337,11 +337,19 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 ## Viewの比較と表示更新
 
-`SnippetRowContent`はタイトル・本文プレビュー・ピン状態を通常の値型`let`で受け取る。`@Equatable`と`@MainActor EquatableBodyView`で全入力の比較を生成し、同じstructの`equatableBody`に表示を定義する。
+表示値の比較、操作先の接続、画面の状態寿命を分けて管理する。自作ViewはすべてAppMacrosの`@Equatable`を宣言し、入力の役割に応じて比較と更新の方式を選ぶ。
 
-全Viewは`@Equatable`を宣言する。closureと参照モデルは通常のViewである`SnippetRow`側へ置き、操作意図を`LibraryScreen`へ返す。通常のViewが親から入力を受け取る場合は、privateな`inputRevision`でBinding・操作・参照の差し替えを反映する。この比較値はSwiftUIのidentityや状態寿命を変更しない。値比較の対象となる表示入力が等しい場合も、操作は現在の項目へ接続される。具体的な宣言と比較除外の条件は[ライブラリ規約](../library-policy.md#viewの比較境界)に定義する。通知の観測は`LibraryNotice`で行い、一覧の内容と一時的なフィードバックの責務を分ける。
+| 構成 | 担当するView | 入力と更新 |
+| --- | --- | --- |
+| 値だけを表示する部品 | `SnippetRowContent`、`AboutURL` | 通常の値型`let`をすべて比較する。`@MainActor EquatableBodyView`に準拠し、`equatableBody`に表示を定義 |
+| 親の入力を受け取る画面と部品 | `LibraryView`、`LibraryScreen`、`LibraryFilterBar`、`LibraryNotice`、`LibrarySettingsView`、`SnippetRow`、`AboutSection`、`SnippetEditor`、`RiveCanvas` | View値の生成ごとに比較用UUIDの`inputRevision`を作り、Binding・操作・モデル参照・contentの差し替えを反映 |
+| 親入力を格納しない画面と接続 | `AboutView`、`AboutIllustration`、`DeletedSnippetsView`、`SceneInterfaceDefaults` | 所有するStateやEnvironmentによる更新に従う。比較用UUIDは持たない |
 
-標準部品はSwiftUIのenvironmentを参照する。比較View単体のテストでは、入力の変更・復元と、同じ入力での外観・文字サイズの更新を確認する。本体の固定表示方針は、比較Viewの契約とは別に画面の入口へ適用する。
+一覧行では、`SnippetRowContent`がタイトル・本文プレビュー・ピン状態を表示し、`SnippetRow`が操作を`LibraryScreen`へ渡す。表示値が同じでも、操作は親が渡す現在の接続先を使う。`LibraryNotice`は通知を独立して観測し、一時的なフィードバックの更新を一覧内容の読み取りから分離する。
+
+`inputRevision`は等価比較の入力であり、表示や永続データのIDには使わない。入力を差し替えるために編集内容、フォーカス、Task所有者、RiveのSessionを破棄しない。状態の保持期間はSwiftUIのidentityと各所有者の寿命に従う。Riveの描画更新番号`renderingRevision`は、同じSessionを使う表示用Viewの再生成だけに使用する。
+
+値表示の単体テストでは、入力の変更・復元と、同じ入力での外観・文字サイズの反映を確認する。製品の固定表示方針は画面の入口で適用する。比較の構文と除外条件は[ライブラリ規約](../library-policy.md#viewの比較境界)、対象ソースごとの結果は[View比較の検証](../view-comparison-validation.md)に定義する。親入力を持つViewは入力反映を優先し、性能上の効果は同条件の測定で評価する。
 
 ## アニメーションの適用範囲
 
