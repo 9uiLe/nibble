@@ -90,22 +90,23 @@ class Run:
         write_json(self.path / "manifest.json", self.manifest)
 
     def command(self, argv, name=None, timeout=60):
-        label = name or f"command-{len(self.manifest['commands']):03}"
-        with ui.step(label):
-            return self._command(argv, name, timeout)
-
-    def _command(self, argv, name, timeout):
         argv = [str(a) for a in argv]
         monitor = argv[0] == "sim-use" and hasattr(self, "launched_pid")
         if monitor:
             self.check_process()
+        name = name or f"command-{len(self.manifest['commands']):03}"
+        with ui.step(name):
+            output = self._command(argv, name, timeout, monitor)
+            if monitor:
+                self.check_process()
+            return output
+
+    def _command(self, argv, name, timeout, monitor):
         # Each UI command gets a fresh AX connection. Native PID checks own
         # crash/restart detection for runs that launched the target app.
         environment = {**os.environ, "SIM_USE_NO_DAEMON": "1"}
         if monitor:
             environment["SIM_USE_NO_CRASH_DETECT"] = "1"
-        index = len(self.manifest["commands"])
-        name = name or f"command-{index:03}"
         event = {"argv": argv, "stdout": name + ".log", "stderr": name + ".stderr.log"}
         self.manifest["commands"].append(event)
         self.save()
@@ -124,8 +125,6 @@ class Run:
             detail = ((self.path / event["stdout"]).read_text() + (self.path / event["stderr"]).read_text())
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
-        if monitor:
-            self.check_process()
         return (self.path / event["stdout"]).read_text()
 
     def setup(self):
@@ -250,7 +249,6 @@ class Run:
         if not result.get("ok") or not result.get("data", {}).get("entries"):
             raise VerificationError(f"Cannot observe UI: {result}")
         write_json(self.path / (name + ".json"), result)
-        print(result["data"].get("outline", ""), flush=True)
         return result["data"]
 
     def tap(self, identifier):
@@ -439,7 +437,7 @@ def main(argv=None):
                     if run.device["state"] != "Booted":
                         raise VerificationError("Boot the explicitly selected Simulator first")
                     if args.command == "ui":
-                        run.ui()
+                        print(json.dumps(run.ui(), ensure_ascii=False, indent=2))
                     elif args.command == "tap":
                         run.ui("before")
                         run.tap(args.identifier)

@@ -21,7 +21,7 @@
 | `check_swift_policy.py`、`check_workflows.py`、`check_pr.py` | 結果と診断は共通表示。`check_pr.py commits`のMarkdown表はstdout |
 | `check_evidence.py` | 照合結果JSONはstdout、記入欄作成と検査の要約は共通表示 |
 | `rive_assets.py` | 生成工程と契約検査の結果を共通表示。正本・生成物・manifestはファイルへ保存 |
-| `ios.py` | 各コマンドと録画の開始・終了、runの結果と保存先を共通表示。doctor/devicesはJSON、createはUDIDをstdoutへ返す |
+| `ios.py` | 各コマンドと録画の開始・終了、runの結果と保存先を共通表示。doctor/devices/uiはJSON、createはUDIDをstdoutへ返す。内部の画面観測はrun内のJSONに記録 |
 | `check-mvp-ui.py`、`check-interface-ui.py`、`check-about-ui.py`、`validation/check-research-ui.py` | 共通の`Run`を通じて工程表示と証跡を利用する |
 | `testflight.py` / `deploy-testflight.sh` | 固定した工程名・公開メタデータ・安全な診断だけを共通表示。archive-checkのJSONはstdout |
 | `benchmark-store.py`、`validation/check-research-sdk.py` | 測定後の進捗・コンパイル結果を共通表示。測定値・コマンド詳細は結果ファイルへ保存 |
