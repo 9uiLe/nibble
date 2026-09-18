@@ -10,8 +10,6 @@ struct LibraryScreen: View {
     let searchFocused: FocusState<Bool>.Binding
     var actionButtonSide: ActionButtonSide = .right
     @Environment(\.layoutDirection) private var layoutDirection
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var taskOwner = LibraryTaskOwner()
     @State private var permanentDeletion: SnippetSummary?
@@ -133,10 +131,10 @@ struct LibraryScreen: View {
                         Label {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(draft.displayTitle).font(.headline)
-                                    .foregroundStyle(.primary).lineLimit(expandedRows ? nil : 2)
+                                    .foregroundStyle(.primary).lineLimit(2)
                                 if !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     Text(draft.preview).font(.subheadline).foregroundStyle(.secondary)
-                                        .lineLimit(expandedRows ? nil : 2)
+                                        .lineLimit(2)
                                 }
                                 Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
                                     .font(.caption).foregroundStyle(.secondary)
@@ -218,7 +216,6 @@ struct LibraryScreen: View {
     }
 
     private var displaysDrafts: Bool { showsFilters && (model.contentRequest.filter == .all || model.contentRequest.filter == .drafts) }
-    private var expandedRows: Bool { dynamicTypeSize.isAccessibilitySize }
     private var visibleItems: [SnippetSummary] {
         switch model.contentRequest.filter {
         case .pinned: model.page.pinnedItems
@@ -233,11 +230,9 @@ struct LibraryScreen: View {
     }
 
     private var notice: some View {
-        AnimationScope(.easeOut(duration: reduceMotion ? 0 : 0.16), value: model.notice != nil, name: "Library.Notice") {
+        AnimationScope(.easeOut(duration: 0.16), value: model.notice != nil, name: "Library.Notice") {
             if let notice = model.notice {
-                let layout = expandedRows ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-                    : AnyLayout(HStackLayout(spacing: 16))
-                layout {
+                HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
                         Label(notice.message, systemImage: "checkmark.circle.fill")
                             .font(.subheadline.weight(.medium))
@@ -355,7 +350,7 @@ struct LibraryScreen: View {
     }
 
     private func rowLabel(_ item: SnippetSummary) -> some View {
-        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned, expanded: expandedRows)
+        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
     }
 
     @ViewBuilder private func rowContent(_ item: SnippetSummary) -> some View {
@@ -374,19 +369,10 @@ struct LibraryScreen: View {
     }
 
     private func snippetRow(_ item: SnippetSummary) -> some View {
-        Group {
-            if expandedRows {
-                VStack(alignment: .leading, spacing: 8) {
-                    rowContent(item)
-                    rowActions(item).frame(maxWidth: .infinity, alignment: actionsAtLeading ? .leading : .trailing)
-                }
-            } else {
-                HStack(spacing: 8) {
-                    if actionsAtLeading { rowActions(item) }
-                    rowContent(item)
-                    if !actionsAtLeading { rowActions(item) }
-                }
-            }
+        HStack(spacing: 8) {
+            if actionsAtLeading { rowActions(item) }
+            rowContent(item)
+            if !actionsAtLeading { rowActions(item) }
         }
         .padding(.vertical, 4)
         .contextMenu { rowMenu(item) }
@@ -426,7 +412,6 @@ struct LibraryScreen: View {
 /// These controls change the contents of one library, while the tab bar changes screens.
 private struct LibraryFilterBar: View {
     @Binding var selection: LibraryFilter
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -462,7 +447,6 @@ private struct LibraryFilterBar: View {
             .background(Color.nibbleCanvas)
             .overlay(alignment: .bottom) { Divider() }
             .onChange(of: selection) { proxy.scrollTo(selection, anchor: .center) }
-            .onChange(of: dynamicTypeSize) { proxy.scrollTo(selection, anchor: .center) }
         }
     }
 }

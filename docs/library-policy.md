@@ -195,7 +195,7 @@ AppMacrosが比較から除外できる入力でも、closureやDynamicProperty�
 
 表示変化の範囲を名前付き`AnimationScope`で囲み、valueによる変更検知またはproxyの`scope.animate`を使う。複数triggerのfactoryは`AnimationTrigger.animation`と型名を明記する。入力など親のアニメーションを受けない領域には`animationBarrier()`を置く。
 
-製品の通知scopeは`Library.Notice`とし、通知の有無をvalueで検知する。表示・消去は0.16秒のopacity遷移、Reduce Motion有効時はduration 0秒とする。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
+製品の通知scopeは`Library.Notice`とし、通知の有無をvalueで検知する。表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
 
 `LibraryView`と`SnippetEditor`の外側の`animationBarrier(warnsOnLeaks: false)`は、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks()`と編集入力領域の警告付きbarrierは、アプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOS部品が管理する。
 
@@ -293,6 +293,6 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 | 実行と寿命 | MainActorでロードとSession生成を直接awaitする。ホストの`.task`がロード・購読を所有し、キャンセルされた結果を表示へ採用しない |
 | 演出と業務 | 入力値とtriggerは表示への要求とする。`active`や演出完了を、保存・コピー等の成功判定に使わない |
 | 描画 | SwiftUIの独自アニメーションはScopedAnimation、キャンバス内はRMLのタイムラインが担当する。独自のTimer・DisplayLink・生Taskでフレームを進めない |
-| ホストの責務 | 説明、外観、Reduce Motion、スクロール可視性、アクセシビリティ、読込失敗と再試行を決める |
+| ホストの責務 | 説明、外観、再生方針、スクロール可視性、アクセシビリティ、読込失敗と再試行を決める |
 
 所有関係、停止中の外観更新、依存の採用・更新条件は[演出設計](decisions/0004-rive-presentation.md)、アセットと検査の契約は[制作手順](../app/Animations/README.md)を正とする。Legacy APIの入口はSwift規約で検出し、実バイナリの接続と動作はiOSテスト・画面検証で確認する。

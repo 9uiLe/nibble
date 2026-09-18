@@ -32,7 +32,7 @@ extension UIIntegrationTests {
     }
 
     @Test @MainActor
-    func riveStoryKeepsPlayingAndHonorsMotionPreference() async throws {
+    func riveAssetLoopsAndAllowsExplicitStaticState() async throws {
         let resource = try await RiveResource.load(named: "about-story", in: .main)
         let session = try await resource.makeSession(AboutIllustration.contract)
         let active = BoolProperty(path: "active")

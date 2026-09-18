@@ -18,6 +18,8 @@
 - `docs/design/policy.json`が検査範囲を定め、`check_docs.py`が文書・設計IDと未確認変更を検査する。理由の妥当性と網羅性はレビュー、動作と見た目はローカルiOS検証で確認する。
 - 実装と設計を照合した結果を、判断要約と確認文書付きで`docs/design/review.json`へ記録する。照合記録は確認後に更新し、検査を通す目的だけで再生成しない。
 
+文字サイズ・太字・コントラスト・独自演出は[製品の表示方針](docs/design/decisions/0002-fixed-interface.md)に従い固定する。OS設定への追従を画面ごとに追加しない。
+
 ## 実装の責務
 
 | 対象 | 契約 |
@@ -31,7 +33,7 @@
 
 操作テストはAPIを直接awaitし、戻った時点の状態・永続化を検査する。重複・キャンセルは所有者を検査し、Viewは入力の変更・復元と、同一入力での環境更新を検査する。構文Lint、compiler、テスト、画面の確認にはそれぞれ異なる保証範囲がある。
 
-説明イラストは[演出設計](docs/decisions/0004-rive-presentation.md)に従う。RivePresentationが読み込みと表示、ホストがSessionの寿命・配色・Reduce Motion・説明文、RMLが図形と演出を所有する。制作ソース、生成済み`.riv`、manifestを一組で管理し、[アセット手順](app/Animations/README.md)で再生成と検証を行う。
+説明イラストは[演出設計](docs/decisions/0004-rive-presentation.md)に従う。RivePresentationが読み込みと表示、ホストがSessionの寿命・配色・再生方針・説明文、RMLが図形と演出を所有する。制作ソース、生成済み`.riv`、manifestを一組で管理し、[アセット手順](app/Animations/README.md)で再生成と検証を行う。
 
 ## 機械検査とマージ条件
 
