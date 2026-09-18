@@ -124,6 +124,21 @@ def main():
             time.sleep(0.25)
         raise VerificationError(f"UI did not reach expected state: {name}")
 
+    def background_editor(name):
+        before = wait_ui(name + "-before", lambda data: "editor.body" in identifiers(data))
+        values = {e["uniqueId"]: e.get("value") for e in before["entries"]
+                  if e.get("uniqueId") in ("editor.title", "editor.body")}
+        run.command(["sim-use", "button", "home", "--device", args.device])
+        wait_ui(name + "-home", lambda data: data.get("appPackage") == "com.apple.springboard")
+        run.command([XCRUN, "simctl", "launch", args.device, run.config["bundle_id"]])
+        after = wait_ui(name + "-returned", lambda data: "editor.save" in identifiers(data)
+                        and "editor.body" in identifiers(data))
+        actual = {e["uniqueId"]: e.get("value") for e in after["entries"]
+                  if e.get("uniqueId") in values}
+        if actual != values:
+            raise VerificationError("Editor input changed during background transition: " + name)
+        run.screenshot(name)
+
     try:
         run.setup()
         if run.device["runtime"]["version"] != "26.5":
@@ -157,6 +172,7 @@ def main():
                 run.ui("new-editor")
                 paste("editor.title", title)
                 paste("editor.body", body)
+                background_editor("library-editor-background")
                 run.tap("editor.close")
                 pending = wait_ui("draft-kept", lambda data: any(
                     entry.get("uniqueId", "").startswith("draft.") and entry.get("label", "").endswith(title)
@@ -220,6 +236,7 @@ def main():
                 edited_body = "更新された本文\n" + body
                 paste("editor.title", edited_title, replace=True)
                 paste("editor.body", edited_body, replace=True)
+                background_editor("search-editor-background")
                 run.tap("editor.save")
                 wait_ui("edited", lambda data: any(e.get("uniqueId") == row
                         and e.get("label") == edited_title for e in data["entries"]))

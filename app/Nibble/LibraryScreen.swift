@@ -46,9 +46,6 @@ struct LibraryScreen: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
         }
-        .sheet(item: $library.editor, onDismiss: { startTask(.refresh) }) { draft in
-            SnippetEditor(draft: draft, store: model.store)
-        }
         .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
             if let item = permanentDeletion {
                 Button("完全に削除", role: .destructive) { startTask(.permanentlyDelete(item.id)); permanentDeletion = nil }
