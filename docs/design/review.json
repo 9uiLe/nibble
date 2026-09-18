@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "S01〜S08の状態・Task・共通UI・UIKit接続を調査した。C16の中断再開と要求IDによる後着結果の抑止を定義する。S03の提示はルートが所有し、タブの背景移行でも編集を維持する。原文、既存配置、固定文字・配色・演出を維持する。モデル回帰72件と同条件計測、提示元変更のSimulator試作を確認し、最終ソースのUI評価は個別検証記録に記す。",
+  "summary": "LibraryViewが本体の編集シートを提示し、LibraryScreenは表示と操作開始を担当することを実装と構成図・責務表で照合した。要求とsnapshot、取得ID、提示要求IDによる中断・後着結果の扱い、共有拡張の離脱確認を製品設計に定義する。S03の画面寿命を同じ契約へ揃えた。製品コードとUI仕様は変更せず、実測・未確認事項は対象ソース付きの検証記録に分離する。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
@@ -55,7 +55,7 @@
     "app/Shared/SnippetStore.swift": "fb97fbf0f45cb65df5f450fef3382b0144fa3dcc185adf0ad6e868fc3279d75f",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "02116c2d1f6c11f42f320cac30d95781d6d319c3eb216998edcb6fca2d8e240a",
+    "docs/decisions/0002-mvp-app.md": "9ab97653ef643a0949b7310b26fb0dd000f3dea98a2f36cb55c34153885e3fc0",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
     "docs/design/README.md": "9aba81eeca343e13b42ab63a8f5d4213974bb226e04c6863d62a9b96e299203f",
     "docs/design/audit.md": "e4fc26e2eb87505f8f51d5676df5f882daefd33b5763baa75885770ed7575b4e",
@@ -65,7 +65,7 @@
     "docs/design/decisions/0002-fixed-interface.md": "c25e9fd153604ccd1566e1a886f559a7d4ab153e86596bfd211782185bda80ed",
     "docs/design/foundations.md": "25049803db175a7b8e2ee9e61aa0a671f721d9b3bc59cd05fde414a23f6deb87",
     "docs/design/policy.json": "f25f7cb1cc8a02fa0cb11b615467380c9668b1de0e62a260204a32365802b6cf",
-    "docs/design/screens.md": "bd729c18a6c6bebd5eece1521ccea8506f274b49747be9abf7f5b9e293cdc0a0",
+    "docs/design/screens.md": "9867fe720c4a5f585f2112b3648e0f5b3c6155472f8c68cc976d6387b3dcaf09",
     "flake.lock": "471ca03b2a52dc5ac12dd208c19c7e47f0ca85d04c577f3849e7bffa32c30eb8",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
     "tools/ui-design/README.md": "565109f0c7bad79fb35d535da795aefd7b5feef692a5c5ea6ad0432e544354a0",

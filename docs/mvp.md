@@ -167,6 +167,10 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 4. Debug実行では、内部の`detectAnimationLeaks`・入力barrierと、Taskingの未処理エラーの診断を確認する。OSのシートtransactionは画面外側のbarrierで遮断する。診断が届く位置と実行した導線を記録する。
 5. 検証終了後に表示設定を実行前の状態へ戻す。操作・画像・録画・診断の対象ソースと実施範囲を記録する。[非同期API境界の検証記録](async-policy-validation.md)に結果の記載例がある。
 
+## 性能の検証
+
+[性能検証の手順](performance-verification.md)に従い、モデル処理、View値の生成、body評価、レイアウト、描画・合成を分けて確認する。Instrumentsは接続・記録・保存・exportと対象サンプルを確認してから、本体の同条件比較へ使う。開始待ちや保存待ちはコマンド全体の期限で打ち切り、失敗したtraceの値は採用しない。
+
 ## 証跡と検証範囲
 
 画面読取・入力・操作はNixのsim-use、撮影はAppleの`simctl io screenshot / recordVideo`を使う。[共通手順](ios-verification.md#スクリーンショットと画面録画)に従い、ログ・画像・動画をGit管理対象外の`artifacts/`へ保存する。
