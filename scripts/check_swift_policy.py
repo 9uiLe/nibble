@@ -5,6 +5,8 @@ Lexical API checks and tree-sitter boundary checks are not Swift type
 resolution. See docs/library-policy.md for the enforced syntax and limitations.
 """
 
+from script_ui import ui
+
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
@@ -217,13 +219,10 @@ def main():
     try:
         count, errors = check(args.root.resolve())
     except (OSError, ValueError) as error:
-        print(f"error: Swift policy check failed: {error}")
+        ui.result(False, f"Swift policy check failed: {error}")
         return 1
-    if errors:
-        print("\n".join(errors))
-        return 1
-    print(f"Swift library policy passed: {count} source files; Tasking, ScopedAnimation and AppMacros entry points enforced.")
-    return 0
+    ui.check('Swift library policy', errors, f'{count} source files; Tasking, ScopedAnimation and AppMacros entry points enforced')
+    return int(bool(errors))
 
 
 if __name__ == "__main__":

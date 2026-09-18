@@ -237,7 +237,7 @@ class SwiftPolicyTests(unittest.TestCase):
             self.assertEqual(len(errors), 4)
             result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'check_swift_policy.py'), '--root', str(root)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 1)
-            self.assertIn('app/Main.swift:1:1: error:', result.stdout)
+            self.assertIn('app/Main.swift:1:1: error:', result.stderr)
 
     def test_symlink_sources_and_directories_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:

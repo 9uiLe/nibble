@@ -9,7 +9,7 @@ import signal
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 spec = importlib.util.spec_from_file_location("ios", Path(__file__).parents[1] / "ios.py")
@@ -87,6 +87,9 @@ class ResultTests(unittest.TestCase):
 
 class ProcessTests(unittest.TestCase):
     def setUp(self):
+        display = patch.object(ios, "ui")
+        display.start()
+        self.addCleanup(display.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.run = ios.Run.__new__(ios.Run)
@@ -166,6 +169,27 @@ class ProcessTests(unittest.TestCase):
         environment = process.call_args.kwargs["env"]
         self.assertEqual(environment["SIM_USE_NO_DAEMON"], "1")
         self.assertEqual(environment["SIM_USE_NO_CRASH_DETECT"], "1")
+
+    def test_nested_monitor_labels_match_each_recorded_command(self):
+        self.run.launched_pid = 42
+        def monitor():
+            self.run.command([sys.executable, '-c', 'pass'])
+        with patch.object(self.run, 'check_process', side_effect=monitor), \
+                patch.object(ios.subprocess, 'run', return_value=Mock(returncode=0)):
+            self.run.command(['sim-use', 'tap', '@17'])
+        names = [call.args[0] for call in ios.ui.step.call_args_list]
+        self.assertEqual(names, ['command-000', 'command-001', 'command-002'])
+        self.assertEqual(names, [event['stdout'].removesuffix('.log') for event in self.run.manifest['commands']])
+
+    def test_explicit_ui_command_returns_snapshot_json_without_progress_on_stdout(self):
+        run = MagicMock()
+        run.device = {'state': 'Booted'}
+        run.ui.return_value = {'entries': [{'uniqueId': 'fixture.input', 'value': '日本語'}]}
+        with patch.object(ios, 'Run', return_value=run), redirect_stdout(io.StringIO()) as out:
+            code = ios.main(['ui', '--device', 'D099A849-386F-4EAE-AE12-02D8DC623AF2'])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out.getvalue()), run.ui.return_value)
+        run.finish.assert_called_once_with()
 
     def test_missing_project_config_leaves_a_failed_manifest(self):
         with patch.object(ios, "ARTIFACTS", self.run.path), patch.object(ios.platform, "system", return_value="Darwin"):

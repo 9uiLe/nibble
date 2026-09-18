@@ -19,6 +19,7 @@ import threading
 import time
 import uuid
 
+from script_ui import ui
 from verification_evidence import differences, inputs, media_hashes, working_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,14 +94,19 @@ class Run:
         monitor = argv[0] == "sim-use" and hasattr(self, "launched_pid")
         if monitor:
             self.check_process()
+        name = name or f"command-{len(self.manifest['commands']):03}"
+        with ui.step(name):
+            output = self._command(argv, name, timeout, monitor)
+            if monitor:
+                self.check_process()
+            return output
+
+    def _command(self, argv, name, timeout, monitor):
         # Each UI command gets a fresh AX connection. Native PID checks own
         # crash/restart detection for runs that launched the target app.
         environment = {**os.environ, "SIM_USE_NO_DAEMON": "1"}
         if monitor:
             environment["SIM_USE_NO_CRASH_DETECT"] = "1"
-        index = len(self.manifest["commands"])
-        name = name or f"command-{index:03}"
-        print("+ " + shlex.join(argv), flush=True)
         event = {"argv": argv, "stdout": name + ".log", "stderr": name + ".stderr.log"}
         self.manifest["commands"].append(event)
         self.save()
@@ -119,8 +125,6 @@ class Run:
             detail = ((self.path / event["stdout"]).read_text() + (self.path / event["stderr"]).read_text())
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
-        if monitor:
-            self.check_process()
         return (self.path / event["stdout"]).read_text()
 
     def setup(self):
@@ -245,7 +249,6 @@ class Run:
         if not result.get("ok") or not result.get("data", {}).get("entries"):
             raise VerificationError(f"Cannot observe UI: {result}")
         write_json(self.path / (name + ".json"), result)
-        print(result["data"].get("outline", ""), flush=True)
         return result["data"]
 
     def tap(self, identifier):
@@ -261,42 +264,42 @@ class Run:
     def recording(self):
         path = self.path / "recording.mp4"
         argv = [XCRUN, "simctl", "io", self.args.device, "recordVideo", "--codec=h264", str(path)]
-        print("+ " + shlex.join(argv), flush=True)
         event = {"argv": argv, "stderr": "recording.log"}
         self.manifest["commands"].append(event)
         self.save()
         ready = threading.Event()
-        with (self.path / "recording.log").open("w") as log:
-            process = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            def read():
-                for line in process.stderr:
-                    log.write(line)
-                    log.flush()
-                    if "Recording started" in line:
-                        ready.set()
-            reader = threading.Thread(target=read, daemon=True)
-            reader.start()
-            try:
-                deadline = time.monotonic() + 30
-                while not ready.wait(0.1):
-                    if process.poll() is not None or time.monotonic() >= deadline:
-                        raise VerificationError("Recording failed to start; inspect recording.log")
-                yield
-            finally:
-                if process.poll() is None:
-                    process.send_signal(signal.SIGINT)
+        with ui.step("recording"):
+            with (self.path / "recording.log").open("w") as log:
+                process = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                def read():
+                    for line in process.stderr:
+                        log.write(line)
+                        log.flush()
+                        if "Recording started" in line:
+                            ready.set()
+                reader = threading.Thread(target=read, daemon=True)
+                reader.start()
                 try:
-                    event["exit_code"] = process.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    process.terminate()
-                    process.wait(timeout=10)
-                    event["error"] = "Recording did not finalize after SIGINT"
-                reader.join(timeout=5)
-                self.save()
-        if event.get("exit_code") != 0 or not path.is_file() or path.stat().st_size == 0:
-            raise VerificationError("Recording did not complete; inspect recording.log")
-        self.command([XCRUN, "swift", ROOT / "scripts/video_frames.swift", path, self.path / "video-frames"],
-                     "video-inspection", timeout=120)
+                    deadline = time.monotonic() + 30
+                    while not ready.wait(0.1):
+                        if process.poll() is not None or time.monotonic() >= deadline:
+                            raise VerificationError("Recording failed to start; inspect recording.log")
+                    yield
+                finally:
+                    if process.poll() is None:
+                        process.send_signal(signal.SIGINT)
+                    try:
+                        event["exit_code"] = process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.terminate()
+                        process.wait(timeout=10)
+                        event["error"] = "Recording did not finalize after SIGINT"
+                    reader.join(timeout=5)
+                    self.save()
+            if event.get("exit_code") != 0 or not path.is_file() or path.stat().st_size == 0:
+                raise VerificationError("Recording did not complete; inspect recording.log")
+            self.command([XCRUN, "swift", ROOT / "scripts/video_frames.swift", path, self.path / "video-frames"],
+                         "video-inspection", timeout=120)
 
     def smoke(self):
         if self.config["bundle_id"] != "dev.nibble.VerificationApp":
@@ -353,7 +356,7 @@ class Run:
             "- 人による画像・動画の確認: **未記入**\n"
             "- PR の添付先: **未記入**（ローカルパスだけでは添付完了にならない）\n\n"
             + "\n".join(f"- [{name}]({name})" for name in media) + "\n")
-        print(f"Artifacts: {self.path}", flush=True)
+        ui.result(not error, f"{self.args.command}: {self.manifest['status']}. Artifacts: {self.path}")
         if source_error and not original_error:
             raise VerificationError(source_error)
 
@@ -434,7 +437,7 @@ def main(argv=None):
                     if run.device["state"] != "Booted":
                         raise VerificationError("Boot the explicitly selected Simulator first")
                     if args.command == "ui":
-                        run.ui()
+                        print(json.dumps(run.ui(), ensure_ascii=False, indent=2))
                     elif args.command == "tap":
                         run.ui("before")
                         run.tap(args.identifier)
@@ -453,7 +456,7 @@ def main(argv=None):
         return 0
     except (VerificationError, OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt) as error:
         run.finish(error or "Interrupted")
-        print(str(error), file=sys.stderr)
+        ui.message(str(error) or "Interrupted", "error")
         return 1
 
 

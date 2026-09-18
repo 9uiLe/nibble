@@ -4,6 +4,8 @@
 
 コミット済みのnibbleをローカルMacでビルド・署名し、App Store Connectへ送信する。内部テストグループ「本人用」には、Apple Developerアカウントと配布端末を管理する開発者1名を登録する。この開発者を「配布担当者」と呼ぶ。アップロードした各ビルドは、Apple側で利用可能になると「本人用」へ自動配信される。
 
+配布スクリプトは各工程の成否を実行記録（manifest）へ保存し、公開可能な工程名と結果を[共通表示Adapter](script-tooling.md)でstderrへ出力する。AIからの実行では`NIBBLE_UI_FORMAT=json`を指定する。表示を受け取れなかった場合も、manifestの完了状態とApple側の送信状況を確認してから次の操作を決める。
+
 [配布設計](decisions/0003-testflight-distribution.md)は構成と責務、[検証記録](testflight-validation.md)は対象ソース・結果・未確認事項を定義する。以下の初回設定を済ませ、リポジトリのルートでコマンドを実行する。
 
 ## 秘密情報の取り扱い

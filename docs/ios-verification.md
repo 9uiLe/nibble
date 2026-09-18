@@ -2,6 +2,8 @@
 
 [scripts/ios.py](../scripts/ios.py) は、iOS Simulatorに対するビルド・テスト・操作・画面記録の共通コマンドを提供する。Apple CLIでビルドと実行管理・撮影を行い、Nixで固定したsim-useで画面を読み取り操作する。構成と採用理由は [検証基盤の設計](decisions/0001-local-ios-verification.md) に記載する。
 
+工程・結果・保存先は[共通表示Adapter](script-tooling.md)からstderrへ表示する。doctor/devices/uiのJSONとcreateのUDIDはstdoutへ返す。AI・CIでは`NIBBLE_UI_FORMAT=json`を指定する。コマンド引数とネイティブ出力の詳細はrunのmanifestとログを参照する。
+
 ## 検証対象と前提
 
 共通driverは設定ファイルで検証対象を選ぶ。指定を省略すると、基盤を試験するVerificationAppを使用する。

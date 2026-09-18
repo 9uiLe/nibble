@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """nibble adapter: bind the product policy to the portable UI design API and CLI."""
 
+from script_ui import ui
 from pathlib import Path
 import sys
 
@@ -20,12 +21,14 @@ def check(root):
 def main(argv=None):
     args = list(sys.argv[1:] if argv is None else argv)
     if any(arg == '--config' or arg.startswith('--config=') for arg in args):
-        print('This adapter uses docs/design/policy.json; use the shared CLI for other policies.', file=sys.stderr)
+        ui.result(False, 'This adapter uses docs/design/policy.json; use the shared CLI for other policies.')
         return 2
     # The shared CLI takes an explicit root. This adapter owns the repository default.
     if '--root' not in args and not any(arg.startswith('--root=') for arg in args):
         args = ['--root', str(Path(__file__).resolve().parents[1])] + args
-    return _main(['--config', _POLICY] + args)
+    code = _main(['--config', _POLICY] + args)
+    ui.result(not code, 'UI design: ' + ('failed' if code else 'completed; see stdout JSON'))
+    return code
 
 
 if __name__ == '__main__':

@@ -5,6 +5,8 @@ import sys
 
 import yaml
 
+from script_ui import ui
+
 
 ALLOWED_RUNNER = "ubuntu-24.04"
 
@@ -58,11 +60,8 @@ def check_workflows(directory: Path) -> list[str]:
 def main() -> int:
     directory = Path(__file__).resolve().parents[1] / ".github" / "workflows"
     errors = check_workflows(directory)
-    if errors:
-        print("Workflow policy failed:\n" + "\n".join(errors), file=sys.stderr)
-        return 1
-    print(f"Workflow policy passed: every job explicitly uses {ALLOWED_RUNNER}.")
-    return 0
+    ui.check('Workflow policy', errors, f'every job explicitly uses {ALLOWED_RUNNER}')
+    return int(bool(errors))
 
 
 if __name__ == "__main__":

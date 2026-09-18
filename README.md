@@ -26,6 +26,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | UI要素の目的、配置理由、共通原則、画面構成、改善課題 | [UI設計](docs/design/README.md)、[設計監査](docs/design/audit.md) |
 | 説明アニメーションの意図、制作、iOS表示、他製品での利用 | [演出設計](docs/decisions/0004-rive-presentation.md)、[制作手順](app/Animations/README.md)、[RivePresentation](app/Packages/RivePresentation/README.md) |
 | UI設計基盤の責務、設定、実行と他製品での利用 | [共通ツールキット](tools/ui-design/README.md)、[基盤の測定記録](docs/ui-design-tooling-validation.md) |
+| 開発スクリプトの責務、出力、障害時の動作、依存の保守 | [スクリプトの設計](docs/script-tooling.md)、[基盤の検証記録](docs/hamio-validation.md) |
 | 対応OS、ツール管理、検証とPRの条件 | [開発ガイド](CONTRIBUTING.md) |
 | 非同期処理、タスク所有、View比較、アニメーション、Lint | [ライブラリの実装規約](docs/library-policy.md) |
 | 固定したSwift Package構成の確認結果と未実施条件 | [Swift Package構成の検証](docs/spm-validation.md) |

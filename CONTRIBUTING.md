@@ -47,9 +47,10 @@ nibbleはiOS向けのスニペットツール。作業中の文脈を保ちな�
 | actionlint / ShellCheck | workflowの構文・式・埋め込みシェルの検査 |
 | nixfmt | Nix定義の整形 |
 | Rive CLI 1.0.4（Apple Silicon macOS） | RMLの制作、画像・データ検証、unsigned `.riv`生成 |
+| hamio 0.1.0（macOS arm64 / Linux） | スクリプトの進捗・結果表示。対応環境と代替出力は[スクリプトの設計](docs/script-tooling.md)を参照 |
 | sim-use 0.14.0（macOS） | Simulatorの画面読取と操作 |
 
-nixpkgsは安定版`nixos-26.05`を入力とし、revisionをlockで固定する。Apple Silicon / IntelのmacOSと、ARM64 / x86_64のLinuxを宣言対象とする。nixpkgsのIntel Mac対応は26.05が最終版のため、入力更新時に対応範囲を確認する。
+nixpkgsは安定版`nixos-26.05`を入力とし、revisionをlockで固定する。Apple Silicon / IntelのmacOSと、ARM64 / x86_64のLinuxを宣言対象とする。nixpkgsのIntel Mac対応は26.05が最終版のため、入力更新時に対応範囲を確認する。現在のtree-sitter-language-packはIntel Mac非対応で、同環境の全検査は未成立。詳細は[環境別の検証記録](docs/hamio-validation.md)に記載する。
 
 Xcode・Apple Swift・SDK・Simulator runtime・署名情報はローカルMacで管理する。Nix開発シェルは`mkShellNoCC`を使い、Appleのコンパイラを別のCツールチェーンで置き換えない。sim-useは固定した公開アーカイブの署名とresource bundleを保持して配置する。
 
@@ -75,6 +76,12 @@ nix flake check --no-update-lock-file --print-build-logs
 共通検査はApple SDK・Simulatorを起動せず、GitHub認証やPRを要求しない。Nixの依存取得にはネットワークが必要になる。iOS実行は`ios.py`と対象別driver、runの照合は`check_evidence.py`、PR本文と全コミットの照合は`check_pr.py`を使う。
 
 Riveの制作と再生成は[アセット手順](app/Animations/README.md)、再利用する表示層は[RivePresentation](app/Packages/RivePresentation/README.md)に定義する。CLIはApple Silicon Macで使い、Ubuntuは生成契約を検査する。Editor、ログイン、署名サービスは本構成に必要ない。
+
+### スクリプトの表示とデータ
+
+[開発スクリプトの設計](docs/script-tooling.md)に従い、各CLIが処理順序、成否、実行記録を管理する。共通の接続層である`scripts/script_ui.py`は、公開可能な工程名と結果をhamioで整形する。進捗・診断は標準エラー出力（stderr）、結果JSONやPRコミット表は標準出力（stdout）へ出す。AI・CIは`NIBBLE_UI_FORMAT=json`を指定し、業務の成否をスクリプトの終了コードと結果データで判断する。
+
+hamioによる表示に失敗した場合は警告と代替JSONをstderrへ出し、業務処理の状態を保つ。配布の認証設定・引数・生ログ・例外全体は表示へ渡さない。配布スクリプトは`python3 -I`で起動し、自身に隣接する表示用モジュールを読み込む。
 
 ### 依存の追加・更新
 

@@ -48,6 +48,8 @@
 | runとコミット、媒体、レビュー申告の一致 | `scripts/check_evidence.py`。使用方法は[証跡とPRの検査](docs/review-evidence.md) |
 | PR本文と実際の全コミット | `scripts/check_pr.py`。PRイベントのCIでも検査し、本文編集で再実行 |
 
+スクリプトの進捗・結果は[共通表示Adapter](docs/script-tooling.md)からhamioへ渡す。エージェントは`NIBBLE_UI_FORMAT=json`を指定し、stdoutの結果データとstderrの表示を分ける。表示障害を業務の再試行理由にせず、秘密情報・生ログをAdapterへ渡さない。
+
 規約の追加時は、判定できる不変条件を既存の検査へ組み込み、違反例を拒否する回帰テストを用意する。構文やファイル配置だけでは判断できない事項を、自動検査済みと報告しない。
 
 GitHub Actionsの各ジョブは`runs-on: ubuntu-24.04`を直接指定する。macOS runnerはself-hosted・再利用workflow・別ジョブの間接起動を含め禁止。iOSのビルド・テスト・UI/UX・性能はローカルMacの責務であり、クラウド静的検査で代替しない。

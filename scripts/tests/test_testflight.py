@@ -35,6 +35,14 @@ def make_archive(archive, build='1'):
 
 class Fixture(unittest.TestCase):
     def setUp(self):
+        self.display_blocks = []
+        def display(blocks):
+            self.display_blocks.extend(blocks)
+            for block in blocks:
+                print(block.get('message', block.get('text', '')))
+        self.display_patch = patch.object(tf.ui, '_render', side_effect=display)
+        self.display_patch.start()
+        self.addCleanup(self.display_patch.stop)
         original_umask = os.umask(0o077)
         self.addCleanup(os.umask, original_umask)
         self.temp = tempfile.TemporaryDirectory()
@@ -381,6 +389,9 @@ class DeploymentTests(Fixture):
                 redirect_stdout(io.StringIO()), self.assertRaises(tf.DistributionError) as timeout_result:
             run.native('upload', ['native'], 10)
         self.assertNotIn('FAKE', str(timeout_result.exception))
+        self.assertNotIn('FAKE', json.dumps(self.display_blocks))
+        self.assertEqual([block['text'] for block in self.display_blocks],
+                         ['archive: 開始', 'archive: 未完了', 'upload: 開始', 'upload: 未完了'])
 
     def test_build_number_rejects_paths_flags_and_non_numeric_versions(self):
         for value in ['../1', '-1', '1.2.3.4', '1.01', 'a', '1' * 19]:

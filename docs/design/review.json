@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "summary": "Viewの比較、親入力の接続、状態寿命を独立した契約として照合。製品設計は全15型を入力の役割で分類し、値表示・Binding・操作・モデル参照・Rive Sessionの責務を定義する。画面構成と固定表示方針は製品台帳に一致する。",
+  "summary": "hamioを開発CLIの表示依存として追加。flake.lockのnibble側nixpkgs・sim-use・Riveのrevision維持と、アプリ・共通UI設計Moduleの無変更を照合。S/C/Fの製品仕様と配置に変更はない。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
-    "docs/decisions/0002-mvp-app.md"
+    "docs/design/foundations.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -66,7 +66,7 @@
     "docs/design/foundations.md": "25049803db175a7b8e2ee9e61aa0a671f721d9b3bc59cd05fde414a23f6deb87",
     "docs/design/policy.json": "f25f7cb1cc8a02fa0cb11b615467380c9668b1de0e62a260204a32365802b6cf",
     "docs/design/screens.md": "9867fe720c4a5f585f2112b3648e0f5b3c6155472f8c68cc976d6387b3dcaf09",
-    "flake.lock": "471ca03b2a52dc5ac12dd208c19c7e47f0ca85d04c577f3849e7bffa32c30eb8",
+    "flake.lock": "6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
     "tools/ui-design/README.md": "565109f0c7bad79fb35d535da795aefd7b5feef692a5c5ea6ad0432e544354a0",
     "tools/ui-design/benchmarks/measure.py": "ccc52385d51c9d4502fd585e9c78da188e319a197812ea24798c9e6552831da6",
