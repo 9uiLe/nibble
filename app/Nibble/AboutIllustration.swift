@@ -1,7 +1,9 @@
+import AppMacros
 import RivePresentation
 import RiveRuntime
 import SwiftUI
 
+@Equatable
 struct AboutIllustration: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var session: RiveSession?

@@ -335,11 +335,11 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 「nibbleについて」は一つのScrollViewに説明文とRiveの図を配置する。元の文章を残したまま複製を保存する流れを6.2秒周期で自動再生し、Reduce Motionでも同じ演出を使う。再生・停止ボタンは置かない。隣接する文章が意味と読み上げを担い、図はコピー・保存の実処理を行わない。配置と全要素の理由は[画面構成](../design/screens.md)と[部品台帳](../design/components.md)を参照する。
 
-## 値による表示更新の制御
+## Viewの比較と表示更新
 
 `SnippetRowContent`はタイトル・本文プレビュー・ピン状態を通常の値型`let`で受け取る。`@Equatable`と`@MainActor EquatableBodyView`で全入力の比較を生成し、同じstructの`equatableBody`に表示を定義する。
 
-操作closureと参照モデルは通常のViewである`SnippetRow`側へ置き、操作意図を`LibraryScreen`へ返す。比較対象の入力が等しい場合も、操作は現在の項目へ接続される。通知の観測は`LibraryNotice`で行い、一覧の内容と一時的なフィードバックの責務を分ける。
+全Viewは`@Equatable`を宣言する。closureと参照モデルは通常のViewである`SnippetRow`側へ置き、操作意図を`LibraryScreen`へ返す。通常のViewが親から入力を受け取る場合は、privateな`inputRevision`でBinding・操作・参照の差し替えを反映する。この比較値はSwiftUIのidentityや状態寿命を変更しない。値比較の対象となる表示入力が等しい場合も、操作は現在の項目へ接続される。具体的な宣言と比較除外の条件は[ライブラリ規約](../library-policy.md#viewの比較境界)に定義する。通知の観測は`LibraryNotice`で行い、一覧の内容と一時的なフィードバックの責務を分ける。
 
 標準部品はSwiftUIのenvironmentを参照する。比較View単体のテストでは、入力の変更・復元と、同じ入力での外観・文字サイズの更新を確認する。本体の固定表示方針は、比較Viewの契約とは別に画面の入口へ適用する。
 

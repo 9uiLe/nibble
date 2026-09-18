@@ -1,9 +1,14 @@
+import AppMacros
 import RiveRuntime
 import SwiftUI
 
 /// The runtime owns the frame clock. The host owns meaning, accessibility and motion preference.
+@Equatable
 public struct RiveCanvas: View {
-    private let session: RiveSession
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
+    @SkipEquatable private let session: RiveSession
     private let paused: Bool
     private let renderingRevision: Int
     @Environment(\.scenePhase) private var scenePhase

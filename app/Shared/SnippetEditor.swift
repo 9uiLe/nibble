@@ -1,8 +1,13 @@
+import AppMacros
 import SwiftUI
 import Tasking
 import ScopedAnimation
 
+@Equatable
 struct SnippetEditor: View {
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
     @State private var model: EditorModel
     @State private var confirmsDiscard = false
     @State private var tasks = ViewTaskStore()

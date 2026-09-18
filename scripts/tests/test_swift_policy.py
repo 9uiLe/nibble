@@ -99,17 +99,17 @@ class SwiftPolicyTests(unittest.TestCase):
         ]
         for body in bodies:
             with self.subTest(body=body):
-                self.assertTrue(violations('struct Screen: View { private let tasks = ViewTaskStore(); ' + body + ' }'))
+                self.assertTrue(violations('@Equatable struct Screen: View { private let inputRevision = UUID(); private let tasks = ViewTaskStore(); ' + body + ' }'))
 
     def test_explicit_start_boundaries_and_ui_events_are_allowed(self):
         sources = [
-            'struct Screen: View { private let tasks = ViewTaskStore(); func startTask() { tasks.start(id: id) { await model.load() } }; var body: some View { Button { startTask() } label: { Text("Load") } } }',
-            'struct Screen: SwiftUI.View { private let tasks = Tasking.ViewTaskStore(); func startTask() { self.tasks.start(id: id) { await load() } }; var body: some View { Text("x").onAppear { startTask() }.onChange(of: x) { if x { startTask() } }.onOpenURL { _ in startTask() }.sheet(item: $x, onDismiss: { startTask() }) { _ in Text("x") } } }',
+            '@Equatable struct Screen: View { private let inputRevision = UUID(); private let tasks = ViewTaskStore(); func startTask() { tasks.start(id: id) { await model.load() } }; var body: some View { Button { startTask() } label: { Text("Load") } } }',
+            '@Equatable struct Screen: SwiftUI.View { private let inputRevision = UUID(); private let tasks = Tasking.ViewTaskStore(); func startTask() { self.tasks.start(id: id) { await load() } }; var body: some View { Text("x").onAppear { startTask() }.onChange(of: x) { if x { startTask() } }.onOpenURL { _ in startTask() }.sheet(item: $x, onDismiss: { startTask() }) { _ in Text("x") } } }',
             '@MainActor final class ExampleTaskOwner { private let tasks = ViewTaskStore(); func startTask() { tasks.start(id: id) { await work() } }; func cancel() { tasks.cancelAll() } }',
             '@MainActor final class SlotTaskOwner { private let taskSlot = TaskSlot(); func startTask() async { await taskSlot.replace { await work() } } }',
             'class Screen: UIViewController { private let tasks = ViewTaskStore(); override func viewDidLoad() { startTask() }; func startTask() { tasks.start(id: id) { await work() } } }',
             '@Test func ownership() async { let tasks = ViewTaskStore(); tasks.start(id: id) { await work() }; tasks.cancelAll(); await tasks.waitForIdle() }',
-            'struct Screen: View { private let tasks = ViewTaskStore(); var body: some View { Button(action: { tasks.start(id: id) { await work() } }) { Text("x") } } }',
+            '@Equatable struct Screen: View { private let inputRevision = UUID(); private let tasks = ViewTaskStore(); var body: some View { Button(action: { tasks.start(id: id) { await work() } }) { Text("x") } } }',
         ]
         for source in sources:
             with self.subTest(source=source):
@@ -117,7 +117,7 @@ class SwiftPolicyTests(unittest.TestCase):
 
     def test_product_events_require_the_reviewed_explicit_callback_label(self):
         for view, label in [("SnippetRow", "perform"), ("LibraryNotice", "restore")]:
-            prefix = 'struct Screen: View { func startTask() { work() }; var body: some View { '
+            prefix = '@Equatable struct Screen: View { private let inputRevision = UUID(); func startTask() { work() }; var body: some View { '
             with self.subTest(view=view):
                 self.assertEqual(violations(prefix + f'{view}({label}: {{ startTask() }})' + ' } }'), [])
                 for expression in [f'{view} {{ startTask() }}', f'{view}(content: {{ startTask() }})',
@@ -163,7 +163,7 @@ class SwiftPolicyTests(unittest.TestCase):
         ]
         for body in bodies:
             with self.subTest(body=body):
-                self.assertTrue(violations('struct Screen: View { private let tasks = ViewTaskStore(); ' + body + ' }'))
+                self.assertTrue(violations('@Equatable struct Screen: View { private let inputRevision = UUID(); private let tasks = ViewTaskStore(); ' + body + ' }'))
 
     def test_slot_replace_is_checked_without_reserving_unrelated_replace(self):
         source = '@MainActor class ExampleTaskOwner { private let taskSlot = TaskSlot(); func save() async { await taskSlot.replace { await work() } } }'
@@ -174,7 +174,7 @@ class SwiftPolicyTests(unittest.TestCase):
     def test_task_boundaries_in_interpolations_are_not_ignored(self):
         for body in [r'func save() { let x = "value \(startTask())" }',
                      r'func save() { let x = #"value \#(startTask())"# }']:
-            self.assertTrue(violations('struct Screen: View { ' + body + ' }'))
+            self.assertTrue(violations('@Equatable struct Screen: View { private let inputRevision = UUID(); ' + body + ' }'))
 
     def test_isolated_deinit_is_parsed_and_still_checked(self):
         self.assertEqual(violations('actor Database { isolated deinit { close() } }'), [])

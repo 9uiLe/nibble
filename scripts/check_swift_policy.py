@@ -169,8 +169,8 @@ def violations(source):
                 message = "Use AnimationScope or explicit AnimationTrigger.animation; raw animation/transaction modifiers are prohibited."
         elif previous == "." and receiver == "UIView" and token.text in UIKIT_ANIMATION_MEMBERS:
             message = "Use ScopedAnimation for product animation; raw UIKit animation entry points are prohibited."
-        elif token.text in {"EquatableView", "SkipEquatable"} or (previous == "." and token.text in {"equatable", "equatableBody"}):
-            message = "Use AppMacros @Equatable + EquatableBodyView with all value inputs compared; direct gates, aliases and comparison exclusions are prohibited."
+        elif token.text == "EquatableView" or (previous == "." and token.text in {"equatable", "equatableBody"}):
+            message = "Use AppMacros @Equatable + EquatableBodyView with all value inputs compared; direct gates and aliases are prohibited."
         elif token.text == "func" and following == ["=", "="]:
             message = "Use generated equality (AppMacros for SwiftUI views); handwritten == witnesses are prohibited."
         if message:

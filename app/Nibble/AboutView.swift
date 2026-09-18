@@ -1,5 +1,7 @@
+import AppMacros
 import SwiftUI
 
+@Equatable
 struct AboutView: View {
     var body: some View {
         ScrollView {
@@ -50,9 +52,13 @@ struct AboutView: View {
     }
 }
 
+@Equatable
 private struct AboutSection<Content: View>: View {
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
     let title: LocalizedStringKey
-    @ViewBuilder let content: Content
+    @SkipEquatable @ViewBuilder let content: Content
 
     init(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) {
         self.title = title
@@ -69,11 +75,12 @@ private struct AboutSection<Content: View>: View {
     }
 }
 
-private struct AboutURL: View {
+@Equatable
+private struct AboutURL: @MainActor EquatableBodyView {
     let title: LocalizedStringKey
     let value: String
 
-    var body: some View {
+    var equatableBody: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.subheadline)

@@ -1,3 +1,4 @@
+import Observation
 import Foundation
 import UIKit
 import SwiftUI
@@ -157,5 +158,73 @@ extension UIIntegrationTests {
         // Light/dark appearance remains independent of the fixed accessibility traits.
         window.overrideUserInterfaceStyle = .dark
         #expect(try await pixels() != normal)
+    }
+}
+
+
+@MainActor @Observable
+private final class FilterSelection {
+    var value: LibraryFilter = .all
+    var binding: Binding<LibraryFilter> { Binding(get: { self.value }, set: { self.value = $0 }) }
+}
+
+extension UIIntegrationTests {
+    @Test @MainActor
+    func replacedCallbacksAndBindingsAreNotEqual() {
+        let item = SnippetSummary(id: UUID(), title: "コピー対象", preview: "本文", pinned: false, revision: 1)
+        var firstCalls = 0
+        var secondCalls = 0
+        let first = SnippetRow(item: item, isTrash: false, actionsAtLeading: false, perform: { _ in firstCalls += 1 })
+        let second = SnippetRow(item: item, isTrash: false, actionsAtLeading: false, perform: { _ in secondCalls += 1 })
+        #expect(first != second)
+        let copy = first
+        #expect(first == copy)
+        second.perform(.copy)
+        #expect(firstCalls == 0 && secondCalls == 1)
+
+        let left = FilterSelection()
+        let right = FilterSelection()
+        let oldFilter = LibraryFilterBar(selection: left.binding)
+        let newFilter = LibraryFilterBar(selection: right.binding)
+        #expect(oldFilter != newFilter)
+        newFilter.selection = .pinned
+        #expect(left.value == .all && right.value == .pinned)
+        #expect(LibrarySettingsView(actionButtonSide: .constant(.right), showTrash: {})
+                != LibrarySettingsView(actionButtonSide: .constant(.right), showTrash: {}))
+    }
+
+    @Test @MainActor
+    func mountedFilterTracksReplacementBindingWithoutRetainingTheOldSource() async throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let oldSource = FilterSelection()
+        let newSource = FilterSelection()
+        let host = UIHostingController(rootView: LibraryFilterBar(selection: oldSource.binding))
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 375, height: 120)
+        window.overrideUserInterfaceStyle = .light
+        window.rootViewController = host
+        window.isHidden = false
+        defer { window.isHidden = true; window.rootViewController = nil }
+
+        func pixels() async throws -> Data {
+            try await Task.sleep(for: .milliseconds(150))
+            host.view.setNeedsLayout()
+            host.view.layoutIfNeeded()
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            return try #require(UIGraphicsImageRenderer(bounds: host.view.bounds, format: format).image { _ in
+                host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+            }.pngData())
+        }
+
+        let original = try await pixels()
+        host.rootView = LibraryFilterBar(selection: newSource.binding)
+        #expect(try await pixels() == original)
+        oldSource.value = .drafts
+        #expect(try await pixels() == original)
+        newSource.value = .pinned
+        #expect(try await pixels() != original)
+        newSource.value = .all
+        #expect(try await pixels() == original)
     }
 }

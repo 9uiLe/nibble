@@ -1,7 +1,12 @@
+import AppMacros
 import SwiftUI
 
 /// Value-driven row; the screen decides how and when to execute each intent.
+@Equatable
 struct SnippetRow: View {
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
     enum Action { case edit, copy, pin, delete, restore, permanentlyDelete }
     let item: SnippetSummary
     let isTrash: Bool

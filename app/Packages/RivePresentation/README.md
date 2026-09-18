@@ -4,7 +4,7 @@ iOS 26.0以上のSwiftUIアプリで、ローカルの`.riv`を読み込み、�
 
 ## 依存とAPI世代
 
-[Package.swift](Package.swift)はSwift tools 6.0とrive-ios 6.27.0のexact指定を持つ。利用アプリは解決済みの依存をPackage.resolvedで共有する。
+[Package.swift](Package.swift)はSwift tools 6.0、rive-ios 6.27.0、swift-app-macros 0.3.0のexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンが必要である。利用アプリは解決済みの依存をPackage.resolvedで共有する。
 
 使用するのはApple runtime APIの`Worker`、`File`、`Rive`、`ViewModelInstance`とData Bindingである。Legacy APIやState Machineの旧inputsへの接続は提供しない。Data Bindingの型付きプロパティ操作はランタイムのAPIを直接使い、このパッケージで重複実装しない。
 
@@ -46,7 +46,9 @@ ResourceとSessionの生成・操作はMainActorで行う。生成APIはasyncで
 
 入力値やtriggerの書込みは演出への要求である。読み戻しは演出の状態を示し、保存・通信・コピーなどの業務処理の成功を判定するものではない。非同期処理の失敗、キャンセル後の結果を採用しない処理、再試行の条件はホストの責務とする。
 
-## 停止と再描画
+## 比較と停止・再描画
+
+Canvasは`@Equatable`を宣言し、privateな`inputRevision`でホストが渡し直したSessionと設定を反映する。Sessionは比較から除外する不変の参照であり、同じView値のコピーだけが同じrevisionを持つ。このrevisionは表示のidentityやSessionの寿命に使わない。
 
 Canvasは次のいずれかが成立するとフレーム進行を止める。
 

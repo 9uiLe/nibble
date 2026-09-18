@@ -1,3 +1,4 @@
+import AppMacros
 import SwiftUI
 
 enum ActionButtonSide: String, CaseIterable, Identifiable {
@@ -7,7 +8,11 @@ enum ActionButtonSide: String, CaseIterable, Identifiable {
     var title: String { self == .left ? "左側" : "右側" }
 }
 
+@Equatable
 struct LibrarySettingsView: View {
+    // Refresh parent-owned inputs even when the macro excludes their values.
+    private let inputRevision = UUID()
+
     @Binding var actionButtonSide: ActionButtonSide
     let showTrash: () -> Void
 
