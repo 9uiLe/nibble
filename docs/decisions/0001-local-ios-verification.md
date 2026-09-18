@@ -1,7 +1,7 @@
 # 0001：検証とレビュー基盤の設計
 
 - 状態：採用
-- 設計基準日：2026-09-16
+- 設計基準日：2026-09-18
 - 対象：ローカルMacでのiOS検証、証跡の管理、Ubuntu CI、PRの検査
 - 最低対応OS：iOS 26.0。実行検証の対象はiOS 26.5のみ
 
@@ -22,7 +22,7 @@ nibbleの検証基盤は、製品の正しさと使いやすさを、対象ソ�
 | ローカル実行 | [ios.py](../../scripts/ios.py)、対象別の操作driver | project・端末・プロセス・排他制御・成否・生成物を管理 |
 | 進捗と結果の表示 | [共通表示Adapter](../../scripts/script_ui.py)、hamio | 公開可能な工程と結果をstderrへ表示。業務の成否と実行記録は呼出元が所有 |
 | 証跡の照合 | [verification_evidence.py](../../scripts/verification_evidence.py)、[check_evidence.py](../../scripts/check_evidence.py) | ソース、実行記録、媒体、レビュー申告を照合 |
-| 共通検査 | [flake.nix](../../flake.nix)の5つのcheck | workflow、Nix、Swift規約、Python回帰テスト、文書を検査 |
+| 共通検査 | [flake.nix](../../flake.nix)の検査定義 | workflow、Nix、Swift規約、Python回帰テスト、UI設計、Riveアセット、文書を検査 |
 | PR検査 | [check_pr.py](../../scripts/check_pr.py) | 本文と実際の全コミット・変更ファイル・対象headのcheck runを照合 |
 | マージ条件 | [workflow](../../.github/workflows/workflow-policy.yml)、[ruleset](../../.github/main-ruleset.json) | Ubuntuで検査し、mainへの更新に`workflow-policy`の成功を要求 |
 
@@ -46,7 +46,7 @@ VerificationAppは入力・反映・リセットを持ち、文字列照合と�
 
 ## 依存と実行環境
 
-補助ツールは`flake.nix`に宣言し、`flake.lock`の同じrevisionをmacOSとLinuxで使う。Pythonとそのライブラリ、Git、GitHub CLI、actionlint、ShellCheck、nixfmt、macOS用sim-useをNixで管理する。開発シェルは`mkShellNoCC`を使用する。Xcode・Apple Swift・SDK・Simulator runtime・署名情報はMac側で管理する。
+補助ツールは`flake.nix`に宣言し、`flake.lock`の同じrevisionをmacOSとLinuxで使う。Pythonとそのライブラリ、Git、GitHub CLI、actionlint、ShellCheck、nixfmt、hamio、macOS用sim-use、Apple Silicon Mac用Rive CLIをNixで管理する。開発シェルは`mkShellNoCC`を使用する。Xcode・Apple Swift・SDK・Simulator runtime・署名情報はMac側で管理する。各ツールの対応環境は[開発ガイド](../../CONTRIBUTING.md#開発ツールの管理)を参照する。
 
 | 処理 | 使用するツール | 採用理由 |
 | --- | --- | --- |
@@ -59,12 +59,13 @@ VerificationAppは入力・反映・リセットを持ち、文字列照合と�
 | SDKと別プロセスの比較 | Apple `swiftc` / `simctl spawn` | iOSの型検査とSimulatorのSQLite動作を評価できる |
 | ソース・PRの照合 | Git / GitHub CLIとPython | コミット、ファイル内容、GitHubの記録を直接扱える |
 | Swift・文書の構文解析 | tree-sitter-language-pack / markdown-it-py | 言語とMarkdownの構造を解析できる |
+| 進捗と結果の整形 | hamio / Pythonの表示Adapter | 処理の成否と結果データを各CLIに保持し、人向けと機械向けの表示を共通化できる |
 
 sim-useはv0.14.0の公開アーカイブを非flake入力として固定する。アーカイブのSHA-256は`67e2ee29a7246272de8646e46664a93d9cebcace134094cfd3d07dfb82bda3e6`。lockの`narHash`はNixのファイル表現を識別する値であり、アーカイブそのもののSHA-256と区別する。配布バイナリのarm64 / x86_64 slice、Mach-O署名、実行ファイルに隣接するresource bundleを保持する。ライセンスはApache-2.0で、配布アプリへsim-useの内部frameworkをリンクしない。
 
 実行確認環境はApple Silicon Mac、Xcode 26.5、Apple Swift 6.3.2、Simulator SDK 26.5。研究用SQLite workerとSDK driverはarm64を指定する。端末はiPhone 17 Proや小画面用iPhone SE第3世代を使用し、実際のUDID・runtime version・OS build・Xcode選択先を記録する。
 
-表示の入出力、障害時の動作、Nix依存、秘密情報境界は[開発スクリプトの契約](../script-tooling.md)に定義する。
+進捗と診断はstderr、呼び出し元が読み取る結果データはstdoutへ出す。表示に失敗した場合は代替JSONを使い、処理側の終了コードと記録を保つ。入出力、障害時の動作、Nix依存、秘密情報境界は[開発スクリプトの設計](../script-tooling.md)に定義する。
 
 ## 実行の契約
 
@@ -124,7 +125,9 @@ PRは[テンプレート](../../.github/pull_request_template.md)の目的・背
 | `nix-format` | Nix定義の書式 |
 | `swift-library-policy` | 所有するSwiftソースの禁止API、タスク開始・所有、View比較の構文境界 |
 | `ios-tooling` | driver、証跡、PR、文書、Swift規約を検査するPythonの回帰テスト |
-| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、実装規約のSwift記載例 |
+| `ui-design` | 製品に依存しないUI設計Moduleの照合・設定・移設・別製品利用の回帰テスト |
+| `rive-assets` | RMLと配布用`.riv`のhash、Data Bindingの名前・型・参照 |
+| `documentation` | Markdownの相対リンク・見出し、Skillのメタデータ、Swift記載例、UI設計IDと実装・文書の照合 |
 
 共通検査はApple SDKやSimulatorを起動せず、ローカルとUbuntuで同じlockを使用する。Swift規約の字句・構文検査と、Swift compiler・製品テスト・画面評価の分担は[実装規約](../library-policy.md)に定義する。
 

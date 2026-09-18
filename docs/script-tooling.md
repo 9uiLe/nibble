@@ -1,76 +1,123 @@
-# 開発スクリプトの処理と表示
+# 開発スクリプトの設計
 
-開発スクリプトは検査・ビルド・操作・配布を実行し、hamioは進捗と結果を表示する。処理の成否、再試行、権限、実行記録は呼出元が管理する。共通の[表示Adapter](../scripts/script_ui.py)がPythonとhamio API v1を接続する。
+nibbleの開発スクリプトは、検査、ビルド、Simulator操作、アセット生成、配布を実行する。人と自動処理が同じコマンドを使えるよう、処理結果、進捗表示、詳細な実行記録をそれぞれ独立した出力として扱う。
 
-## 責務と依存方向
+進捗と結果の整形には、ターミナル表示ツールのhamioを使う。Python側の接続層である[表示Adapter](../scripts/script_ui.py)が、公開可能な文言をhamioのAPIへ渡す。処理順序、成否の判定、再試行、権限、記録の保存は各スクリプトが担当する。
 
-| 層 | 担当するもの | 入口 |
+この文書は構成と実装契約を定義する。コマンドの入口は[開発ガイド](../CONTRIBUTING.md)、測定条件・結果・未確認事項は[スクリプト基盤の検証記録](hamio-validation.md)を参照する。
+
+## 構成と責務
+
+| 構成 | 責務 | 実装 |
 | --- | --- | --- |
-| 純粋な検査・照合 | 違反、差分、集計値を返す。表示プロセスを起動しない | Swiftの構文規約、文書解析、証跡・PR照合、Rive契約 |
-| CLI・実行driver | 引数、処理順序、端末lock、ログ、結果ファイル、終了コード | `scripts/check_*.py`、`ios.py`、`testflight.py` |
-| 表示Adapter | 公開可能なメッセージをhamioの表示部品へ変換し、形式・タイムアウト・障害を扱う | `scripts/script_ui.py`の`Reporter` |
-| ターミナル表示 | JSON契約の検査、人向けの整形、機械向けの応答 | Nixで固定したhamio |
+| 解析・照合処理 | 入力を検査し、違反・差分・集計値を返す | Swift構文規約、文書解析、証跡・PR照合、Rive契約、UI設計Module |
+| CLI・実行driver | 引数、処理順序、端末の排他制御、ログ、結果ファイル、終了コードを管理する | `scripts/check_*.py`、`ios.py`、`testflight.py`など |
+| 表示Adapter | 表示内容を組み立て、形式の選択、応答の検査、表示障害への対処を行う | `scripts/script_ui.py`の`Reporter`と共有インスタンス`ui` |
+| 表示プロセス | 表示定義を検査し、人向けの整形またはJSON応答を返す | Nixで固定したhamioの`render`コマンド |
 
-`message`は通知、`result`は呼出元が判定した結果、`check`は検査結果と違反一覧、`step`は開始と終了を表示する。`step`の例外はそのまま呼出元へ戻し、表示には渡さない。表示処理から業務関数を呼び出すAPIや自動再試行は設けない。
+CLIは解析結果から終了コードを決め、必要なデータを保存し、表示Adapterへ要約を渡す。解析・照合処理は表示プロセスを起動しない。再利用可能な`tools/ui-design/`は独自のCLIと出力契約を持ち、nibble側の`check_ui_design.py`が表示を接続する。
 
-### スクリプトごとの適用範囲
+表示は工程の開始・終了と検査結果に限定する。単発の`render`を使うことで、表示用の常駐プロセス、更新キュー、入力待ちの管理を必要としない。高頻度の計測ループやアプリのView更新からは呼ばない。
 
-| 対象 | 表示とデータ |
+## 出力と成否の契約
+
+標準出力（stdout）は呼び出し元が受け取る結果データ、標準エラー出力（stderr）は進捗と診断に使う。JSONの項目、Markdown表、生成物、実行記録の形式は、それぞれのCLIが定義する。
+
+| 出力 | 内容 | 利用方法 |
+| --- | --- | --- |
+| stdout | 結果JSON、PRコミット表、作成した端末の識別子など | 対象CLIの形式に従って読み取る |
+| stderr | 公開可能な工程名、結果の要約、違反の説明、表示障害の警告 | 実行状況の把握に使う |
+| 終了コード | 呼び出したスクリプトの成功・失敗 | 自動処理の分岐に使う |
+| 結果ファイル・ログ | コマンド、所要時間、対象ソース、成否、生成物など | 検証・調査・再現の根拠に使う |
+
+hamioの応答はAdapterが捕捉し、表示分だけを親プロセスのstderrへ書き出す。hamio自身のstdoutが、スクリプトの結果データに混ざることはない。
+
+hamioの終了コード0と`status: ok`は「表示定義を処理できた」という意味である。検査の不合格も正常に表示できるため、業務の成否はスクリプトの終了コードと結果データで判断する。`Reporter.result()`が送る`result`部品の`success`には、呼び出し元が判定した成否を設定する。
+
+### 表示形式
+
+| 設定・条件 | 形式 |
 | --- | --- |
-| `check_docs.py`、`check_ui_design.py` | 結果・snapshotのJSONはstdout、要約は共通表示。共通UI設計Moduleはhamioに依存しない |
-| `check_swift_policy.py`、`check_workflows.py`、`check_pr.py` | 結果と診断は共通表示。`check_pr.py commits`のMarkdown表はstdout |
-| `check_evidence.py` | 照合結果JSONはstdout、記入欄作成と検査の要約は共通表示 |
-| `rive_assets.py` | 生成工程と契約検査の結果を共通表示。正本・生成物・manifestはファイルへ保存 |
-| `ios.py` | 各コマンドと録画の開始・終了、runの結果と保存先を共通表示。doctor/devices/uiはJSON、createはUDIDをstdoutへ返す。内部の画面観測はrun内のJSONに記録 |
-| `check-mvp-ui.py`、`check-interface-ui.py`、`check-about-ui.py`、`validation/check-research-ui.py` | 共通の`Run`を通じて工程表示と証跡を利用する |
-| `testflight.py` / `deploy-testflight.sh` | 固定した工程名・公開メタデータ・安全な診断だけを共通表示。archive-checkのJSONはstdout |
-| `benchmark-store.py`、`validation/check-research-sdk.py` | 測定後の進捗・コンパイル結果を共通表示。測定値・コマンド詳細は結果ファイルへ保存 |
-| `benchmark_docs.py`、`validation/check-research-processes.py`、`video_frames.swift` | 測定JSON・保存先・媒体を返す。計測中に表示Adapterを呼ばない |
-| `swift_task_boundary.py`、`swift_equatable_policy.py`、`verification_evidence.py`、`tools/ui-design/` | 再利用する解析・照合処理と独立CLI。製品固有の表示依存を追加しない |
+| `NIBBLE_UI_FORMAT=human` | 人向けの表示 |
+| `NIBBLE_UI_FORMAT=json` | hamioのJSON応答をstderrへ1件ずつ出力 |
+| 指定なし、stderrが端末（TTY）、`CI`が未設定または空 | 人向けの表示 |
+| 指定なし、非TTYまたは空でない`CI` | JSON |
 
-## stdout・stderr・成否
-
-stdoutは呼出元が受け取るデータ専用とする。hamioの応答も一度Adapterで捕捉し、進捗・結果・診断はstderrへ送る。既存の結果JSON、PRコミット表、生成物とmanifestの形式は各CLIが所有する。人向けの成功文や診断をstdoutから読む処理は、終了コードと結果JSONを使用する。
-
-| 条件 | 表示形式 |
-| --- | --- |
-| stderrがTTY、`CI`が未設定または空 | hamioの人向け表示 |
-| 非TTYまたはCI | hamioのJSON応答をstderrへ1件ずつ出力 |
-| `NIBBLE_UI_FORMAT=human` / `json` | 指定した形式を優先 |
-| hamio未導入・失敗・不正応答・3秒の期限超過 | 警告を1回出し、そのPythonプロセスでは`display: fallback`を持つJSONをstderrへ出力 |
-
-エージェントとCIは`NIBBLE_UI_FORMAT=json`を指定する。対話入力を待つフォームは使わない。`NO_COLOR`と`TERM=dumb`では色を付けない。fallbackは端末制御文字をJSONでエスケープし、hamioからの生のエラー出力は転送しない。
-
-hamioの終了コード0と`status: ok`は表示の成功を意味する。業務上の失敗は`result.success: false`と元のスクリプトの非ゼロ終了で表す。表示障害で、完了済みの署名やアップロードを再実行しない。端末の切断でも処理を再試行せず、呼出元のmanifestと終了状態を保つ。
-
-工程の境界で`render`を使う。高頻度の進捗更新や入力待ちがないため、常駐するstreamプロセスの所有・排他・後始末を増やさない。各表示は3秒以内で終了し、長い診断はUTF-8の上限を満たす部品へ分割する。表示の起動時間はコマンドの実測時間に含めず、エンドツーエンドの待ち時間には含まれる。
+エージェントとCIは`NIBBLE_UI_FORMAT=json`を指定する。Nixの検査定義もこの値を持つため、builderが呼び出し元の環境変数を引き継がなくてもJSONになる。人向け表示の色は、stderrがTTYで、`TERM`が`dumb`以外、`NO_COLOR`が未設定または空の場合だけ有効にする。
 
 ```sh
 nix develop
 mkdir -p artifacts
 NIBBLE_UI_FORMAT=json python3 scripts/check_docs.py \
-  > artifacts/docs-result.json 2> artifacts/docs-display.jsonl
-
+  > artifacts/docs-result.json 2> artifacts/docs-display.log
 NIBBLE_UI_FORMAT=human python3 scripts/check_swift_policy.py
 ```
 
-Nix自体の診断を表示JSONと混ぜないよう、上の例ではshellに入ってからPythonを実行する。表示形式の指定は、結果JSONのschemaや検査の成否を変更しない。
+この例はNixシェル内でPythonを実行し、Nix自体の診断とスクリプトの出力を分ける。`docs-result.json`は文書検査の結果、`docs-display.log`は表示の記録である。stderrには表示障害時のテキスト警告も含むため、常にJSONだけで構成されるとは限らない。
 
-## 秘密情報の境界
+## 表示APIと障害時の動作
 
-Adapterに渡してよいのは公開可能な文言だけである。任意の文字列から秘密を判別して除去する機能は持たない。認証を伴うコマンド引数、環境変数の辞書、認証設定、配布のネイティブログ・例外全体を渡さない。
+通常のCLIは共有インスタンス`ui`を利用する。その寿命はPythonプロセスに対応する。
 
-配布スクリプトは認証処理と保護されたログを所有する。hamio子プロセスへ継承する環境は`PATH`、`LANG`、`LC_ALL`、`TERM`、`NO_COLOR`だけとし、認証関連の環境変数やHOMEを渡さない。`python3 -I`による起動を維持し、配布スクリプトは自身に隣接するレビュー済みのAdapterを絶対位置から読み込む。cwdやPYTHONPATHをimport先に追加しない。
+| API | 呼び出し元の責務 | 表示する内容 |
+| --- | --- | --- |
+| `message(text, level)` | 公開可能な文言と重要度を選ぶ | 通知・診断 |
+| `result(success, text)` | 処理の成否を判定する | 成否と要約 |
+| `check(title, errors, summary)` | 違反一覧を作り、終了コードを決める | 検査結果と個々の違反 |
+| `step(label)` | context内で処理を実行し、失敗を例外として伝える | 開始、正常終了時の成功、例外時の未完了 |
 
-この境界は同一ユーザー内の運用・コード契約であり、OSによる秘密情報の読取権限分離ではない。[TestFlightの秘密情報規約](testflight.md)を合わせて適用する。
+`step`は例外の内容を表示せず、そのまま呼び出し元へ返す。戻り値や外部コマンドの終了コードを自動判定しないため、呼び出し元は成功条件を満たした時点でcontextを抜ける。録画では停止・ファイル確定・媒体検査までを工程に含める。
 
-## Nixでの導入と保守
+AdapterはAPI v1、`status: ok`、終了コード、選択した形式の出力を検査する。JSON形式では要求した表示部品と応答の一致も確認する。文字列は1,000 Unicode code pointずつに分け、hamioの文字列上限4,096 UTF-8 bytes以内に収める。`render`の呼び出しごとに3秒のタイムアウトを設ける。
 
-`flake.nix`のhamio inputと`flake.lock`で製品と配布定義を固定する。hamioのNix定義は公開バイナリ・checksum・SBOM・noticesのhashを照合し、展開した実行ファイルのhashも検査する。hamio側のnixpkgsは提供元のlockを維持し、nibble側のnixpkgsへ`follows`させない。
+| 状態 | 処理 |
+| --- | --- |
+| hamioがない、応答が不正、表示に失敗、タイムアウト、表示形式の設定が不正 | 固定文の警告を一度出し、その`Reporter`を代替出力へ切り替える |
+| 代替出力中 | hamioを起動せず、`display: fallback`と表示部品を持つJSONをstderrへ書く |
+| stderrへの書き込み失敗 | 表示を配送できなくても、処理側の例外・終了コードに影響させない |
 
-採用版はhamio 0.1.0 / API v1。パッケージ定義は`dd8c86c6923f692ef183152958147bf095e85daa`に固定する。製品の版とNix定義のrevisionは別であり、更新時には両方を確認する。Nix利用では`.hamio-version`や独立インストーラーによる二重管理を行わない。
+代替出力はUnicodeと端末制御文字をJSONでエスケープする。hamioの生のエラーや例外内容は転送しない。表示障害に対して業務処理を再試行しないため、署名・アップロードなどの実行済み操作が重複しない。端末を失った実行の成否は、呼び出し元の終了状態と保存した記録から確認する。
 
-hamioの提供対象はmacOS arm64、Linux arm64 / x86_64。Intel Macのシステム宣言は維持し、AdapterはJSON fallbackを利用する。ただし現在のtree-sitter-language-packはIntel Mac非対応であり、同環境のNix検査全体は成立していない。対応環境のNix回帰テストは実hamioがない場合に失敗し、fallbackだけの成功で導入を検証済みにしない。
+## スクリプトごとの接続
+
+| 対象 | 表示 | データと記録 |
+| --- | --- | --- |
+| `check_docs.py`、`check_ui_design.py` | 検査の要約 | 結果・snapshotのJSONをstdoutへ出力 |
+| `check_swift_policy.py`、`check_workflows.py`、`check_pr.py` | 結果と診断 | `check_pr.py commits`はMarkdown表をstdoutへ出力 |
+| `check_evidence.py` | 記入欄作成と検査の要約 | 照合結果JSONをstdoutへ出力 |
+| `rive_assets.py` | 生成工程と契約検査の結果 | 制作ソース、生成物、manifestをファイルへ保存 |
+| `ios.py` | コマンド・録画の開始と終了、実行結果と保存先 | `doctor`・`devices`・`ui`はJSON、`create`はUDIDをstdoutへ出力。内部の画面観測は実行ごとのJSONに保存 |
+| 製品・研究のUI操作driver | `ios.Run`の工程表示 | `Run`が対象ソース・端末・コマンド・媒体を記録 |
+| `testflight.py` / `deploy-testflight.sh` | 固定した工程名・公開メタデータ・安全な診断 | `archive-check`のJSONはstdout。認証を伴う生ログは保護された保存先 |
+| `benchmark-store.py`、`validation/check-research-sdk.py` | 測定後の進捗・コンパイル結果 | 測定値とコマンド詳細は結果ファイル |
+| `benchmark_docs.py`、`validation/check-research-processes.py`、`video_frames.swift` | 計測中のAdapter呼び出しなし | 各CLIの契約に従い、測定JSON・保存先・媒体を返す |
+
+iOSでは1回の実行をrunと呼び、manifestに条件・コマンド・成否・生成物を記録する。工程名は実行記録と対応させる。表示プロセスの起動時間はネイティブコマンドの所要時間から分離し、run全体の経過時間には含める。端末の排他制御、ソースと媒体のhash、証跡の照合は[検証基盤の契約](decisions/0001-local-ios-verification.md)に従う。
+
+## 秘密情報の扱い
+
+表示Adapterに渡す文字列は、呼び出し元が公開可能と判断したものに限る。Adapterは秘密情報を自動検出・除去しない。認証付きコマンドの引数、環境変数の辞書、認証設定、配布の生ログや例外全体は表示へ渡さない。
+
+hamioへ渡す環境変数は`PATH`、`LANG`、`LC_ALL`、`TERM`、`NO_COLOR`に限定する。配布スクリプトは`python3 -I`で起動し、自身に隣接するレビュー済みのAdapterを絶対パスから読み込む。作業ディレクトリや`PYTHONPATH`をimport先に使わない。
+
+認証処理と保護されたログは配布スクリプトが管理する。この境界は同一ユーザー内の運用・コード契約であり、OSの読取権限を分離するものではない。エージェントによる直接参照の禁止と実行手順は[TestFlightの秘密情報規約](testflight.md)に従う。
+
+## 依存と保守
+
+hamioは開発用の依存であり、アプリには組み込まない。`flake.nix`がパッケージを選択し、`flake.lock`が依存のrevisionを固定する。hamio側のnixpkgsは提供元のlockで独立して固定し、nibbleのツール環境へ依存を合わせる`follows`は使用しない。
+
+| 項目 | 採用構成 |
+| --- | --- |
+| hamio本体 | 0.1.0 |
+| 表示API | v1の`render` |
+| Nix定義 | `dd8c86c6923f692ef183152958147bf095e85daa` |
+| 提供対象 | macOS arm64、Linux arm64 / x86_64 |
+| 固定情報 | 公開バイナリ、checksum、構成部品表（SBOM）、ライセンス告知、展開後の実行ファイルのhash |
+| ライセンス資料 | hamioのMITと同梱部品の告知をNix store内の`share/hamio/`に配置 |
+
+Intel Mac向けのhamioパッケージはない。Adapter単体は代替JSON出力を利用できるが、nibbleのNix環境全体にはtree-sitter-language-packのIntel Mac非対応という制約がある。対応OS・CPUの宣言、構成評価、実行結果は[環境別の検証記録](hamio-validation.md)で区別する。
+
+依存の更新はNixで行う。hamio本体の版とNix定義のrevisionを照合し、API、対応OS・CPU、固定hash、ライセンス、lock差分をレビューする。
 
 ```sh
 nix flake update hamio
@@ -79,18 +126,20 @@ nix develop --command hamio capabilities
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-更新時は製品版、API、対象OS・CPU、固定hash、同梱ライセンス、lock差分、成功・業務失敗・表示障害・秘密情報境界を確認する。取り消す場合はレビュー済みのlockへ戻す。hamio本体のMITと同梱部品のnoticesはNix store内の`share/hamio/`へ保持される。これは開発ツールの依存であり、Swift Package構成や製品アセットの構成は変更しない。
+`.hamio-version`や独立インストーラーによる別管理は行わない。取り消しは、レビュー済みの依存宣言とlockを一組として戻す。
 
-## 検査の保証範囲
+## 変更時の検証
 
-[表示のテスト](../scripts/tests/test_script_ui.py)はAPI応答、stdoutの純粋性、元の終了コード、文字列上限、表示障害、環境の制限、隔離import、実hamioによるCLI接続を検査する。配布の回帰テストは一時ディレクトリの偽認証情報だけを使う。実際の署名・送信成功は、このテストから推定しない。
+表示に関係する変更では、[表示の回帰テスト](../scripts/tests/test_script_ui.py)で正常表示、処理の失敗、表示障害、stdoutの結果、終了コード、文字列上限、子プロセスの環境を確認する。hamioを提供する環境のNix検査では実バイナリを必須にし、代替出力だけで合格しない。
 
-表示を変更しても、iOSの端末lock、コマンド詳細・所要時間、ソース・媒体hash、証跡の照合条件は[検証基盤の契約](decisions/0001-local-ios-verification.md)に従う。確認した実行環境と未実施条件は[導入検証](hamio-validation.md)に記録する。
+CLIの接続を変更した場合は、その呼び出し元も検証する。iOSの実行管理・撮影はVerificationAppのテストとsmokeで確認する。配布の秘密情報境界は、一時ディレクトリの偽認証情報で検査する。実際の署名や送信の成立には、配布用の検証が別に必要となる。
 
-## 一次資料
+表示のコストは同じ環境・出力先・回数で測り、処理本体の時間と分けて記録する。測定値や実行可能な環境は[検証記録](hamio-validation.md)を参照する。
 
-2026-09-18に、固定したNix定義と公開版0.1.0の実行で確認した。
+## 参照する上流契約
+
+確認日：2026-09-18。対象：hamio 0.1.0 / API v1、上記のNix定義revision。
 
 - [hamioのAPI契約](https://github.com/9uiLe/hamio/blob/dd8c86c6923f692ef183152958147bf095e85daa/docs/api.md)
 - [hamioのNix導入手順](https://github.com/9uiLe/hamio/blob/dd8c86c6923f692ef183152958147bf095e85daa/docs/distribution.md#nix-で導入する)
-- [固定した公開資産とhash](https://github.com/9uiLe/hamio/blob/dd8c86c6923f692ef183152958147bf095e85daa/nix/release.json)
+- [公開資産とhashの固定情報](https://github.com/9uiLe/hamio/blob/dd8c86c6923f692ef183152958147bf095e85daa/nix/release.json)
