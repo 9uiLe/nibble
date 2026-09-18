@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "S09・C46の入力キーに、短い動作名「入力」をsystemBlueと淡い面で常設する。タイトル・本文・動作名は同じButton、コピーは別Buttonであることをコードと設計資料へ照合。状態・Task・権限は不変。Releaseビルド成功。今回の実画面はSimulatorのソフトウェアキーボード非表示とウィンドウフォーカス失敗により未確認で、旧runの画像を新ラベルの評価に流用しない。",
+  "summary": "S09・C46のタイトル・本文・青い入力ラベルを一つのButton、コピーを別Buttonとする設計をコードへ照合。Release run 20260918T155157Z-keyboard-ui-c98d69でライト・ダーク、ラベル・本文から一度の挿入、93 byteの原文、コピー拒否、閉じる・入力欄からの再表示を確認。原本画像と指定3時刻の録画フレームを閲覧。横向き・狭幅・複数ページ・性能・利用者の識別性は未評価。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
