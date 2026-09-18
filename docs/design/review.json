@@ -1,11 +1,10 @@
 {
   "version": 1,
-  "summary": "S09・C46のタイトル・本文・青い入力ラベルを一つのButton、コピーを別Buttonとする設計をコードへ照合。Release run 20260918T155157Z-keyboard-ui-c98d69でライト・ダーク、ラベル・本文から一度の挿入、93 byteの原文、コピー拒否、閉じる・入力欄からの再表示を確認。原本画像と指定3時刻の録画フレームを閲覧。横向き・狭幅・複数ページ・性能・利用者の識別性は未評価。",
+  "summary": "S09・S10とC45〜C48をKeyboardView・KeyboardViewController・KeyboardGuideViewへ照合。全幅の標準セグメント、6ptの間隔、一つの入力Buttonと独立コピー、固定した上下操作と伸縮する中央を採用仕様として記述。読取専用DB、要求世代と操作ID、入力先・権限の照合、公開APIと製品判断を分けて説明した。製品コードは変更していない。実行済みの画像・原文照合・配布と未実施の横向き・狭幅・複数ページ・性能は検証記録へ対応付けた。",
   "references": [
+    "docs/decisions/0005-snippet-keyboard.md",
     "docs/design/screens.md",
     "docs/design/components.md",
-    "docs/design/foundations.md",
-    "docs/decisions/0005-snippet-keyboard.md",
     "research/08-keyboard-interface.md"
   ],
   "files": {
@@ -69,7 +68,7 @@
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
     "docs/decisions/0002-mvp-app.md": "21d2786ad54cc9cc5681dceeb56b81c945ff579159712e6e77c21e0b59b116f7",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
-    "docs/decisions/0005-snippet-keyboard.md": "0edf12ce034a78ae8b1c5c0746117df1d70ec3d2f2eba8f68ba05094b0155623",
+    "docs/decisions/0005-snippet-keyboard.md": "9873fbcb0d7c62cd489843e281346aceaecda6ffaf7f932435f9c594b65701f9",
     "docs/design/README.md": "ef3e328527a691d0126fb04c1cc1222f3d0a66c811a5d13c74419f91ea43c020",
     "docs/design/audit.md": "e4fc26e2eb87505f8f51d5676df5f882daefd33b5763baa75885770ed7575b4e",
     "docs/design/components.md": "a65d867eac7ff398920fab758501c6378ebf38a61c1466359b45fa883cae9993",
@@ -78,10 +77,10 @@
     "docs/design/decisions/0002-fixed-interface.md": "fa9deae1184f7835595784ede9fcf52723236c1cbcf45f07d3d50d387f94f2de",
     "docs/design/foundations.md": "c5321f81a7de98c1bcaa652cba27b8c01f8c9a6bd79a831f6cfbe5f4b1a15b31",
     "docs/design/policy.json": "c283e8abdb39579d295e37fe5debda45e072f85ce600ffd0240e1a76093981dc",
-    "docs/design/screens.md": "586100a7b8f07e0926bf709e4c41bc2d18bd7674f9d827cf4129fe04c85782c4",
+    "docs/design/screens.md": "ea52da4f5eb8f41e8c739ce0af281e11fad0af7067640c0a9cc9a589e9d01cda",
     "flake.lock": "6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
-    "research/08-keyboard-interface.md": "3c0f0d390d32b7d13b8ab0efb8bcbb7472f1e7e50783746752c1a9ecec221e4b",
+    "research/08-keyboard-interface.md": "79165a54687a89c03f97d16b4c59218845b834c7299bffa568abd7f9e4bbc387",
     "tools/ui-design/README.md": "565109f0c7bad79fb35d535da795aefd7b5feef692a5c5ea6ad0432e544354a0",
     "tools/ui-design/benchmarks/measure.py": "ccc52385d51c9d4502fd585e9c78da188e319a197812ea24798c9e6552831da6",
     "tools/ui-design/default.nix": "785defe5f5d45434d35fe52b9e4a9d5edc3357a229c7aab30882a80797fcd7f0",
