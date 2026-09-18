@@ -20,6 +20,7 @@ nibbleの検証基盤は、製品の正しさと使いやすさを、対象ソ�
 | 開発規約 | [開発ガイド](../../CONTRIBUTING.md)、[実装規約](../library-policy.md) | プロダクトの判断基準、コードの契約、検証とPRの完了条件を定義 |
 | エージェントの入口 | [AGENTS.md](../../AGENTS.md)、[共有Skill](../../.agents/skills/nibble-verification/SKILL.md) | 判断基準と作業手順を参照可能にする |
 | ローカル実行 | [ios.py](../../scripts/ios.py)、対象別の操作driver | project・端末・プロセス・排他制御・成否・生成物を管理 |
+| 進捗と結果の表示 | [共通表示Adapter](../../scripts/script_ui.py)、hamio | 公開可能な工程と結果をstderrへ表示。業務の成否と実行記録は呼出元が所有 |
 | 証跡の照合 | [verification_evidence.py](../../scripts/verification_evidence.py)、[check_evidence.py](../../scripts/check_evidence.py) | ソース、実行記録、媒体、レビュー申告を照合 |
 | 共通検査 | [flake.nix](../../flake.nix)の5つのcheck | workflow、Nix、Swift規約、Python回帰テスト、文書を検査 |
 | PR検査 | [check_pr.py](../../scripts/check_pr.py) | 本文と実際の全コミット・変更ファイル・対象headのcheck runを照合 |
@@ -62,6 +63,8 @@ VerificationAppは入力・反映・リセットを持ち、文字列照合と�
 sim-useはv0.14.0の公開アーカイブを非flake入力として固定する。アーカイブのSHA-256は`67e2ee29a7246272de8646e46664a93d9cebcace134094cfd3d07dfb82bda3e6`。lockの`narHash`はNixのファイル表現を識別する値であり、アーカイブそのもののSHA-256と区別する。配布バイナリのarm64 / x86_64 slice、Mach-O署名、実行ファイルに隣接するresource bundleを保持する。ライセンスはApache-2.0で、配布アプリへsim-useの内部frameworkをリンクしない。
 
 実行確認環境はApple Silicon Mac、Xcode 26.5、Apple Swift 6.3.2、Simulator SDK 26.5。研究用SQLite workerとSDK driverはarm64を指定する。端末はiPhone 17 Proや小画面用iPhone SE第3世代を使用し、実際のUDID・runtime version・OS build・Xcode選択先を記録する。
+
+表示の入出力、障害時の動作、Nix依存、秘密情報境界は[開発スクリプトの契約](../script-tooling.md)に定義する。
 
 ## 実行の契約
 

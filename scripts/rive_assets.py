@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Build pinned, script-free Rive assets; check source/output freshness without Apple tools."""
+from script_ui import ui
+
 import argparse
 import hashlib
 import json
@@ -104,13 +106,14 @@ def main():
             if version != manifest["cli_version"]:
                 raise ValueError(f"Expected CLI {manifest['cli_version']}, got {version}")
             for asset in manifest["assets"]:
-                build_asset(root, asset, cli)
+                with ui.step("Rive asset build"):
+                    build_asset(root, asset, cli)
             path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
         for asset in manifest["assets"]:
             check_asset(root, asset)
-        print(f"Rive: {len(manifest['assets'])} source/output contracts verified")
+        ui.result(True, f"Rive: {len(manifest['assets'])} source/output contracts verified")
     except (OSError, ValueError, KeyError, ET.ParseError, subprocess.SubprocessError) as error:
-        print(f"Rive validation failed: {error}", file=sys.stderr)
+        ui.result(False, f"Rive validation failed: {error}")
         return 1
     return 0
 

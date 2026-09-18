@@ -1,5 +1,7 @@
 # TestFlightで本人へ配布する
 
+工程と公開結果は[hamioによる共通表示](script-tooling.md)でstderrへ出力する。AIからの実行では`NIBBLE_UI_FORMAT=json`を指定する。表示障害で配布を再実行せず、manifestの完了状態とApple側の送信状況を確認する。
+
 ## 配布の流れ
 
 コミット済みのnibbleをローカルMacでビルド・署名し、App Store Connectへ送信する。内部テストグループ「本人用」には、Apple Developerアカウントと配布端末を管理する開発者1名を登録する。この開発者を「配布担当者」と呼ぶ。アップロードした各ビルドは、Apple側で利用可能になると「本人用」へ自動配信される。

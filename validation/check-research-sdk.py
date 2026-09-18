@@ -2,8 +2,12 @@
 import json
 import pathlib
 import subprocess
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from script_ui import ui
+
 OUT = ROOT / "artifacts/research/sdk"
 OUT.mkdir(parents=True, exist_ok=True)
 results = []
@@ -19,6 +23,6 @@ for sdk, target in [("iphonesimulator", "arm64-apple-ios26.0-simulator"), ("ipho
         name = f"{sdk}-{'extension' if extension else 'app'}"
         (OUT / f"{name}.log").write_text(result.stdout + result.stderr)
         results.append({"case": name, "argv": argv, "exit": result.returncode})
-        print(name, result.returncode, flush=True)
+        ui.result(result.returncode == 0, name)
 (OUT / "results.json").write_text(json.dumps(results, indent=2))
 raise SystemExit(any(result["exit"] for result in results))

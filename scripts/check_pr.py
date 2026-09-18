@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from check_evidence import remote_url
+from script_ui import ui
 
 SECTIONS = ['目的・背景', 'アウトカム', '変更内容', 'スクリーンショット・画面録画', '検証結果', 'レビュー前の確認']
 SHA = r'[a-f0-9]{40}'
@@ -194,13 +195,10 @@ def main(argv=None):
             if args.snapshot_out:
                 args.snapshot_out.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + '\n')
         errors = check(snapshot, args.complete, getattr(args, 'expected_head', None), getattr(args, 'check_ci', False))
-        if errors:
-            print('\n'.join('PR policy: ' + e for e in errors), file=sys.stderr)
-            return 1
-        print(f'PR policy passed: {len(snapshot["commits"])} commits; body and evidence structure checked.')
-        return 0
+        ui.check('PR policy', errors, f'{len(snapshot["commits"])} commits; body and evidence structure checked')
+        return int(bool(errors))
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
-        print(f'PR policy failed: {error}', file=sys.stderr)
+        ui.result(False, f'PR policy failed: {error}')
         return 1
 
 

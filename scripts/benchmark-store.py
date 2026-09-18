@@ -11,6 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from ios import select_device
+from script_ui import ui
 
 
 def run(argv):
@@ -70,7 +71,7 @@ def main():
         result.update(index=index, variant=variant)
         manifest["runs"].append(result)
         (output / "results.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
-        print(f"{index + 1}/6: {variant}", flush=True)
+        ui.message(f"{index + 1}/6: {variant}")
     manifest["status"] = "passed"
     (output / "results.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 

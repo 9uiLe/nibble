@@ -2,6 +2,7 @@
   description = "nibble development and CI tools";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  inputs.hamio.url = "github:9uiLe/hamio";
   inputs.sim-use = {
     url = "file+https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz";
     flake = false;
@@ -17,6 +18,7 @@
       nixpkgs,
       sim-use,
       rive-cli,
+      hamio,
       ...
     }:
     let
@@ -27,6 +29,11 @@
         "x86_64-linux"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+      # Keep the existing system declaration; hamio has no x86_64-darwin binary.
+      hamioFor =
+        pkgs:
+        pkgs.lib.optional (builtins.hasAttr pkgs.stdenv.hostPlatform.system hamio.packages)
+          hamio.packages.${pkgs.stdenv.hostPlatform.system}.hamio;
       simUseFor =
         pkgs:
         pkgs.stdenvNoCC.mkDerivation {
@@ -84,6 +91,7 @@
           pkgs.gh
           pkgs.git
         ]
+        ++ hamioFor pkgs
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ]
         ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-darwin") [ (riveCLIFor pkgs) ];
     in
@@ -97,15 +105,17 @@
       formatter = forAllSystems (pkgs: pkgs.nixfmt);
 
       checks = forAllSystems (pkgs: {
-        rive-assets = pkgs.runCommand "nibble-rive-assets" { nativeBuildInputs = [ (pythonFor pkgs) ]; } ''
-          python3 ${./.}/scripts/rive_assets.py check --root ${./.}
-          touch "$out"
-        '';
+        rive-assets =
+          pkgs.runCommand "nibble-rive-assets" { nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs; }
+            ''
+              python3 ${./.}/scripts/rive_assets.py check --root ${./.}
+              touch "$out"
+            '';
 
         documentation =
           pkgs.runCommand "nibble-documentation"
             {
-              nativeBuildInputs = [ (pythonFor pkgs) ];
+              nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs;
             }
             ''
               python3 ${./.}/scripts/check_docs.py --root ${./.}
@@ -114,7 +124,7 @@
         swift-library-policy =
           pkgs.runCommand "nibble-swift-library-policy"
             {
-              nativeBuildInputs = [ (pythonFor pkgs) ];
+              nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs;
             }
             ''
               python3 ${./scripts}/check_swift_policy.py --root ${./.}
@@ -127,7 +137,9 @@
                 (pythonFor pkgs)
                 pkgs.git
                 pkgs.shellcheck
-              ];
+              ]
+              ++ hamioFor pkgs;
+              NIBBLE_REQUIRE_HAMIO = if hamioFor pkgs == [ ] then "0" else "1";
             }
             ''
               cp -R ${./scripts} scripts
@@ -158,6 +170,7 @@
               mkdir -p .github scripts
               cp -R ${./.github/workflows} .github/workflows
               cp ${./scripts/check_workflows.py} scripts/check_workflows.py
+              cp ${./scripts/script_ui.py} scripts/script_ui.py
               python3 scripts/check_workflows.py
               shopt -s nullglob
               actionlint .github/workflows/*.yml .github/workflows/*.yaml

@@ -57,7 +57,7 @@ class DesignAdapterTests(unittest.TestCase):
         (self.root / 'docs/design/policy.json').unlink()
         result = self.run_command('check_docs.py')
         self.assertEqual(result.returncode, 1)
-        self.assertIn('policy.json', result.stdout)
+        self.assertIn('policy.json', result.stderr)
 
 
 if __name__ == '__main__':

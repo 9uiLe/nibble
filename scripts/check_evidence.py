@@ -12,6 +12,7 @@ import sys
 import subprocess
 from urllib.parse import urlsplit
 
+from script_ui import ui
 from verification_evidence import differences, digest, inputs, media_hashes, revision_hashes
 
 
@@ -155,7 +156,7 @@ def main(argv=None):
             with (args.run / 'review.json').open('x') as stream:
                 json.dump(init_review(args.run), stream, ensure_ascii=False, indent=2)
                 stream.write('\n')
-            print('Created review.json; fill only actual observations and access checks.')
+            ui.message('Created review.json; fill only actual observations and access checks.')
         else:
             revision, hashes = revision_hashes(args.root, args.ref)
             manifest = check_run(args.run, hashes)
@@ -165,9 +166,10 @@ def main(argv=None):
                 (args.run / 'REVIEW.md').write_text(render_review(manifest, review, revision))
             print(json.dumps({'revision': revision, 'run': str(args.run), 'integrity': 'passed',
                               'review_declarations': 'not checked' if args.integrity_only else 'valid'}, ensure_ascii=False))
+            ui.result(True, 'Evidence integrity passed' if args.integrity_only else 'Evidence integrity and review declarations passed')
         return 0
     except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
-        print(f'Evidence check failed: {error}', file=sys.stderr)
+        ui.result(False, f'Evidence check failed: {error}')
         return 1
 
 

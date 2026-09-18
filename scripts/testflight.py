@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
 import fcntl
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,13 @@ import stat
 import subprocess
 import sys
 import uuid
+
+
+# -I excludes cwd/PYTHONPATH. Load only the reviewed sibling, without widening sys.path.
+_ui_spec = importlib.util.spec_from_file_location('nibble_script_ui', Path(__file__).resolve().with_name('script_ui.py'))
+_ui_module = importlib.util.module_from_spec(_ui_spec)
+_ui_spec.loader.exec_module(_ui_module)
+ui = _ui_module.ui
 
 
 class DistributionError(Exception):
@@ -215,16 +223,14 @@ class Deployment:
     def native(self, stage, command, timeout):
         self.manifest['stage'] = stage
         self.save()
-        print(stage + ': 開始', flush=True)
-        with (self.logs / (stage + '.log')).open('xb') as log:
+        with ui.step(stage), (self.logs / (stage + '.log')).open('xb') as log:
             os.chmod(log.name, 0o600)
             try:
                 result = subprocess.run(command, cwd=self.root, env=apple_environment(),
                                         stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
             except (OSError, subprocess.TimeoutExpired):
                 raise DistributionError(stage + 'を完了できませんでした。本人が保護されたログと送信状況を確認してください。') from None
-        require(result.returncode == 0, stage + 'に失敗しました。本人が保護されたログを確認してください。')
-        print(stage + ': 成功', flush=True)
+            require(result.returncode == 0, stage + 'に失敗しました。本人が保護されたログを確認してください。')
 
     def unchanged(self):
         require(source_commit(self.root) == self.commit, '実行中にソースが変わりました。配布を停止しました。')
@@ -264,8 +270,8 @@ class Deployment:
             require(any(exported.glob('*.ipa')), 'export成功後のIPAがありません。本人がログを確認してください。')
         self.manifest['completed'] = True
         self.save()
-        print('完了: version=' + info['version'] + ' build=' + self.build, flush=True)
-        print('IPA書き出しのみ。Appleへは送信していません。' if self.dry_run else
+        ui.result(True, '完了: version=' + info['version'] + ' build=' + self.build)
+        ui.message('IPA書き出しのみ。Appleへは送信していません。' if self.dry_run else
               'アップロード成功。App Store Connectで処理完了と「本人用」への自動配信を確認してください。')
 
 
@@ -309,16 +315,16 @@ def main():
         except (OSError, ValueError, DistributionError):
             raise DistributionError('認証設定は利用できません。本人がdocs/testflight.mdの初回設定を確認してください。') from None
         if args.check_config:
-            print('認証設定: 利用可能（値・鍵の内容は非表示。Appleへの接続は未確認）')
+            ui.result(True, '認証設定: 利用可能（値・鍵の内容は非表示。Appleへの接続は未確認）')
             return 0
         root = Path(__file__).resolve().parents[1]
         with deployment_lock(root):
             Deployment(root, Path.home(), values, build_number(args.build_number), args.dry_run).execute()
         return 0
     except DistributionError as error:
-        print(str(error), file=sys.stderr)
+        ui.result(False, str(error))
     except (Exception, KeyboardInterrupt):
-        print('配布を完了できませんでした。本人が設定・保護されたログ・送信状況を確認してください。', file=sys.stderr)
+        ui.result(False, '配布を完了できませんでした。本人が設定・保護されたログ・送信状況を確認してください。')
     return 1
 
 

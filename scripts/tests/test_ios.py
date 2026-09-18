@@ -87,6 +87,9 @@ class ResultTests(unittest.TestCase):
 
 class ProcessTests(unittest.TestCase):
     def setUp(self):
+        display = patch.object(ios, "ui")
+        display.start()
+        self.addCleanup(display.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.run = ios.Run.__new__(ios.Run)

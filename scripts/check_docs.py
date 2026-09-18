@@ -13,6 +13,7 @@ from markdown_it import MarkdownIt
 import yaml
 
 import check_ui_design
+from script_ui import ui
 
 from check_swift_policy import GENERATED, violations
 
@@ -131,9 +132,10 @@ def main():
         report['ui_design'] = {key: value for key, value in design.items() if key != 'errors'}
         report['errors'].extend('UI design: ' + error for error in design['errors'])
         print(json.dumps(report, ensure_ascii=False, indent=2))
+        ui.check('Documentation', report['errors'], f"{report['markdown_files']} Markdown files, {report['local_links']} local links")
         return bool(report['errors'])
     except (OSError, ValueError) as error:
-        print(f'Documentation check failed: {error}')
+        ui.result(False, f'Documentation check failed: {error}')
         return 1
 
 
