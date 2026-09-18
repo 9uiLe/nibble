@@ -4,6 +4,8 @@
 
 ## 製品構造・応答・容量
 
+全ターゲットの状態・非同期処理・SwiftUI依存・UIKit接続の調査とキャンセル修正は[SwiftUIの調査・検証](swiftui-investigation.md)を参照する。同記録はRelease 72テストと同条件のモデル計測を含み、以下の製品構造・容量評価とは対象ソースを区別する。
+
 対象ソースは`c84280c3c26b6cf0a8cbf75dd46e8d3ee78e40e2`。保存資源、OS作用、画面の責務、Release構成を[製品基盤の検証](product-architecture-validation.md)で評価した。
 
 | 確認項目 | 結果と範囲 |

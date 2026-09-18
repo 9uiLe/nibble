@@ -1,6 +1,15 @@
 import Foundation
 import Observation
 
+/// Draft lookup is separate from presentation so late database results can be discarded.
+protocol LibraryOpening: Sendable {
+    func beginDraft(snippetID: UUID?, body: String) async throws -> Draft
+    func editingDraft(for id: UUID) async throws -> Draft
+    func draft(_ id: UUID) async throws -> Draft
+}
+
+extension SnippetStore: LibraryOpening { }
+
 @MainActor @Observable
 final class LibraryModel {
     let store: SnippetStore
@@ -30,9 +39,11 @@ final class LibraryModel {
     }
 
     private(set) var snapshot: Snapshot?
-    private var settledRequest: LibraryRequest?
+    private enum ReadOutcome { case loaded, cancelled, failed(Failure) }
+    private var completedRead: (request: LibraryRequest, outcome: ReadOutcome)?
     private var activeRefresh: UUID?
     private let libraryReader: any LibraryReading
+    private let libraryOpener: any LibraryOpening
     var page: LibraryPage { snapshot?.page ?? LibraryPage() }
     var contentRequest: LibraryRequest { snapshot?.request ?? request }
     var contentIsCurrent: Bool {
@@ -41,16 +52,22 @@ final class LibraryModel {
             && snapshot.request.query == request.query
     }
     // Selection changes synchronously invalidate completion, before the UI starts its task.
-    var loading: Bool { activeRefresh != nil || settledRequest != request }
+    var loading: Bool { activeRefresh != nil || completedRead?.request != request }
+    var loadingInterrupted: Bool {
+        guard !loading, completedRead?.request == request,
+              case .cancelled = completedRead?.outcome else { return false }
+        return true
+    }
     private(set) var notice: Notice?
     private(set) var feedback = 0
-    private var loadFailure: (request: LibraryRequest, failure: Failure)?
     private var operationFailure: Failure?
     var failure: Failure? {
-        operationFailure ?? (loadFailure?.request == request ? loadFailure?.failure : nil)
+        if let operationFailure { return operationFailure }
+        if completedRead?.request == request, case .failed(let failure) = completedRead?.outcome { return failure }
+        return nil
     }
     var editor: Draft?
-    private var opening = false
+    private var opening: UUID?
 
     var query: String {
         get { request.query }
@@ -74,10 +91,11 @@ final class LibraryModel {
     func dismissFailure() { operationFailure = nil }
 
     init(store: SnippetStore, effects: any LibraryEffects, filter: LibraryFilter = .all,
-         libraryReader: (any LibraryReading)? = nil) {
+         libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil) {
         self.store = store
         self.effects = effects
         self.libraryReader = libraryReader ?? store
+        self.libraryOpener = libraryOpener ?? store
         request = LibraryRequest(filter: filter)
     }
 
@@ -102,6 +120,7 @@ final class LibraryModel {
     }
 
     func refresh() async {
+        guard !Task.isCancelled else { return }
         let token = UUID()
         activeRefresh = token
         let requested = request
@@ -111,34 +130,46 @@ final class LibraryModel {
             try Task.checkCancellation()
             guard activeRefresh == token, request == requested else { return }
             snapshot = Snapshot(request: requested, page: page)
-            settledRequest = requested
-            loadFailure = nil
-        } catch is CancellationError { }
-        catch {
-            if activeRefresh == token, request == requested {
-                settledRequest = requested
-                loadFailure = (requested, Failure(title: "一覧を読み込めませんでした",
-                                                   message: error.localizedDescription, recovery: .reload))
-            }
+            completedRead = (requested, .loaded)
+        } catch {
+            guard activeRefresh == token, request == requested else { return }
+            let outcome: ReadOutcome = Task.isCancelled || error is CancellationError ? .cancelled
+                : .failed(Failure(title: "一覧を読み込めませんでした",
+                                  message: error.localizedDescription, recovery: .reload))
+            completedRead = (requested, outcome)
         }
     }
 
-    func open(_ source: EditorSource = .new) async {
-        guard !Task.isCancelled, editor == nil, !opening else { return }
-        opening = true
+    /// Invalidates only this owner's presentation request, without cancelling accepted writes.
+    func cancelOpening(id: UUID) {
+        if opening == id { opening = nil }
+    }
+
+    func open(_ source: EditorSource = .new, requestID: UUID = UUID()) async {
+        guard !Task.isCancelled, editor == nil, opening == nil else { return }
+        opening = requestID
         operationFailure = nil
-        defer { opening = false }
+        defer { if opening == requestID { opening = nil } }
         do {
             // Read at the time of opening; rows contain no editable snapshot.
             let draft: Draft
             switch source {
-            case .new: draft = try await store.beginDraft()
-            case .snippet(let id): draft = try await store.editingDraft(for: id)
-            case .draft(let id): draft = try await store.draft(id)
+            case .new: draft = try await libraryOpener.beginDraft(snippetID: nil, body: "")
+            case .snippet(let id): draft = try await libraryOpener.editingDraft(for: id)
+            case .draft(let id): draft = try await libraryOpener.draft(id)
+            }
+            guard !Task.isCancelled, opening == requestID else {
+                // No user input exists for a new, unpresented draft. Existing drafts stay intact.
+                if case .new = source { try? await store.keepDraft(draft) }
+                return
             }
             if case .new = source { filter = .all }
             editor = draft
-        } catch { report("編集を始められませんでした", error) }
+        } catch is CancellationError { }
+        catch {
+            guard !Task.isCancelled, opening == requestID else { return }
+            report("編集を始められませんでした", error)
+        }
     }
 
     func copy(_ id: UUID) async {
@@ -153,7 +184,7 @@ final class LibraryModel {
             feedback += 1
             announce("コピーしました")
         } catch is CancellationError { }
-        catch { report("コピーできませんでした", error) }
+        catch { if !Task.isCancelled { report("コピーできませんでした", error) } }
     }
 
     func pin(_ item: SnippetSummary) async {
