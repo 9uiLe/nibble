@@ -1,10 +1,10 @@
 # nibble
 
-nibbleは、よく使うテキストをiPhoneに保存し、探してコピーするスニペットツールです。日本語UIの本体アプリと共有拡張を持ち、最低対応OSはiOS 26.0です。
+nibbleは、よく使うテキストをiPhoneに保存し、他アプリで再利用するスニペットツールです。日本語UIの本体アプリ、共有拡張、キーボード拡張を持ち、最低対応OSはiOS 26.0です。
 
-利用者は、保存した本文を検索またはピン留めから選んでコピーし、入力先のアプリへ戻ってペーストします。テキストとURLは他アプリの共有シートから取り込めます。作成・編集、下書きの再開、削除・復元も本体から操作できます。
+本体では検索やピン留めから本文を選んでコピーし、キーボード拡張では他アプリの入力欄へ直接挿入できます。テキストとURLは他アプリの共有シートから取り込めます。作成・編集、下書きの再開、削除・復元は本体で行います。
 
-日常操作は端末内で完結し、アカウントと通信を必要としません。保存・編集・コピーでは原文の空白・改行・Unicodeを保持します。同期、独自バックアップ、キーボード拡張はMVPの提供範囲外です。
+日常操作は端末内で完結し、アカウントと通信を必要としません。保存・編集・挿入・コピーでは原文の空白・改行・Unicodeを保持します。同期と独自バックアップは提供範囲外です。
 
 ## 画面と基本操作
 
@@ -12,9 +12,11 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | --- | --- |
 | 一覧 | 上部の「すべて／ピン留め／下書き」で対象を選び、保存済み項目を編集・コピーします。「すべて」では下書き、ピン留め済み、その他の順に表示します |
 | 検索 | タイトルと本文から保存済み項目を探します。検索タブを選ぶと標準検索欄とキーボードが開きます |
-| 設定 | 新規作成・コピーの左右位置を選び、削除した項目の復元と製品情報へ進みます |
+| 設定 | 新規作成・コピーの左右位置を選び、削除した項目の復元、キーボード利用案内、製品情報へ進みます |
+| 共有拡張 | 他アプリの共有シートから受け取ったテキスト・URLを確認して保存します |
+| キーボード拡張 | 他アプリの入力欄で保存済みを選び、本文を直接挿入します。フルアクセスを許可すると独立したボタンでコピーもできます |
 
-新規作成は一覧・検索の下部にある＋から始めます。左右の設定は再起動後も保持します。各画面は標準ナビゲーションとLiquid Glassのタブバーを使い、リストの行と余白は共通の背景色、境界は区切り線で表します。
+新規作成は一覧・検索の下部にある＋から始めます。本体の新規作成・コピーの左右設定は再起動後も保持します。本体の一覧・設定・検索は標準ナビゲーションとLiquid Glassのタブバーを使い、リストの行と余白は共通の背景色、境界は区切り線で表します。
 
 ## 開発を始めるときに読む資料
 
@@ -23,6 +25,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | 知りたいこと | 資料 |
 | --- | --- |
 | 製品の目的、機能、構成、データ、操作の成立条件 | [製品設計](docs/decisions/0002-mvp-app.md) |
+| キーボードの権限、読取専用接続、挿入とコピーの成立条件 | [キーボード設計](docs/decisions/0005-snippet-keyboard.md)、[検証記録](docs/keyboard-validation.md) |
 | UI要素の目的、配置理由、共通原則、画面構成、改善課題 | [UI設計](docs/design/README.md)、[設計監査](docs/design/audit.md) |
 | 説明アニメーションの意図、制作、iOS表示、他製品での利用 | [演出設計](docs/decisions/0004-rive-presentation.md)、[制作手順](app/Animations/README.md)、[RivePresentation](app/Packages/RivePresentation/README.md) |
 | UI設計基盤の責務、設定、実行と他製品での利用 | [共通ツールキット](tools/ui-design/README.md)、[基盤の測定記録](docs/ui-design-tooling-validation.md) |
@@ -42,7 +45,7 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 
 ## アプリの構成
 
-本体と共有拡張の入口が保存層を作り、画面とモデルへ渡します。モデルは操作と状態、UIはタスクの開始と寿命、保存層はデータの整合性を担当します。本体と拡張はApp Group内の同じSQLiteを、別々の接続から利用します。
+本体と共有拡張は読み書きする保存層、キーボード拡張は読み取り専用のReaderを画面とモデルへ渡します。モデルは操作と状態、UIはタスクの開始と寿命、データ層は取得と整合性を担当します。3つのプロセスはApp Group内の同じSQLiteを別々の接続から利用します。
 
 | 読む場所 | 責務 |
 | --- | --- |
@@ -52,18 +55,21 @@ nibbleは、よく使うテキストをiPhoneに保存し、探してコピー�
 | `LibraryTaskOwner` / `LibraryModel` | タスクの所有・重複・寿命 / 一覧状態と完了を待てる操作 |
 | `SnippetEditor` / `EditorModel` / `Draft` | 入力、自動保存、保存・保持・破棄の確定と失敗回復 |
 | `SnippetStore` / `SnippetSchema` / `SQLiteDatabase` | 検索・更新・競合 / 保存構造 / 接続・SQL資源の管理 |
+| `SnippetLocation` / `SnippetQueries` | 3ターゲット共通の保存先と保存済み項目の問い合わせ |
+| `KeyboardViewController` / `KeyboardView` / `KeyboardModel` | キーボードの寿命とOS操作 / 表示とタスク所有 / ページと非同期結果の採用 |
+| `KeyboardReader` / `KeyboardGuideView` | 共有DBの読取専用接続 / 本体から読む追加・権限・制約の案内 |
 | `LibraryEffects` / `SystemLibraryEffects` | コピーと通知の同期契約 / UIKitによる実行 |
 | `LibrarySettingsView` / `AboutView` / `AboutIllustration` | 操作位置、製品情報、説明イラストの表示設定と寿命 |
 | `app/Packages/RivePresentation/` / `app/Animations/` | Riveの読込・表示 / 再生成可能なRMLとアセットの契約 |
 | `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較、固定表示、Rive接続の検査 |
 
-一覧は要約を使い、再開とコピーはその時点のDBから対象1件の全文を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
+一覧は要約を使い、再開・挿入・コピーはその時点のDBから対象1件の全文を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
 
 SwiftUI・Observationが表示状態、Taskingがタスク所有、AppMacrosがViewの比較、ScopedAnimationが表示変化の範囲を扱います。自作Viewは比較を宣言し、値表示の更新条件、親から渡される操作やBindingの反映、状態の保持期間をそれぞれ定義します。Releaseはサイズを優先して最適化し、製品容量と応答を同じ条件で評価します。契約の詳細は[製品設計](docs/decisions/0002-mvp-app.md)、Swiftの記述規則は[実装規約](docs/library-policy.md)を参照してください。
 
 | 検証対象 | 用途 | 設定 |
 | --- | --- | --- |
-| `Nibble` / `NibbleShare` | 製品の本体・共有拡張 | `app/project.json` |
+| `Nibble` / `NibbleShare` / `NibbleKeyboard` | 製品の本体・共有拡張・キーボード | `app/project.json` |
 | `VerificationApp` | コマンド、テスト、文字列反映、撮影を確認するfixture | `validation/project.json` |
 | `ResearchProbe` | 保存方式、検索、復旧、入力、OS連携の比較実験 | `validation/research-project.json` |
 
@@ -152,7 +158,7 @@ Swift Package Manager（SPM）がアプリのライブラリ依存を解決し�
 | --- | --- | --- |
 | swift-tasking | 0.3.0 | UIが開始するタスクの所有・寿命・重複管理 |
 | swift-scoped-animation | 0.2.2 | アニメーションの適用範囲と伝播の制御 |
-| swift-app-macros | 0.3.0 | 本体・共有拡張・RivePresentationのViewにMainActor上の比較を定義 |
+| swift-app-macros | 0.3.0 | 本体・共有拡張・キーボード・RivePresentationのViewにMainActor上の比較を定義 |
 | swift-syntax | 603.0.2 | Mac上でAppMacrosのマクロを構築する間接依存 |
 | rive-ios | 6.27.0 | RivePresentationを通じた説明イラストの表示。本体のみ |
 

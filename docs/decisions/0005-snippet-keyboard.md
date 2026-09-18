@@ -1,109 +1,145 @@
 # 0005：スニペットキーボード
 
-- 状態：採用。実行検証の結果は別途記録する
-- 設計基準日：2026-09-18
-- 対象：NibbleKeyboard、本体の利用案内、共有保存領域、配布時の構成検査
-- 最低対応：iOS 26.0。実行検証：iPhone / iOS 26.5 Simulator
+状態：採用。設計基準日：2026-09-18。最低対応OS：iOS 26.0。
 
-## 目的
+本書は、他アプリの入力欄で保存済みスニペットを使うための機能、権限、データと操作の契約を定義する。画面と部品の配置理由は[UI設計](../design/screens.md#s09-スニペットキーボード)、操作手順は[製品手順](../mvp.md#キーボードから使う)、実施済みの評価は[キーボードの検証](../keyboard-validation.md)に記録する。
 
-他アプリで文章を入力しながら、保存済みのスニペットを呼び出して使えるようにする。キーボードの切り替え後、項目をタップすると入力先へ本文を直接挿入する。各行のコピーボタンは本文をクリップボードへ書き込み、利用者が任意の場所へ貼り付けられるようにする。
+## 目的と提供範囲
 
-スニペットを管理する本体、他アプリから保存する共有拡張、他アプリへ入力するキーボード拡張は、それぞれ独立したプロセスである。データの正本はApp Group内のSQLiteデータベースとし、キーボード用の複製データは持たない。
+利用者は他アプリの入力欄でnibbleキーボードへ切り替え、保存済みの項目をタップして本文を直接挿入する。本体へ移動して戻る操作を省き、入力中の作業を続けられるようにする。各行には独立したコピーボタンも設け、任意の場所へ貼り付ける使い方を提供する。
 
-## 機能要件
-
-| 利用場面 | 振る舞い |
+| 作業 | 担当する入口 |
 | --- | --- |
-| 有効化 | iOS設定でnibbleキーボードを追加する。本体の設定に追加手順・権限・制約を記載する |
-| 呼び出し | 他アプリの入力欄からキーボードを切り替える。Nibbleを前面へ開かずに利用する |
-| 選択 | 保存済みだけを「すべて」「ピン留め」で絞る。ピン留め、更新日時、UUIDの順で安定して並べる |
-| 直接挿入 | 行の主操作で本文を1回挿入する。空白・改行・Unicodeを変換せず渡す |
-| コピー | 独立したコピーボタンで本文を端末内のクリップボードへ書く。入力先への挿入は伴わない |
-| 大量データ | 1ページ50件。前後のページへ移動し、全件の本文を保持しない |
-| 更新 | キーボードの表示時と更新ボタンで読み直す。フィルター変更・再表示・明示的更新は先頭ページへ戻す |
-| 入力への復帰 | システムのキーボード切替UIを利用する。独自の切替キーが必要な環境では地球儀ボタンを表示する |
-| 失敗・空 | 未準備、空、読み込み失敗、選択後の変更・削除、権限不足を区別し、再試行や必要な設定を案内する |
+| 作成・編集・下書き・ピン留め・削除・復元 | 本体アプリ `Nibble` |
+| 他アプリのテキスト・URLを確認して保存 | 共有拡張 `NibbleShare` |
+| 保存済み本文を他アプリへ挿入・コピー | キーボード拡張 `NibbleKeyboard` |
 
-下書き・削除済み項目はキーボードへ表示しない。スニペットの作成・編集・ピン留め変更・削除は本体で行う。キーボード内に検索文字入力や独自IMEは設けず、フィルターとページ操作で探す。周辺の入力文から自動検索する機能も持たない。
+キーボードは保存済みだけを「すべて／ピン留め」で絞り、1ページ50件を表示する。下書きと削除済みは利用対象に含めない。内容の変更は本体で行う。キーボード内の検索文字入力、独自IME、周辺の入力文を使った自動検索は提供しない。
 
-## iOSの権限と制約
+## 操作と権限
 
-| 条件 | 設計 |
+| 操作・条件 | 成立条件と結果 |
 | --- | --- |
-| フルアクセスなし | 共有コンテナを読み取り専用で開き、保存済み本文を直接挿入する |
-| フルアクセスあり | 直接挿入に加えてコピーを使える。`hasFullAccess`は実行時にも確認する |
-| コピーの許可なし | 権限が必要であることを説明し、コピー成功を表示しない。直接挿入は使える |
-| 利用不可の入力欄 | パスワードなどのsecure入力、phonePad・namePhonePad、他社キーボードを禁止するアプリはiOSの制御に従う |
-| 入力先の制限 | 入力先アプリは長さ・改行・文字種を制限できる。拡張が原文を渡すことと、入力先が受理することを分ける |
-| キーボードの追加 | 利用者がiOS設定で行う。アプリは自動有効化や非公開の設定URLを使わない |
+| キーボードの追加 | 利用者がiOS設定で追加する。本体の設定に手順を示し、自動有効化や非公開の設定URLは使わない |
+| 項目をタップ | フルアクセスなしで共有領域を読み、`textDocumentProxy.insertText`へ保存済み本文を渡す |
+| コピーボタン | フルアクセスを確認し、`UIPasteboard`へ`localOnly`で本文を書く。入力欄へは挿入しない |
+| コピーの権限なし | 必要な設定を案内する。クリップボードを変更せず、コピー成功を表示しない |
+| 対象の変更・更新 | フィルター変更、表示、更新ボタンで先頭ページを読み直す。ページ操作は選択した集合の次または前の50件を取得する |
+| 通常入力へ戻る | OSのキーボード切替UIを使う。OSが独自の切替キーを必要とする場合だけ地球儀ボタンを表示する |
+| キーボードを閉じる | OSへ非表示を依頼する。非表示時に実行中の読込・利用操作を無効にする |
 
-`RequestsOpenAccess`はコピーを利用可能にするためtrueとする。フルアクセスは利用者の選択であり、直接挿入の必須条件にはしない。ネットワーク通信、入力履歴の記録、クリップボードの読み取り、入力欄の前後の文章の取得は実装しない。
+`RequestsOpenAccess`はコピーを利用可能にするためtrueとする。フルアクセスの許可は利用者が選ぶ。画面に保持する権限値は表示用とし、コピーの実行可否はcontrollerの`hasFullAccess`を本文取得の前後で確認する。
 
-現行のApple資料は、通常のキーボードから共有コンテナを読み取り可能と説明している。古いApp Extension Programming Guideでは共有領域全体にフルアクセスが必要とされているため、保存領域の読み取り可否は対象OSで実測する。クリップボード利用の条件は同Guideを根拠とし、フルアクセスの有無を実際のキーボードで検証する。
+本文の空白・改行・Unicodeを変換せず渡す。入力先アプリによる文字数・改行・文字種の制限は入力先の仕様であり、proxyへの受け渡しを入力先での保存成功とは扱わない。挿入後の表示は「入力先へ本文を渡しました」とする。
+
+パスワードなどのsecure入力、phonePad・namePhonePad、他社キーボードを禁止するアプリではOSの制御に従う。ネットワーク通信、入力履歴の記録、クリップボードの読み取り、入力欄の前後の文章の取得は行わない。権限の根拠はAppleの[Open Access](https://developer.apple.com/documentation/uikit/configuring-open-access-for-a-custom-keyboard)と[Custom Keyboard](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/CustomKeyboard.html)、対象OSでの確認範囲は検証記録を参照する。
 
 ## 構成と責務
 
-| 構成 | 責務 |
+```mermaid
+flowchart TB
+    Host[他アプリの入力欄 / iOS] --> Controller[KeyboardViewController]
+    Controller --> View[KeyboardView]
+    Controller --> Model[KeyboardModel / MainActor]
+    View -->|読込・操作をawait| Model
+    Model --> Reader[KeyboardReader actor]
+    Model -->|KeyboardEffects| Controller
+    Controller -->|挿入・コピー・切替・終了| OS[OSの入力・クリップボード・キーボードAPI]
+    Reader --> Query[SnippetQueries / SQLiteDatabase]
+    Query --> DB[(App GroupのSQLite)]
+    Writers[本体・共有拡張 / SnippetStore] -->|準備・更新| DB
+```
+
+| 構成 | 所有するものと責務 |
 | --- | --- |
-| `NibbleKeyboard` target | `com.apple.keyboard-service`として本体に同梱する。Bundle IDは`nibble.9uiLe.com.keyboard` |
-| `KeyboardViewController` | `UIInputViewController`の寿命、キーボード切替、権限、入力先の識別、挿入・コピーの副作用、モデルを所有する |
-| キーボードのSwiftUI View | フィルター、一覧、読み込み・失敗・結果、ページ操作を表示する。`.task(id:)`で読込、`ViewTaskStore`で有限の利用操作を所有する |
-| `KeyboardModel` | 読み込み状態、現在のページ、操作の競合、非同期結果の採用条件を管理する |
-| 読み取り専用Reader | actor内でSQLiteを読み、保存済みの要約と選択した本文を返す。作成・変更APIを持たない |
-| 本体・共有拡張のStore | データベースとschemaを作成・更新し、読み取り専用接続が使うWALファイルを準備する |
+| `KeyboardViewController` | モデル、入力先変更の世代、高さの制約を所有する。UIKitの寿命・権限を伝え、`KeyboardEffects`として挿入・コピー・切替・終了を実行する |
+| `KeyboardView` | モデルを観測し、フィルター・一覧・結果・ページ操作を表示する。読込は`.task(id: model.loadID)`、有限の利用操作は`ViewTaskStore`が所有する |
+| `KeyboardModel` | 要求、取得世代、ページ、失敗、通知、実行中の操作IDを管理する。Readerと副作用の契約を受け取り、controllerへの参照はweakとする |
+| `KeyboardReader` | actor内で保存済み要約と選択本文を読む。要求ごとに接続を開いて閉じ、作成・変更APIを持たない |
+| `SnippetLocation` / `SnippetQueries` | 共有DBの場所 / 保存済みの検索条件・安定した並び順。本体・拡張で同じ定義を使う |
+| `SnippetStore` / `SnippetSchema` | 本体・共有拡張でDBとschemaを準備・更新し、読み取り専用接続に必要なWAL・SHMを保持する |
+| `KeyboardGuideView` | 本体の設定から追加・権限・制約を説明する。キーボードの有効化状態を推測して表示しない |
 
-既存のSQLite接続処理と保存済みスニペットの問い合わせを共用する。キーボードはDBの作成、schema migration、保存、属性変更を行わない。Riveと編集画面はリンクせず、Tasking・AppMacrosと表示に必要な共有コードだけを利用する。
+UIとOS操作はMainActor、DB処理はReader actorで実行する。`UIHostingController`とその四辺の制約はcontrollerの生成時に構成する。地球儀のUIButtonもcontrollerが一度作成し、`KeyboardInputModeButton`がSwiftUIへ接続する。表示更新でcontroller・モデル・ボタンを作り直さず、行はスニペットのUUIDで識別する。
 
-App Groupは`group.nibble.9uiLe.com`を3 targetで共有する。Keyboard targetはiOS 26.0、Swift 6、strict concurrency complete、default isolation nonisolated、extension-safe APIでビルドする。UIと副作用はMainActor、DB処理はReader actorで実行する。
+## 共有データと読み取りの契約
 
-## 保存領域と読み取り
+3ターゲットはApp Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を共用する。正本はこのDBであり、キーボード用の複製データや同期処理は持たない。本体・共有拡張が書き込み、キーボードは`SQLITE_OPEN_READONLY`でschema version 1を読む。未作成の保存領域を作成せず、未知のschemaを移行しない。
 
-キーボードは`SQLITE_OPEN_READONLY`で接続し、対応するschema versionだけを読む。WALはSQLiteの未checkpointの更新を保持するファイル、SHMは接続間の索引を共有するファイルである。書き込み側は`SQLITE_FCNTL_PERSIST_WAL`を設定し、最後の書き込み接続を閉じてもWAL・SHMを保持する。これにより共有領域へ書き込めないReaderも、確定済みの更新を読める。
+WALは未checkpointの確定更新を保持するファイル、SHMは接続間で使う索引である。書き込み側が`SQLITE_FCNTL_PERSIST_WAL`を設定し、最後の書き込み接続を閉じても両ファイルを保持する。共有領域へ書き込めないReaderから確定済み更新を読むための条件である。更新されるDBに`immutable=1`は指定しない。[SQLiteのWAL仕様](https://www.sqlite.org/wal.html)に従い、ページ取得は読み取りtransaction内で行う。
 
-書き換わるデータベースに`immutable=1`は指定しない。SQLiteの読み取りtransactionで1ページを取得し、本文は選択時に読み直す。削除済みや、一覧のrevisionと異なる項目は操作を中止し、更新を案内する。タイトルとプレビューだけを50件保持し、本文は1操作につき最大1件とする。読み取り接続は各要求の終了時に閉じる。
+| 読み取り | 入力・結果・保持範囲 |
+| --- | --- |
+| ページ | フィルターとoffsetを固定した`KeyboardRequest`。ピン優先、更新日時降順、UUID昇順で最大51件を読み、先頭50件と続きの有無を返す |
+| 要約 | UUID、タイトル、本文先頭180文字、ピン状態、更新番号。モデルは1ページを保持し、次の要求中は旧ページを操作不可で表示できる |
+| 利用本文 | 選択した要約のUUIDで全文を読み直す。未削除かつ要約の`revision`と一致する場合だけ返す |
 
-保存領域が未作成なら本体での準備を案内する。ロック中のData Protectionなどによる読取失敗は、空データや別の保存先へ置き換えず再試行可能なエラーとする。本体・共有拡張の完全保護の方針を引き継ぐ。
+本文は利用操作ごとに1件取得し、全件の全文を保持しない。50件はモデルが保持する要約数の上限であり、接続・取得中の値・UIを含むプロセス全体のメモリ上限ではない。
 
-## 状態・タスク・副作用
+revisionの照合時点は本文の読み取りである。DBの読み取りと他アプリへの挿入を一つのtransactionにはできないため、読み取り後に別プロセスが項目を更新する可能性は残る。キーボードの再表示・更新によって変更を取り込む。
 
-- 表示中のSwiftUI Viewが読込タスクと操作タスクを持つ。画面離脱でキャンセルし、controllerもモデルの世代を無効化する。OSの非表示通知とSwiftUIの破棄が異なる順で来ても、表示終了後の副作用を拒否する。
-- 読込は最新要求を採用する。フィルター変更直後は読み込み状態とし、旧ページを新フィルターの空結果として表示しない。
-- 挿入・コピーは実行中の重複要求を受け付けない。完了後の新しいタップは新しい操作として受け付ける。
-- 本文取得後に、キャンセル、画面の寿命、操作ID、項目revisionを確認する。挿入では入力先のdocument identifierと選択・本文変更の世代も照合する。
-- 入力先を移動したりキーボードを閉じたりした後に届いた結果から、挿入・コピー・成功表示を実行しない。
-- 挿入は`textDocumentProxy.insertText`、コピーは`UIPasteboard`への書き込みに限定する。コピーは本体と同様に端末内だけへ渡す。
-- 通知は次の操作まで表示する。期限用タイマー、定期polling、バックグラウンド同期は持たない。
+保存領域が未準備なら本体での準備を案内する。Data Protectionのcompleteを適用したDBがロック中などに読めない場合は、空結果や別の保存先へ置き換えず、再試行可能な失敗として扱う。
+
+## 状態と操作の寿命
+
+モデルはcontrollerの寿命中保持する。選択したフィルターは再表示でも保持し、ページ位置は先頭へ戻す。OSが拡張を破棄した場合、次のcontrollerは初期状態から始める。定期polling、通知期限用タイマー、バックグラウンド同期は持たない。
+
+### 読み込み
+
+| 状態・イベント | 表示・結果の採用 |
+| --- | --- |
+| 初回表示 | activeにし、新しい`loadID`で先頭ページを読む。未取得を0件と表示しない |
+| フィルター・ページ・更新 | 要求と取得世代を更新する。旧ページがあれば操作不可で保持し、読込中を示す |
+| 成功 | active、キャンセルなし、取得世代一致の場合だけ要求とページを反映する。空表示はこの結果が0件の場合だけ確定する |
+| 失敗・中断 | 有効な要求だけが理由と再試行の案内を表示する。旧要求の失敗で新しい結果を上書きしない |
+| 非表示 | モデルをinactiveにし、取得世代・操作ID・ページを無効にする。Viewのタスクにもキャンセルを要求する |
+
+### 挿入とコピー
+
+利用操作は`keyboard.use`のscreenBound / ignoreNewとモデルの操作IDで重複を防ぐ。1件の本文取得中は別の挿入・コピーを受け付けず、完了またはキャンセル後のタップは新しい操作になる。
+
+| 照合 | 挿入 | コピー |
+| --- | --- | --- |
+| 操作開始時 | active、要求とページが一致、読込・失敗・別操作なし | 同左に加えてフルアクセスあり |
+| 本文取得 | 未削除、選択時と同じrevision | 同左 |
+| await後 | キャンセルなし、active、取得世代・操作IDが一致 | 同左 |
+| 副作用の直前 | document identifierと本文・選択変更の世代が開始時と一致 | 現在のフルアクセスを再確認。入力先の移動はコピーの取消条件にしない |
+| 成功 | proxyへ本文を渡したことを表示 | クリップボードへの書込完了を表示 |
+
+入力先の照合は、本文取得中に移動したカーソルや別の入力欄へ遅れて挿入することを防ぐ。コピーは入力欄を変更しないため、この照合を適用しない。両操作とも画面離脱・更新・キャンセル後の結果から副作用を実行しない。キャンセルは通常の操作エラーとして表示せず、後始末は自分の操作IDが有効な場合だけ行う。結果通知は次の操作まで表示する。
 
 ## レイアウトと操作の意味
 
-上部に対象選択と更新、中央にスクロールする一覧、下部にページ移動と結果を置く。主操作は内容の領域、コピーは独立した44pt以上のボタンとし、タップ範囲が重ならないようにする。フィルターは色で選択を示し、チェックマークは付けない。背景と区切り線、アクセントは本体の表示方針を使う。
+上部に対象選択と更新、中央にスクロールする要約、下部に結果とページ・切替・終了を置く。対象を選んで内容を読み、一覧の末尾まで移動せず次のページや通常入力へ進める構成である。内容領域は挿入、独立した44pt以上のボタンはコピーに割り当て、操作範囲を重ねない。フィルターは色で選択を示し、チェックマークは付けない。
 
-幅はiOSの領域に従う。高さは通常288pt、縦方向がcompactなら196ptを優先度750のAuto Layout制約で提案し、OSの必須制約を優先する。上下44ptの操作列と数件の要約を収め、入力先を見える範囲に保つための製品値である。可変領域は一覧に割り当てる。短い高さでも操作が残るよう、上部・下部を固定し、一覧を縮めてスクロールさせる。大量の全文、説明アニメーション、シートの重ね表示は持たない。案内の長文は本体の設定画面で読む。
+幅はiOSの領域に従う。高さは通常288pt、縦方向がcompactなら196ptを優先度750の制約で提案し、OSの必須制約を優先する。上下の操作列と数件の要約を収め、入力先を見える範囲に保つための製品値である。高さの変化は中央の一覧で吸収し、スクロールで内容へ到達できるようにする。長い利用案内は本体の設定で読む。
 
-読み上げ名に「挿入」「コピー」「前のページ」「次のページ」を明示する。文字サイズ・太字・コントラストの製品方針は既存の`NibbleInterface`に従い、iOSが提供するキーボード切替・権限・入力欄の挙動を尊重する。
+背景・区切り線・アクセントは本体と共通とする。文字サイズ・太字・コントラストは`NibbleInterface`の[固定表示方針](../design/decisions/0002-fixed-interface.md)に従い、ライト・ダークへ追従する。項目の読み上げ名は「対象名を入力」「対象名をコピー」とし、入力のhintで本文の挿入を説明する。ページ操作にも「前のページ」「次のページ」を示す。OS所有の切替UI・権限・入力欄の挙動はOSに委ねる。
 
-## 配布と初回設定
+## ビルドと配布
 
-Apple Developerに`nibble.9uiLe.com.keyboard`を登録し、App Groupsを有効にして`group.nibble.9uiLe.com`を関連付ける。配布profileはキーボードtargetにも必要となる。識別子はGitで管理し、認証設定・秘密鍵・profileは既存の秘密情報規約に従って扱う。
+`NibbleKeyboard`は`com.apple.keyboard-service`のextensionとして本体へ同梱する。Bundle IDは`nibble.9uiLe.com.keyboard`、deployment targetは26.0、Swift 6、strict concurrency complete、default isolation nonisolated、extension-safe APIでビルドする。Tasking・AppMacrosと必要な共有コードを使い、Rive・編集画面・書き込み用Storeはリンクしない。
 
-配布スクリプトは本体・共有拡張・キーボードの3 bundleについて、識別子、version、最低OS、SDK、privacy manifest、輸出申告、extension pointを検査する。未知の拡張や欠落を許可しない。Simulatorの成功を実際の署名・TestFlight配信成功とは扱わない。
+Apple DeveloperのキーボードApp IDにApp Groupsを有効化し、共通のApp Groupを関連付ける。本体・共有拡張・キーボードの3つに対応する配布profileを用意する。識別子とビルド設定はGitで管理し、認証設定・秘密鍵・profileは[秘密情報の管理規約](0003-testflight-distribution.md)に従う。
 
-## 実装と受け入れの順序
+配布スクリプトは3 bundleの存在、識別子、version、最低OS、SDK、Privacy Manifest、輸出申告、extension pointを検査し、欠落や未知の拡張を拒否する。署名・アップロード、Apple側の処理・内部グループへの反映、実機の利用成立は別々に確認する。[配布手順](../testflight.md)を適用する。
 
-1. 読み取り専用DB接続と最小のKeyboard targetを実装し、フルアクセスなしの読込と他アプリへの挿入を確認する。
-2. モデルの競合・キャンセル、一覧・フィルター・ページ・コピー、本体の案内、配布構成を実装する。
-3. 原文、削除・変更後の拒否、遅い読込、入力先変更、画面離脱、連打、再試行をテストする。
-4. iOS 26.5の別アプリで、権限なしの挿入、権限ありのコピー、再表示時の更新、システムキーボードへの復帰、狭い幅・縦横・ライト/ダークを画像と録画で確認する。
-5. Releaseビルド、全製品テスト、Nix共通検査、設計照合、拡張サイズと表示・操作の実行条件を記録する。
+## 受け入れ条件
 
-未実施の条件は検証記録へ残す。Apple側の登録、実機のメモリ上限、すべての入力先アプリでの文字受理は、Simulator試験で保証しない。
+| 対象 | 確認する契約 |
+| --- | --- |
+| データ | 読取専用、未準備・未知schemaの拒否、50件のページ境界、対象集合、原文、変更・削除の照合 |
+| 非同期操作 | 遅い旧要求の成功・失敗、連打、キャンセル直後の再実行、非表示中の完了、挿入先変更、コピー権限の取消 |
+| OS統合 | フルアクセスなしの読込・挿入、許可ありのコピー、入力先の原文照合、再表示時の更新、標準キーボードへの復帰 |
+| 表示 | 0件・多数・長文、狭幅・縦横、ライト・ダーク、操作名、利用案内の全文への到達 |
+| 製品と配布 | 全製品テストと本体回帰、共通検査、設計照合、3 bundleの署名・配布検査 |
+| 性能 | 同じ端末・ビルド・データ・操作で容量、初回表示、スクロール、利用応答、メモリを評価 |
 
-## 根拠
+iOSの実行評価は26.5で行う。未実施条件は[検証記録](../keyboard-validation.md)に対象と理由を残す。Simulatorの成功から実機の拡張メモリ上限・ロック中の保護・すべての入力先による文字受理を保証しない。
 
-- [Apple：Creating a custom keyboard](https://developer.apple.com/documentation/uikit/creating-a-custom-keyboard) — extension構成、有効化、切替キー、メモリと寿命。
-- [Apple：Configuring a custom keyboard interface](https://developer.apple.com/documentation/uikit/configuring-a-custom-keyboard-interface) — 入力欄の制約、可変サイズ、システムのレイアウト。
-- [Apple：Configuring open access](https://developer.apple.com/documentation/uikit/configuring-open-access-for-a-custom-keyboard) — 共有領域の読み取りとフルアクセスの境界。
+## 一次資料
+
+- [Apple：Creating a custom keyboard](https://developer.apple.com/documentation/uikit/creating-a-custom-keyboard) — extension構成、有効化、切替キー、寿命。
+- [Apple：Configuring a custom keyboard interface](https://developer.apple.com/documentation/uikit/configuring-a-custom-keyboard-interface) — 入力欄とレイアウトの制約。
 - [Apple：Handling text interactions](https://developer.apple.com/documentation/uikit/handling-text-interactions-in-custom-keyboards) — proxyによる挿入と入力・選択変更の通知。
-- [Apple：Custom Keyboard（archive）](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/CustomKeyboard.html) — pasteboard利用条件。共有領域の記述は現行資料と区別する。
-- [SQLite：Write-Ahead Logging](https://www.sqlite.org/wal.html)・[WAL file format](https://www.sqlite.org/walformat.html) — 読み取り専用接続とWAL・SHMの寿命。
+- [SQLite：WAL file format](https://www.sqlite.org/walformat.html) — WAL・SHMの寿命。

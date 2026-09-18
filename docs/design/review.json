@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "summary": "S09・S10とC45〜C48を実装へ照合。読取専用DB、50件単位の一覧、世代と入力先の照合、独立した挿入・コピー、権限案内、OS所有の切替を提供する。通常288pt・compact196ptは上下操作列と候補領域を確保し、無効なページ移動は低い不透明度で区別する。配色・文字は既存方針を継承。Simulatorの縦横・権限・原文確認と本体回帰を実施し、実機・性能・VoiceOverの未確認範囲は評価記録に限定した。",
+  "summary": "本体・共有拡張・キーボードの責務と共有DBを一つの製品設計へ統合し、S09・S10、C45〜C48を実装と照合した。挿入は入力先の世代、コピーはフルアクセスを照合する。ページ保持、読取専用接続、要求更新・非表示による無効化、設定から利用案内への導線と配置理由を明記した。実行結果は対象ソース・条件・未確認範囲を持つ検証記録に分けた。製品コード・表示・配布物の変更はない。",
   "references": [
+    "docs/decisions/0002-mvp-app.md",
+    "docs/decisions/0005-snippet-keyboard.md",
     "docs/design/screens.md",
-    "docs/design/components.md",
-    "docs/decisions/0005-snippet-keyboard.md"
+    "docs/design/components.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -65,18 +66,18 @@
     "app/Shared/SnippetStore.swift": "4ff84747014d0cd7d5a5588f540b2194858b6b3851e1746a0732696dcb66a839",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "b500eb71bacb9bacb08f40baf3c025533714b9832123d4f3fccfcac0cb04c73e",
+    "docs/decisions/0002-mvp-app.md": "21d2786ad54cc9cc5681dceeb56b81c945ff579159712e6e77c21e0b59b116f7",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
-    "docs/decisions/0005-snippet-keyboard.md": "1c0f8dd1cec3b79be69ff7787d6475ee58011ab39cf4f338d3136f352d0abe7c",
+    "docs/decisions/0005-snippet-keyboard.md": "0bdb089874dce660fa6407a09e9e9a048e3e9924b78aab8df002f288704af3b9",
     "docs/design/README.md": "ef3e328527a691d0126fb04c1cc1222f3d0a66c811a5d13c74419f91ea43c020",
     "docs/design/audit.md": "e4fc26e2eb87505f8f51d5676df5f882daefd33b5763baa75885770ed7575b4e",
-    "docs/design/components.md": "c34d73d0119a05cf6f7a453733f086bd35ff841a44444117b20ca7f441bb7093",
+    "docs/design/components.md": "efc47413082e3a742db4c2ec3c426f710421e057dc83c615f5d34a7257bc63ab",
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
     "docs/design/decisions/0001-library-actions.md": "158f5682ce157dec493eaa7e5fbf2746a750ae3fa3ece304dcf87aace311b0f5",
     "docs/design/decisions/0002-fixed-interface.md": "fa9deae1184f7835595784ede9fcf52723236c1cbcf45f07d3d50d387f94f2de",
     "docs/design/foundations.md": "25049803db175a7b8e2ee9e61aa0a671f721d9b3bc59cd05fde414a23f6deb87",
     "docs/design/policy.json": "641a5d48efd047a699192ddc4f483667cac3c6b1dec12c1e10ab6782e366ce60",
-    "docs/design/screens.md": "4c5c1b43ae76687c4f0af8a8322d3683c30c4cb7d7c0786b2e03eb7225f5340d",
+    "docs/design/screens.md": "42c6ebb4361ec48249e9e3201ee804b10835de531093ae8e109f40980d6ac9cf",
     "flake.lock": "6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
     "tools/ui-design/README.md": "565109f0c7bad79fb35d535da795aefd7b5feef692a5c5ea6ad0432e544354a0",
