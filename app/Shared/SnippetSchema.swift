@@ -6,6 +6,7 @@ enum SnippetSchema {
         let version = try db.rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
         guard version <= 1 else { throw StoreError.newerVersion }
         try db.execute("PRAGMA journal_mode=WAL")
+        try db.preserveWAL()
         try db.execute("PRAGMA synchronous=FULL")
         if version == 0 {
             try db.writeTransaction {

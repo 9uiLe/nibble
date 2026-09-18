@@ -39,6 +39,14 @@ struct LibrarySettingsView: View {
                 }
                 Section {
                     NavigationLink {
+                        KeyboardGuideView()
+                    } label: {
+                        Label("nibbleキーボード", systemImage: "keyboard")
+                    }
+                    .accessibilityIdentifier("settings.keyboard")
+                }
+                Section {
+                    NavigationLink {
                         AboutView()
                     } label: {
                         Label("nibbleについて", systemImage: "info.circle")

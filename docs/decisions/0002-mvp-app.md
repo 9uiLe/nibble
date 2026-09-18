@@ -24,9 +24,9 @@ nibbleは、よく使うテキストをiPhoneへ保存し、探してコピー�
 | 他アプリから取り込む | 共有シートで受け取ったテキストまたはURLを確認して保存 |
 | 作業中に呼び出す | 本体起動、標準ショートカットのURLアクションによる一覧・作成画面の表示 |
 
-日本語UIの本体`Nibble`と共有拡張`NibbleShare`を提供する。最低対応OSはiOS 26.0、開発上の実行評価はiOS 26.5 Simulatorとする。日常操作は端末内で完結し、アカウントと通信を必要としない。入力先への復帰とペーストは利用者が行う。
+日本語UIの本体`Nibble`、共有拡張`NibbleShare`、キーボード`NibbleKeyboard`を提供する。最低対応OSはiOS 26.0、開発上の実行評価はiOS 26.5 Simulatorとする。日常操作は端末内で完結し、アカウントと通信を必要としない。キーボードからは選んだ保存済み本文を直接挿入でき、本体からのコピーは利用者が入力先へ貼り付ける。
 
-同期、独自バックアップ、書式付きテキスト、画像・ファイル、変数展開、AI、課金は提供範囲に含めない。呼び出しは共有拡張とURLで構成し、キーボード拡張、Widget、Controls、App Shortcutsの自動登録、他アプリへの自動挿入は提供しない。
+同期、独自バックアップ、書式付きテキスト、画像・ファイル、変数展開、AI、課金は提供範囲に含めない。他アプリからの取り込みは共有拡張、本文の利用はキーボード、本体の呼び出しはURLで構成する。Widget、Controls、App Shortcutsの自動登録は提供しない。キーボードの操作・権限・読み取り専用接続は[キーボード設計](0005-snippet-keyboard.md)で定義する。
 
 ## データの意味と永続化
 
@@ -138,7 +138,7 @@ flowchart TB
 
 ## 保存形式と接続
 
-本体`nibble.9uiLe.com`と共有拡張`nibble.9uiLe.com.share`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
+本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
 
 各`SnippetStore` actorが一つの非Sendableな`SQLiteDatabase`を所有する。同一接続の操作はactorが直列化し、別プロセス・別接続の排他はSQLiteが担う。トランザクション内に`await`を置かず、読取には`BEGIN`、書込には`BEGIN IMMEDIATE`を使う。失敗時はrollbackを試み、元のエラーを返す。
 

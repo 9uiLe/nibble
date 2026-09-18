@@ -18,24 +18,27 @@ AIエージェントはこれらを直接参照せず、レビューした配布
 
 ### 1. Appleの識別子とApp Groups
 
-Apple DeveloperのCertificates, Identifiers & Profilesで次の構成を登録する。App Groupsは本体と共有拡張が同じ保存領域を使うためのCapabilityである。
+Apple DeveloperのCertificates, Identifiers & Profilesで次の構成を登録する。App Groupsは本体・共有拡張・キーボードが同じ保存領域を使うためのCapabilityである。
 
 | 対象 | 識別子 | 設定 |
 | --- | --- | --- |
 | 本体のExplicit App ID | `nibble.9uiLe.com` | App Groupsを有効化 |
 | 共有拡張のExplicit App ID | `nibble.9uiLe.com.share` | App Groupsを有効化 |
-| 共有App Group | `group.nibble.9uiLe.com` | 両方のApp IDへ関連付ける |
+| キーボードのExplicit App ID | `nibble.9uiLe.com.keyboard` | App Groupsを有効化 |
+| 共有App Group | `group.nibble.9uiLe.com` | 3つのApp IDへ関連付ける |
 
-共有拡張は独立したApp IDとprovisioning profileを持つ。両方のprofileに同じApp Groupを含める。共有拡張のBundle IDは、本体のBundle IDと`.`を先頭に持つ。製品が必要とするCapabilityはApp Groupsである。
+本体と各拡張は独立したApp IDとprovisioning profileを持ち、すべてのprofileに同じApp Groupを含める。拡張のBundle IDは、本体のBundle IDと`.`を先頭に持つ。製品が必要とするCapabilityはApp Groupsである。
 
-App Store Connectでは本体のBundle IDでiOSアプリを1件作成する。共有拡張は本体に含めて配布する。Appleへの登録と契約への同意は配布担当者が行う。詳細はAppleの[Capability設定](https://developer.apple.com/help/account/identifiers/enable-app-capabilities)と[App Group登録](https://developer.apple.com/help/account/identifiers/register-an-app-group)を参照する。
+App Store Connectでは本体のBundle IDでiOSアプリを1件作成する。共有拡張とキーボードは本体に含めて配布する。
+
+キーボードの追加とフルアクセスは端末の利用者が設定する。Appleへの登録と契約への同意は配布担当者が行う。詳細はAppleの[Capability設定](https://developer.apple.com/help/account/identifiers/enable-app-capabilities)と[App Group登録](https://developer.apple.com/help/account/identifiers/register-an-app-group)を参照する。
 
 ### 2. Xcodeと署名資産
 
 1. [開発環境のセットアップ](../README.md#セットアップ)に従い、NixとXcode 26.5 / iPhoneOS SDK 26.5を準備する。
 2. 固定したAppMacros revisionをXcodeで個別に承認する。マクロ検証を一括で無効にしない。
 3. 配布担当者がXcodeのAccountsでApple Developerアカウントへサインインする。
-4. 対象TeamのApple Distribution証明書と秘密鍵をKeychainに用意する。本体・共有拡張の配布profileとApp Groupの対応を確認する。
+4. 対象TeamのApple Distribution証明書と秘密鍵をKeychainに用意する。本体・共有拡張・キーボードの配布profileとApp Groupの対応を確認する。
 5. 署名資産が不足する場合は、配布担当者がXcodeのOrganizer等で準備する。
 
 Team IDは配布スクリプトが実行時に指定する。個人のTeam IDやアカウントをXcode projectへ保存しない。DeveloperロールのAPI鍵だけで配布証明書の新規発行まで成立するとは限らない。Appleの[cloud-managed certificates](https://developer.apple.com/help/account/certificates/cloud-managed-certificates/)の権限条件を確認し、エージェントが鍵の権限を自動昇格しない。
@@ -87,9 +90,9 @@ scripts/deploy-testflight.sh --dry-run
 
 ## 輸出コンプライアンス
 
-本体と共有拡張の`Info.plist`に`ITSAppUsesNonExemptEncryption`をBooleanの`false`として保存する。これは「免除対象外の暗号化を使用しない」という申告である。nibbleはApple同梱SQLiteに保存し、ファイルの保護はiOSのData Protectionを使う。製品とリンクする依存ライブラリには、独自の暗号化実装を含めない。
+本体・共有拡張・キーボードの`Info.plist`に`ITSAppUsesNonExemptEncryption`をBooleanの`false`として保存する。これは「免除対象外の暗号化を使用しない」という申告である。nibbleはApple同梱SQLiteに保存し、ファイルの保護はiOSのData Protectionを使う。製品とリンクする依存ライブラリには、独自の暗号化実装を含めない。
 
-申告をビルドに含めることで、App Store Connectで各ビルドの暗号化に関する質問へ回答する操作を省略する。配布スクリプトは完成したarchiveの本体と共有拡張を検査し、キーの欠落、`true`、文字列や数値などの型の誤りがあれば、export・upload前に停止する。確認した値を公開メタデータ`uses_non_exempt_encryption`へ記録する。
+申告をビルドに含めることで、App Store Connectで各ビルドの暗号化に関する質問へ回答する操作を省略する。配布スクリプトは完成したarchiveの本体・共有拡張・キーボードを検査し、キーの欠落、`true`、文字列や数値などの型の誤りがあれば、export・upload前に停止する。確認した値を公開メタデータ`uses_non_exempt_encryption`へ記録する。
 
 申告値は秘密情報ではなく、製品の構成としてGitで管理する。スクリプトは申告を推測したり、archiveを書き換えたりしない。暗号化機能や依存ライブラリの追加・変更時は、配布担当者が申告の適合性を再確認し、必要に応じて設定と検査を変更する。Appleの[申告キーの定義](https://developer.apple.com/documentation/bundleresources/information-property-list/itsappusesnonexemptencryption)と[ベータビルドの申告](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-export-compliance-information-for-beta-builds)を参照する。
 
@@ -110,7 +113,7 @@ scripts/deploy-testflight.sh --dry-run
 
 ### ビルド番号
 
-既定値は実行時点のUTC日時`YYYYMMDDHHmm`。本体と共有拡張に同じ番号を設定する。番号を明示する場合は、App Store Connectで未使用かつ配布済みビルドより新しい値を指定する。
+既定値は実行時点のUTC日時`YYYYMMDDHHmm`。本体・共有拡張・キーボードに同じ番号を設定する。番号を明示する場合は、App Store Connectで未使用かつ配布済みビルドより新しい値を指定する。
 
 ```sh
 scripts/deploy-testflight.sh --build-number 202609170900

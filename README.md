@@ -235,3 +235,9 @@ nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_
 | iOS検証環境の確認 | `nix develop --command python3 scripts/ios.py doctor` |
 
 依存の追加・更新は[開発ツールの管理](CONTRIBUTING.md#開発ツールの管理)、実装・証跡・PRは[開発ガイド](CONTRIBUTING.md)に従います。
+
+## 他アプリで使うキーボード
+
+保存済みの項目をタップして直接挿入し、別ボタンでコピーできます。iOSの「設定」→「一般」→「キーボード」→「キーボード」→「新しいキーボードを追加」でnibbleを追加し、入力欄の地球儀キーから切り替えます。直接挿入はフルアクセス不要、コピーはフルアクセスを許可して使います。
+
+下書きと削除済み項目は表示しません。パスワード欄、電話番号用の入力欄、独自キーボードを禁止するアプリでは利用できません。[要件と技術仕様](docs/decisions/0005-snippet-keyboard.md)に権限・保存領域・競合・配布条件を定義しています。

@@ -1,6 +1,6 @@
 # nibble MVPの操作と検証
 
-nibbleは、よく使うテキストを端末内に保存し、探してコピーする日本語UIのiPhoneアプリである。本体とShare Extensionで作成・編集・取り込みを行い、入力先のアプリへの復帰とペーストは利用者が行う。最低対応OSはiOS 26.0、実行検証はiOS 26.5 Simulatorに限定する。
+nibbleは、よく使うテキストを端末内に保存し、探してコピーする日本語UIのiPhoneアプリである。本体とShare Extensionで作成・編集・取り込みを行い、Keyboard Extensionから保存済み本文を直接挿入でき、本体でのコピーは利用者が入力先へ貼り付ける。最低対応OSはiOS 26.0、実行検証はiOS 26.5 Simulatorに限定する。
 
 操作・識別・回復の改善に対する実行結果は[UI改善の検証](ui-ux-validation.md)に記録する。
 
@@ -44,6 +44,18 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 
 コピーは同じ端末内で利用する。共有拡張は共有元のアプリが提供するテキストまたはURLを1件扱い、Webページの本文をダウンロードしない。アプリの同期・独自バックアップ機能はなく、アプリ削除後の保存データの復旧は提供しない。
 
+## キーボードから使う
+
+本体の設定→nibbleキーボードで追加手順を読む。iOS設定の一般→キーボード→キーボード→新しいキーボードを追加でnibbleを選び、他アプリの入力欄で地球儀キーから切り替える。
+
+- 行の本文領域をタップすると保存済み本文を直接挿入する。フルアクセスは不要。
+- コピーボタンはフルアクセスを許可した場合にクリップボードへ書き込む。未許可なら設定の案内を表示する。
+- すべて・ピン留めの2集合を50件ずつ表示する。下書き・削除済みは表示しない。
+- 本体で編集した後は更新ボタンで読み直す。選択後に変更・削除された項目は挿入せず、更新を案内する。
+- パスワード欄や電話番号入力、一部のアプリではiOSが標準キーボードを使う。入力先が受け付ける文字数・改行は入力先の仕様に従う。
+
+[キーボード設計](decisions/0005-snippet-keyboard.md)が状態・保存・権限を定義する。
+
 ## ショートカットから呼び出す
 
 1. Appleの「ショートカット」で新規ショートカットを作る。
@@ -60,7 +72,7 @@ nibbleは、よく使うテキストを端末内に保存し、探してコピ�
 | --- | --- |
 | project / shared scheme | `app/Nibble.xcodeproj` / `Nibble` |
 | 共通driver設定 | `app/project.json` |
-| 本体 / Share Extension | `nibble.9uiLe.com` / `nibble.9uiLe.com.share` |
+| 本体 / Share Extension / Keyboard Extension | `nibble.9uiLe.com` / `nibble.9uiLe.com.share` / `nibble.9uiLe.com.keyboard` |
 | App Group | `group.nibble.9uiLe.com` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
 | アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.2、swift-app-macros 0.3.0（[実装規約](library-policy.md)） |

@@ -18,7 +18,9 @@ import testflight as tf
 def make_archive(archive, build='1'):
     app = archive / 'Products/Applications/Nibble.app'
     share = app / 'PlugIns/NibbleShare.appex'
-    for path, identifier, kind in [(app, 'nibble.9uiLe.com', 'APPL'), (share, 'nibble.9uiLe.com.share', 'XPC!')]:
+    keyboard = app / 'PlugIns/NibbleKeyboard.appex'
+    for path, identifier, kind in [(app, 'nibble.9uiLe.com', 'APPL'), (share, 'nibble.9uiLe.com.share', 'XPC!'),
+                                   (keyboard, 'nibble.9uiLe.com.keyboard', 'XPC!')]:
         path.mkdir(parents=True)
         info = {'CFBundleIdentifier': identifier, 'CFBundlePackageType': kind,
                 'CFBundleSupportedPlatforms': ['iPhoneOS'], 'DTPlatformName': 'iphoneos',
@@ -27,6 +29,9 @@ def make_archive(archive, build='1'):
                 'CFBundleExecutable': 'fixture', 'ITSAppUsesNonExemptEncryption': False,
                 'CFBundleIcons': {'CFBundlePrimaryIcon': {'CFBundleIconName': 'AppIcon'}},
                 'NSExtension': {'NSExtensionPointIdentifier': 'com.apple.share-services'}}
+        if path == keyboard:
+            info['NSExtension'] = {'NSExtensionPointIdentifier': 'com.apple.keyboard-service',
+                                   'NSExtensionAttributes': {'RequestsOpenAccess': True}}
         (path / 'Info.plist').write_bytes(plistlib.dumps(info))
         (path / 'PrivacyInfo.xcprivacy').write_bytes(plistlib.dumps({}))
         (path / 'fixture').write_bytes(b'not executable')
@@ -270,11 +275,11 @@ class ArchiveTests(Fixture):
         with self.assertRaises(OSError):
             tf.archive_info(archive)
 
-    def test_encryption_declaration_must_be_boolean_false_in_both_bundles(self):
+    def test_encryption_declaration_must_be_boolean_false_in_all_bundles(self):
         archive = self.root / 'Nibble.xcarchive'
         app, share = make_archive(archive)
         self.assertIs(tf.archive_info(archive)['uses_non_exempt_encryption'], False)
-        for bundle in [app, share]:
+        for bundle in [app, share, app / 'PlugIns/NibbleKeyboard.appex']:
             path = bundle / 'Info.plist'
             original = plistlib.loads(path.read_bytes())
             for value in [None, True, 'NO', 'false', 0]:
@@ -288,6 +293,31 @@ class ArchiveTests(Fixture):
                     with self.assertRaisesRegex(tf.DistributionError, 'non-exempt encryption'):
                         tf.archive_info(archive)
             path.write_bytes(plistlib.dumps(original))
+
+    def test_keyboard_is_required_and_its_configuration_and_version_are_validated(self):
+        archive = self.root / 'Nibble.xcarchive'
+        app, _ = make_archive(archive)
+        keyboard = app / 'PlugIns/NibbleKeyboard.appex'
+        self.assertEqual(tf.archive_info(archive)['keyboard_bundle_id'], 'nibble.9uiLe.com.keyboard')
+        path = keyboard / 'Info.plist'
+        original = plistlib.loads(path.read_bytes())
+        for key, value in [('CFBundleIdentifier', 'other.keyboard'), ('CFBundleVersion', '2'),
+                           ('NSExtension', {'NSExtensionPointIdentifier': 'com.apple.share-services'}),
+                           ('NSExtension', {'NSExtensionPointIdentifier': 'com.apple.keyboard-service',
+                                            'NSExtensionAttributes': {'RequestsOpenAccess': 'YES'}})]:
+            with self.subTest(key=key, value=value):
+                info = dict(original)
+                info[key] = value
+                path.write_bytes(plistlib.dumps(info))
+                with self.assertRaises(tf.DistributionError):
+                    tf.archive_info(archive)
+        path.write_bytes(plistlib.dumps(original))
+        keyboard.rename(self.root / 'removed-keyboard')
+        with self.assertRaisesRegex(tf.DistributionError, 'exactly'):
+            tf.archive_info(archive)
+        (app / 'PlugIns/Unexpected.appex').mkdir()
+        with self.assertRaisesRegex(tf.DistributionError, 'exactly'):
+            tf.archive_info(archive)
 
     def test_other_app_is_rejected(self):
         archive = self.root / 'Nibble.xcarchive'

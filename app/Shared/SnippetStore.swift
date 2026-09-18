@@ -42,25 +42,8 @@ actor SnippetStore: LibraryReading {
         let interval = signposter.beginInterval("Search")
         defer { signposter.endInterval("Search", interval) }
         try Task.checkCancellation()
-        // Drafts are editing sessions, exposed by library(_:) rather than saved-snippet search.
         guard filter != .drafts else { return [] }
-        let key = SnippetText.searchKey(query).trimmingCharacters(in: .whitespacesAndNewlines)
-        // instr treats %, _ and backslash literally and supports one-character Japanese queries.
-        let db = try database()
-        // SQL varies only by these fixed predicates; user text is always bound.
-        // A pinned request can seek directly into the (deleted, pinned, updated, id) index.
-        let pinned = filter == .pinned ? " AND pinned=1" : ""
-        let matching = key.isEmpty ? "" : " AND instr(search_key,?)>0"
-        var values: [SQLValue] = [.int(filter == .trash ? 1 : 0)]
-        if !key.isEmpty { values.append(.text(key)) }
-        values.append(.int(max(1, limit)))
-        return try db.rows("""
-            SELECT id,title,substr(body,1,180),pinned,revision FROM snippets
-            WHERE deleted=?\(pinned)\(matching)
-            ORDER BY pinned DESC,updated DESC,id ASC LIMIT ?
-            """, values) { row in
-            return SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2), pinned: row.int(3) == 1, revision: row.int(4))
-        }
+        return try SnippetQueries.search(database(), query: query, filter: filter, limit: limit)
     }
 
     func summary(_ id: UUID) throws -> SnippetSummary {
@@ -73,12 +56,7 @@ actor SnippetStore: LibraryReading {
     }
 
     func snippet(_ id: UUID) throws -> Snippet {
-        let values = try database().rows("SELECT id,title,body,pinned,revision,updated,deleted FROM snippets WHERE id=?", [.text(id.uuidString)]) { row in
-            Snippet(id: id, title: row.text(1), body: row.text(2), pinned: row.int(3) == 1,
-                    revision: row.int(4), updatedAt: Date(timeIntervalSince1970: row.double(5)), deleted: row.int(6) == 1)
-        }
-        guard let value = values.first else { throw StoreError.missing }
-        return value
+        try SnippetQueries.snippet(database(), id: id)
     }
 
     /// Creates a distinct editing session. The library uses editingDraft(for:) to resume one.

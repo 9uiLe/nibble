@@ -28,7 +28,7 @@ nibbleはiOS向けのスニペットツール。作業中の文脈を保ちな�
 
 | 検証対象 | 設定 | 責務と手順 |
 | --- | --- | --- |
-| Nibble / NibbleShare | `app/project.json` | 製品の本体・共有拡張。[製品手順](docs/mvp.md) |
+| Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | 製品の本体・共有拡張・キーボード。[製品手順](docs/mvp.md) |
 | VerificationApp | `validation/project.json` | ツールチェーン・文字列反映・操作・撮影のfixture。[共通手順](docs/ios-verification.md) |
 | ResearchProbe | `validation/research-project.json` | 保存・検索・復旧・OS連携の比較試作。[研究手順](validation/RESEARCH.md) |
 
