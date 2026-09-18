@@ -13,6 +13,10 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
     }
     var canCopy: Bool { hasFullAccess }
 
+    override func loadView() {
+        inputView = UIInputView(frame: .zero, inputViewStyle: .keyboard)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         NibbleInterface.apply(to: &traitOverrides)
@@ -23,10 +27,13 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
         keyboardHeight = height
         let globe = UIButton(type: .system)
         globe.setImage(UIImage(systemName: "globe"), for: .normal)
+        globe.tintColor = .label
         globe.accessibilityLabel = "次のキーボード"
         globe.accessibilityIdentifier = "keyboard.nextKeyboard"
         globe.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
         let host = UIHostingController(rootView: KeyboardView(model: model, globe: globe).modifier(NibbleInterface()))
+        // Keep the system keyboard surface visible through the SwiftUI content.
+        host.view.backgroundColor = .clear
         NibbleInterface.apply(to: &host.traitOverrides)
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false

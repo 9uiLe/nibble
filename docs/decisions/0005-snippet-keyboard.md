@@ -110,11 +110,15 @@ revisionの照合時点は本文の読み取りである。DBの読み取りと�
 
 ## レイアウトと操作の意味
 
-上部に対象選択と更新、中央にスクロールする要約、下部に結果とページ・切替・終了を置く。対象を選んで内容を読み、一覧の末尾まで移動せず次のページや通常入力へ進める構成である。内容領域は挿入、独立した44pt以上のボタンはコピーに割り当て、操作範囲を重ねない。フィルターは色で選択を示し、チェックマークは付けない。
+上部に対象選択と更新、中央にスクロールする要約、下部に結果とページ・切替・終了を置く。対象を選んで内容を読み、一覧の末尾まで移動せず次のページや通常入力へ進める構成である。内容領域は挿入、独立した44pt以上のボタンはコピーに割り当て、操作範囲を重ねない。
+
+「すべて／ピン留め」は同じ一覧の対象を選ぶ標準segmented Pickerとする。小さいcontrol sizeと最大260ptの幅を使い、2項目を読み比べる距離を抑える。狭い領域では残り幅に縮み、更新ボタンの44ptを確保する。上段・下段の左右は8pt、上端は4ptを取り、一覧の文字と区切り線も8ptへ揃える。上段・下段を横断する区切り線は置かず、項目間だけを区切る。選択の表示は標準部品に委ね、チェックマークは付けない。
 
 幅はiOSの領域に従う。高さは通常288pt、縦方向がcompactなら196ptを優先度750の制約で提案し、OSの必須制約を優先する。上下の操作列と数件の要約を収め、入力先を見える範囲に保つための製品値である。高さの変化は中央の一覧で吸収し、スクロールで内容へ到達できるようにする。長い利用案内は本体の設定で読む。
 
-背景・区切り線・アクセントは本体と共通とする。文字サイズ・太字・コントラストは`NibbleInterface`の[固定表示方針](../design/decisions/0002-fixed-interface.md)に従い、ライト・ダークへ追従する。項目の読み上げ名は「対象名を入力」「対象名をコピー」とし、入力のhintで本文の挿入を説明する。ページ操作にも「前のページ」「次のページ」を示す。OS所有の切替UI・権限・入力欄の挙動はOSに委ねる。
+背景は`UIInputView(inputViewStyle: .keyboard)`が描く標準キーボードの素材とし、SwiftUIのホスト背景を透明にする。入力先アプリとOSのキーボード周囲に一続きの面を作るため、キーボード内には本体のクリーム色・錆色を使わない。文字と操作はprimary、要約・ピン・小さい製品名はsecondary、区切り線は標準Dividerで役割を分ける。色のRGBやシステムキーボードの角丸を複製せず、OSの更新へ追従できる公開部品を使う。
+
+文字サイズ・太字・コントラストは`NibbleInterface`の[固定表示方針](../design/decisions/0002-fixed-interface.md)に従い、ライト・ダークへ追従する。項目の読み上げ名は「対象名を入力」「対象名をコピー」とし、入力のhintで本文の挿入を説明する。ページ操作にも「前のページ」「次のページ」を示す。OS所有の切替UI・権限・入力欄の挙動はOSに委ねる。
 
 ## ビルドと配布
 
@@ -138,6 +142,11 @@ Apple DeveloperのキーボードApp IDにApp Groupsを有効化し、共通のA
 iOSの実行評価は26.5で行う。未実施条件は[検証記録](../keyboard-validation.md)に対象と理由を残す。Simulatorの成功から実機の拡張メモリ上限・ロック中の保護・すべての入力先による文字受理を保証しない。
 
 ## 一次資料
+
+外観のAPIと指針は2026-09-18に、Xcode 26.5 / iOS 26.5 SDKと以下のApple資料で確認した。余白・最大幅はnibbleの設計値であり、Appleの指定寸法ではない。
+
+- [Apple：UIInputView.Style](https://developer.apple.com/documentation/uikit/uiinputviewstyle/uiinputviewstyledefault) — keyboardスタイルの背景描画。ローカルSDKの`UIInputView.h`でも公開宣言を確認する。
+- [Apple：Segmented controls](https://developer.apple.com/design/human-interface-guidelines/segmented-controls) — 同じ内容に関わる選択肢のグループ化と選択状態。
 
 - [Apple：Creating a custom keyboard](https://developer.apple.com/documentation/uikit/creating-a-custom-keyboard) — extension構成、有効化、切替キー、寿命。
 - [Apple：Configuring a custom keyboard interface](https://developer.apple.com/documentation/uikit/configuring-a-custom-keyboard-interface) — 入力欄とレイアウトの制約。

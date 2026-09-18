@@ -19,19 +19,20 @@ struct KeyboardView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .controlSize(.small)
+                .frame(maxWidth: 260)
+                Spacer(minLength: 0)
                 Button("更新", systemImage: "arrow.clockwise", action: model.requestReload)
                     .labelStyle(.iconOnly)
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("keyboard.refresh")
             }
-            .padding(.horizontal, 12)
-            Divider()
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
             controls
         }
-        .background(Color.nibbleCanvas)
-        .tint(.nibbleAccent)
+        .tint(.primary)
         .task(id: model.loadID) { await model.refresh() }
         .onChange(of: model.loadID) { tasks.cancel(lifetime: .screenBound) }
         .onDisappear { tasks.cancel(lifetime: .screenBound) }
@@ -48,7 +49,7 @@ struct KeyboardView: View {
                             Button { startTask(item, as: .insert) } label: {
                                 KeyboardRowContent(item: item)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 8).padding(.leading, 12)
+                                    .padding(.vertical, 8).padding(.leading, 8)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -63,7 +64,7 @@ struct KeyboardView: View {
                             .accessibilityHint(model.hasFullAccess ? "クリップボードへコピーします" : "フルアクセスの案内を表示します")
                             .accessibilityIdentifier("keyboard.copy.\(item.id)")
                         }
-                        Divider().padding(.leading, 12)
+                        Divider().padding(.horizontal, 8)
                     }
                 }
             }
@@ -88,7 +89,7 @@ struct KeyboardView: View {
             }
             HStack(spacing: 4) {
                 if model.needsSwitchKey { KeyboardInputModeButton(button: globe).frame(width: 44, height: 44) }
-                Text("nibble").font(.system(.subheadline, design: .rounded, weight: .bold))
+                Text("nibble").font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 Button("前のページ", systemImage: "chevron.left") { model.movePage(forward: false) }
@@ -104,7 +105,7 @@ struct KeyboardView: View {
             }
             .labelStyle(.iconOnly)
             .buttonStyle(KeyboardControlStyle())
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 8)
         }
     }
 
@@ -122,7 +123,7 @@ private struct KeyboardRowContent: @MainActor EquatableBodyView {
     var equatableBody: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 4) {
-                if item.pinned { Image(systemName: "pin.fill").foregroundStyle(Color.nibbleAccent) }
+                if item.pinned { Image(systemName: "pin.fill").foregroundStyle(.secondary) }
                 Text(item.displayTitle).fontWeight(.medium).lineLimit(1)
             }
             .font(.subheadline)
