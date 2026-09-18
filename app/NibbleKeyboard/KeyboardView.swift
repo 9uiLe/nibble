@@ -121,6 +121,12 @@ private struct KeyboardRowContent: @MainActor EquatableBodyView {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if item.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.secondary) }
+            Text("入力")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color(uiColor: .systemBlue))
+                .fixedSize()
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .background(Color(uiColor: .systemBlue).opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
         }
     }
 }
