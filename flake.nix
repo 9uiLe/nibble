@@ -106,7 +106,11 @@
 
       checks = forAllSystems (pkgs: {
         rive-assets =
-          pkgs.runCommand "nibble-rive-assets" { nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs; }
+          pkgs.runCommand "nibble-rive-assets"
+            {
+              nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs;
+              NIBBLE_UI_FORMAT = "json";
+            }
             ''
               python3 ${./.}/scripts/rive_assets.py check --root ${./.}
               touch "$out"
@@ -116,6 +120,7 @@
           pkgs.runCommand "nibble-documentation"
             {
               nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs;
+              NIBBLE_UI_FORMAT = "json";
             }
             ''
               python3 ${./.}/scripts/check_docs.py --root ${./.}
@@ -125,6 +130,7 @@
           pkgs.runCommand "nibble-swift-library-policy"
             {
               nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs;
+              NIBBLE_UI_FORMAT = "json";
             }
             ''
               python3 ${./scripts}/check_swift_policy.py --root ${./.}
@@ -139,6 +145,7 @@
                 pkgs.shellcheck
               ]
               ++ hamioFor pkgs;
+              NIBBLE_UI_FORMAT = "json";
               NIBBLE_REQUIRE_HAMIO = if hamioFor pkgs == [ ] then "0" else "1";
             }
             ''
@@ -165,6 +172,7 @@
           pkgs.runCommand "nibble-workflow-policy"
             {
               nativeBuildInputs = toolsFor pkgs;
+              NIBBLE_UI_FORMAT = "json";
             }
             ''
               mkdir -p .github scripts
