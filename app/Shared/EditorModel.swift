@@ -23,9 +23,9 @@ final class EditorModel {
     private(set) var draft: Draft
     private(set) var phase = Phase.editing
     private(set) var failure: Failure?
-    private let store: SnippetStore
+    private let store: any DraftEditing
 
-    init(draft: Draft, store: SnippetStore) {
+    init(draft: Draft, store: any DraftEditing) {
         self.draft = draft
         self.store = store
     }
@@ -64,7 +64,7 @@ final class EditorModel {
         failure = nil
         do {
             switch operation {
-            case .save: try await store.save(snapshot)
+            case .save: try await store.save(snapshot, asNew: false)
             case .saveAsNew: try await store.save(snapshot, asNew: true)
             case .keep: try await store.keepDraft(snapshot)
             case .discard: try await store.discardDraft(snapshot)

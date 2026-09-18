@@ -16,14 +16,6 @@ struct Draft: Identifiable, Equatable, Sendable {
     var isDisposable: Bool {
         (title.isEmpty && body.isEmpty) || (snippetID != nil && sequence == 0)
     }
-
-    /// Swift String equality folds canonically equivalent Unicode; persistence must retain bytes.
-    func canReplace(_ stored: Draft) -> Bool {
-        guard id == stored.id, snippetID == stored.snippetID, baseRevision == stored.baseRevision else { return false }
-        return sequence > stored.sequence || (sequence == stored.sequence
-            && SnippetText.hasSameBytes(title, stored.title)
-            && SnippetText.hasSameBytes(body, stored.body))
-    }
 }
 
 /// Library rows retain only a bounded preview of each draft. Opening a row reads the current draft by ID.

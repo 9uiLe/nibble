@@ -70,16 +70,20 @@ flowchart TB
     Tabs --> Screen[LibraryScreen]
     Screen --> Owner[LibraryTaskOwner]
     Owner --> Model[LibraryModel]
-    Model --> Store
+    Model -->|LibraryStorage| Store
     Model -->|LibraryEffectsの契約| Effects
     Screen --> Row[SnippetRow / LibraryFilterBar]
     Screen --> Notice[LibraryNotice]
     Tabs -->|編集シートの提示| Editor[SnippetEditor]
     Share --> Editor
     Editor --> Editing[EditorModel]
-    Editing --> Store
+    Editing -->|DraftEditing| Store
     Store --> Schema[SnippetSchema]
     Store --> Queries[SnippetQueries]
+    Store --> Drafts[DraftQueries]
+    Store --> Commands[SnippetCommands]
+    Drafts --> SQL
+    Commands --> SQL
     Queries --> SQL[SQLiteDatabase]
     Store --> SQL
     Keyboard[KeyboardViewController] --> KeyboardUI[KeyboardView]
@@ -114,15 +118,18 @@ flowchart TB
 | `LibraryModel` | 一覧要求と結果、編集対象、通知、失敗。保存層と`LibraryEffects`を使う完了待ち可能な操作 |
 | `SnippetEditor` / `EditorModel` | 入力・フォーカス・終了タスクの所有 / 下書き・自動保存・終了状態・回復可能な失敗 |
 | `ShareViewController` | 拡張の保存層と読込タスクを保持し、取得した本文を共通編集へ渡す。終了結果を共有元へ通知 |
-| `SnippetStore` | 検索、更新、競合検出、業務単位のトランザクション。UIには値型を返す |
+| `SnippetStore` | 接続の生成・所有、actorによる直列化、一覧snapshotの構成、計測。UIへSendableな値を返す |
+| `LibraryStorage` / `DraftEditing` | 一覧の読取・利用・更新 / 編集セッションの永続化と終了。モデルに必要な操作だけを公開する |
+| `DraftQueries` | 下書きの作成・再開・入力保存・終了と、入力順序・保存済みrevisionの競合検出 |
+| `SnippetCommands` | ピン・削除・復元・完全削除。通知を伴う変更と対象の取得を一つのtransactionで確定し、ピンは単一のUPDATEで完了する |
 | `KeyboardViewController` / `KeyboardView` | キーボードのモデル・OS操作・入力先の識別 / 表示と読込・利用操作のタスク所有 |
 | `KeyboardModel` / `KeyboardReader` | ページ・要求世代・操作ID・通知 / 保存済みデータだけを読む短命の接続 |
-| `SnippetQueries` | 本体とキーボードが使う保存済み要約の検索条件と並び順 |
+| `SnippetQueries` | 保存済み要約の検索・並び順、未削除の確認、必要に応じてrevisionを照合する本文読取。本体・キーボードで共用する |
 | `SnippetSchema` / `SQLiteDatabase` | テーブル・索引・version / 接続・準備済みSQL・引数・トランザクションの資源管理 |
 | `LibraryEffects` / `SystemLibraryEffects` | コピーと読み上げ通知の同期契約 / UIKitによる実行 |
 | `AboutIllustration` / `RivePresentation` | 説明と表示設定・再生Sessionの保持 / 読込・接続検査・表示・フレーム停止 |
 
-保存層を必要とする画面・モデルはinitializerで受け取る。本体の各モデルは一つの保存層を共有し、共有拡張は自身の保存層、キーボードは読み取り専用のReaderを持つ。App Groupの解決は最初の保存操作まで遅らせ、利用できない場合は回復可能なエラーとして表示する。テストには専用の一時URLを渡す。
+保存層を必要とする画面・モデルはinitializerで受け取る。本体の各モデルは一つの保存層を共有し、共有拡張は自身の保存層、キーボードは読み取り専用のReaderを持つ。App Groupの解決は最初の保存操作まで遅らせ、利用できない場合は回復可能なエラーとして表示する。モデルが参照する型は`LibraryStorage`、`DraftEditing`、`KeyboardReading`とし、具体的な保存先やSQLite接続を公開しない。テストには専用の一時URLまたは完了順を制御する実装を渡す。
 
 ### 状態の寿命
 
@@ -158,7 +165,7 @@ flowchart TB
 
 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
 
-各`SnippetStore` actorが一つの非Sendableな`SQLiteDatabase`を所有する。同一接続の操作はactorが直列化し、別プロセス・別接続の排他はSQLiteが担う。トランザクション内に`await`を置かず、読取には`BEGIN`、書込には`BEGIN IMMEDIATE`を使う。失敗時はrollbackを試み、元のエラーを返す。
+各`SnippetStore` actorが一つの非Sendableな`SQLiteDatabase`を所有する。同一接続の操作はactorが直列化し、別プロセス・別接続の排他はSQLiteが担う。SQLを扱う`SnippetQueries`、`DraftQueries`、`SnippetCommands`は同期関数であり、呼出元actorの実行中だけ接続を借りる。接続を保持するTaskやUIへの通知を開始しない。トランザクション内に`await`を置かず、読取には`BEGIN`、書込には`BEGIN IMMEDIATE`を使う。失敗時はrollbackを試み、元のエラーを返す。
 
 | 設定・構造 | 目的と契約 |
 | --- | --- |
@@ -176,6 +183,14 @@ flowchart TB
 `SQLiteDatabase`は準備済みSQL（statement）を接続ごとに最大32件保持し、最も長く使われていないものから解放する。実行中のstatementは保持対象から外すため、入れ子の同じSQLにも独立したstatementを使う。
 
 SQLの引数はbindingで渡し、個数不一致を拒否する。正常終了時はresetの成否を確認して全bindingを解除し、本文のバッファを保持しない。失敗したstatementは破棄する。書込は結果配列を作らず実行を完了し、接続の解放時は保持しているstatementも解放する。
+
+### 操作に必要な値だけを取得する
+
+本体のコピーとキーボードの利用は`SnippetQueries.savedBody`を通す。未削除であることと、要求された場合のrevisionを検査してから本文をSwiftのStringに変換する。タイトル・日時を含む編集用の`Snippet`は構築しない。
+
+既存下書きの再開は保存済み項目の削除状態をscalar値で確認し、下書きだけを読む。下書きを新しく作る場合に限り、保存済み全文を初期入力として取得する。下書きの終了では、対象UUID・baseRevision・sequenceを先に照合する。sequenceが同じ場合だけSQLの`CASE`から原文を取得してUTF-8を比較し、新しい入力には保存済みの長文を複製しない。
+
+削除・復元・完全削除の通知対象は、変更を確定するtransaction内で取得する。画面に保持した要約を通知の正本にせず、変更結果の`SnippetMutationResult`を使う。DBの確定後にモデルが一覧を再取得し、OS通知と表示を更新する。
 
 ## 検索と一覧の性能
 

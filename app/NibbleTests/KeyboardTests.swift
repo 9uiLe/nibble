@@ -94,6 +94,76 @@ struct KeyboardOperationTests {
     private let item = SnippetSummary(id: UUID(), title: "定型文", preview: "本文", pinned: false, revision: 1)
 
     @Test(arguments: [false, true])
+    func overlappingReadsOfTheSameRequestKeepOnlyTheLatestExecution(fails: Bool) async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        model.activate()
+        async let first: Void = model.refresh()
+        await reader.pages.waitForRequests(1)
+        async let second: Void = model.refresh()
+        await reader.pages.waitForRequests(2)
+        reader.pages.finish(1, .success(KeyboardPage(items: [item], hasMore: false)))
+        await second
+        reader.pages.finish(0, fails ? .failure(StoreError.database) : .success(KeyboardPage(items: [], hasMore: true)))
+        await first
+        #expect(model.page?.items == [item] && model.isCurrent && model.failure == nil)
+    }
+
+    @Test func anItemOutsideTheCurrentPageCannotTriggerAnEffect() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        let stale = SnippetSummary(id: item.id, title: item.title, preview: item.preview, pinned: false, revision: 0)
+        await model.use(stale, as: .insert)
+        await model.use(SnippetSummary(id: UUID(), title: "別ページ", preview: "", pinned: false, revision: 1), as: .copy)
+        #expect(reader.bodies.count == 0 && effects.events.isEmpty && !model.isUsing)
+    }
+
+    @Test func cancelledReadCanBeRetriedWithoutReactivatingTheKeyboard() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        let tasks = ViewTaskStore()
+        model.activate()
+        tasks.start(id: "read", lifetime: .screenBound) { _ in await model.refresh() }
+        await reader.pages.waitForRequests(1)
+        tasks.cancelAll()
+        reader.pages.finish(0, .success(KeyboardPage(items: [item], hasMore: false)))
+        await tasks.waitForIdle()
+        #expect(!model.loading && !model.isCurrent && model.failure != nil)
+        model.requestReload()
+        async let retry: Void = model.refresh()
+        await reader.pages.waitForRequests(2)
+        reader.pages.finish(1, .success(KeyboardPage(items: [item], hasMore: false)))
+        await retry
+        #expect(model.isCurrent && model.failure == nil && model.page?.items == [item])
+    }
+
+    @Test(arguments: ["destination", "selection", "disappear", "reload", "cancel"])
+    func copyHasItsOwnLifetimeAndDoesNotDependOnTheInsertionPoint(reason: String) async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        let tasks = ViewTaskStore()
+        tasks.start(id: "copy", lifetime: .screenBound) { _ in await model.use(item, as: .copy) }
+        await reader.bodies.waitForRequests(1)
+        switch reason {
+        case "destination": effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
+        case "selection": effects.destination = KeyboardDestination(document: effects.destination.document, revision: UUID())
+        case "disappear": model.deactivate()
+        case "reload": model.requestReload()
+        default: tasks.cancel(lifetime: .screenBound)
+        }
+        reader.bodies.finish(0, .success("原文"))
+        await tasks.waitForIdle()
+        #expect(effects.events == (["destination", "selection"].contains(reason) ? [.copy("原文")] : []))
+        #expect(!model.isUsing)
+    }
+
+    @Test(arguments: [false, true])
     func lateReadCannotReplaceCurrentPage(fails: Bool) async {
         let reader = KeyboardGateReader()
         let effects = RecordingKeyboardEffects()

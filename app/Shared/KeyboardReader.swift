@@ -68,10 +68,10 @@ actor KeyboardReader: KeyboardReading {
 
     func body(for item: SnippetSummary) throws -> String {
         let db = try database()
-        let value = try SnippetQueries.snippet(db, id: item.id)
+        let value: String
+        do { value = try SnippetQueries.savedBody(db, id: item.id, revision: item.revision) }
+        catch StoreError.conflict { throw KeyboardReadError.changed }
         try Task.checkCancellation()
-        guard !value.deleted else { throw StoreError.missing }
-        guard value.revision == item.revision else { throw KeyboardReadError.changed }
-        return value.body
+        return value
     }
 }
