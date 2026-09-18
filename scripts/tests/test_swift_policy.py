@@ -115,6 +115,16 @@ class SwiftPolicyTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(violations(source), [])
 
+    def test_product_events_require_the_reviewed_explicit_callback_label(self):
+        for view, label in [("SnippetRow", "perform"), ("LibraryNotice", "restore")]:
+            prefix = 'struct Screen: View { func startTask() { work() }; var body: some View { '
+            with self.subTest(view=view):
+                self.assertEqual(violations(prefix + f'{view}({label}: {{ startTask() }})' + ' } }'), [])
+                for expression in [f'{view} {{ startTask() }}', f'{view}(content: {{ startTask() }})',
+                                   f'Unknown({label}: {{ startTask() }})',
+                                   f'{view}({label}: {{ consume {{ startTask() }} }})']:
+                    self.assertTrue(violations(prefix + expression + ' } }'))
+
     def test_models_cannot_own_or_accept_task_creation_capabilities(self):
         for source in [
             'class LibraryModel { private let tasks = ViewTaskStore(); func startTask() {} }',

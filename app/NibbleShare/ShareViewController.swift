@@ -5,6 +5,7 @@ import Tasking
 
 @MainActor
 final class ShareViewController: UIViewController {
+    private let store = SnippetStorage.sharedContainer()
     private let tasks = ViewTaskStore()
     private static let load: ActionID = "share.load"
 
@@ -36,8 +37,8 @@ final class ShareViewController: UIViewController {
             let body = try await Self.read(provider)
             try Task.checkCancellation()
             try SnippetText.validate(title: "", body: body)
-            let draft = try await SnippetStore.shared.beginDraft(body: body)
-            let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: .shared) { [weak self] in
+            let draft = try await store.beginDraft(body: body)
+            let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: store) { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
             }.modifier(NibbleInterface()))
             NibbleInterface.apply(to: &host.traitOverrides)

@@ -3,9 +3,11 @@ import UIKit
 
 @main
 struct NibbleApp: App {
+    private let store = SnippetStorage.sharedContainer()
+
     var body: some Scene {
         WindowGroup {
-            LibraryView()
+            LibraryView(store: store, effects: SystemLibraryEffects())
                 .modifier(NibbleInterface())
                 .background(SceneInterfaceDefaults())
         }

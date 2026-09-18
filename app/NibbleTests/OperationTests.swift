@@ -12,7 +12,7 @@ extension UIIntegrationTests {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let store = database.store
-            let library = LibraryModel(store: store)
+            let library = LibraryModel(store: store, effects: SystemLibraryEffects())
             await library.open()
             let draft = try #require(library.editor)
             let editor = EditorModel(draft: draft, store: store)
@@ -189,8 +189,10 @@ extension UIIntegrationTests {
 
         @Test(arguments: [false, true])
         func staleReadCannotFinishTheNextSelection(fails: Bool) async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
             let reader = ControlledLibraryReader()
-            let model = LibraryModel(filter: .pinned, libraryReader: reader)
+            let model = LibraryModel(store: database.store, filter: .pinned, libraryReader: reader)
             let owner = LibraryTaskOwner()
             owner.startTask(.refresh, on: model)
             await reader.waitForRequests(1)
@@ -217,8 +219,10 @@ extension UIIntegrationTests {
         }
 
         @Test func lateReadCannotReplaceTheLatestResult() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
             let reader = ControlledLibraryReader()
-            let model = LibraryModel(filter: .pinned, libraryReader: reader)
+            let model = LibraryModel(store: database.store, filter: .pinned, libraryReader: reader)
             let olderOwner = LibraryTaskOwner()
             let latestOwner = LibraryTaskOwner()
             olderOwner.startTask(.refresh, on: model)
@@ -236,8 +240,10 @@ extension UIIntegrationTests {
         }
 
         @Test func failedFilterReadDoesNotBecomeAnEmptyResultOrLeakIntoAnotherFilter() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
             let reader = ControlledLibraryReader()
-            let model = LibraryModel(libraryReader: reader)
+            let model = LibraryModel(store: database.store, libraryReader: reader)
             let owner = LibraryTaskOwner()
             owner.startTask(.refresh, on: model)
             await reader.waitForRequests(1)

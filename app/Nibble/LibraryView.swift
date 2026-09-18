@@ -5,12 +5,21 @@ struct LibraryView: View {
 
     @State private var selectedTab = TabID.library
     @AppStorage(ActionButtonSide.storageKey) private var actionButtonSide = ActionButtonSide.right
-    @State private var all = LibraryModel()
-    @State private var search = LibraryModel()
+    @State private var all: LibraryModel
+    @State private var search: LibraryModel
+    private let store: SnippetStore
+    private let effects: any LibraryEffects
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
+
+    init(store: SnippetStore, effects: any LibraryEffects) {
+        self.store = store
+        self.effects = effects
+        _all = State(initialValue: LibraryModel(store: store, effects: effects))
+        _search = State(initialValue: LibraryModel(store: store, effects: effects))
+    }
 
     var body: some View {
         @Bindable var searchableLibrary = search
@@ -36,7 +45,7 @@ struct LibraryView: View {
         .autocorrectionDisabled()
         .onSubmit(of: .search) { searchFocused = false }
         .sheet(isPresented: $showsTrash, onDismiss: { routeOwner.startTask(.refresh, on: currentLibrary) }) {
-            DeletedSnippetsView()
+            DeletedSnippetsView(store: store, effects: effects)
         }
         .tint(.nibbleAccent)
         .onChange(of: selectedTab) {
@@ -83,9 +92,13 @@ struct LibraryView: View {
 }
 
 private struct DeletedSnippetsView: View {
-    @State private var model = LibraryModel(filter: .trash)
+    @State private var model: LibraryModel
     @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
+
+    init(store: SnippetStore, effects: any LibraryEffects) {
+        _model = State(initialValue: LibraryModel(store: store, effects: effects, filter: .trash))
+    }
 
     var body: some View {
         @Bindable var library = model

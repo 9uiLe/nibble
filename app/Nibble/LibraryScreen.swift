@@ -27,7 +27,7 @@ struct LibraryScreen: View {
         .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
-                notice
+                LibraryNotice(model: model, restore: { startTask(.restore($0)) })
                 if model.filter != .trash && !searchFocused.wrappedValue && !showsCreationCTA {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
@@ -63,10 +63,6 @@ struct LibraryScreen: View {
         .detectAnimationLeaks()
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
-        .sensoryFeedback(.success, trigger: model.feedback)
-        .task(id: model.notice?.id) {
-            if let id = model.notice?.id { await model.expireNotice(id: id) }
-        }
         .onAppear { startTask(.refresh) }
         .onChange(of: model.request) { startTask(.refresh) }
         .onChange(of: scenePhase) {
@@ -229,38 +225,6 @@ struct LibraryScreen: View {
             && model.contentIsCurrent && contentIsEmpty && !model.loading && model.failure == nil
     }
 
-    private var notice: some View {
-        AnimationScope(.easeOut(duration: 0.16), value: model.notice != nil, name: "Library.Notice") {
-            if let notice = model.notice {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label(notice.message, systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.medium))
-                        if let subject = notice.subject {
-                            Text(subject).font(.subheadline).lineLimit(2)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(notice.announcement)
-                    .accessibilityIdentifier("library.notice")
-                    if let id = notice.undoID {
-                        Button { startTask(.restore(id)) } label: {
-                            Text("元に戻す")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 44).contentShape(.rect)
-                        }
-                        .buttonStyle(.borderless)
-                            .accessibilityIdentifier("library.undo")
-                    }
-                }
-                .padding(.horizontal, 20).padding(.vertical, 8)
-                .background(.regularMaterial, in: .rect(cornerRadius: 20))
-                .transition(.opacity)
-            }
-        }
-    }
-
     private func startTask(_ action: LibraryTaskOwner.Action) {
         if case .open = action { searchFocused.wrappedValue = false }
         taskOwner.startTask(action, on: model)
@@ -314,139 +278,16 @@ struct LibraryScreen: View {
         (actionButtonSide == .left) == (layoutDirection == .leftToRight)
     }
 
-    private func copyButton(_ item: SnippetSummary) -> some View {
-        Button { startTask(.copy(item.id)) } label: {
-            Image(systemName: "doc.on.doc")
-                .font(.body)
-                .padding(8)
-                .background(Color.nibbleAccent.opacity(0.07), in: .rect(cornerRadius: 10))
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel("\(item.displayTitle)をコピー")
-        .accessibilityIdentifier("copy.\(item.id)")
-    }
-
-    private func rowActions(_ item: SnippetSummary) -> some View {
-        HStack(spacing: 0) {
-            if model.contentRequest.filter == .trash {
-                Button { startTask(.restore(item.id)) } label: {
-                    Image(systemName: "arrow.uturn.backward").font(.body)
-                        .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
-                }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("\(item.displayTitle)を復元")
-                    .accessibilityIdentifier("restore.\(item.id)")
-            } else { copyButton(item) }
-            Menu { rowMenu(item) } label: {
-                Image(systemName: "ellipsis").font(.body)
-                    .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
-            }
-            .menuStyle(.borderlessButton)
-            .accessibilityLabel("\(item.displayTitle)のその他の操作")
-            .accessibilityIdentifier("more.\(item.id)")
-        }
-    }
-
-    private func rowLabel(_ item: SnippetSummary) -> some View {
-        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
-    }
-
-    @ViewBuilder private func rowContent(_ item: SnippetSummary) -> some View {
-        if model.contentRequest.filter == .trash {
-            rowLabel(item)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(item.displayTitle)
-                .accessibilityIdentifier("snippet.\(item.id)")
-        } else {
-            Button { startTask(.open(.snippet(item.id))) } label: { rowLabel(item) }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("snippet.\(item.id)")
-                .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
-                .accessibilityHint("編集します")
-        }
-    }
-
     private func snippetRow(_ item: SnippetSummary) -> some View {
-        HStack(spacing: 8) {
-            if actionsAtLeading { rowActions(item) }
-            rowContent(item)
-            if !actionsAtLeading { rowActions(item) }
-        }
-        .padding(.vertical, 4)
-        .contextMenu { rowMenu(item) }
-        .swipeActions(edge: .trailing, allowsFullSwipe: model.contentRequest.filter != .trash) {
-            if model.contentRequest.filter == .trash {
-                Button("完全に削除", role: .destructive) { permanentDeletion = item }
-            } else {
-                Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
-                    .accessibilityIdentifier("swipe.delete.\(item.id)")
+        SnippetRow(item: item, isTrash: model.contentRequest.filter == .trash, actionsAtLeading: actionsAtLeading, perform: { action in
+            switch action {
+            case .edit: startTask(.open(.snippet(item.id)))
+            case .copy: startTask(.copy(item.id))
+            case .pin: startTask(.pin(item))
+            case .delete: startTask(.delete(item.id))
+            case .restore: startTask(.restore(item.id))
+            case .permanentlyDelete: permanentDeletion = item
             }
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            if model.contentRequest.filter != .trash {
-                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") {
-                    startTask(.pin(item))
-                }
-                .tint(.nibbleAccent)
-                .accessibilityIdentifier("swipe.pin.\(item.id)")
-            }
-        }
-    }
-
-    @ViewBuilder private func rowMenu(_ item: SnippetSummary) -> some View {
-        if model.contentRequest.filter == .trash {
-            Button("復元", systemImage: "arrow.uturn.backward") { startTask(.restore(item.id)) }
-            Button("完全に削除", systemImage: "trash", role: .destructive) { permanentDeletion = item }
-                .accessibilityIdentifier("permanentlyDelete.\(item.id)")
-        } else {
-            Button("編集", systemImage: "square.and.pencil") { startTask(.open(.snippet(item.id))) }
-            Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { startTask(.pin(item)) }
-            Button("削除", systemImage: "trash", role: .destructive) { startTask(.delete(item.id)) }
-                .accessibilityIdentifier("delete.\(item.id)")
-        }
-    }
-}
-
-/// These controls change the contents of one library, while the tab bar changes screens.
-private struct LibraryFilterBar: View {
-    @Binding var selection: LibraryFilter
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
-                        Button { selection = filter } label: {
-                            Text(filter.title)
-                            .font(.subheadline.weight(.semibold))
-                            .fixedSize()
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 36)
-                            .foregroundStyle(selection == filter ? Color.nibbleAccent : Color.primary)
-                            .background(selection == filter ? Color.nibbleAccent.opacity(0.14) : Color.clear,
-                                        in: .rect(cornerRadius: 10))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(selection == filter ? Color.nibbleAccent : Color.secondary.opacity(0.4))
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(selection == filter ? [.isSelected] : [])
-                        .accessibilityIdentifier("library.filter.\(filter.rawValue)")
-                        .id(filter)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 4)
-            }
-            .scrollIndicators(.hidden)
-            .background(Color.nibbleCanvas)
-            .overlay(alignment: .bottom) { Divider() }
-            .onChange(of: selection) { proxy.scrollTo(selection, anchor: .center) }
-        }
+        })
     }
 }

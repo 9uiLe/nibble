@@ -21,3 +21,19 @@ func create(_ store: SnippetStore, title: String = "", body: String) async throw
     return try await store.save(draft)
 }
 
+
+@MainActor
+final class RecordingLibraryEffects: LibraryEffects {
+    enum Event: Equatable { case copy(String), announce(String) }
+    private(set) var events: [Event] = []
+    func copy(_ text: String) { events.append(.copy(text)) }
+    func announce(_ text: String) { events.append(.announce(text)) }
+}
+
+extension LibraryModel {
+    /// Test composition never reads or writes the process pasteboard by default.
+    convenience init(store: SnippetStore, filter: LibraryFilter = .all,
+                     libraryReader: (any LibraryReading)? = nil) {
+        self.init(store: store, effects: RecordingLibraryEffects(), filter: filter, libraryReader: libraryReader)
+    }
+}

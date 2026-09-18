@@ -94,6 +94,16 @@ class ProcessTests(unittest.TestCase):
         self.run.manifest = {"commands": []}
         self.run.args = Mock(device="explicit-udid")
 
+    def test_testability_override_is_limited_to_test_actions(self):
+        self.run.config = {"project": "app/Nibble.xcodeproj", "scheme": "Nibble"}
+        self.run.args.configuration = "Release"
+        for test in [False, True]:
+            with self.subTest(test=test), patch.object(self.run, "boot"), patch.object(self.run, "command") as command, patch.object(ios, "validate_summary"):
+                self.run.build(test=test)
+                arguments = command.call_args_list[0].args[0]
+                self.assertEqual("ENABLE_TESTABILITY=YES" in arguments, test)
+                self.assertEqual(arguments[-1], "test" if test else "build")
+
     def test_launch_waits_for_native_target_process(self):
         self.run.config = {"bundle_id": "nibble.9uiLe.com"}
         states = ["PID Status Label\n- 0 UIKitApplication:another.app[x]",
