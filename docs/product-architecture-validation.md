@@ -2,7 +2,7 @@
 
 ## 対象と条件
 
-比較元は`3ce14844af5b32793926468a753099038a8482cf`。目的は保存・検索・下書きの整合性と画面操作を保ち、保存資源とOS操作の責務を限定し、配布容量を抑えること。構成の正本は[製品設計](decisions/0002-mvp-app.md#構成と責務)、実装契約は[ライブラリ規約](library-policy.md)とする。
+比較元は`3ce14844af5b32793926468a753099038a8482cf`、検証対象の製品・テスト・driverは`c84280c3c26b6cf0a8cbf75dd46e8d3ee78e40e2`。目的は保存・検索・下書きの整合性と画面操作を保ち、保存資源とOS操作の責務を限定し、配布容量を抑えること。構成の正本は[製品設計](decisions/0002-mvp-app.md#構成と責務)、実装契約は[ライブラリ規約](library-policy.md)とする。
 
 - Xcode 26.5（17F42）、Swift 6.3.2、SDK / 実行runtime iOS 26.5。
 - 容量はarm64のunsigned Release archive。認証・署名・アップロードを含めない。
@@ -78,7 +78,11 @@ MVPの`resumed-draft.png`、`pinned-filter.png`、`settings.png`、`about.png`�
 
 ## 共通検査と証跡
 
-`nix flake check --no-update-lock-file --print-build-logs`の7検査が成功した。iOS toolingの101件、共通UI設計ツールの35件の回帰テストを含む。ログは`artifacts/nix-final.log`に保存した。archiveの製品入力と性能比較の保存層・編集モデルのhashが作業ツリーと一致することも確認した。画像・動画はローカルの`artifacts/`で保持し、PRへのアップロードと閲覧確認は実施していない。
+`nix flake check --no-update-lock-file --print-build-logs`の7検査が成功した。iOS toolingの101件、共通UI設計ツールの35件の回帰テストを含む。ログは`artifacts/nix-final.log`と`artifacts/nix-final-evidence.log`に保存した。
+
+archiveの製品入力と性能比較の保存層・編集モデルのhashが作業ツリーと一致することも確認した。上記のReleaseテストと3種類のUI runは、`check_evidence.py --ref c84280c3c26b6cf0a8cbf75dd46e8d3ee78e40e2 --integrity-only`ですべて成功した。開始・終了・コミットの検証入力、ビルド、媒体hashを照合した結果であり、公開先の閲覧確認は含まない。
+
+各UI runの`review.json`に実際の観察範囲を記録した。画像・動画はローカルの`artifacts/`で保持し、PRへのアップロードと閲覧確認は実施していない。
 
 ## 測定の限界
 
