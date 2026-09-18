@@ -55,7 +55,21 @@
 | 本体UI | `finished.png`、`resumed-draft.png`、`about.png`、`left-library.png`、`right-library.png`。一覧の選択・表示、保持された編集内容、Aboutの構成、左右の操作配置を確認。194.698秒の録画から9.207 / 97.085 / 175.220秒を確認し、背景移行、検索とキーボード、削除済み一覧の復元操作を観察 |
 | 共有・About | `share-sheet-position.png`、`share-editor.png`、`about-motion-1.png`〜`about-motion-3.png`、`about-dark.png`、`about-returned.png`、`about-resumed-confirmed.png`。共有本文、保存の表示と次の演出周期、配色、背景移行後の画面を確認。388.885秒の録画から8.697 / 194.202 / 350.428秒を確認し、共有先選択、入力中の共有エディター、Aboutの演出を観察 |
 
-媒体はローカル保存であり、新しいcheckoutには含まれない。PR添付とブラウザーでの公開先閲覧確認は未実施。`review.json`の公開URLと閲覧確認欄は未記入で、完全な公開証跡レビューの検査には合格していない。ソース・媒体の整合性検査とは区別する。
+原本画像9枚と録画2本を[PR #23](https://github.com/9uiLe/nibble/pull/23)へ添付した。本体録画は添付上限に収めるため、Apple `avconvert`の`Preset1280x720`で全区間を再圧縮した公開用動画を使用する。共有録画とPNGは原本である。生ログ・原本媒体はGit管理対象外のため、新しいcheckoutには含まれない。
+
+| 媒体 | 公開先 |
+| --- | --- |
+| 本体の一覧・下書き | [一覧](https://github.com/user-attachments/assets/33efcb84-2818-456e-9fc8-f2d986072662)、[再開した下書き](https://github.com/user-attachments/assets/9e974775-1b45-4a5e-81d8-bd08596a58c5) |
+| 左右の操作位置 | [左側](https://github.com/user-attachments/assets/d2c26eba-91d9-4f01-9d81-cfd005503c46)、[右側](https://github.com/user-attachments/assets/d4213431-ea35-48d3-8080-56d5b301495a) |
+| About | [説明画面](https://github.com/user-attachments/assets/e82d7da0-dedd-4c98-9518-4fe58ca58b3e)、[ダーク配色](https://github.com/user-attachments/assets/aa46404d-93b3-4eba-97c5-14b598528215)、[演出周期](https://github.com/user-attachments/assets/ee35aacc-bd67-4777-85c5-40dfd8a55311)、[背景復帰](https://github.com/user-attachments/assets/a67f0e0b-904b-41eb-bb3b-7b674dbb67c5) |
+| 共有取込 | [共有エディター](https://github.com/user-attachments/assets/81b4c6c2-758b-4519-8472-e2ce7c2fe26c) |
+| 画面録画 | [本体の基本操作](https://github.com/user-attachments/assets/3ce09d24-5a6f-48b6-9ffe-c1af955e7bb6)、[共有保存とAbout](https://github.com/user-attachments/assets/d485d441-c67b-4501-90b0-7d48f85c05e7) |
+
+2026-09-18、ログイン済みリポジトリ所有者のChromeで、上記9画像が1206×2622で読み込まれたことを確認した。本体動画は588×1280・194.698333秒、共有動画は1206×2622・388.885秒で、両方とも`readyState=4`、`error=null`だった。未認証ユーザーのアクセスと全編再生は未確認である。
+
+本体の公開用動画は55,713,409 bytesで、原本と同じ194.698333秒の全区間を保持する。公開版の9.187 / 96.935 / 175.345秒も抽出して開き、SpringBoard、検索とキーボード、削除一覧の復元行を確認した。原本・公開版のSHA-256、変換条件、抽出時刻は`artifacts/pr-media/publication.json`とrunのレビュー記録に保存する。公開URLは再圧縮版を指すため、原本とのバイト一致は意味しない。
+
+公開した媒体は各runの`review.json`にURL・観測・閲覧条件を記入し、`check_evidence.py`のソース照合とレビュー申告検査に合格した。公開対象に選ばなかった画像も含むローカル観察は`review-local.json`に保持する。自動検査の合格は、目視や全編再生の実施を証明するものではない。
 
 ## 操作自動化の制約
 
