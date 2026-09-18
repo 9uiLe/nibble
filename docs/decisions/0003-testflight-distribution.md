@@ -27,9 +27,10 @@ nibbleの開発者が、コミット済みのアプリをローカルMacでビ�
 | --- | --- | --- |
 | 本体 | `nibble.9uiLe.com` | Explicit App ID、App Groups |
 | Share Extension | `nibble.9uiLe.com.share` | 独立したExplicit App ID、App Groups |
-| 共有保存領域 | `group.nibble.9uiLe.com` | 本体とShare Extensionの両方へ関連付ける |
+| Keyboard Extension | `nibble.9uiLe.com.keyboard` | 独立したExplicit App ID、App Groups |
+| 共有保存領域 | `group.nibble.9uiLe.com` | 本体・Share Extension・Keyboard Extensionへ関連付ける |
 
-本体と共有拡張は同じDeveloper Teamで署名する。共有拡張のBundle IDは本体のBundle IDと`.`を先頭に持つ。両targetのprovisioning profileに同じApp Groupを含め、[製品の保存設計](0002-mvp-app.md#保存形式と接続)で定めるSQLiteへアクセスできるようにする。App Store Connectへ登録するアプリは本体1件である。
+本体と各拡張は同じDeveloper Teamで署名する。拡張のBundle IDは本体のBundle IDと`.`を先頭に持つ。3 targetのprovisioning profileに同じApp Groupを含め、[製品の保存設計](0002-mvp-app.md#保存形式と接続)で定めるSQLiteへアクセスできるようにする。App Store Connectへ登録するアプリは本体1件である。
 
 ## 秘密情報と実行の境界
 
@@ -57,16 +58,16 @@ XcodeとNixの生ログ、Team IDを含むExportOptionsは認証ディレクト�
 
 - 未コミットの変更がないソースを使用し、対象コミットを記録する。共通検査・依存解決・archiveの各工程後にもソースの一致を確認する。
 - 認証・署名ファイルのGit追跡を検出した場合は停止する。ファイル名による検査なので、リポジトリへ秘密情報を保存しない運用も必要になる。
-- iPhoneOS SDK 26.5でReleaseをarchiveする。両targetの識別子、version・build番号、最低OS、実行ファイル、Privacy Manifest、拡張とアイコンの設定、輸出コンプライアンスの申告を検査する。
+- iPhoneOS SDK 26.5でReleaseをarchiveする。3 targetの識別子、version・build番号、最低OS、実行ファイル、Privacy Manifest、拡張とアイコンの設定、輸出コンプライアンスの申告を検査する。
 - 同一checkoutの実行をロックで直列化する。build番号ごとの実行記録を上書きせず、結果不明の送信を自動再試行しない。
 - `--dry-run`は署名済みIPAの書き出しまで実行する。Appleへの認証とprovisioning更新を伴うが、ビルドはアップロードしない。
 - アップロードは内部テスト専用の`testFlightInternalTestingOnly`を指定する。外部テスト・App Store公開は別の配布設計とビルドを必要とする。
 
 ## 輸出コンプライアンスの申告
 
-本体・共有拡張の`Info.plist`に`ITSAppUsesNonExemptEncryption = false`を保存し、免除対象外の暗号化を使用しないことをビルドで申告する。nibbleの保存にはApple同梱SQLite、ファイル保護にはiOSのData Protectionを使い、製品とリンクする依存ライブラリに独自の暗号化実装を含めない。構成と申告値をGitで管理し、暗号化機能や依存の変更時に配布担当者が適合性を再確認する。
+本体・共有拡張・キーボードの`Info.plist`に`ITSAppUsesNonExemptEncryption = false`を保存し、免除対象外の暗号化を使用しないことをビルドで申告する。nibbleの保存にはApple同梱SQLite、ファイル保護にはiOSのData Protectionを使い、製品とリンクする依存ライブラリに独自の暗号化実装を含めない。構成と申告値をGitで管理し、暗号化機能や依存の変更時に配布担当者が適合性を再確認する。
 
-配布スクリプトは、完成したarchiveの両Info.plistがBooleanの`false`を持つことをexport・upload前に検査し、公開メタデータへ記録する。検査は設定の欠落や型の誤りを検出するもので、実装から法的な分類を自動判定するものではない。詳細とAppleの仕様は[配布手順](../testflight.md#輸出コンプライアンス)を参照する。
+配布スクリプトは、完成したarchiveの3つのInfo.plistがBooleanの`false`を持つことをexport・upload前に検査し、公開メタデータへ記録する。検査は設定の欠落や型の誤りを検出するもので、実装から法的な分類を自動判定するものではない。詳細とAppleの仕様は[配布手順](../testflight.md#輸出コンプライアンス)を参照する。
 
 ## 配信と完了条件
 
@@ -79,7 +80,7 @@ XcodeとNixの生ログ、Team IDを含むExportOptionsは認証ディレクト�
 | アップロード成功 | Xcodeの送信コマンドが成功した |
 | 配信可能 | App Store Connectで処理が完了し、「本人用」にビルドが反映され、テスト可能になった |
 | インストール済み | 端末でTestFlightから対象ビルドをインストールした |
-| 受け入れ完了 | iOS 26.5実機で起動・編集・コピー・共有保存を確認した |
+| 受け入れ完了 | iOS 26.5実機で起動・編集・コピー・共有保存・キーボードの挿入と権限別コピーを確認した |
 
 manifestの`completed: true`は指定したexportまたはuploadの工程完了を示す。Apple側の処理、グループ配信、実機での利用成立はそれぞれ確認する。Simulatorの結果は実機での受け入れを代替しない。
 

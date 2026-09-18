@@ -1,6 +1,47 @@
 # TestFlight配布の検証記録
 
-## 確認範囲
+[配布設計](decisions/0003-testflight-distribution.md)に対し、対象ソース、ビルド番号、工程、観測範囲を記録する。操作方法は[配布手順](testflight.md)を参照する。別の日付・ビルドの結果を、現在のビルドの実行結果として扱わない。
+
+## キーボードのデザインと入力操作を確認する内部配布
+
+2026-09-19（JST）、コミット`53ac97488418b58d15f9439dfc58b93b20e9b831`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609181612)**。ビルド番号はUTCの実行日時に基づく。
+
+対象は、標準キーボードの背景、余白、フィルターに合わせた表示と、スニペットの挿入操作を示す「入力」ラベル。本体・共有拡張・キーボードを含むReleaseビルドである。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nixの全7 checkと、共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | Xcode 26.5 / iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。3ターゲットの識別子、version・build、Privacy Manifest、輸出申告のBoolean falseを確認 |
+| TestFlight向けアップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609181612/manifest.json`。`destination: upload`、`stage: upload`、`completed: true` |
+| Apple側の処理・グループ配信・実機操作 | 未確認。配信先は自動配信を設定した内部グループ「本人用」。ブラウザー確認は行っていない |
+
+認証設定、秘密鍵、Keychain、保護された生ログは直接参照せず、配布スクリプトの工程結果と公開manifestだけを確認した。
+
+Simulatorでは、ソース`eb0ebdb461fd3e06dc6df3dfb10385e866a7ecc9`のReleaseビルドで、ラベルと本文領域からの挿入、UTF-8完全一致、Full Access無効時のコピー案内、キーボードの表示切り替え、ライト・ダーク表示を確認した。配布ソースとの差分は検証記録・手順・UIレビュー記録で、製品コード、構成、依存は同一である。画像・録画の確認範囲と未実施項目は[キーボードの検証](keyboard-validation.md)に記録する。このビルドの配布工程は、製品テスト全体の再実行と実機操作を含まない。
+
+## キーボードを含む内部配布
+
+2026-09-18、Xcode 26.5 / iPhoneOS SDK 26.5 / Release / 最低iOS 26.0で、3ターゲットの署名とTestFlight向け送信を確認した。
+
+| 実行 | 対象ソース | ビルド・結果 |
+| --- | --- | --- |
+| `scripts/deploy-testflight.sh --check-config` | `0e401c19cd75c429dcc135e17aafb37b0e7cf242` | 設定の利用可否を値・鍵の内容を表示せず確認し、成功 |
+| `scripts/deploy-testflight.sh --dry-run` | `0e401c19cd75c429dcc135e17aafb37b0e7cf242` | 0.1.0 (202609181309)。共通検査、依存解決、Release archive、署名したIPAの書き出しが成功 |
+| `NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh` | `96edc861282173a5378ea4607e61698794f3b2f8` | 0.1.0 (202609181319)。共通検査、依存解決、Release archive、メタデータ検査、アップロードが成功。終了コード0 |
+
+両ソース間の差分は検証記録のMarkdownのみで、アプリ・配布コードと依存は同一である。
+
+| 公開記録 | 完了した工程 |
+| --- | --- |
+| `artifacts/testflight/202609181309/manifest.json` | `destination: export`、`stage: export`、`completed: true` |
+| `artifacts/testflight/202609181319/manifest.json` | `destination: upload`、`stage: upload`、`completed: true` |
+
+同梱する本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`の存在と識別子、version・build、最低OS、SDK、輸出申告のBoolean falseを確認した。認証設定・秘密鍵・Keychain・保護された生ログは直接参照せず、スクリプトの工程結果と公開manifestを確認した。
+
+配信先は内部グループ「本人用」で、Apple側の処理後に自動配信する設定である。このビルドのApple側の処理完了、グループ反映、実機インストール・操作は未確認で、ブラウザー確認は行っていない。署名と送信の成功は、実機でのApp Group読み取り・挿入・コピーの成功を示さない。Simulatorの評価は[キーボードの検証](keyboard-validation.md)を参照する。
+
+## 初期配布の確認範囲
 
 2026-09-16に確認した、nibbleのローカルビルド・署名・TestFlight内部配布の結果を記録する。[配布設計](decisions/0003-testflight-distribution.md)が定義する各工程について、実行したソースと観測条件を対応付ける。操作方法は[配布手順](testflight.md)を参照する。
 

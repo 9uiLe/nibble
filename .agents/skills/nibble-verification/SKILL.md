@@ -11,7 +11,7 @@ description: nibbleのローカルiOS検証、証跡整理、PR作成・更新�
 
 | 対象 | 設定と手順 | 確認する責務 |
 | --- | --- | --- |
-| Nibble / NibbleShare | `app/project.json`・[製品手順](../../../docs/mvp.md) | 製品のデータ・画面・日常操作 |
+| Nibble / NibbleShare / NibbleKeyboard | `app/project.json`・[製品手順](../../../docs/mvp.md) | 製品のデータ・画面・日常操作 |
 | VerificationApp | `validation/project.json`・[共通手順](../../../docs/ios-verification.md) | ツールチェーン・文字列反映・操作・撮影 |
 | ResearchProbe | `validation/research-project.json`・[研究手順](../../../validation/RESEARCH.md) | 保存・検索・復旧・OS連携の比較実験 |
 

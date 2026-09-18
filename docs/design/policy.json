@@ -40,7 +40,17 @@
       "references": true
     },
     {
+      "path": "docs/decisions/0005-snippet-keyboard.md",
+      "kind": "file",
+      "references": true
+    },
+    {
       "path": "research/06-interface-design-evidence.md",
+      "kind": "file",
+      "references": true
+    },
+    {
+      "path": "research/08-keyboard-interface.md",
       "kind": "file",
       "references": true
     },

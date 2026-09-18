@@ -5,23 +5,33 @@ enum SQLValue {
     case text(String), int(Int), real(Double)
 }
 
-/// Non-Sendable handle owner, used only inside SnippetStore; no pointer escapes.
+/// Non-Sendable handle owner, confined to a store or reader actor; no pointer escapes.
 final class SQLiteDatabase {
+    enum Access { case readWrite, readOnly }
     private let handle: OpaquePointer
     private var statements: [String: OpaquePointer] = [:]
     private var recency: [String] = []
     private let statementLimit = 32
     var changes: Int { Int(sqlite3_changes(handle)) }
 
-    init(url: URL) throws {
+    init(url: URL, access: Access = .readWrite) throws {
         var opened: OpaquePointer?
-        guard sqlite3_open_v2(url.path, &opened, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
+        let flags = access == .readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE
+        guard sqlite3_open_v2(url.path, &opened, flags | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
               let opened else {
             if let opened { sqlite3_close_v2(opened) }
             throw StoreError.database
         }
         handle = opened
         sqlite3_busy_timeout(handle, 2_000)
+    }
+
+    /// Readers without directory write access need the WAL and shared index to remain available.
+    func preserveWAL() throws {
+        var enabled: Int32 = 1
+        guard sqlite3_file_control(handle, "main", SQLITE_FCNTL_PERSIST_WAL, &enabled) == SQLITE_OK else {
+            throw StoreError.database
+        }
     }
 
     deinit {

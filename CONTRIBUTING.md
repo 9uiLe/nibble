@@ -28,7 +28,7 @@ nibbleはiOS向けのスニペットツール。作業中の文脈を保ちな�
 
 | 検証対象 | 設定 | 責務と手順 |
 | --- | --- | --- |
-| Nibble / NibbleShare | `app/project.json` | 製品の本体・共有拡張。[製品手順](docs/mvp.md) |
+| Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | 製品の本体・共有拡張・キーボード。[製品手順](docs/mvp.md) |
 | VerificationApp | `validation/project.json` | ツールチェーン・文字列反映・操作・撮影のfixture。[共通手順](docs/ios-verification.md) |
 | ResearchProbe | `validation/research-project.json` | 保存・検索・復旧・OS連携の比較試作。[研究手順](validation/RESEARCH.md) |
 
@@ -138,7 +138,7 @@ TestFlightの内部配布先は、Apple Developerアカウントと端末を管�
 
 認証設定・秘密鍵・生ログはGitに保存せず、配布担当者がリポジトリ外で管理する。エージェントは直接参照せず、レビューした配布スクリプトが返す工程・成否・公開メタデータだけを確認する。この制限は同一ユーザー内の運用規約であり、OSによるアクセス分離ではない。
 
-署名とアップロード、Apple側の処理とグループ配信、実機インストール、実機操作を別々に確認する。配布の受け入れはiOS 26.5実機で起動・編集・コピー・共有保存を確認し、MVPのSimulator評価と区別して[検証記録](docs/testflight-validation.md)へ残す。
+署名とアップロード、Apple側の処理とグループ配信、実機インストール、実機操作を別々に確認する。配布の受け入れはiOS 26.5実機で起動・編集・コピー・共有保存・キーボードの挿入と権限別コピーを確認し、MVPのSimulator評価と区別して[検証記録](docs/testflight-validation.md)へ残す。
 
 ## UIの設計と実装
 

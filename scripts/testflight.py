@@ -36,15 +36,18 @@ def require(condition, message):
         raise DistributionError(message)
 
 
-def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9uiLe.com.share'):
+def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9uiLe.com.share',
+                 keyboard_id='nibble.9uiLe.com.keyboard'):
     app = archive / 'Products/Applications/Nibble.app'
     extension = app / 'PlugIns/NibbleShare.appex'
+    keyboard = app / 'PlugIns/NibbleKeyboard.appex'
     require(sorted(p.name for p in (archive / 'Products/Applications').iterdir()) == ['Nibble.app'],
             'Archive must contain only Nibble.app.')
-    require(sorted(p.name for p in (app / 'PlugIns').iterdir()) == ['NibbleShare.appex'],
-            'Archive must contain only the expected share extension.')
+    require(sorted(p.name for p in (app / 'PlugIns').iterdir()) == ['NibbleKeyboard.appex', 'NibbleShare.appex'],
+            'Archive must contain exactly the share and keyboard extensions.')
     values = []
-    for path, identifier, kind in [(app, bundle_id, 'APPL'), (extension, extension_id, 'XPC!')]:
+    for path, identifier, kind in [(app, bundle_id, 'APPL'), (extension, extension_id, 'XPC!'),
+                                   (keyboard, keyboard_id, 'XPC!')]:
         with (path / 'Info.plist').open('rb') as stream:
             info = plistlib.load(stream)
         require(info.get('CFBundleIdentifier') == identifier, 'Unexpected bundle identifier.')
@@ -61,17 +64,21 @@ def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9ui
         with (path / 'PrivacyInfo.xcprivacy').open('rb') as stream:
             require(isinstance(plistlib.load(stream), dict), 'Missing privacy manifest.')
         values.append(info)
-    app_info, share_info = values
+    app_info, share_info, keyboard_info = values
     for key in ['CFBundleShortVersionString', 'CFBundleVersion']:
-        require(bool(app_info.get(key)) and app_info[key] == share_info.get(key),
+        require(bool(app_info.get(key)) and all(app_info[key] == info.get(key) for info in values[1:]),
                 'App and extension versions must match.')
         require(isinstance(app_info[key], str) and re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,2}', app_info[key]),
                 'Use numeric release and build versions.')
     require(share_info.get('NSExtension', {}).get('NSExtensionPointIdentifier') == 'com.apple.share-services',
             'Share extension configuration is missing.')
+    keyboard_config = keyboard_info.get('NSExtension', {})
+    require(keyboard_config.get('NSExtensionPointIdentifier') == 'com.apple.keyboard-service'
+            and keyboard_config.get('NSExtensionAttributes', {}).get('RequestsOpenAccess') is True,
+            'Keyboard extension configuration is missing.')
     require(bool(app_info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon', {}).get('CFBundleIconName')),
             'App icon configuration is missing.')
-    return {'bundle_id': bundle_id, 'extension_bundle_id': extension_id,
+    return {'bundle_id': bundle_id, 'extension_bundle_id': extension_id, 'keyboard_bundle_id': keyboard_id,
             'version': app_info['CFBundleShortVersionString'], 'build': app_info['CFBundleVersion'],
             'minimum_ios': '26.0', 'sdk': '26.5', 'uses_non_exempt_encryption': False}
 

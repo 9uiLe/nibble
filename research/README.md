@@ -30,6 +30,7 @@ nibbleは、必要なテキストを素早く探してコピーし、作成・�
 | [04 セキュリティ・配布・運用](04-security-distribution-and-operations.md) | 保存・コピー・公開範囲、プライバシー宣言、署名・配布、ライセンスと運用 |
 | [05 製品の検証計画](05-decisions-and-validation.md) | MVPの評価と構成の見直しに使うV0〜V8の条件、証跡、採用判断 |
 | [06 UI要素と画面構成の設計根拠](06-interface-design-evidence.md) | HIG・WWDC・W3Cの指針、閲読範囲、適用条件。[UI設計](../docs/design/README.md)が採用判断を定義 |
+| [08 スニペットキーボードのUI設計](08-keyboard-interface.md) | 入力面・選択・キー・コピーの役割、Appleの一次資料、構成の比較と評価条件 |
 | [iOS 26.5の研究用実行結果](experiments/ios-26-5-validation.md) | E01〜E25の観測、測定値、対象ソースと証跡、未実施条件 |
 | [一次資料検証](experiments/primary-source-validation.md) | P01〜P13の文書上の契約、原著の閲読範囲、根拠の限界 |
 

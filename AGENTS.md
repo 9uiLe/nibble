@@ -60,7 +60,7 @@ mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`
 
 | 対象 | 責務 | 設定と手順 |
 | --- | --- | --- |
-| `Nibble` / `NibbleShare` | 製品MVPのデータ・画面・操作 | `app/project.json`、[製品手順](docs/mvp.md) |
+| `Nibble` / `NibbleShare` / `NibbleKeyboard` | 製品MVPのデータ・画面・操作 | `app/project.json`、[製品手順](docs/mvp.md) |
 | `VerificationApp` | 入力・操作・テスト・撮影の成立を試験するfixture | `validation/project.json`、[共通手順](docs/ios-verification.md) |
 | `ResearchProbe` | 保存・検索・復旧・UI・OS連携の比較実験 | `validation/research-project.json`、[研究手順](validation/RESEARCH.md) |
 
