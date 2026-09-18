@@ -82,7 +82,21 @@ MVPの`resumed-draft.png`、`pinned-filter.png`、`settings.png`、`about.png`�
 
 archiveの製品入力と性能比較の保存層・編集モデルのhashが作業ツリーと一致することも確認した。上記のReleaseテストと3種類のUI runは、`check_evidence.py --ref c84280c3c26b6cf0a8cbf75dd46e8d3ee78e40e2 --integrity-only`ですべて成功した。開始・終了・コミットの検証入力、ビルド、媒体hashを照合した結果であり、公開先の閲覧確認は含まない。
 
-各UI runの`review.json`に実際の観察範囲を記録した。画像・動画はローカルの`artifacts/`で保持し、PRへのアップロードと閲覧確認は実施していない。
+### レビュー用の媒体
+
+[PR #21](https://github.com/9uiLe/nibble/pull/21)に画像9枚と録画3本を添付した。変更前の一覧はPR #20の基本操作runを`3ce14844af5b32793926468a753099038a8482cf`と照合して使用する。変更前後は同じ端末寸法と操作後の配置を比較し、ダミー項目名・撮影時刻は異なる。
+
+| 対象 | 画像 | 録画 |
+| --- | --- | --- |
+| 本体 | [一覧](https://github.com/user-attachments/assets/d32c4ba5-f35c-4bfd-9ffe-33a2ae49630b)、[下書き再開](https://github.com/user-attachments/assets/3f43f107-d4b5-468f-82ac-e5e44e532651)、[About](https://github.com/user-attachments/assets/5bce1cd1-7af3-4cae-a3bd-778342917266) | [基本操作](https://github.com/user-attachments/assets/f8c0bd9b-5b7f-4d10-83aa-5694dc8a96a6) |
+| 行のスワイプ | [Undo後](https://github.com/user-attachments/assets/aa2bd135-6421-4e62-84b3-5e41ce92f81c) | [左右スワイプ・Undo](https://github.com/user-attachments/assets/f8e8cf8c-7f37-411f-ad8c-4b7a85f4e2d7) |
+| 共有拡張 | [共通編集](https://github.com/user-attachments/assets/48e2f80e-b1da-4f13-9623-92d83b58133d)、[本体反映](https://github.com/user-attachments/assets/7f394978-a50f-411a-844f-bd064cf81560) | [Safariから共有保存](https://github.com/user-attachments/assets/2d76ce0b-70d2-4a43-88bb-3442b270cbf2) |
+
+2026-09-18 03:02 UTCに、ログイン済みリポジトリ所有者のChromeで確認した。比較元を含む画像10枚は1206×2622で読込済み、動画3本は`readyState=4`・`error=null`だった。未認証ユーザーの閲覧は確認していない。
+
+基本操作とスワイプのブラウザー表示時間は183.016667秒・11.118333秒。共有は122.405秒で、原本の126.240秒と異なる。各環境の観測値を区別し、全編の同一性は未確認とする。画像と抽出フレームの観察範囲は前節に記載した。
+
+各UI runの`review.json`に観察範囲・安定した添付URL・閲覧条件を記録し、`check_evidence.py`でソース・媒体hash・申告の整合性を照合した。原本と操作ログはGit管理対象外の`artifacts/`に保持する。
 
 ## 測定の限界
 

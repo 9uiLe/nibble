@@ -15,7 +15,7 @@
 | 性能 | 同一Simulatorの保存層・編集モデルを比較。描画と実機性能は含めない |
 | 容量 | 同じ条件のunsigned Release archiveで、本体・共有拡張を含むファイル合計を比較 |
 | 共通検査 | Nixの7検査が成功。iOS tooling 101件、共通UI設計ツール35件を含む |
-| 証跡 | Releaseテストと3種類のUI runを対象コミットと照合。画像と抽出フレームを観察。公開先への添付・閲覧確認は未実施 |
+| 証跡 | Releaseテストと3種類のUI runを対象コミットと照合。画像と抽出フレームを観察。[PR #21](https://github.com/9uiLe/nibble/pull/21)に添付し、ログイン済み所有者のブラウザーで読込確認 |
 
 本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`を使う。実行はXcode 26.5・Swift 6.3.2・iPhone 17 Pro Simulator・iOS 26.5（23F77）。性能・容量の数値、比較元、失敗run、画像の確認時刻は詳細記録に集約する。
 
