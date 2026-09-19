@@ -2,6 +2,25 @@
 
 [配布設計](decisions/0003-testflight-distribution.md)に対し、対象ソース、ビルド番号、工程、観測範囲を記録する。操作方法は[配布手順](testflight.md)を参照する。別の日付・ビルドの結果を、現在のビルドの実行結果として扱わない。
 
+## Issue #26の上部通知を採用した更新配布
+
+2026-09-19（JST）、コミット`29eb253f0c3230943e6258fe717e2d24fd4020ce`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609191251)**。
+
+ユーザーの「上部で良い」という選択に基づき、一覧・検索の操作完了通知を上部へ統一した。通知によるTab Bar accessoryの有効・無効の切り替えを除き、タブと作成ボタンの再配置を解消する。上部領域の表示中は一覧内容が下へ移動する。採用理由と契約は[通知の設計](design/decisions/0004-tab-accessory-notices.md)を参照する。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nix全checkと共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | Release、iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。本体・共有拡張・キーボードの識別子、バージョン、Privacy Manifest、輸出申告のBoolean falseを検査 |
+| アップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609191251/manifest.json`。`destination: upload`、`stage: upload`、`completed: true`、対象commitとversion・buildの一致を確認 |
+| Simulatorの操作記録 | darkのrun `20260919T123747Z-notice-ui-1c837c`でコピー・取り消し・検索入力保持・離脱復帰・タブと作成ボタンの位置不変・末尾コピー後の位置復帰を確認 |
+| 製品テスト | run `20260919T124140Z-test-81095f`で116件（パラメーター展開後136件）が成功。失敗・skipは0件 |
+| 配布ソースとの照合 | 上記UI・製品テストの両runで、配布commitへの`check_evidence.py --integrity-only`が成功 |
+| Apple側の処理・グループ配信・実機操作 | 配布担当者が確認する。エージェントは未確認 |
+
+認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。画像と抽出フレームの閲覧範囲、通知中の末尾「その他」操作などの未確認条件は[通知の検証](notice-validation.md#上部配置の採用)に記録する。この配布記録の追加はアップロード後であり、配布ソースへ含めない。
+
 ## Issue #26の通知配置の評価用配布
 
 2026-09-19（JST）、コミット`f306ed3b1c6883829898e1f2d93c04bb731f68d7`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609191149)**。
