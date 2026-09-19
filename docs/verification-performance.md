@@ -6,7 +6,7 @@
 
 2026-09-20にApple M1 Pro / 16 GiB、macOS 26.2 (25C56)、Xcode 26.5 (17F42)、Swift 6.3.2、iOS 26.5 (23F77)の専用iPhone 17 Proで測定した。改善前は`c7d0e40`。製品ソースと依存lockを変えず、Releaseのtest→UIを直列実行した。fixtureはtest→smoke、製品は101テスト→MVP driver。テストだけtestabilityを有効にする。
 
-改善版の`ios.py`のSHA-256は`5d276cc8c5c6a8a26d9899aa258b1b4517aa34d8b7f8799aa34c0ba0b6a74ef0`。実行時は未コミットであり、各manifestの開始・終了hashが実際の入力を示す。Nix lockは`6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365`、Swift Packageの共有lockは`b0bb1df2b6a012410ec0cdaa15ea64110608961fa016f9996a7dd01b24f7c381`。SDK・署名・architecture等はmanifestのenvironmentとbuild_contextに残す。
+改善版の`ios.py`のSHA-256は`5d276cc8c5c6a8a26d9899aa258b1b4517aa34d8b7f8799aa34c0ba0b6a74ef0`。初期の速度測定時は未コミットであり、各manifestの開始・終了hashが実際の入力を示す。その後、改善実装`19d1f0b`へソースを照合した。Nix lockは`6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365`、Swift Packageの共有lockは`b0bb1df2b6a012410ec0cdaa15ea64110608961fa016f9996a7dd01b24f7c381`。SDK・署名・architecture等はmanifestのenvironmentとbuild_contextに残す。
 
 専用UDIDは`F0B5BD34-93F2-4B33-BEC7-3D5F6893440E`。各比較系列の前にこの端末のダミーNibbleアプリだけをuninstallし、同じ入力シナリオを使った。MVPは1巡ごとにダミー項目を1件残す。既存のユーザー端末は消去・削除していない。各checkoutのDerivedDataは別で、初回は新規、反復は同じcacheを再利用する。依存repositoryのグローバルcacheは保持した。依存未取得・ネットワーク速度の比較ではない。
 
@@ -31,11 +31,13 @@
 
 fixtureの改善前初回testは62.519秒（起動待ち31.995秒、xcodebuild 27.808秒）。続くsmokeはAX接続で11.074秒後に失敗した。Simulatorウィンドウを表示する手作業を1回行い、新しいrunで21.231秒で復旧した。この失敗を初回成功へ書き換えていない。
 
+改善後に新しい専用Simulator `D0B51E58-95EA-4CA4-954E-796448121C59`を未起動状態から実行すると、初回testは62.597秒（起動待ち31.971秒、xcodebuild 27.874秒）だった。この経路では短縮を確認できず、端末初回起動の約32秒は残る。今後調べるならビルドとの重なりを対象にする。依存のグローバルcacheは取得済みである。続くsmokeは25.929秒で成功した。ウィンドウ表示を事前手順として1回実行し、自動再試行は0回。確認後はこの端末をshutdownし、通常の専用端末へ戻した。
+
 製品の改善前・改善後の成功した各MVPには、標準編集メニューの既定の回復が2件ずつある。終了コード・回復理由・入力結果の照合をmanifestへ残す。これは既存driverの動作で、失敗した検証全体を再試行して成功率を上げたものではない。改善前の3回目の反復testは、中断検証のため意図的にSIGINTを送り1.805秒で失敗記録を確定した。成功速度の母集団には含めない。
 
 ## 支配的な工程と採用した変更
 
-改善前はtestabilityの違うtest/UIを同じDerivedDataで交互に実行し、SwiftSyntax・SwiftParserを繰り返しコンパイルしていた。Releaseでは不要なx86_64も生成していた。初回testのxcresult buildは285.569秒で、SwiftSyntaxは各architectureで約139秒、SwiftParserは約66秒。並行する区間があるため単純合算しない。
+改善前はtestabilityの違うtest/UIを同じDerivedDataで交互に実行し、SwiftSyntax・SwiftParserを繰り返しコンパイルしていた。ReleaseではMacで動くmacro依存について、このApple Silicon環境の実行に不要なx86_64も生成していた。初回testのxcresult buildは285.569秒で、SwiftSyntaxは各architectureで約139秒、SwiftParserは約66秒。並行する区間があるため単純合算しない。
 
 改善後は実行Macのarchitectureへ限定し、testability・Debug/Release・project設定・Xcode/SDK・署名条件ごとにcacheを分けた。初回testのxcresult buildは267.380秒、SwiftSyntax127.089秒、SwiftParser64.928秒。反復testのbuildは6.500秒、続くUI buildは3.893秒となり、そのtestで新たに実行されたSwift compile sectionは0件だった。xcresultに残る過去のcached sectionは開始時刻で除外した。
 
@@ -61,7 +63,58 @@ Xcodeによる毎回の増分検査、実行前のbundle/executable検査、同�
 
 同じnative architectureでもcacheを共用してtestabilityを切り替えると、warm test 15.025秒の後のUI用buildが234.650秒へ増えた。architecture限定だけでは再ビルドを解消できないため、構成ごとのcache分離を採用する。
 
-静的検査との重なり、代表変更、失敗と復旧の測定は継続中。最終評価時に結果・採否・未達条件を記録する。この節が未確定の間はIssue全体の受け入れ完了を意味しない。
+共用cacheでtestへ戻す工程は261.571秒だった。分離したcacheへ戻した後のtest→buildは15.161→7.226秒、14.781→5.212秒。別architectureの削減とcache分離の両方を採用する。
+
+共通静的検査とfixture testの重なりも比較した。直列は11.111 / 8.010秒、並行は6.199 / 5.875秒。最初の静的検査は文書変更に伴う4.490秒、以後はcache利用の2.086〜2.206秒なので、同じwarm条件の後半で約2.1秒の差を見る。この短い試行をすべてのtargetへ一般化しない。標準は静的検査を先に通し、失敗時にはiOSを開始しない方式を採用する。製品1巡に対する効果が小さく、開始済みiOS工程の取り消し・証跡の追加管理が必要になるためである。
+
+Swift Testingの独立したDBテストは一時DBを使い、画面・クリップボード等の共有資源はUIIntegrationTestsのserialized suiteで直列化されている。モデルの通知期限も注入した待機処理で制御できる。これらを実時間のUI観測待ちと混同して変更しない。複数Simulator・Xcode runnerの比較は未実施で、単一UDIDへの排他と現在のテスト構成を維持する。
+
+fixtureへ意図的な不正入力を入れた比較は各1回で、終了コード・診断ログ・failed manifestを確認してから元のbytesへ戻した。表はコマンド開始から診断を含む失敗結果／新しい復旧結果が返るまでの秒数である。人が修正を考える時間と、最初のエラー行がログへ出る時刻は未計測。
+
+| 条件 | 改善前の失敗 / 復旧 | 改善後の失敗 / 復旧 | 観測 |
+| --- | --- | --- | --- |
+| コンパイルの#error | 4.431 / 8.365 | 4.065 / 6.635 | 意図したcompiler診断と非ゼロ終了を保存 |
+| 期待するbundle IDの不一致 | 30.848 / 11.387 | 32.244 / 11.682 | 1テストの失敗を確認。検出の短縮は得られず |
+| UI出力の期待値の不一致 | 15.891 / 17.221 | 13.083 / 15.975 | exact outputの失敗と録画を保存 |
+| 新しい入口からの3秒timeout | 同条件では未測定 | 3.444 / 17.712 | 子process groupの停止・回収、failed保存、明示的復旧 |
+
+テストの期待値不一致自体は約0.02秒で判定されたが、Xcodeのテストセッション準備・終了を含む固定費が残る。ここは本変更で短縮したと扱わず、次に調べる場合はセッションの起動・終了とxcresultの確定を分けて計測する。失敗runは破棄せず、復旧を独立したrunとして残した。
+
+代表編集では、コンパイル入力の変更からtest→MVP終了までを前後各1回測る。本体はLibraryNotice.swiftへのコメント追加、混合条件はShared/LibraryRequest.swift・両extension controllerへのコメント追加と、全targetのCURRENT_PROJECT_VERSIONを1から2へ変更する。製品機能の意味的な変更を評価する実験ではない。各条件後に元のbytesへ戻し、前後の系列開始時には専用ダミーアプリを初期化する。改善後は各条件の改善前値の50%以下を目標とする。本体条件の改善前は1163.864秒（test499.406秒、MVP664.405秒）で、目標は581.932秒以下。混合条件の改善前は1151.133秒（test491.264秒、MVP659.859秒）で、目標は575.567秒以下となる。
+
+| 代表編集 | 改善前の一巡 | 改善後のtest / MVP / 一巡 | 判定 |
+| --- | --- | --- | --- |
+| 本体の小さな入力変更 | 1163.864秒 | 27.799 / 215.216 / 243.086秒 | 約79%短縮、目標達成 |
+| 共通コード・両拡張・ビルド設定 | 1151.133秒 | 27.941 / 221.367 / 249.363秒 | 約78%短縮、目標達成 |
+
+一巡には生成物の確認等も含むため、testとMVPの和とはわずかに異なる。前後各1回であり、変更なしの反復と同じばらつきの保証はしない。改善後の各工程で本体・共有拡張・キーボードのbundle ID、ビルド番号、実行ファイルhashを保存し、両拡張がarm64であることを検査した。混合条件では全targetの番号が2へ変わり、改善前の生成物でも同じ変更を確認した。各条件のソース復元もbytesで照合した。
+
+本体→混合の同じ組み合わせを連続実行したmanifestの時間窓は、改善前2314.921秒、改善後492.271秒で、2巡の完了率は3.110巡/時→14.626巡/時だった。各組み合わせは1回の観測であり、人の編集時間と失敗修正時間を含まない。
+
+製品の通知driverを標準入口のprocess group制御で40秒後に中断する検証では、40.271秒でfailed記録が確定した。中断はUI準備中で、録画中断の実測とは区別する。
+
+## 標準入口と仕上げの検証
+
+改善実装`19d1f0b`に測定文書の追記を加え、`verify.py run --base origin/main --device F0B5BD34-93F2-4B33-BEC7-3D5F6893440E --output artifacts/issue37/final-verification`を実行した。10工程すべてが587.861秒で成功し、開始・終了時の全ソースが一致した。共通基盤とdriverの変更から自動で全対象が選ばれ、iOSの9 runでソース・媒体・UDID・Release構成・scheme・実行コマンドを照合した。
+
+| 工程 | 結果 | 秒 |
+| --- | --- | --- |
+| 共通静的検査 | 成功。基盤の回帰テスト138件を含む | 4.312 |
+| VerificationApp test | 1件成功、skip 0 | 15.491 |
+| Nibble test | 101件成功、skip 0 | 32.416 |
+| ResearchProbe test | 14件成功、skip 0 | 29.815 |
+| VerificationApp smoke | 入力・撮影・結果一致 | 16.759 |
+| MVP | 作成・編集・検索・削除等のdriver成功 | 210.485 |
+| 通知 | 表示・期限・検索中のキーボード保持等を確認 | 95.219 |
+| 固定表示 | OS表示設定の変更前後を照合 | 45.727 |
+| 説明画面 | 説明イラスト・読了範囲・表示設定の復元 | 102.139 |
+| ResearchProbe UI | 入力・保存・削除・復元を確認 | 34.837 |
+
+全体には工程間の証跡照合も含む。この全対象の時間を、test→MVPだけの速度比較と混ぜない。最終の製品生成物は本体・両拡張ともビルド番号1、arm64へ戻っている。研究driverでは今回変更した実行・中断・撮影の責務を確認した。Safariへのペースト、Shortcuts、保存方式間の比較実験やextensionのOS導線は今回の実装変更に含めず、再評価していない。
+
+成功後の測定文書だけの追記は、`--since artifacts/issue37/final-verification/result.json`で再計画する。この差分では共通静的検査だけを選び、iOSを重複実行しない。選択範囲・時間・結果は`artifacts/issue37/docs-verification/result.json`へ保存する。成功した一部の検査を全対象の合格へ読み替えず、元の全対象結果と組み合わせて扱う。
+
+通常反復と代表編集の目標は達成した。未起動端末の初回起動、テスト失敗時のセッション固定費、sim-use操作の時間は残る。初回起動とテスト失敗検出は短縮を確認できなかった経路として、上記の次の調査候補を残す。新たなrun単位の自動再試行は導入せず、速度比較の改善後反復と代表編集、最終の10工程はすべて初回成功した。
 
 ## 再現と証跡の範囲
 
