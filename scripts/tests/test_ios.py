@@ -178,6 +178,20 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(names, [event['stdout'].removesuffix('.log') for event in self.run.manifest['commands']])
 
+    def test_empty_ui_is_only_allowed_for_explicit_transition_polling(self):
+        payload = {"ok": True, "data": {"entries": []}}
+        with patch.object(self.run, "command", return_value=json.dumps(payload)):
+            with self.assertRaises(ios.VerificationError):
+                self.run.ui()
+            self.assertEqual(self.run.ui(allow_empty=True), {"entries": []})
+        payload["ok"] = False
+        with patch.object(self.run, "command", return_value=json.dumps(payload)):
+            with self.assertRaises(ios.VerificationError):
+                self.run.ui(allow_empty=True)
+        with patch.object(self.run, "command", side_effect=ios.VerificationError("Process exited")):
+            with self.assertRaises(ios.VerificationError):
+                self.run.ui(allow_empty=True)
+
     def test_explicit_ui_command_returns_snapshot_json_without_progress_on_stdout(self):
         run = MagicMock()
         run.device = {'state': 'Booted'}
