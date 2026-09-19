@@ -32,29 +32,7 @@ struct LibraryView: View {
     var body: some View {
         @Bindable var allLibrary = all
         @Bindable var searchableLibrary = search
-        TabView(selection: Binding(get: { selectedTab }, set: {
-            selectedTab = $0
-            updateNoticePresentation()
-        })) {
-            Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
-                library(all, title: "一覧", showsFilters: true)
-            }
-            Tab("設定", systemImage: "gearshape", value: TabID.settings) {
-                NavigationStack {
-                    LibrarySettingsView(actionButtonSide: $actionButtonSide, showTrash: {
-                        showsTrash = true
-                        updateNoticePresentation()
-                    })
-                }
-            }
-            Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
-                library(search, title: "検索", showsSearchPrompt: true)
-                    .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
-                    .searchFocused($searchFocused)
-                    .searchPresentationToolbarBehavior(.avoidHidingContent)
-            }
-        }
-        .modifier(LibraryResultFeedback(all: all, search: search))
+        tabs
         .tabViewSearchActivation(.searchTabSelection)
         .tabBarMinimizeBehavior(.never)
         .textInputAutocapitalization(.never)
@@ -110,16 +88,41 @@ struct LibraryView: View {
         }
     }
 
+    private var tabs: some View {
+        @Bindable var searchableLibrary = search
+        return TabView(selection: Binding(get: { selectedTab }, set: {
+            selectedTab = $0
+            updateNoticePresentation()
+        })) {
+            Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
+                library(all, title: "一覧", showsFilters: true)
+            }
+            Tab("設定", systemImage: "gearshape", value: TabID.settings) {
+                NavigationStack {
+                    LibrarySettingsView(actionButtonSide: $actionButtonSide, showTrash: {
+                        showsTrash = true
+                        updateNoticePresentation()
+                    })
+                }
+            }
+            Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
+                library(search, title: "検索", showsSearchPrompt: true)
+                    .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
+                    .searchFocused($searchFocused)
+                    .searchPresentationToolbarBehavior(.avoidHidingContent)
+            }
+        }
+        .modifier(LibraryResultFeedback(all: all, search: search))
+        .background {
+            LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
+                                isPresented: noticeOrigin != nil && currentLibrary.notice?.origin == noticeOrigin)
+        }
+    }
+
     private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
                           showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
-                .safeAreaBar(edge: .top) {
-                    if let notice = model.notice, noticeOrigin == notice.origin {
-                        LibraryAccessoryContent(model: model, taskOwner: routeOwner)
-                            .frame(minHeight: 48)
-                    }
-                }
         }
     }
 
@@ -154,17 +157,6 @@ private struct LibraryResultFeedback: ViewModifier {
         content
             .sensoryFeedback(.success, trigger: all.feedback)
             .sensoryFeedback(.success, trigger: search.feedback)
-    }
-}
-
-@Equatable
-private struct LibraryAccessoryContent: View {
-    private let inputRevision = UUID()
-    @SkipEquatable let model: LibraryModel
-    @SkipEquatable let taskOwner: LibraryTaskOwner
-
-    var body: some View {
-        LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) }, inAccessory: true)
     }
 }
 

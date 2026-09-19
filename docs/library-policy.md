@@ -254,7 +254,7 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 表示変化の範囲を名前付き`AnimationScope`で囲み、valueによる変更検知またはproxyの`scope.animate`を使う。複数triggerのfactoryは`AnimationTrigger.animation`と型名を明記する。入力など親のアニメーションを受けない領域には`animationBarrier()`を置く。
 
-シート内通知のscopeは`Library.Notice`とし、通知の有無をvalueで検知する。シート内の表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。上部safe-areaバーはOSが表示・消去と配置を管理し、独自のopacity遷移を重ねない。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
+シート内通知のscopeは`Library.Notice`とし、通知の有無をvalueで検知する。シート内の表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。上部の通知ウィンドウは独自の表示・消去アニメーションを持たず、元画面のレイアウトやアニメーションを変更しない。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
 
 `LibraryScreen`と`SnippetEditor`の外側の`animationBarrier(warnsOnLeaks: false)`は、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks()`と編集入力領域の警告付きbarrierは、アプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOS部品が管理する。
 

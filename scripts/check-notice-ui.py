@@ -57,6 +57,8 @@ def main():
     def navigation_frames(data):
         frames = {e["label"]: e["frame"] for e in data["entries"] if e.get("role") == "RadioButton"}
         frames.update({"library.add": e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add"})
+        frames.update({e["uniqueId"]: e["frame"] for e in data["entries"]
+                       if e.get("uniqueId", "").startswith("library.filter.")})
         if not {"一覧", "設定", "検索", "library.add"}.issubset(frames):
             raise VerificationError("Navigation controls are missing")
         return frames
@@ -198,6 +200,9 @@ def main():
                     delete(snippet)
                     run.screenshot("search-delete-keyboard")
                     undo()
+                    data = wait("search-undo-input-preserved", lambda data: "Search" in ids(data)
+                                and any(e.get("role") == "TextField" and e.get("value") == term
+                                        for e in data["entries"]))
                     run.screenshot("search-restored-keyboard")
                     label("閉じる")
                     tab("一覧")
@@ -269,8 +274,8 @@ def main():
                         run.screenshot("scroll-before")
                         # Every newer fixture row has already been copied once. The oldest row
                         # goes from zero uses to one and stays last (the tie uses update time).
-                        # Compare before presentation with after expiry: the top bar temporarily
-                        # changes the viewport while it is visible, but must restore its position.
+                        # The separate window must preserve the viewport during the notice as
+                        # well as after expiry. This also catches accidental safe-area insertion.
                         anchors = [e for e in data["entries"] if e.get("uniqueId", "").startswith("snippet.")
                                    and e["uniqueId"] != "snippet." + final_id.removeprefix("copy.")
                                    and 170 < e["frame"]["y"] < 400]
@@ -279,6 +284,9 @@ def main():
                         anchor = anchors[0]
                         run.tap(final_id)
                         data = wait("scroll-copy-rendered", lambda data: "library.notice" in ids(data))
+                        during = next((e for e in data["entries"] if e.get("uniqueId") == anchor["uniqueId"]), None)
+                        if during is None or abs(during["frame"]["y"] - anchor["frame"]["y"]) > 1:
+                            raise VerificationError("Scroll anchor changed while the notification was visible")
                         run.screenshot("scroll-copy")
                         time.sleep(2.3)
                         data = assert_no_notice("scroll-expired")
@@ -288,7 +296,7 @@ def main():
                         run.screenshot("scroll-after")
                         run.manifest["scroll_assertions"] = {"seeded_rows": 8, "operated_control": final_id,
                             "anchor_id": anchor["uniqueId"],
-                            "before_y": anchor["frame"]["y"], "after_y": after["frame"]["y"],
+                            "before_y": anchor["frame"]["y"], "during_y": during["frame"]["y"], "after_y": after["frame"]["y"],
                             "notice_expiry_preserved_scroll": True}
 
             run.manifest["assertions"] = {"baseline": args.baseline, "created_id": snippet,

@@ -79,6 +79,27 @@ run `20260919T124140Z-test-81095f`は同じ専用SE / iOS 26.5 (23F77) / Release
 
 採用仕様とdriverを`29eb253f0c3230943e6258fe717e2d24fd4020ce`へコミットした後、上記UI・製品テストの両runで`check_evidence.py --ref HEAD --integrity-only`が成功した。媒体レビュー申告や公開先の閲覧を認定する検査ではない。同commitの共通Nix全check、Release archive、署名、TestFlightアップロードが成功し、**0.1.0 (202609191251)**を送信した。Apple側の処理・グループ配信・実機操作は配布担当者の確認範囲として残す。公開manifestと工程は[配布記録](testflight-validation.md#issue-26の上部通知を採用した更新配布)を参照する。
 
+## 専用UIWindowへの移行
+
+2026-09-19、ユーザーが「UIWindowで一段上のレイヤー」を指定した。上部safeAreaBarを外し、LibraryViewに接続する専用ウィンドウへ通知を移した。元画面のsafe areaを変更せず、通知外のタッチを透過し、入力先のkey windowを維持する。採用仕様は[通知の設計](design/decisions/0004-tab-accessory-notices.md)を参照する。
+
+| run | 条件と結果 |
+| --- | --- |
+| `20260919T130503Z-notice-ui-c71c0e` | 最初の実装はLibraryViewの型チェック時間超過でビルド失敗。タブ構築と画面イベントを分割 |
+| `20260919T131329Z-notice-ui-6cff38` | 分割したcomputed propertyのreturn不足でビルド失敗。明示returnを追加 |
+| `20260919T131400Z-notice-ui-e50a3c` | lightの位置検査が成功。タブ・作成ボタン・フィルターの表示前・中・消去後の位置差は0。前・中・後のPNG原本を確認 |
+| `20260919T131449Z-notice-ui-f20e1c` | 過去のダミーが残った条件で対象行を再表示できず停止。専用Simulatorのダミーアプリを初期化し、次のrunで条件を固定 |
+| `20260919T131605Z-notice-ui-1d35f9` | light / scrollで成功。コピー・連続コピー・削除と同じUUIDの復元・検索入力保持・タブ切替・シート・背景復帰を確認。位置検査も成功 |
+| `20260919T131955Z-notice-ui-31da98` | darkの通常操作で成功。位置の不変、同じUUIDの復元、取り消し後の検索入力保持、離脱時の通知終了を確認 |
+
+専用SE / iOS 26.5 (23F77) / Releaseを継続使用した。lightの末尾コピーでは同じ行のy座標が表示前・表示中・消去後とも223 ptとなり、上部safeAreaBar版で許容していた内容の上下移動がないことを確認した。検索の取り消し直後にも検索語とキーボードが残るassertionを追加した。通知中の連続コピー、タブと作成ボタンの操作は通知外へのタッチが届く条件として評価した。
+
+lightの`notice-deleted`・`search-delete-keyboard`・`search-restored-keyboard`・`scroll-before`・`scroll-copy`・`scroll-after`のPNG原本と、186.0933秒の動画の9.495・91.9283・167.64秒の抽出画像を確認した。全編再生・媒体の公開・公開先ブラウザー閲覧は未実施で、観測範囲はrunのreview.jsonに記録した。
+
+darkの`notice-copy`・`search-delete-keyboard`・`editor-no-notice`・`foreground-no-notice`のPNG原本と、69.9433秒の録画の1.8833・34.67・63.0433秒の抽出画像を確認した。こちらも全編再生・媒体の公開・公開先の閲覧は未実施。
+
+run `20260919T132154Z-test-df8b02`は専用SE / iOS 26.5 / Releaseで製品テスト118件（パラメーター展開後138件）が成功し、失敗・skipは0件。追加した2件は、実際にマウントした通知ウィンドウが元のkey windowとUITextFieldのfirst responderを維持すること、カード内外のhitTest、同じシーンへの所属、更新時の再利用、切断・破棄時の非表示と参照解放を確認した。共通Nix全checkと文書検査も成功した。
+
 ## 確認の限界
 
 実行OSはリポジトリ規約どおりiOS 26.5だけである。iOS 26.0はSDKのavailabilityと分岐のコンパイルで確認し、実画面での空白解放・キーボード配置は未実施。VoiceOver音声・触覚の体感はAXや発行回数のテストでは保証しない。実機、定量的なend-to-end入力遅延・hitch・GPU時間は未測定であり、高速化を主張しない。

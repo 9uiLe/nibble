@@ -360,7 +360,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 検索は`Tab(role: .search)`と`.searchable`を使い、タブ選択時の入力開始を`.tabViewSearchActivation(.searchTabSelection)`で指定する。`.searchPresentationToolbarBehavior(.avoidHidingContent)`で見出しを保ち、入力中は新規作成を隠す。検索語が空白のみの案内と検索0件を分ける。タブバーはスクロールで縮小せず、検索の位置はOSへ委ねる。
 
-左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。作成は下部`safeAreaInset`、一覧・検索の通知は上部`safeAreaBar`へ配置する。通知がない間は上部領域を解放し、タブと作成ボタンの位置・幅を変えない。発生元・期限・取り消し・画面終了の契約は[通知の設計](../design/decisions/0004-tab-accessory-notices.md)に従う。
+左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。作成は下部`safeAreaInset`、一覧・検索の通知は専用UIWindowの上部へ重ねる。元画面のsafe areaを変えず、一覧・タブ・作成ボタンの位置を維持する。発生元・期限・取り消し・画面終了の契約は[通知の設計](../design/decisions/0004-tab-accessory-notices.md)に従う。
 
 ### 一覧の選択と行操作
 
@@ -396,7 +396,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 | 対象 | 管理する仕組みと契約 |
 | --- | --- |
-| 通知 | シート内は`Library.Notice`の`AnimationScope`で有無を監視し、0.16秒のopacity遷移。Reduce Motionでも同じ時間。上部safe-areaバーの表示・消去と配置はOSが管理 |
+| 通知 | シート内は`Library.Notice`の`AnimationScope`で有無を監視し、0.16秒のopacity遷移。Reduce Motionでも同じ時間。上部の通知ウィンドウは独自の表示・消去アニメーションなし |
 | アプリ内部の伝播 | `LibraryScreen`と`SnippetEditor`外側の警告なしbarrierでOSのシートtransactionを遮断。内側のDebug診断と入力領域のbarrierで伝播を検査 |
 | 標準シート・メニュー・キーボード | OS部品の遷移 |
 | 説明イラスト | RMLが図形と時間、`RivePresentation`が読込・型付き接続・表示を担当 |

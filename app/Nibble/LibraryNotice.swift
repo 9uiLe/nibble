@@ -10,11 +10,11 @@ struct LibraryNotice: View {
 
     @SkipEquatable let model: LibraryModel
     let restore: (UUID) -> Void
-    var inAccessory = false
+    var inWindow = false
 
     var body: some View {
         Group {
-            if inAccessory {
+            if inWindow {
                 noticeContent
             } else {
                 AnimationScope(.easeOut(duration: 0.16), value: model.notice != nil, name: "Library.Notice") {
@@ -36,8 +36,8 @@ struct LibraryNotice: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: false, vertical: true)
                     if let subject = notice.subject {
-                        Text(subject).font(inAccessory ? .caption : .subheadline)
-                            .lineLimit(inAccessory ? 1 : 2)
+                        Text(subject).font(inWindow ? .caption : .subheadline)
+                            .lineLimit(inWindow ? 1 : 2)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,12 +57,13 @@ struct LibraryNotice: View {
                         .accessibilityIdentifier("library.undo")
                 }
             }
-            .padding(.horizontal, inAccessory ? 16 : 20)
-            .padding(.vertical, inAccessory ? 0 : 8)
+            .padding(.horizontal, inWindow ? 16 : 20)
+            .padding(.vertical, inWindow ? 4 : 8)
+            .frame(minHeight: inWindow ? 52 : nil)
             .background {
-                if !inAccessory { RoundedRectangle(cornerRadius: 20).fill(.regularMaterial) }
+                RoundedRectangle(cornerRadius: 20).fill(.regularMaterial)
             }
-            .transition(inAccessory ? .identity : .opacity)
+            .transition(inWindow ? .identity : .opacity)
         }
     }
 }
