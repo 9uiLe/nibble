@@ -2,7 +2,7 @@
 
 nibbleは、よく使うテキストを端末内に保存し、挿入・コピーで再利用する日本語UIのiPhoneアプリである。本体とShare Extensionで作成・編集・取り込みを行い、Keyboard Extensionから保存済み本文を直接挿入でき、本体でのコピーは利用者が入力先へ貼り付ける。最低対応OSはiOS 26.0、実行検証はiOS 26.5 Simulatorに限定する。
 
-操作・識別・回復の改善に対する実行結果は[UI改善の検証](ui-ux-validation.md)に記録する。
+操作・識別・回復の改善に対する実行結果は[UI改善の検証](ui-ux-validation.md)に記録する。タブ通知の実行結果と検索中の未解決事項は[タブ通知の検証](tab-accessory-validation.md)を参照する。
 
 設計の契約と採用理由は[製品設計](decisions/0002-mvp-app.md)、実施済みの確認と未検証項目は[検証結果](mvp-validation.md)を参照する。この文書は、操作手順とその期待結果を定義する。
 
