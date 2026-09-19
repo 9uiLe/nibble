@@ -11,7 +11,7 @@ final class LibraryTaskOwner {
 
     enum Action {
         case refresh, reload, retryUsage, open(LibraryModel.EditorSource), copy(UUID), pin(SnippetSummary)
-        case delete(UUID), restore(UUID), permanentlyDelete(UUID)
+        case delete(UUID), restore(UUID), undoNotice(UUID), permanentlyDelete(UUID)
 
         var id: ActionID {
             switch self {
@@ -22,6 +22,7 @@ final class LibraryTaskOwner {
             case .pin(let item): ActionID("library.pin.\(item.id)")
             case .delete(let id): ActionID("library.delete.\(id)")
             case .restore(let id): ActionID("library.restore.\(id)")
+            case .undoNotice(let id): ActionID("library.undo.\(id)")
             case .permanentlyDelete(let id): ActionID("library.permanentlyDelete.\(id)")
             }
         }
@@ -42,6 +43,8 @@ final class LibraryTaskOwner {
     @discardableResult
     func startTask(_ action: Action, on model: LibraryModel) -> TaskStartOutcome {
         let requestID = UUID()
+        // Capture at the UI event, before the scheduled operation can start on another visit.
+        let noticeContext = model.noticeContext
         return tasks.start(id: action.id, lifetime: action.lifetime, policy: action.policy) { [weak self, weak model] cancellation in
             try cancellation.check()
             guard let model else { return }
@@ -52,12 +55,13 @@ final class LibraryTaskOwner {
                 self?.openingModel = model
                 self?.openingID = requestID
                 await model.open(source, requestID: requestID)
-            case .copy(let id): await model.copy(id)
+            case .copy(let id): await model.copy(id, context: noticeContext)
             case .retryUsage: await model.retryUsageRecording()
             case .pin(let item): await model.pin(item)
-            case .delete(let id): await model.delete(id)
-            case .restore(let id): await model.restore(id)
-            case .permanentlyDelete(let id): await model.permanentlyDelete(id)
+            case .delete(let id): await model.delete(id, context: noticeContext)
+            case .restore(let id): await model.restore(id, context: noticeContext)
+            case .undoNotice(let id): await model.undoNotice(id, context: noticeContext)
+            case .permanentlyDelete(let id): await model.permanentlyDelete(id, context: noticeContext)
             }
         }
     }

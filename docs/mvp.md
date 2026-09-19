@@ -191,7 +191,7 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 
 1. 保存済み項目のある状態で本体プロセスを終了・再起動し、同じUUIDの項目が一覧に出ることを確認する。シートの開閉とbackgroundからの復帰でも一覧を確認する。一覧・検索のそれぞれから編集を開き、入力後にホームへ移動して戻る。同じ編集シートと入力を保持し、保存後のコピーが原文のUTF-8と一致することを確認する。
 2. 同じ操作の連打と別項目への連続操作を行い、重複する編集画面や下書きができず、別項目の操作は受理されることを確認する。入力直後に保存・閉じる操作を行い、最新本文と下書きを照合する。
-3. Settingsの「視差効果を減らす」を無効・有効にしてselected状態を確認する。それぞれでコピー通知の表示と消去、編集の開閉を撮影する。最後のコピーから2秒で通知が消える設計に対し、自動操作では2.3秒後の表示状態を照合する。通知の遷移指定は、製品の固定表示方針に従ってどちらも0.16秒とする。
+3. Settingsの「視差効果を減らす」を無効・有効にしてselected状態を確認する。それぞれでコピー通知の表示と消去、編集の開閉を撮影する。最後のコピーから2秒で通知が消える設計に対し、自動操作では2.3秒後の表示状態を照合する。製品の固定表示方針に従い、専用ウィンドウの通知は表示・消去アニメーションなし、削除シート内の通知は0.16秒のopacity遷移とする。
 4. Debug実行では、内部の`detectAnimationLeaks`・入力barrierと、Taskingの未処理エラーの診断を確認する。OSのシートtransactionは画面外側のbarrierで遮断する。診断が届く位置と実行した導線を記録する。
 5. 検証終了後に表示設定を実行前の状態へ戻す。操作・画像・録画・診断の対象ソースと実施範囲を記録する。[非同期API境界の検証記録](async-policy-validation.md)に結果の記載例がある。
 
@@ -206,3 +206,20 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 [証跡とPRの検査](review-evidence.md)に従い、runの開始・終了・対象コミットの入力と媒体を照合する。実際の観測・確認範囲・添付URL・閲覧条件を`review.json`へ記入し、検査後に`REVIEW.md`を生成する。PRには画像・動画と対象コミット・端末・OS・手順を記載する。
 
 MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含めない。実機のロック時保護・性能・触覚・Handoff・署名配布は個別の評価が必要である。VoiceOver、横向き、長時間利用、1 MB本文の入力追従の未検証条件と、Reduce Motionの確認済み範囲は[検証結果の制約](mvp-validation.md#検証範囲の制約)を参照する。
+
+## 操作完了通知の検証
+
+一覧・検索の結果を専用UIWindowの上部へ表示する契約は[通知の設計](design/decisions/0004-result-notices.md)、対象ソースと実施範囲は[通知の検証記録](notice-validation.md)を参照する。専用Simulatorで実行する。
+
+```sh
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --scroll
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --geometry-only
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --appearance dark
+```
+
+ダミーの長い対象名を作り、コピー・連続コピー・削除と取り消し、検索入力中、タブ移動、シート開閉、背景復帰を確認する。表示前・表示中・消去後の画像と録画を保存する。`--baseline`は専用ウィンドウを持たない比較用ソースで、コピー・削除・取り消しだけを撮影するためのモードである。ドライバーはAXと結果状態を照合する。VoiceOver音声、触覚、録画の視聴範囲は別に申告する。
+
+`--scroll`は8件のダミーを追加し、末尾のコピーと通知表示前・表示中・消去後の位置保持も確認する。最古以外を先に一度ずつコピーし、使用回数による並べ替えを位置保持の判定に混ぜない。再現条件は専用端末のダミーデータで固定する。通知ウィンドウは元画面の領域を変更しないため、表示中も含めて同じ行の座標を比較する。
+
+`--geometry-only`は専用端末の既存ダミー項目をコピーし、通知の表示前・表示中・消去後で「一覧」「設定」「検索」と作成ボタンの位置・寸法を比較する。1 ptを超える変化を失敗とする。項目がなければダミーを作成する。タブ再配置の回帰検査であり、通常のdriverでも同じ検査を行う。一覧内のスクロール位置の検査とは別である。

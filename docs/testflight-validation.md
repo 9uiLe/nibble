@@ -2,6 +2,61 @@
 
 [配布設計](decisions/0003-testflight-distribution.md)に対し、対象ソース、ビルド番号、工程、観測範囲を記録する。操作方法は[配布手順](testflight.md)を参照する。別の日付・ビルドの結果を、現在のビルドの実行結果として扱わない。
 
+## 専用UIWindow通知の配布
+
+2026-09-19（JST）、コミット`81a6e52b80c7bab65330db2563c5bf7d728bbbf9`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609191331)**。
+
+一覧・検索の通知を元画面と同じシーンの専用UIWindowへ表示するReleaseビルド。通常ウィンドウより一段上に表示し、key windowと元画面のsafe areaを維持する。通知の外側のタッチは背面へ通す。採用構成と契約は[通知の設計](design/decisions/0004-result-notices.md)に定義する。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nix全checkと共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | Release、iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。本体・共有拡張・キーボードの識別子、バージョン、Privacy Manifest、輸出申告のBoolean falseを検査 |
+| アップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609191331/manifest.json`。`destination: upload`、`stage: upload`、`completed: true`、対象commitとversion・buildの一致を確認 |
+| Simulatorの操作記録 | light / scrollのrun `20260919T131605Z-notice-ui-1d35f9`とdarkのrun `20260919T131955Z-notice-ui-31da98`が成功。通知の前・中・後で一覧・フィルター・タブ・作成位置を維持し、取り消し後も検索語とキーボードを保持 |
+| 製品テスト | run `20260919T132154Z-test-df8b02`で118件（パラメーター展開後138件）が成功。失敗・skipは0件。ウィンドウの解放、入力先、hitTestの検査を含む |
+| 配布ソースとの照合 | 上記3 runで配布commitへの`check_evidence.py --integrity-only`が成功 |
+| Apple側の処理・グループ配信・実機操作 | 配布担当者が確認する。エージェントは未確認 |
+
+認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。媒体の実際の閲覧範囲と未実施条件は[通知の検証](notice-validation.md#採用実装の検証結果)に記録する。この記録の追加はアップロード後で、配布ソースへ含めない。
+
+## 上部safe-areaバーの比較用配布
+
+2026-09-19（JST）、コミット`29eb253f0c3230943e6258fe717e2d24fd4020ce`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609191251)**。
+
+一覧・検索の操作結果に上部safeAreaBarを使う比較用ビルド。タブと作成ボタンの位置を維持し、通知領域の表示中は一覧内容が下へ移動する。専用UIWindowを使用する採用構成とは別のソースであり、この配布結果を採用構成の検証として扱わない。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nix全checkと共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | Release、iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。本体・共有拡張・キーボードの識別子、バージョン、Privacy Manifest、輸出申告のBoolean falseを検査 |
+| アップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609191251/manifest.json`。`destination: upload`、`stage: upload`、`completed: true`、対象commitとversion・buildの一致を確認 |
+| Simulatorの操作記録 | darkのrun `20260919T123747Z-notice-ui-1c837c`でコピー・取り消し・検索入力保持・離脱復帰・タブと作成ボタンの位置不変・末尾コピー後の位置復帰を確認 |
+| 製品テスト | run `20260919T124140Z-test-81095f`で116件（パラメーター展開後136件）が成功。失敗・skipは0件 |
+| 配布ソースとの照合 | 上記UI・製品テストの両runで、配布commitへの`check_evidence.py --integrity-only`が成功 |
+| Apple側の処理・グループ配信・実機操作 | 配布担当者が確認する。エージェントは未確認 |
+
+認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。画像と抽出フレームの閲覧範囲、通知中の末尾「その他」操作などの未確認条件は[通知の検証](notice-validation.md#一覧検索とも上部safeareabarを使う構成)に記録する。この配布記録の追加はアップロード後であり、配布ソースへ含めない。
+
+## Tab Bar accessoryと検索上部バーの比較用配布
+
+2026-09-19（JST）、コミット`f306ed3b1c6883829898e1f2d93c04bb731f68d7`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609191149)**。
+
+通常時はTab Bar accessory、検索入力中は上部safeAreaBarに通知と削除取り消しを表示する比較用ビルド。入力状態で表示位置を切り替える構成を対象とし、専用UIWindowを使用する採用構成の検証には使用しない。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nix全checkと共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | Release、iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。本体・共有拡張・キーボードの識別子、バージョン、Privacy Manifest、輸出申告のBoolean falseを検査 |
+| アップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609191149/manifest.json`。`destination: upload`、`stage: upload`、`completed: true`、対象commitとversion・buildの一致を確認 |
+| Simulatorの操作記録 | run `20260919T111823Z-notice-ui-f0a627`を配布commitへ照合し、`check_evidence.py --integrity-only`が成功。画像・動画の閲覧範囲は[通知の検証](notice-validation.md)を参照 |
+| Apple側の処理・グループ配信・実機操作 | 配布担当者が確認する。エージェントは未確認 |
+
+認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。上部配置追加前の`980fd6d`で製品テスト116件が成功しているが、配布候補での全製品テスト再実行は未実施。ダーク、通知中の末尾「その他」の操作、VoiceOver音声と触覚の体感も未確認として残す。この配布記録の追加はアップロード後であり、配布ソースへ含めない。
+
 ## タイトル中心の一覧と全文操作の内部配布
 
 2026-09-19（JST）、コミット`3c91f027a2c4ef6f0ec219473177e0030c59f255`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609190447)**。

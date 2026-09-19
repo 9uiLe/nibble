@@ -13,8 +13,21 @@ final class LibraryModel {
     private var usageErrors: [UUID: String] = [:]
     enum EditorSource { case new, snippet(UUID), draft(UUID) }
 
-    struct Notice: Identifiable, Equatable {
+    /// A visit to a visible surface. Leaving invalidates even work that finishes after returning.
+    struct NoticeContext: Equatable {
         let id = UUID()
+        let isPresented: Bool
+    }
+    private(set) var noticeContext = NoticeContext(isPresented: true)
+    private let noticeOrigin: Notice.Origin
+    private let noticeSleep: (ContinuousClock.Instant) async throws -> Void
+    private var noticeDeadline: ContinuousClock.Instant?
+    private(set) var restoringIDs: Set<UUID> = []
+
+    struct Notice: Identifiable, Equatable {
+        enum Origin: Equatable { case library, search, trash }
+        let id = UUID()
+        let origin: Origin
         let message: String
         let subject: String?
         let undoID: UUID?
@@ -23,7 +36,7 @@ final class LibraryModel {
     }
 
     struct Failure: Equatable {
-        enum Recovery: Equatable { case reload, dismiss, retryUsage }
+        enum Recovery: Equatable { case reload, dismiss, retryUsage, retryRestore(UUID) }
         let title: String
         let message: String
         let recovery: Recovery
@@ -94,28 +107,44 @@ final class LibraryModel {
 
     init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
-         usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init) {
+         usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init,
+         noticeOrigin: Notice.Origin = .library,
+         noticeSleep: @escaping (ContinuousClock.Instant) async throws -> Void = { try await ContinuousClock().sleep(until: $0) }) {
         self.store = store
         self.effects = effects
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
         self.usageRecorder = usageRecorder ?? store
         self.now = now
+        self.noticeOrigin = filter == .trash ? .trash : noticeOrigin
+        self.noticeSleep = noticeSleep
         evaluatedAt = now()
         request = LibraryRequest(filter: filter)
     }
 
-    func clearNotice() { notice = nil }
+    func clearNotice() {
+        notice = nil
+        noticeDeadline = nil
+    }
+
+    func setNoticePresentation(_ isPresented: Bool) {
+        guard noticeContext.isPresented != isPresented else { return }
+        noticeContext = NoticeContext(isPresented: isPresented)
+        clearNotice()
+    }
 
     func expireNotice(id: UUID) async {
         guard let notice, notice.id == id else { return }
+        // Start when the UI displays the notice; remounts retain the original deadline.
+        let deadline = noticeDeadline ?? ContinuousClock.now.advanced(by: notice.duration)
+        noticeDeadline = deadline
         do {
-            try await Task.sleep(for: notice.duration)
+            try await noticeSleep(deadline)
             try Task.checkCancellation()
             guard self.notice?.id == id else { return }
             clearNotice()
         } catch is CancellationError { }
-        catch { report("通知を更新できませんでした", error) }
+        catch { if self.notice?.id == id { report("通知を更新できませんでした", error) } }
     }
 
     /// An explicit recovery reload clears the acknowledged operation failure.
@@ -171,6 +200,7 @@ final class LibraryModel {
                 return
             }
             if case .new = source { filter = .all }
+            setNoticePresentation(false)
             editor = draft
         } catch is CancellationError { }
         catch {
@@ -179,8 +209,9 @@ final class LibraryModel {
         }
     }
 
-    func copy(_ id: UUID) async {
+    func copy(_ id: UUID, context: NoticeContext? = nil) async {
         guard !Task.isCancelled else { return }
+        let context = context ?? noticeContext
         operationFailure = nil
         do {
             try Task.checkCancellation()
@@ -188,8 +219,7 @@ final class LibraryModel {
             try Task.checkCancellation()
             effects.copy(body)
             let use = SnippetUse(id: UUID(), snippetID: id, completedAt: now())
-            feedback += 1
-            announce("コピーしました")
+            announce("コピーしました", context: context)
             pendingUses.append(use)
             await persistUse(use)
             await refresh()
@@ -229,33 +259,46 @@ final class LibraryModel {
         catch { report("ピン留めを変更できませんでした", error) }
     }
 
-    func delete(_ id: UUID) async {
+    func delete(_ id: UUID, context: NoticeContext? = nil) async {
         guard !Task.isCancelled else { return }
+        let context = context ?? noticeContext
         operationFailure = nil
         do {
             let result = try await store.mutate(.delete, id: id)
+            announce("削除しました", subject: result.subject, undo: id, context: context)
             await refresh()
-            announce("削除しました", subject: result.subject, undo: id)
         } catch { report("削除できませんでした", error) }
     }
 
-    func restore(_ id: UUID) async {
-        guard !Task.isCancelled else { return }
+    func undoNotice(_ id: UUID, context: NoticeContext? = nil) async {
+        guard let notice, notice.id == id, let target = notice.undoID else { return }
+        await restore(target, context: context)
+        if operationFailure != nil, self.notice?.id == id { clearNotice() }
+    }
+
+    func restore(_ id: UUID, context: NoticeContext? = nil) async {
+        guard !Task.isCancelled, restoringIDs.insert(id).inserted else { return }
+        defer { restoringIDs.remove(id) }
+        let context = context ?? noticeContext
         operationFailure = nil
         do {
             let result = try await store.mutate(.restore, id: id)
+            announce("元に戻しました", subject: result.subject, context: context)
             await refresh()
-            announce("元に戻しました", subject: result.subject)
-        } catch { report("復元できませんでした", error) }
+        } catch {
+            operationFailure = Failure(title: "復元できませんでした", message: error.localizedDescription,
+                                       recovery: error as? StoreError == .missing ? .reload : .retryRestore(id))
+        }
     }
 
-    func permanentlyDelete(_ id: UUID) async {
+    func permanentlyDelete(_ id: UUID, context: NoticeContext? = nil) async {
         guard !Task.isCancelled else { return }
+        let context = context ?? noticeContext
         operationFailure = nil
         do {
             let result = try await store.mutate(.permanentlyDelete, id: id)
+            announce("完全に削除しました", subject: result.subject, context: context)
             await refresh()
-            announce("完全に削除しました", subject: result.subject)
         } catch { report("完全に削除できませんでした", error) }
     }
 
@@ -264,9 +307,12 @@ final class LibraryModel {
                                    recovery: error as? StoreError == .missing ? .reload : .dismiss)
     }
 
-    private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil) {
-        let value = Notice(message: text, subject: subject, undoID: undo)
+    private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil, context: NoticeContext) {
+        guard context == noticeContext, context.isPresented else { return }
+        let value = Notice(origin: noticeOrigin, message: text, subject: subject, undoID: undo)
         notice = value
+        noticeDeadline = nil
+        feedback += 1
         effects.announce(value.announcement)
     }
 }

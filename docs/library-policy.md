@@ -28,7 +28,7 @@ nibbleのSwift実装は、依存の所有者、外部状態への作用、操作
 | 永続化 | モデルは`LibraryStorage`・`DraftEditing`を参照する。`SnippetStore`が接続を所有・直列化し、`SnippetQueries`・`DraftQueries`・`SnippetCommands`が同期SQLを実行する。トランザクション中は中断しない |
 | 同期OS操作 | `LibraryModel`は`LibraryEffects`を参照する。`SystemLibraryEffects`がMainActor上でコピー・読み上げ通知を実行し、処理の終了前に戻らない |
 | UIイベント | 行は表示値と意味のある操作意図を受け渡す。親画面が意図をモデルの操作へ接続し、タスクを所有する |
-| 一時的な表示 | `LibraryNotice`が通知・触覚を観測する。通知期限はSwiftUIのタスク、復元操作は親画面の所有者へ接続する |
+| 一時的な表示 | `LibraryNotice`が通知と期限、`LibraryResultFeedback`が成功の触覚を観測する。通知期限はSwiftUIのタスク、復元操作は親画面の所有者へ接続する |
 
 モデルのテストには一時URLの保存層と記録用の`LibraryEffects`を注入する。OSの状態を使う統合テストは、実装を明示して直列に実行する。業務上の状態とOS作用の順序をテストできること、画面から保存先やグローバルな保存層を探索しないことをレビューする。
 
@@ -102,7 +102,7 @@ Releaseは`-Osize`・whole-moduleでコードを生成し、`ENABLE_TESTABILITY=
 
 actor、checked continuation、`CancellationError`を利用できる。既存タスク内での待機・協調には`Task.sleep`・`yield`・`checkCancellation`・`isCancelled`・`currentPriority`を使える。
 
-`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知・触覚状態を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。どちらの部品にもタスク所有者を渡さない。
+`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。タブの触覚は常設のLibraryResultFeedback、シートの触覚はシートが観測し、通知Viewの出現を成功イベントの代用にしない。どちらの部品にもタスク所有者を渡さない。
 
 Lintはコンストラクタの`perform:`・`restore:`という明示ラベル付きのclosureだけを開始境界として許可し、未登録のコンストラクタ、表示用closure、別名化された開始関数を拒否する。
 
@@ -153,7 +153,7 @@ struct ExampleView: View {
 | `ActionLifetime` | キャンセル対象を分類する値。Viewやsceneのイベントは所有者が接続 |
 | `waitForIdle`等 | 所有者の終了待ち。所有・重複・キャンセルのテストに使用 |
 
-操作別の設定は[製品設計](decisions/0002-mvp-app.md#操作の寿命と整合性)に定義する。一覧読込・コピー・項目更新はsceneBoundの有限処理とし、一覧Viewの`onDisappear`ではキャンセルしない。background化では`LibraryTaskOwner.endScreen()`で編集開始を止め、同期APIの`clearNotice()`で通知を消す。
+操作別の設定は[製品設計](decisions/0002-mvp-app.md#操作の寿命と整合性)に定義する。一覧読込・コピー・項目更新はsceneBoundの有限処理とし、一覧Viewの`onDisappear`ではキャンセルしない。background化では`LibraryTaskOwner.endScreen()`で編集開始を止める。通知はタブ離脱・シート表示・sceneの非active化で`setNoticePresentation(false)`を呼び、滞在と表示を終了する。
 
 編集終了は`SnippetEditor.onDisappear`、共有データ読込は`ShareViewController.viewDidDisappear`でscreenBoundをキャンセルする。所有者が保持するモデル・画面・完了通知の解放条件も確認する。
 
@@ -181,7 +181,7 @@ struct ExampleView: View {
 
 ### 通知とエラー
 
-通知のID・本文・取り消し対象は1つの値として保持する。コピー等の操作完了に表示期間を含めず、`.task(id: notice?.id)`から`expireNotice(id:)`をawaitする。
+通知のID・発生元・本文・対象名・取り消し対象は1つの値として保持する。画面の滞在を識別するcontextを操作受理時に固定し、終了した滞在の遅延結果を再表示しない。コピー等の操作完了に表示期間を含めず、`.task(id: notice?.id)`から`expireNotice(id:)`をawaitする。最初の表示からの期限を保持し、再マウントで延長しない。取り消しは表示中の通知IDを照合し、対象UUIDごとの重複実行を防ぐ。詳細は[通知の設計](design/decisions/0004-result-notices.md)に従う。
 
 業務上の失敗はモデルの表示状態へ変換する。編集失敗には説明と回復可能な操作を持たせ、入力を残す。非同期の書込結果はsnapshotの入力番号と編集状態を確認し、新しい入力や終了結果へ古いエラーを反映しない。
 
@@ -254,7 +254,7 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 表示変化の範囲を名前付き`AnimationScope`で囲み、valueによる変更検知またはproxyの`scope.animate`を使う。複数triggerのfactoryは`AnimationTrigger.animation`と型名を明記する。入力など親のアニメーションを受けない領域には`animationBarrier()`を置く。
 
-製品の通知scopeは`Library.Notice`とし、通知の有無をvalueで検知する。表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
+シート内通知のscopeは`Library.Notice`とし、通知の有無をvalueで検知する。シート内の表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。上部の通知ウィンドウは独自の表示・消去アニメーションを持たず、元画面のレイアウトやアニメーションを変更しない。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
 
 `LibraryScreen`と`SnippetEditor`の外側の`animationBarrier(warnsOnLeaks: false)`は、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks()`と編集入力領域の警告付きbarrierは、アプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOS部品が管理する。
 

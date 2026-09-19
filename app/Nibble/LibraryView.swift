@@ -1,5 +1,6 @@
 import AppMacros
 import SwiftUI
+import ScopedAnimation
 
 @Equatable
 struct LibraryView: View {
@@ -23,28 +24,15 @@ struct LibraryView: View {
         self.store = store
         self.effects = effects
         _all = State(initialValue: LibraryModel(store: store, effects: effects))
-        _search = State(initialValue: LibraryModel(store: store, effects: effects))
+        let search = LibraryModel(store: store, effects: effects, noticeOrigin: .search)
+        search.setNoticePresentation(false)
+        _search = State(initialValue: search)
     }
 
     var body: some View {
         @Bindable var allLibrary = all
         @Bindable var searchableLibrary = search
-        TabView(selection: $selectedTab) {
-            Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
-                library(all, title: "一覧", showsFilters: true)
-            }
-            Tab("設定", systemImage: "gearshape", value: TabID.settings) {
-                NavigationStack {
-                    LibrarySettingsView(actionButtonSide: $actionButtonSide, showTrash: { showsTrash = true })
-                }
-            }
-            Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
-                library(search, title: "検索", showsSearchPrompt: true)
-                    .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
-                    .searchFocused($searchFocused)
-                    .searchPresentationToolbarBehavior(.avoidHidingContent)
-            }
-        }
+        tabs
         .tabViewSearchActivation(.searchTabSelection)
         .tabBarMinimizeBehavior(.never)
         .textInputAutocapitalization(.never)
@@ -62,7 +50,16 @@ struct LibraryView: View {
         }
         .tint(.nibbleAccent)
         .onChange(of: selectedTab) {
+            updateNoticePresentation()
             if selectedTab != .search { searchFocused = false }
+        }
+        .onChange(of: showsTrash) { updateNoticePresentation() }
+        .onChange(of: all.editor?.id) { updateNoticePresentation() }
+        .onChange(of: search.editor?.id) { updateNoticePresentation() }
+        .onAppear { updateNoticePresentation() }
+        .onDisappear {
+            all.setNoticePresentation(false)
+            search.setNoticePresentation(false)
         }
         .onOpenURL { url in
             guard let route = AppRoute(url: url), all.editor == nil,
@@ -72,9 +69,11 @@ struct LibraryView: View {
             search.query = ""
             all.filter = .all
             selectedTab = .library
+            updateNoticePresentation()
             if route == .create { routeOwner.startTask(.open(.new), on: all) }
         }
         .onChange(of: scenePhase) {
+            updateNoticePresentation()
             if scenePhase == .background { routeOwner.endScreen() }
         }
         .privacySensitive()
@@ -86,6 +85,37 @@ struct LibraryView: View {
                 }
                 .accessibilityHidden(true)
             }
+        }
+    }
+
+    private var tabs: some View {
+        @Bindable var searchableLibrary = search
+        return TabView(selection: Binding(get: { selectedTab }, set: {
+            selectedTab = $0
+            updateNoticePresentation()
+        })) {
+            Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
+                library(all, title: "一覧", showsFilters: true)
+            }
+            Tab("設定", systemImage: "gearshape", value: TabID.settings) {
+                NavigationStack {
+                    LibrarySettingsView(actionButtonSide: $actionButtonSide, showTrash: {
+                        showsTrash = true
+                        updateNoticePresentation()
+                    })
+                }
+            }
+            Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
+                library(search, title: "検索", showsSearchPrompt: true)
+                    .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
+                    .searchFocused($searchFocused)
+                    .searchPresentationToolbarBehavior(.avoidHidingContent)
+            }
+        }
+        .modifier(LibraryResultFeedback(all: all, search: search))
+        .background {
+            LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
+                                isPresented: noticeOrigin != nil && currentLibrary.notice?.origin == noticeOrigin)
         }
     }
 
@@ -102,6 +132,32 @@ struct LibraryView: View {
         case .search: search
         }
     }
+
+    private var noticeOrigin: LibraryModel.Notice.Origin? {
+        guard scenePhase == .active, !showsTrash, all.editor == nil, search.editor == nil else { return nil }
+        switch selectedTab {
+        case .library: return .library
+        case .search: return .search
+        case .settings: return nil
+        }
+    }
+
+    private func updateNoticePresentation() {
+        all.setNoticePresentation(noticeOrigin == .library)
+        search.setNoticePresentation(noticeOrigin == .search)
+    }
+}
+
+/// Keeps success feedback tied to completed operations rather than notice appearances.
+private struct LibraryResultFeedback: ViewModifier {
+    let all: LibraryModel
+    let search: LibraryModel
+
+    func body(content: Content) -> some View {
+        content
+            .sensoryFeedback(.success, trigger: all.feedback)
+            .sensoryFeedback(.success, trigger: search.feedback)
+    }
 }
 
 @Equatable
@@ -109,6 +165,7 @@ private struct DeletedSnippetsView: View {
     @State private var model: LibraryModel
     @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
         _model = State(initialValue: LibraryModel(store: store, effects: effects, filter: .trash))
@@ -131,6 +188,10 @@ private struct DeletedSnippetsView: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .onSubmit(of: .search) { searchFocused = false }
+        .sensoryFeedback(.success, trigger: model.feedback)
+        .onAppear { model.setNoticePresentation(scenePhase == .active) }
+        .onChange(of: scenePhase) { model.setNoticePresentation(scenePhase == .active) }
+        .onDisappear { model.setNoticePresentation(false) }
     }
 }
 

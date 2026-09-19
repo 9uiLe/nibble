@@ -32,7 +32,9 @@ struct LibraryScreen: View {
         .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
-                LibraryNotice(model: model, restore: { startTask(.restore($0)) })
+                if model.filter == .trash {
+                    LibraryNotice(model: model, restore: { startTask(.undoNotice($0)) })
+                }
                 if model.filter != .trash && !searchFocused.wrappedValue && !showsCreationCTA {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
@@ -69,11 +71,10 @@ struct LibraryScreen: View {
         .onChange(of: model.request) { startTask(.refresh) }
         .onChange(of: scenePhase) {
             if scenePhase == .active { startTask(.refresh) }
-            else if scenePhase == .background { taskOwner.endScreen(); model.clearNotice() }
+            else if scenePhase == .background { taskOwner.endScreen() }
         }
         .onDisappear {
             taskOwner.endScreen()
-            model.clearNotice()
         }
     }
 
@@ -202,6 +203,11 @@ struct LibraryScreen: View {
                     Button("使用記録を再試行") { startTask(.retryUsage) }
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.retryUsage")
+                } else if case .retryRestore(let id) = failure.recovery {
+                    Button("復元を再試行") { startTask(.restore(id)) }
+                        .buttonStyle(.bordered).controlSize(.large)
+                        .disabled(model.restoringIDs.contains(id))
+                        .accessibilityIdentifier("library.retryRestore")
                 } else {
                     Button("閉じる") { model.dismissFailure() }
                         .buttonStyle(.bordered).controlSize(.large)
