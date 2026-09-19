@@ -10,16 +10,20 @@ struct LibraryNotice: View {
 
     @SkipEquatable let model: LibraryModel
     let restore: (UUID) -> Void
+    var inAccessory = false
 
     var body: some View {
         AnimationScope(.easeOut(duration: 0.16), value: model.notice != nil, name: "Library.Notice") {
             if let notice = model.notice {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Label(notice.message, systemImage: "checkmark.circle.fill")
                             .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                         if let subject = notice.subject {
-                            Text(subject).font(.subheadline).lineLimit(2)
+                            Text(subject).font(inAccessory ? .caption : .subheadline)
+                                .lineLimit(inAccessory ? 1 : 2)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -27,21 +31,26 @@ struct LibraryNotice: View {
                     .accessibilityLabel(notice.announcement)
                     .accessibilityIdentifier("library.notice")
                     if let id = notice.undoID {
-                        Button { restore(id) } label: {
+                        Button { restore(notice.id) } label: {
                             Text("元に戻す")
                                 .font(.subheadline.weight(.semibold))
                                 .frame(minHeight: 44).contentShape(.rect)
+                                .fixedSize(horizontal: true, vertical: false)
                         }
                         .buttonStyle(.borderless)
+                            .disabled(model.restoringIDs.contains(id))
+                            .accessibilityHint("\(notice.subject ?? "スニペット")を復元します")
                             .accessibilityIdentifier("library.undo")
                     }
                 }
-                .padding(.horizontal, 20).padding(.vertical, 8)
-                .background(.regularMaterial, in: .rect(cornerRadius: 20))
+                .padding(.horizontal, inAccessory ? 16 : 20)
+                .padding(.vertical, inAccessory ? 0 : 8)
+                .background {
+                    if !inAccessory { RoundedRectangle(cornerRadius: 20).fill(.regularMaterial) }
+                }
                 .transition(.opacity)
             }
         }
-        .sensoryFeedback(.success, trigger: model.feedback)
         .task(id: model.notice?.id) {
             if let id = model.notice?.id { await model.expireNotice(id: id) }
         }

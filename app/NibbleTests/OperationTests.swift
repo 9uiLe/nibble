@@ -19,6 +19,8 @@ extension UIIntegrationTests {
             editor.title = "直接待機"
             editor.body = "  日本語\n👩🏽‍💻  "
             #expect(await editor.finish(.save))
+            library.editor = nil
+            library.setNoticePresentation(true)
             await library.refresh()
             let item = try #require(library.items.first)
             await library.copy(item.id)
