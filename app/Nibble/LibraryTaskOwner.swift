@@ -11,7 +11,7 @@ final class LibraryTaskOwner {
 
     enum Action {
         case refresh, reload, retryUsage, open(LibraryModel.EditorSource), copy(UUID), pin(SnippetSummary)
-        case delete(UUID), restore(UUID), permanentlyDelete(UUID)
+        case delete(UUID), restore(UUID), undoNotice(UUID), permanentlyDelete(UUID)
 
         var id: ActionID {
             switch self {
@@ -21,6 +21,7 @@ final class LibraryTaskOwner {
             case .retryUsage: "library.usage.retry"
             case .pin(let item): ActionID("library.pin.\(item.id)")
             case .delete(let id): ActionID("library.delete.\(id)")
+            case .undoNotice(let id): ActionID("library.undo.\(id)")
             case .restore(let id): ActionID("library.restore.\(id)")
             case .permanentlyDelete(let id): ActionID("library.permanentlyDelete.\(id)")
             }
@@ -57,6 +58,7 @@ final class LibraryTaskOwner {
             case .pin(let item): await model.pin(item)
             case .delete(let id): await model.delete(id)
             case .restore(let id): await model.restore(id)
+            case .undoNotice(let id): await model.undoNotice(id)
             case .permanentlyDelete(let id): await model.permanentlyDelete(id)
             }
         }

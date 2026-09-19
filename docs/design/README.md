@@ -139,3 +139,5 @@ nix flake check --no-update-lock-file --print-build-logs
 | 基盤の時間・メモリ・サイズ | 固定入力と対象実装を使う[基盤の測定記録](../ui-design-tooling-validation.md) |
 
 意味のない文章や、確認せず再生成した照合記録を機械検査だけで判断することはできない。検査コード・範囲・CI自体の変更もレビュー対象とする。外部指針と利用者の行動は、SDK・主要OS・利用場面を見直す際に再評価する。配布と秘密情報の扱いは[TestFlight手順](../testflight.md)に従う。
+
+本体の短時間通知は[タブに付随する操作完了通知](decisions/0004-tab-accessory.md)が配置、表示世代、期限、取り消し、OS別の接続を定める。

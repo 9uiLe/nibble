@@ -12,6 +12,7 @@ struct LibraryScreen: View {
     let title: String
     let showsFilters: Bool
     var showsSearchPrompt = false
+    var showsInlineNotice = true
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     var actionButtonSide: ActionButtonSide = .right
     @Environment(\.layoutDirection) private var layoutDirection
@@ -32,7 +33,9 @@ struct LibraryScreen: View {
         .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
-                LibraryNotice(model: model, restore: { startTask(.restore($0)) })
+                if showsInlineNotice {
+                    LibraryNotice(model: model, restore: { startTask(.restore($0)) })
+                }
                 if model.filter != .trash && !searchFocused.wrappedValue && !showsCreationCTA {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")

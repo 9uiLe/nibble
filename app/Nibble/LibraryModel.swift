@@ -7,6 +7,8 @@ final class LibraryModel {
     private let effects: any LibraryEffects
     private let usageRecorder: any SnippetUsageRecording
     private let now: () -> Date
+    private let notifications: LibraryNotifications?
+    private let notificationSource: LibraryNotifications.SourceTab
     private(set) var evaluatedAt: Date
     private var pendingUses: [SnippetUse] = []
     private var recordingUses: Set<UUID> = []
@@ -94,13 +96,16 @@ final class LibraryModel {
 
     init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
-         usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init) {
+         usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init,
+         notifications: LibraryNotifications? = nil, notificationSource: LibraryNotifications.SourceTab = .library) {
         self.store = store
         self.effects = effects
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
         self.usageRecorder = usageRecorder ?? store
         self.now = now
+        self.notifications = notifications
+        self.notificationSource = notificationSource
         evaluatedAt = now()
         request = LibraryRequest(filter: filter)
     }
@@ -181,6 +186,7 @@ final class LibraryModel {
 
     func copy(_ id: UUID) async {
         guard !Task.isCancelled else { return }
+        let context = notifications?.context(for: notificationSource)
         operationFailure = nil
         do {
             try Task.checkCancellation()
@@ -188,8 +194,8 @@ final class LibraryModel {
             try Task.checkCancellation()
             effects.copy(body)
             let use = SnippetUse(id: UUID(), snippetID: id, completedAt: now())
-            feedback += 1
-            announce("コピーしました")
+            if notifications == nil { feedback += 1 }
+            announce("コピーしました", context: context)
             pendingUses.append(use)
             await persistUse(use)
             await refresh()
@@ -231,22 +237,36 @@ final class LibraryModel {
 
     func delete(_ id: UUID) async {
         guard !Task.isCancelled else { return }
+        let context = notifications?.context(for: notificationSource)
         operationFailure = nil
         do {
             let result = try await store.mutate(.delete, id: id)
             await refresh()
-            announce("削除しました", subject: result.subject, undo: id)
+            announce("削除しました", subject: result.subject, undo: id, context: context)
         } catch { report("削除できませんでした", error) }
     }
 
     func restore(_ id: UUID) async {
-        guard !Task.isCancelled else { return }
+        await restore(id, context: notifications?.context(for: notificationSource))
+    }
+
+    func undoNotice(_ noticeID: UUID) async {
+        guard !Task.isCancelled, let notifications,
+              let claim = notifications.claimUndo(noticeID: noticeID) else { return }
+        let succeeded = await restore(claim.snippetID, context: claim.context)
+        if !succeeded { notifications.undoFailed(noticeID: noticeID) }
+    }
+
+    @discardableResult
+    private func restore(_ id: UUID, context: LibraryNotifications.Context?) async -> Bool {
+        guard !Task.isCancelled else { return false }
         operationFailure = nil
         do {
             let result = try await store.mutate(.restore, id: id)
             await refresh()
-            announce("元に戻しました", subject: result.subject)
-        } catch { report("復元できませんでした", error) }
+            announce("元に戻しました", subject: result.subject, context: context)
+            return true
+        } catch { report("復元できませんでした", error); return false }
     }
 
     func permanentlyDelete(_ id: UUID) async {
@@ -264,7 +284,12 @@ final class LibraryModel {
                                    recovery: error as? StoreError == .missing ? .reload : .dismiss)
     }
 
-    private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil) {
+    private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil,
+                          context: LibraryNotifications.Context? = nil) {
+        if let notifications {
+            notifications.publish(text, subject: subject, undoID: undo, context: context)
+            return
+        }
         let value = Notice(message: text, subject: subject, undoID: undo)
         notice = value
         effects.announce(value.announcement)

@@ -14,6 +14,7 @@ struct LibraryView: View {
     @State private var search: LibraryModel
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
+    @State private var notifications: LibraryNotifications
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
     @FocusState private var searchFocused: Bool
@@ -22,16 +23,30 @@ struct LibraryView: View {
     init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
         self.store = store
         self.effects = effects
-        _all = State(initialValue: LibraryModel(store: store, effects: effects))
-        _search = State(initialValue: LibraryModel(store: store, effects: effects))
+        let notifications = LibraryNotifications(effects: effects)
+        _notifications = State(initialValue: notifications)
+        _all = State(initialValue: LibraryModel(store: store, effects: effects, notifications: notifications, notificationSource: .library))
+        _search = State(initialValue: LibraryModel(store: store, effects: effects, notifications: notifications, notificationSource: .search))
     }
 
     var body: some View {
+        tabs
+        .modifier(LibraryAccessoryPlacement(notifications: notifications, enabled: activeNoticeTab != nil && notifications.notice != nil, all: all, search: search, taskOwner: routeOwner))
+        .sensoryFeedback(.success, trigger: notifications.feedback)
+        .onChange(of: activeNoticeTab, initial: true) { notifications.activate(activeNoticeTab) }
+        .onDisappear { notifications.activate(nil) }
+    }
+
+    private var tabs: some View {
         @Bindable var allLibrary = all
         @Bindable var searchableLibrary = search
-        TabView(selection: $selectedTab) {
+        return TabView(selection: Binding(get: { selectedTab }, set: { value in
+            selectedTab = value
+            notifications.activate(activeNoticeTab)
+        })) {
             Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
                 library(all, title: "一覧", showsFilters: true)
+                    .background { legacyAccessory(for: .library) }
             }
             Tab("設定", systemImage: "gearshape", value: TabID.settings) {
                 NavigationStack {
@@ -40,6 +55,7 @@ struct LibraryView: View {
             }
             Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
                 library(search, title: "検索", showsSearchPrompt: true)
+                    .background { legacyAccessory(for: .search) }
                     .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
                     .searchFocused($searchFocused)
                     .searchPresentationToolbarBehavior(.avoidHidingContent)
@@ -92,7 +108,26 @@ struct LibraryView: View {
     private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
-                          showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
+                          showsSearchPrompt: showsSearchPrompt, showsInlineNotice: false, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
+        }
+    }
+
+    private var activeNoticeTab: LibraryNotifications.SourceTab? {
+        guard scenePhase == .active, !showsTrash, all.editor == nil, search.editor == nil else { return nil }
+        switch selectedTab {
+        case .library: return .library
+        case .search: return .search
+        case .settings: return nil
+        }
+    }
+
+    @ViewBuilder
+    private func legacyAccessory(for tab: LibraryNotifications.SourceTab) -> some View {
+        if #available(iOS 26.1, *) { EmptyView() }
+        else {
+            LegacyLibraryAccessory(notifications: notifications,
+                                   isEnabled: activeNoticeTab == tab && notifications.notice != nil, all: all, search: search, taskOwner: routeOwner)
+                .frame(width: 0, height: 0)
         }
     }
 
@@ -157,5 +192,22 @@ struct LibraryNavigationTitle: ViewModifier {
                     .sharedBackgroundVisibility(.hidden)
                 }
             }
+    }
+}
+
+/// OS availability is fixed for the scene; notice changes do not replace the tabs.
+private struct LibraryAccessoryPlacement: ViewModifier {
+    let notifications: LibraryNotifications
+    let enabled: Bool
+    let all: LibraryModel
+    let search: LibraryModel
+    let taskOwner: LibraryTaskOwner
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.1, *) {
+            content.tabViewBottomAccessory(isEnabled: enabled) {
+                LibraryAccessory(notifications: notifications, all: all, search: search, taskOwner: taskOwner)
+            }
+        } else { content }
     }
 }

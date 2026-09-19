@@ -113,7 +113,8 @@ flowchart TB
 | `LibraryScreen` | 一覧状態の配置、完全削除の確認、行の操作意図とタスク所有者の接続。編集対象はモデルが保持し、シートの提示はルートが行う |
 | `SnippetRow` / `LibraryFilterBar` | 行の表示値と操作意図 / フィルター選択。行はモデル・保存層・タスク所有者を保持しない |
 | `SnippetRowContent` | タイトル・要約・ピン状態だけから描画する比較境界 |
-| `LibraryNotice` | モデルの通知・触覚状態を観測し、表示と期限を管理。復元の意図を画面へ返す |
+| `LibraryNotifications` / `LibraryAccessory` | 一覧・検索の表示世代、通知IDと期限・復元対象 / システムTab Bar accessoryでの表示と取り消し。26.0は`LegacyLibraryAccessory`が公開UIKitへ接続 |
+| `LibraryNotice` | 削除一覧シート内の通知・触覚状態を観測し、表示と期限を管理。復元の意図を画面へ返す |
 | `LibraryTaskOwner` | 操作の開始、重複、キャンセル。業務処理はモデルをawaitする |
 | `LibraryModel` | 一覧要求と結果、編集対象、通知、失敗。保存層と`LibraryEffects`を使う完了待ち可能な操作 |
 | `SnippetEditor` / `EditorModel` | 入力・フォーカス・終了タスクの所有 / 下書き・自動保存・終了状態・回復可能な失敗 |
@@ -142,7 +143,7 @@ flowchart TB
 | 削除一覧の要求と結果 | 削除一覧シートの`LibraryModel` | 本体と同じ保存層を使い、シート内の検索条件を保持する |
 | 編集対象 | 呼出元の`LibraryModel.editor`。提示する下書きのUUIDを持つ | `LibraryView`がBindingでシートを提示する |
 | 入力・フォーカス・終了処理 | 一つの`SnippetEditor`と`EditorModel`。編集セッション中保持 | 受け取ったDraftを初期値にし、親の再評価で入力を上書きしない |
-| 通知・触覚 | `LibraryModel`の操作結果と、それを読む`LibraryNotice` | 操作成功時に更新する。通知はIDに対応する期限・画面離脱・背景移行で消す |
+| 通知・触覚 | タブは`LibraryView`が保持する`LibraryNotifications`、削除一覧シートは`LibraryModel` | タブの初回表示で期限・読み上げ・触覚を開始し、IDと表示世代を照合する。タブ移動・シート・非active化で終了する |
 | キーボードの要求・ページ・操作 | controllerが保持する`KeyboardModel` | 表示時に先頭ページを取得し、非表示でページ・操作を無効化する。フィルターはcontrollerの寿命中保持 |
 | 説明イラストの再生 | `AboutIllustration`の独立したSession | 配色・可視性・scene状態を表示層へ渡す |
 
@@ -313,11 +314,11 @@ stateDiagram-v2
 | 編集終了 | 入力の固定、永続化、成功・失敗状態の確定 |
 | 通知期限 | 指定時間の待機と、同じIDの通知の消去 |
 
-本体のコピーは読込の前後でキャンセルを確認し、対象が未削除である場合だけ`LibraryEffects.copy`を呼ぶ。書込後に触覚用の状態を更新し、通知を設定する。コピー失敗を成功通知へ変換しない。
+本体のコピーは読込の前後でキャンセルを確認し、対象が未削除である場合だけ`LibraryEffects.copy`を呼ぶ。書込後に有効な発生元タブの結果を設定し、実際の初回表示で読み上げ・触覚と期限を開始する。コピー失敗を成功通知へ変換しない。
 
 削除・復元は同じUUIDの削除状態を変更し、本文とピン状態を保持する。完全削除は削除済み項目と関連下書きを一つのトランザクションで除去する。
 
-`Notice`はID、メッセージ、対象名、取り消し対象をまとめる。通常通知は2秒、取り消し付きは6秒で消す。表示期間はコピー・削除の完了に含めず、期限処理はIDを照合して新しい通知を消さないようにする。一覧読込の失敗と項目操作の失敗は別々に保持し、再読込による回復を項目操作の再実行と区別する。
+タブの`LibraryNotifications.Notice`はID、発生元タブ、メッセージ、対象名、取り消し対象をまとめる。操作開始時の表示世代が一致する結果だけを受理する。配置・OS分岐・寿命は[通知の設計](../design/decisions/0004-tab-accessory.md)に定義する。削除一覧のシートは`LibraryModel.Notice`を使う。通常通知は2秒、取り消し付きは6秒で消す。表示期間はコピー・削除の完了に含めず、期限処理はIDを照合して新しい通知を消さないようにする。一覧読込の失敗と項目操作の失敗は別々に保持し、再読込による回復を項目操作の再実行と区別する。
 
 ## 操作の寿命と整合性
 
@@ -334,7 +335,7 @@ stateDiagram-v2
 | キーボードの利用 | `KeyboardView` / `keyboard.use` | screenBound / ignoreNew。要求更新・非表示でキャンセルし、モデルも操作IDを無効化 |
 | キーボードの読込 | `KeyboardView` / `.task(id: model.loadID)` | 要求更新・View終了でキャンセル。controllerの非表示でも世代を無効化 |
 | 下書き書込 | `SnippetEditor` / `.task(id: snapshot.sequence)` | SwiftUIがID変更・View終了でキャンセルを要求 |
-| 通知期限 | `LibraryNotice` / `.task(id: notice?.id)` | SwiftUIがID変更・View終了でキャンセルを要求 |
+| 通知期限 | `LibraryAccessory`またはシート内の`LibraryNotice` / `.task(id: notice?.id)` | SwiftUIがID変更・View終了でキャンセルを要求 |
 
 lifetimeはキャンセル対象の分類であり、OSのイベントは所有者が接続する。一覧の有限なsceneBound操作はシート開閉や一時的な非active化をまたいで完了する。background化では編集開始を止め、通知を消す。編集終了と共有読込は、それぞれの画面終了時にscreenBoundをキャンセルする。
 
@@ -386,7 +387,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 | 親の入力を受け取る画面と部品 | `LibraryView`、`LibraryScreen`、`LibraryFilterBar`、`LibraryNotice`、`LibrarySettingsView`、`SnippetRow`、`AboutSection`、`SnippetEditor`、`KeyboardView`、`KeyboardInputModeButton`、`RiveCanvas` | View値の生成ごとに比較用UUIDの`inputRevision`を作り、Binding・操作・モデル参照・contentの差し替えを反映 |
 | 親入力を格納しない画面と接続 | `AboutView`、`AboutIllustration`、`KeyboardGuideView`、`DeletedSnippetsView`、`SceneInterfaceDefaults` | 所有するStateやEnvironmentによる更新に従う。比較用UUIDは持たない |
 
-一覧行では、`SnippetRowContent`がタイトル・本文プレビュー・ピン状態を表示し、`SnippetRow`が操作を`LibraryScreen`へ渡す。表示値が同じでも、操作は親が渡す現在の接続先を使う。`LibraryNotice`は通知を独立して観測し、一時的なフィードバックの更新を一覧内容の読み取りから分離する。
+一覧行では、`SnippetRowContent`がタイトル・本文プレビュー・ピン状態を表示し、`SnippetRow`が操作を`LibraryScreen`へ渡す。表示値が同じでも、操作は親が渡す現在の接続先を使う。`LibraryAccessory`とシート内の`LibraryNotice`は通知を独立して観測し、一時的なフィードバックの更新を一覧内容の読み取りから分離する。
 
 `inputRevision`は等価比較の入力であり、表示や永続データのIDには使わない。入力を差し替えるために編集内容、フォーカス、Task所有者、RiveのSessionを破棄しない。状態の保持期間はSwiftUIのidentityと各所有者の寿命に従う。Riveの描画更新番号`renderingRevision`は、同じSessionを使う表示用Viewの再生成だけに使用する。
 
@@ -396,7 +397,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 | 対象 | 管理する仕組みと契約 |
 | --- | --- |
-| 通知 | `Library.Notice`の`AnimationScope`で有無を監視し、0.16秒のopacity遷移。Reduce Motionでも同じ時間 |
+| 通知 | タブのaccessoryの配置・出入りはOSが担当する。削除一覧シートだけ`Library.Notice`の`AnimationScope`で0.16秒のopacity遷移。独自のタブ再作成や遷移は行わない |
 | アプリ内部の伝播 | `LibraryScreen`と`SnippetEditor`外側の警告なしbarrierでOSのシートtransactionを遮断。内側のDebug診断と入力領域のbarrierで伝播を検査 |
 | 標準シート・メニュー・キーボード | OS部品の遷移 |
 | 説明イラスト | RMLが図形と時間、`RivePresentation`が読込・型付き接続・表示を担当 |
