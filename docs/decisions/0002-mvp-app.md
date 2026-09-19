@@ -113,6 +113,7 @@ flowchart TB
 | `LibraryScreen` | 一覧状態の配置、完全削除の確認、行の操作意図とタスク所有者の接続。編集対象はモデルが保持し、シートの提示はルートが行う |
 | `SnippetRow` / `LibraryFilterBar` | 行の表示値と操作意図 / フィルター選択。行はモデル・保存層・タスク所有者を保持しない |
 | `SnippetRowContent` | タイトル・要約・ピン状態・未使用の補足から描画する比較境界 |
+| `LibraryNoticeWindow` | 接続Viewが属するシーンに通知ウィンドウを作成・再利用・解放する。内容画面の配置と入力先を維持し、カード外のタッチを通す |
 | `LibraryNotice` | モデルの通知を観測し、表示と期限を管理。通知ID付きの復元の意図を画面へ返す |
 | `LibraryTaskOwner` | 操作の開始、重複、キャンセル。業務処理はモデルをawaitする |
 | `LibraryModel` | 一覧要求と結果、編集対象、通知、失敗。保存層と`LibraryEffects`を使う完了待ち可能な操作 |
@@ -142,7 +143,7 @@ flowchart TB
 | 削除一覧の要求と結果 | 削除一覧シートの`LibraryModel` | 本体と同じ保存層を使い、シート内の検索条件を保持する |
 | 編集対象 | 呼出元の`LibraryModel.editor`。提示する下書きのUUIDを持つ | `LibraryView`がBindingでシートを提示する |
 | 入力・フォーカス・終了処理 | 一つの`SnippetEditor`と`EditorModel`。編集セッション中保持 | 受け取ったDraftを初期値にし、親の再評価で入力を上書きしない |
-| 通知・触覚 | `LibraryModel`の操作結果、表示する`LibraryNotice`、触覚を担当するタブ配置層・削除シート | 操作成功時に更新する。通知はIDに対応する期限・画面離脱・背景移行で消す |
+| 通知・触覚 | `LibraryModel`の操作結果、表示する`LibraryNotice`、触覚を担当する`LibraryResultFeedback`・削除シート | 操作成功時に更新する。通知はIDに対応する期限・画面離脱・背景移行で消す |
 | キーボードの要求・ページ・操作 | controllerが保持する`KeyboardModel` | 表示時に先頭ページを取得し、非表示でページ・操作を無効化する。フィルターはcontrollerの寿命中保持 |
 | 説明イラストの再生 | `AboutIllustration`の独立したSession | 配色・可視性・scene状態を表示層へ渡す |
 
@@ -156,7 +157,7 @@ flowchart TB
 | 保存済みDBの読取 | `KeyboardReader` | 要約またはrevisionを照合した本文。DBを作成・変更しない |
 | 入力先への挿入、コピー、キーボード切替・終了 | `KeyboardViewController` | MainActorで`KeyboardEffects`を実行。入力先と権限の適用条件は操作ごとに照合 |
 | クリップボード書込、読み上げ通知 | `SystemLibraryEffects` | MainActorで同期的に完了。保存・検索の状態を保持しない |
-| 触覚と通知の表示時間 | タブ配置層・削除シート / `LibraryNotice` | 成功イベントごとに触覚を更新する。表示時に通知IDごとの期限を開始し、再マウントで延長しない |
+| 触覚と通知の表示時間 | `LibraryResultFeedback`・削除シート / `LibraryNotice` | 成功イベントごとに触覚を更新する。表示時に通知IDごとの期限を開始し、再マウントで延長しない |
 | 共有データ取得、拡張の終了通知 | `ShareViewController` | 取得の前後でキャンセルを確認し、編集終了の成功を共有元へ返す |
 | 左右設定の永続化 | `LibraryView`の`AppStorage` | 本体のUserDefaultsへ選択を保持 |
 | 説明イラストの読込・再生 | `RivePresentation` | 表示ごとの独立したSessionと、読込失敗の状態 |
@@ -317,7 +318,7 @@ stateDiagram-v2
 
 削除・復元は同じUUIDの削除状態を変更し、本文とピン状態を保持する。完全削除は削除済み項目と関連下書きを一つのトランザクションで除去する。
 
-`Notice`はID、メッセージ、対象名、取り消し対象をまとめる。通常通知は2秒、取り消し付きは6秒で消す。表示期間はコピー・削除の完了に含めず、期限処理はIDを照合して新しい通知を消さないようにする。一覧読込の失敗と項目操作の失敗は別々に保持し、再読込による回復を項目操作の再実行と区別する。
+`Notice`は通知ID、発生元、メッセージ、対象名、取り消し対象UUIDをまとめる。通常通知は2秒、取り消し付きは6秒で消す。表示期間はコピー・削除の完了に含めず、期限処理はIDを照合して新しい通知を消さないようにする。一覧読込の失敗と項目操作の失敗は別々に保持し、再読込による回復を項目操作の再実行と区別する。
 
 ## 操作の寿命と整合性
 
@@ -360,7 +361,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 検索は`Tab(role: .search)`と`.searchable`を使い、タブ選択時の入力開始を`.tabViewSearchActivation(.searchTabSelection)`で指定する。`.searchPresentationToolbarBehavior(.avoidHidingContent)`で見出しを保ち、入力中は新規作成を隠す。検索語が空白のみの案内と検索0件を分ける。タブバーはスクロールで縮小せず、検索の位置はOSへ委ねる。
 
-左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。作成は下部`safeAreaInset`、一覧・検索の通知は専用UIWindowの上部へ重ねる。元画面のsafe areaを変えず、一覧・タブ・作成ボタンの位置を維持する。発生元・期限・取り消し・画面終了の契約は[通知の設計](../design/decisions/0004-tab-accessory-notices.md)に従う。
+左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。作成は下部`safeAreaInset`、一覧・検索の通知は専用UIWindowの上部へ重ねる。元画面のsafe areaを変えず、一覧・タブ・作成ボタンの位置を維持する。発生元・期限・取り消し・画面終了の契約は[通知の設計](../design/decisions/0004-result-notices.md)に従う。
 
 ### 一覧の選択と行操作
 
