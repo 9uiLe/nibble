@@ -11,6 +11,7 @@ struct SnippetRow: View {
     let item: SnippetSummary
     let isTrash: Bool
     let actionsAtLeading: Bool
+    var unusedSince: Date?
     let perform: (Action) -> Void
 
     private func copyButton(_ item: SnippetSummary) -> some View {
@@ -49,7 +50,7 @@ struct SnippetRow: View {
     }
 
     private func rowLabel(_ item: SnippetSummary) -> some View {
-        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned)
+        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned, unusedSince: unusedSince)
     }
 
     @ViewBuilder private func rowContent(_ item: SnippetSummary) -> some View {
@@ -63,6 +64,9 @@ struct SnippetRow: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("snippet.\(item.id)")
                 .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
+                .accessibilityValue(unusedSince.map {
+                    "30日以上未使用、最終使用日 " + $0.formatted(date: .numeric, time: .omitted)
+                } ?? "")
                 .accessibilityHint("編集します")
         }
     }

@@ -9,6 +9,8 @@ struct Snippet: Identifiable, Equatable, Sendable {
     var revision: Int
     var updatedAt: Date
     var deleted: Bool
+    var useCount = 0
+    var lastUsedAt: Date?
 
     var displayTitle: String { Self.displayTitle(title: title, body: body) }
 
@@ -24,7 +26,21 @@ struct SnippetSummary: Identifiable, Equatable, Sendable {
     let preview: String
     let pinned: Bool
     let revision: Int
+    var useCount = 0
+    var lastUsedAt: Date?
     var displayTitle: String { Snippet.displayTitle(title: title, body: preview) }
+
+    func isDeletionCandidate(at date: Date) -> Bool {
+        guard let lastUsedAt else { return false }
+        return date.timeIntervalSince(lastUsedAt) >= 30 * 24 * 60 * 60
+    }
+}
+
+/// One completed copy, with a stable identity for retrying only its usage record.
+struct SnippetUse: Equatable, Sendable {
+    let id: UUID
+    let snippetID: UUID
+    let completedAt: Date
 }
 
 enum LibraryFilter: String, CaseIterable, Sendable {

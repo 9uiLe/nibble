@@ -61,7 +61,7 @@ struct SnippetTests {
         for number in 0..<12 { _ = try await create(store, body: "item \(number)") }
         try await store.setPinned(true, id: pinned)
         #expect(try await store.search(limit: 5).count == 5)
-        #expect(try await store.search(limit: 5).first?.id == pinned)
+        #expect(try await store.search(limit: 5).contains { $0.id == pinned } == false)
         #expect(try await store.search(filter: .pinned).map(\.id) == [pinned])
     }
 

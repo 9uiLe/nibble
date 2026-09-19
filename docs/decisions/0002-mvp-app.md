@@ -112,7 +112,7 @@ flowchart TB
 | `LibraryView` | シーンのルート。タブ、検索フォーカス、左右設定、URL経路、一覧・検索の独立したモデルと編集シートの提示。削除一覧にも同じ保存層とOS操作を渡す |
 | `LibraryScreen` | 一覧状態の配置、完全削除の確認、行の操作意図とタスク所有者の接続。編集対象はモデルが保持し、シートの提示はルートが行う |
 | `SnippetRow` / `LibraryFilterBar` | 行の表示値と操作意図 / フィルター選択。行はモデル・保存層・タスク所有者を保持しない |
-| `SnippetRowContent` | タイトル・要約・ピン状態だけから描画する比較境界 |
+| `SnippetRowContent` | タイトル・要約・ピン状態・未使用の補足から描画する比較境界 |
 | `LibraryNotice` | モデルの通知・触覚状態を観測し、表示と期限を管理。復元の意図を画面へ返す |
 | `LibraryTaskOwner` | 操作の開始、重複、キャンセル。業務処理はモデルをawaitする |
 | `LibraryModel` | 一覧要求と結果、編集対象、通知、失敗。保存層と`LibraryEffects`を使う完了待ち可能な操作 |
@@ -121,7 +121,7 @@ flowchart TB
 | `SnippetStore` | 接続の生成・所有、actorによる直列化、一覧snapshotの構成、計測。UIへSendableな値を返す |
 | `LibraryStorage` / `DraftEditing` | 一覧の読取・利用・更新 / 編集セッションの永続化と終了。モデルに必要な操作だけを公開する |
 | `DraftQueries` | 下書きの作成・再開・入力保存・終了と、入力順序・保存済みrevisionの競合検出 |
-| `SnippetCommands` | ピン・削除・復元・完全削除。通知を伴う変更と対象の取得を一つのtransactionで確定し、ピンは単一のUPDATEで完了する |
+| `SnippetCommands` | 使用記録、ピン・削除・復元・完全削除。使用記録は操作IDの保存・回数・最終使用日時を一つのtransactionで確定する。通知を伴う変更は対象の取得も同じtransactionで行い、ピンは単一のUPDATEで完了する |
 | `KeyboardViewController` / `KeyboardView` | キーボードのモデル・OS操作・入力先の識別 / 表示と読込・利用操作のタスク所有 |
 | `KeyboardModel` / `KeyboardReader` | ページ・要求世代・詳細・操作ID・通知 / 保存済みの読取と許可時のピン更新を行う短命の接続 |
 | `SnippetQueries` | 保存済み要約の検索・並び順、未削除の確認、必要に応じてrevisionを照合する本文読取。本体・キーボードで共用する |
@@ -163,7 +163,7 @@ flowchart TB
 
 ## 保存形式と接続
 
-本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
+本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 2には、保存済み項目の`snippets`、下書きの`drafts`、使用操作IDの`snippet_uses`がある。使用回数と最終使用日時の移行・更新は[使用履歴の設計](../design/decisions/0003-usage-order.md)に定義する。
 
 各`SnippetStore` actorが一つの非Sendableな`SQLiteDatabase`を所有する。同一接続の操作はactorが直列化し、別プロセス・別接続の排他はSQLiteが担う。SQLを扱う`SnippetQueries`、`DraftQueries`、`SnippetCommands`は同期関数であり、呼出元actorの実行中だけ接続を借りる。接続を保持するTaskやUIへの通知を開始しない。トランザクション内に`await`を置かず、読取には`BEGIN`、書込には`BEGIN IMMEDIATE`を使う。失敗時はrollbackを試み、元のエラーを返す。
 
@@ -171,14 +171,15 @@ flowchart TB
 | --- | --- |
 | 書込接続のWAL、`synchronous=FULL`、`PERSIST_WAL` | 更新の確定と、書込接続の終了後も読み取り専用接続が使うWAL・SHMの保持 |
 | busy timeout 2秒 | 読書き双方で競合の待機時間を制限する |
-| `snippets_order` | 削除状態、ピン状態、更新日時、UUIDで一覧を取得する |
+| `snippets_order` | キーボードを削除状態、ピン状態、更新日時、UUIDで取得する |
+| `snippets_usage_order` / `snippets_pinned_usage_order` | 本体の全件／ピン条件を使用回数、更新日時、UUID順に取得する |
 | `drafts_order` | 下書きを更新日時・UUID順に取得する |
 | `drafts_snippet` | 対象スニペットの下書きの再開・除去を支える |
 | schemaの確認 | 未対応version・破損DBをエラーにする。既存データを消して初期化しない |
 
 書き込み用の保存層は接続時に索引の存在を確認して作成する。列構造を変更する場合はmigrationと既存データの検証を必要とする。
 
-`KeyboardReader`は読取要求ごとに短命の読み取り専用接続を所有する。ピン操作だけはフルアクセス確認後、既存DBへの書込接続でrevisionを照合して属性を更新する。schema version 1だけを扱い、DB作成・migration・索引作成を行わない。保存済みの要約問い合わせは`SnippetQueries`を共用する。ページ・本文照合とWALの条件は[キーボード設計](0005-snippet-keyboard.md)に定義する。
+`KeyboardReader`は読取要求ごとに短命の読み取り専用接続を所有する。ピン操作だけはフルアクセス確認後、既存DBへの書込接続でrevisionを照合して属性を更新する。schema version 1と2を扱い、DB作成・migration・索引作成を行わない。保存済みの要約問い合わせは`SnippetQueries`を共用する。ページ・本文照合とWALの条件は[キーボード設計](0005-snippet-keyboard.md)に定義する。
 
 `SQLiteDatabase`は準備済みSQL（statement）を接続ごとに最大32件保持し、最も長く使われていないものから解放する。実行中のstatementは保持対象から外すため、入れ子の同じSQLにも独立したstatementを使う。
 
@@ -226,7 +227,7 @@ Listのidentityは表示中の結果のフィルターを使う。別フィル�
 | --- | --- |
 | 日本語・記号 | 日本語1文字から検索可能。ひらがなとカタカナ、清音と濁音を区別し、`%`・`_`・バックスラッシュを通常文字として扱う |
 | フィルター | 全項目・ピン留めは未削除、削除一覧は削除済み。下書きの検索語による絞り込みは行わない |
-| 並び順 | ピン留め優先、更新日時降順、UUID昇順 |
+| 並び順 | 本体のすべて・ピン留め・検索は使用回数降順、更新日時降順、UUID昇順。削除一覧は更新日時降順、UUID昇順 |
 | SQLの選択 | ピン条件・検索語の有無から固定した述語を選ぶ。ユーザー文字列は常にbindingで渡す |
 | 読込量 | 一覧は要約、コピーと再開は対象1件の全文。検索語が空なら部分一致を評価しない |
 
@@ -305,7 +306,7 @@ stateDiagram-v2
 | --- | --- |
 | 一覧取得・再試行 | 読込と、有効な要求に対する結果または失敗の反映 |
 | 編集開始 | 下書きの読込・作成と編集対象の設定 |
-| 本体のコピー | 最新の保存済み本文の読込、クリップボード書込、完了通知の設定 |
+| 本体のコピー | 保存済み本文の読込、クリップボード書込、完了通知の設定、使用記録の保存試行と一覧の再取得 |
 | キーボードの読込・利用 | 読込と有効な世代の結果反映。利用操作ではrevisionを照合した本文取得、操作別の有効性確認、挿入またはコピーと結果表示 |
 | ピン・削除・復元・完全削除 | DB更新、一覧の再取得、該当する通知または失敗の反映 |
 | 下書き書込 | 受理したsnapshotの条件付き更新 |
@@ -363,7 +364,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 ### 一覧の選択と行操作
 
-「すべて」は直近の下書き、ピン留め済み、その他の順に表示し、空区分を省く。「ピン留め」はピン項目、「下書き」は未完了の編集だけを示す。フィルターは文字・塗り・枠の色で選択を表し、チェックマークを付けない。横スクロールと44 pt以上の操作領域を使う。
+「すべて」は直近の下書き、使用回数順の保存済みを表示し、空区分を省く。「ピン留め」はピン項目、「下書き」は未完了の編集だけを示す。フィルターは文字・塗り・枠の色で選択を表し、チェックマークを付けない。横スクロールと44 pt以上の操作領域を使う。
 
 行の内容をタップすると編集、コピーアイコンは本文をコピーする。メニューと長押しで整理操作を選べる。保存済み行は左フルスワイプで削除、右フルスワイプでピン留め／解除を実行する。削除一覧の完全削除はフルスワイプで実行せず、確認を必要とする。
 

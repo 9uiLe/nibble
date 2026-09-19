@@ -24,7 +24,11 @@ struct SnippetMutationResult: Sendable {
     let subject: String
 }
 
-protocol LibraryStorage: LibraryReading, LibraryOpening {
+protocol SnippetUsageRecording: Sendable {
+    func recordUse(_ use: SnippetUse) async throws
+}
+
+protocol LibraryStorage: LibraryReading, LibraryOpening, SnippetUsageRecording {
     func savedBody(_ id: UUID) async throws -> String
     func setPinned(_ pinned: Bool, id: UUID) async throws
     func mutate(_ mutation: SnippetMutation, id: UUID) async throws -> SnippetMutationResult

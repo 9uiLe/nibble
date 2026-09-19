@@ -15,6 +15,7 @@ extension UIIntegrationTests {
             #expect(row != SnippetRowContent(title: "予定", preview: "確認します", pinned: false))
             #expect(row != SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false))
             #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: true))
+            #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: false, unusedSince: Date(timeIntervalSince1970: 0)))
             // A body-derived heading must also invalidate when its preview changes.
             #expect(SnippetRowContent(title: "", preview: "一件目", pinned: false)
                     != SnippetRowContent(title: "", preview: "二件目", pinned: false))
