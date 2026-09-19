@@ -72,6 +72,8 @@ mainの[ruleset](.github/main-ruleset.json)はGitHub Actionsの`workflow-policy`
 
 [TestFlight手順](docs/testflight.md)に従い、開発と同じmacOSユーザーで`scripts/deploy-testflight.sh`を実行する。配布先は、Apple Developerアカウントと端末を管理する配布担当者1名を登録した内部グループ「本人用」。App Store ConnectでXcodeビルドの自動配信を有効にする。
 
+エージェントの配布作業は、署名・アップロードの成功と公開manifestの確認までとする。Apple側の処理完了・グループへの配信状態・実機での確認は配布担当者が行う。通常の配布依頼では、エージェントによる配信状態のブラウザー確認や、そのためのサインイン依頼は不要。
+
 認証設定とAPI鍵はリポジトリ外の`~/.appstoreconnect/`で配布担当者が管理する。エージェントはこのディレクトリ・秘密鍵・パスワード・トークン・Keychain・認証ログを直接読まず、内容の表示や会話への貼り付けも依頼しない。別コマンドやコード変更で直接参照の禁止を迂回しない。
 
 認証情報を使用できる経路は、レビューした配布スクリプトによる設定確認・archive・署名・アップロード。エージェントへ返すのは工程・成否・公開メタデータのみ。設定の登録・変更と生ログの確認は配布担当者が行う。これは同一ユーザー内の運用規約であり、OSの読取権限を分離しない。Claude Codeのdeny設定も補助として扱う。詳細は[配布設計](docs/decisions/0003-testflight-distribution.md)を参照する。
