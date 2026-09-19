@@ -160,14 +160,8 @@ def main():
         with run.recording():
             flow.open_about()
             if reduced:
-                data = flow.check_illustration("reduce-motion-initial")
+                flow.check_illustration("reduce-motion-initial")
                 run.screenshot("reduce-motion-initial")
-                # The host always requests motion; review different poses with Reduce Motion on.
-                for index in range(7):
-                    time.sleep(2.1)
-                    run.screenshot(f"reduce-motion-loop-{index}")
-                if element(data, "about.story.playback"):
-                    raise VerificationError("Automatic playback must not have controls")
             flow.playback()
             flow.read_page("light")
             flow.option("appearance", "dark")

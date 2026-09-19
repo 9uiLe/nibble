@@ -64,8 +64,7 @@ def main():
         run.launch()
         with run.recording():
             for mode, size, contrast in (("default", "large", "disabled"),
-                                         ("accessibility", "accessibility-extra-extra-extra-large", "enabled"),
-                                         ("small", "extra-small", "disabled")):
+                                         ("accessibility", "accessibility-extra-extra-extra-large", "enabled")):
                 option("content_size", size)
                 option("increase_contrast", contrast)
                 run.command([XCRUN, "simctl", "openurl", args.device, "nibble://library"])

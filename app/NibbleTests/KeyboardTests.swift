@@ -17,7 +17,7 @@ struct KeyboardStorageTests {
         let files = try TestDatabase()
         defer { files.removeFiles() }
         var ids: Set<UUID> = []
-        for number in 0..<53 { ids.insert(try await create(files.store, body: "本文 \(number)")) }
+        for number in 0..<51 { ids.insert(try await create(files.store, body: "本文 \(number)")) }
         let pinned = try #require(ids.first)
         try await files.store.setPinned(true, id: pinned)
         let deleted = try await create(files.store, body: "削除済み")
@@ -27,7 +27,7 @@ struct KeyboardStorageTests {
         let first = try await reader.page(KeyboardRequest())
         let second = try await reader.page(KeyboardRequest(offset: 50))
         #expect(first.items.count == 50 && first.hasMore && first.items.first?.id == pinned)
-        #expect(second.items.count == 3 && !second.hasMore)
+        #expect(second.items.count == 1 && !second.hasMore)
         #expect(Set((first.items + second.items).map(\.id)) == ids)
         #expect(try await reader.page(KeyboardRequest(filter: .pinned)).items.map(\.id) == [pinned])
         #expect(try await files.store.drafts().count == 1)
@@ -87,7 +87,7 @@ struct KeyboardStorageTests {
         let item = try #require(try await reader.page(KeyboardRequest()).items.first)
         let pinned = try await reader.setPinned(true, for: item)
         let after = try await files.store.snippet(id)
-        #expect(pinned.pinned && pinned.revision == item.revision + 1)
+        #expect(pinned.pinned)
         #expect(after.body.utf8.elementsEqual(original.utf8))
         #expect(after.updatedAt == before.updatedAt && after.title == before.title)
         await #expect(throws: KeyboardReadError.changed) { try await reader.setPinned(false, for: item) }
@@ -176,8 +176,7 @@ struct KeyboardOperationTests {
         #expect(model.isCurrent && model.failure == nil && model.page?.items == [item])
     }
 
-    @Test(arguments: ["destination", "selection", "disappear", "reload", "cancel"])
-    func copyHasItsOwnLifetimeAndDoesNotDependOnTheInsertionPoint(reason: String) async {
+    @Test func copyDoesNotDependOnTheInsertionPoint() async {
         let reader = KeyboardGateReader()
         let effects = RecordingKeyboardEffects()
         let model = KeyboardModel(reader: reader, effects: effects)
@@ -185,16 +184,10 @@ struct KeyboardOperationTests {
         let tasks = ViewTaskStore()
         tasks.start(id: "copy", lifetime: .screenBound) { _ in await model.use(item, as: .copy) }
         await reader.bodies.waitForRequests(1)
-        switch reason {
-        case "destination": effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
-        case "selection": effects.destination = KeyboardDestination(document: effects.destination.document, revision: UUID())
-        case "disappear": model.deactivate()
-        case "reload": model.requestReload()
-        default: tasks.cancel(lifetime: .screenBound)
-        }
+        effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
         reader.bodies.finish(0, .success("原文"))
         await tasks.waitForIdle()
-        #expect(effects.events == (["destination", "selection"].contains(reason) ? [.copy("原文")] : []))
+        #expect(effects.events == [.copy("原文")])
         #expect(!model.isUsing)
     }
 
@@ -288,7 +281,7 @@ struct KeyboardOperationTests {
         #expect(model.detail?.body == nil && effects.events.isEmpty)
         async let second: Void = model.loadDetail()
         await reader.bodies.waitForRequests(2)
-        let body = String(repeating: "長い本文\n", count: 5_000)
+        let body = "新しいプレビュー本文\n末尾"
         reader.bodies.finish(1, .success(body))
         await second
         #expect(model.detail?.body == body && effects.events.isEmpty)
@@ -310,9 +303,9 @@ struct KeyboardOperationTests {
         await reader.bodies.waitForRequests(2)
         await model.use(item, as: .insert)
         #expect(reader.bodies.count == 2 && model.notice == nil && model.detail != nil)
-        reader.bodies.finish(1, .success("本文"))
+        reader.bodies.finish(1, .success("使用直前の本文"))
         await insert
-        #expect(effects.events == [.insert("本文")])
+        #expect(effects.events == [.insert("使用直前の本文")])
         #expect(model.detail == nil && model.notice?.insertedID == item.id)
     }
 

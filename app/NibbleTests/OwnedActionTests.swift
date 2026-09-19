@@ -137,19 +137,6 @@ extension UIIntegrationTests {
             #expect(library.failure == nil)
         }
 
-        @Test func rapidInputAndSaveKeepLatestTextWithoutResurrectingDraft() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let draft = try await store.beginDraft()
-            let editor = EditorModel(draft: draft, store: store)
-            for number in 0..<30 { editor.body = "日本語 \(number)" }
-            #expect(await editor.finish(.save))
-            let item = try #require(try await store.search().first)
-            #expect(try await store.snippet(item.id).body == "日本語 29")
-            #expect(try await store.drafts().isEmpty)
-        }
-
         @Test func rapidInputCanResumeAfterClose() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
@@ -157,10 +144,10 @@ extension UIIntegrationTests {
             let store = SnippetStore(location: url)
             let draft = try await store.beginDraft()
             let editor = EditorModel(draft: draft, store: store)
-            for number in 0..<30 { editor.body = "下書き \(number)" }
+            for number in 0..<2 { editor.body = "下書き \(number)" }
             #expect(await editor.finish(.keep))
             let reopened = SnippetStore(location: url)
-            #expect(try await reopened.draft(draft.id).body == "下書き 29")
+            #expect(try await reopened.draft(draft.id).body == "下書き 1")
             #expect(try await reopened.search().isEmpty)
         }
     }

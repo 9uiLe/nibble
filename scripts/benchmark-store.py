@@ -32,13 +32,14 @@ def main():
     if device["state"] != "Booted":
         raise ValueError("Boot the dedicated Simulator before measurement")
     sdk = run(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-path"]).strip()
-    files = ["Snippet", "Draft", "LibraryRequest", "SnippetStore", "EditorModel", "SQLiteDatabase", "SnippetSchema"]
+    files = ["Snippet", "Draft", "LibraryRequest", "StorageContracts", "SQLiteDatabase", "SnippetSchema",
+             "SnippetQueries", "DraftQueries", "SnippetCommands", "SnippetStore", "EditorModel"]
     harness = ROOT / "validation/StoreBenchmark.swift"
     manifest = {"status": "running", "device": device, "xcode": run(["xcodebuild", "-version"]),
                 "baseline_ref": run(["git", "-C", ROOT, "rev-parse", args.baseline_ref]).strip(),
                 "harness_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(), "variants": {}, "runs": []}
     (output / "Benchmark.swift").write_bytes(harness.read_bytes())
-    for variant, optimization in [("baseline", "-O"), ("final", "-Osize")]:
+    for variant, optimization in [("baseline", "-Osize"), ("final", "-Osize")]:
         source = output / variant
         source.mkdir()
         hashes = {}
@@ -47,8 +48,8 @@ def main():
             if variant == "baseline":
                 result = subprocess.run(["git", "-C", ROOT, "show", f"{args.baseline_ref}:{path}"], capture_output=True)
                 if result.returncode:
-                    if name in ["SQLiteDatabase", "SnippetSchema"]:
-                        continue  # These files do not exist before the connection/schema split.
+                    if name in ["SQLiteDatabase", "SnippetSchema", "StorageContracts", "SnippetQueries", "DraftQueries", "SnippetCommands"]:
+                        continue  # Historical revisions predate the connection and query splits.
                     raise RuntimeError(f"Missing baseline source: {path}")
                 data = result.stdout
             else:

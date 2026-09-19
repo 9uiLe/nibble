@@ -29,14 +29,23 @@ extension UIIntegrationTests {
             await model.copy(second)
             #expect(model.notice?.id != copied.id)
             #expect(model.query == "本文")
+            await model.restore(first)
+            await model.delete(first)
+            let firstDeletion = try #require(model.notice)
             await model.delete(second)
+            #expect(model.notice?.subject == "二つ目" && model.notice?.undoID == second)
+            #expect(model.notice?.id != firstDeletion.id)
+            #expect(model.notice?.announcement.contains("二つ目") == true)
             await model.undoNotice(try #require(model.notice?.id))
             #expect(model.notice?.message == "元に戻しました")
             #expect(model.notice?.subject == "二つ目" && model.notice?.undoID == nil)
             #expect(model.notice?.duration == .seconds(2))
             #expect(try await files.store.snippet(first).deleted)
             #expect(try await !files.store.snippet(second).deleted)
-            #expect(model.feedback == 5)
+            await model.permanentlyDelete(first)
+            #expect(model.notice?.subject == "一つ目" && model.failure == nil)
+            #expect(try await files.store.search(filter: .trash).isEmpty)
+            await #expect(throws: StoreError.missing) { try await files.store.snippet(first) }
         }
 
         @Test func queuedUIActionBelongsToTheVisitThatAcceptedIt() async throws {
@@ -132,7 +141,7 @@ extension UIIntegrationTests {
             #expect(storage.restoreCalls == 2)
         }
 
-        @Test func displayStartsDeadlineAndOldExpiryCannotClearReplacement() async throws {
+        @Test func displayOwnsDeadlineCancellationAndReplacement() async throws {
             let files = try TestDatabase()
             defer { files.removeFiles() }
             let id = try await create(files.store, body: "期限")
@@ -142,25 +151,39 @@ extension UIIntegrationTests {
             let first = try #require(model.notice?.id)
             #expect(sleeper.deadlines.isEmpty, "A data operation does not start a display timer")
             let tasks = ViewTaskStore()
+            let beforeCopyDisplay = ContinuousClock.now
             let firstRun = tasks.start(id: "first", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
             await sleeper.gate.waitForRequests(1)
+            let afterCopyDisplay = ContinuousClock.now
             let firstDeadline = try #require(sleeper.deadlines.first)
-            #expect(ContinuousClock.now.duration(to: firstDeadline) > .seconds(1))
-            // Rebuilding the same notification view must not extend its deadline.
+            #expect(firstDeadline >= beforeCopyDisplay.advanced(by: .seconds(2)))
+            #expect(firstDeadline <= afterCopyDisplay.advanced(by: .seconds(2)))
+            do {
+                let tasks = ViewTaskStore()
+                tasks.start(id: "cancelled", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
+                await sleeper.gate.waitForRequests(2)
+                tasks.cancelAll()
+                sleeper.gate.finish(1)
+                await tasks.waitForIdle()
+            }
+            #expect(model.notice?.id == first)
             let remountedRun = tasks.start(id: "remount", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
-            await sleeper.gate.waitForRequests(2)
-            #expect(sleeper.deadlines[1] == firstDeadline)
+            await sleeper.gate.waitForRequests(3)
+            #expect(sleeper.deadlines[2] == firstDeadline)
             await model.delete(id)
             let latest = try #require(model.notice?.id)
+            let beforeDeleteDisplay = ContinuousClock.now
             tasks.start(id: "latest", lifetime: .screenBound) { _ in await model.expireNotice(id: latest) }
-            await sleeper.gate.waitForRequests(3)
-            #expect(ContinuousClock.now.duration(to: sleeper.deadlines[2]) > .seconds(5))
+            await sleeper.gate.waitForRequests(4)
+            let afterDeleteDisplay = ContinuousClock.now
+            #expect(sleeper.deadlines[3] >= beforeDeleteDisplay.advanced(by: .seconds(6)))
+            #expect(sleeper.deadlines[3] <= afterDeleteDisplay.advanced(by: .seconds(6)))
             sleeper.gate.finish(0)
-            sleeper.gate.finish(1)
+            sleeper.gate.finish(2)
             await tasks.awaitCompletion(of: try #require(firstRun.run))
             await tasks.awaitCompletion(of: try #require(remountedRun.run))
             #expect(model.notice?.id == latest && model.notice?.undoID == id)
-            sleeper.gate.finish(2)
+            sleeper.gate.finish(3)
             await tasks.waitForIdle()
             #expect(model.notice == nil)
             #expect(try await files.store.snippet(id).deleted, "Expiry never permanently deletes data")
