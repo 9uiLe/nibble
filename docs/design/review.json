@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "summary": "S01・S02の操作結果をC18・C19のシステムTab Bar accessoryへ集約し、C09新規作成から独立させる。表示ID・発生元・世代・復元対象を一体で管理する。26.0のUIKit接続はNavigationStackの内側に置き、検索の標準接続を保つ。状態の契約・通知の寿命・OS別の責務を画面と部品の台帳および判断記録に照合した。",
+  "summary": "使用履歴の仕様を通知側の設計へ統合し、行の未使用表示、コピーの完了契約、タブ通知とシート通知の責務を同時に保持した。S01/S02とC05/C06/C10/C17/C18/C19を照合した。製品コードは変更していない。",
   "references": [
+    "docs/design/decisions/0003-usage-order.md",
+    "docs/design/decisions/0004-tab-accessory.md",
     "docs/design/screens.md",
-    "docs/design/components.md",
-    "docs/design/decisions/0004-tab-accessory.md"
+    "docs/decisions/0002-mvp-app.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -70,7 +71,7 @@
     "app/Shared/StorageContracts.swift": "8746397b70b1cc259ccc1fef74874e418af65f73402009050b73e7156d315e1f",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "89f6bb374549d90fb8961944634c82c594af71924ed287719a7a16166322b368",
+    "docs/decisions/0002-mvp-app.md": "fac0bac92ed2b4bd51e770628a3870eb5f7365a7bd742c1d33b6dcec01c19121",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
     "docs/decisions/0005-snippet-keyboard.md": "8fc81f23073bc884871fb28070910f01af1d4905e02faae5b558229bbc38f4df",
     "docs/design/README.md": "9dcfb5262a7bb48469a6ca00b25be4bbeda6ac21c0f6c560d605cf0a3aa73b4e",
@@ -79,11 +80,11 @@
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
     "docs/design/decisions/0001-library-actions.md": "158f5682ce157dec493eaa7e5fbf2746a750ae3fa3ece304dcf87aace311b0f5",
     "docs/design/decisions/0002-fixed-interface.md": "fa9deae1184f7835595784ede9fcf52723236c1cbcf45f07d3d50d387f94f2de",
-    "docs/design/decisions/0003-usage-order.md": "dcffe8d65f8bc0fa6abaa02274760dd83ba8848d32e5cd57cf494db3ad3b83bd",
+    "docs/design/decisions/0003-usage-order.md": "324dcced84337d02e3c01e482964f94b2dbdd4c57ebb72250a0eb8cfd13c3355",
     "docs/design/decisions/0004-tab-accessory.md": "7539a4ed7342aa53d1b317e06f2058dceb0130bd04317705712ff16fcac7ef46",
     "docs/design/foundations.md": "b59028848b292ec357081066042d8fa8cdca7d7618c93d50f0a6bb7dd7a98739",
     "docs/design/policy.json": "c283e8abdb39579d295e37fe5debda45e072f85ce600ffd0240e1a76093981dc",
-    "docs/design/screens.md": "60feb03465e7c06f5cdcce9140b41b9e14f7310dfc39647750d23bc6227db1dc",
+    "docs/design/screens.md": "f686580bb04609113e3032691c9bf58ff4c01d427f77a48affc306616c09e7ac",
     "flake.lock": "6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
     "research/08-keyboard-interface.md": "91d5946bf5464c847f429e5b08ad7b0144cbd3cc9efb055828ffaf773ffff32c",
