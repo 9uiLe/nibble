@@ -57,6 +57,32 @@ nix develop --command python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
 
 必要なら `open -a Simulator` でSimulatorウィンドウを表示する。CLIによる操作はsim-useが観測したaccessibility identifierを使用する。
 
+## 変更から検証を実行する
+
+通常は[verify.py](../scripts/verify.py)で変更と検証計画を確認し、同じ入口で実行する。比較元からのコミット済み差分、未コミット変更、未追跡ファイル、削除を含む。
+
+```sh
+nix develop
+export NIBBLE_UI_FORMAT=json
+python3 scripts/verify.py plan --base origin/main
+python3 scripts/verify.py run --base origin/main --device "$NIBBLE_SIMULATOR"
+```
+
+計画には選択した検査・対象外とした検査の理由、手動の確認事項、事前条件を記録する。文書だけなら共通検査、テストだけなら対象targetの全テスト、製品コードなら製品のテストとUI導線を選ぶ。共通基盤・設定・未知の変更はfixture・製品・研究targetへ広げる。個別テスト名をファイル名から推測せず、テストの選択漏れを避ける。
+
+共通検査を先に実行し、失敗時は後続を開始しない。iOSの検査はRelease、同じ専用UDIDへの操作は直列で行う。`about`にはSettingsのAccessibility > Motionを開いておく事前条件がある。共有拡張・キーボードのOS導線、ResearchProbeの比較条件、媒体の目視は計画に従って別途確認する。自動工程の`passed`はこれらの手動確認を含まない。
+
+結果は`artifacts/verify/<ID>/result.json`に計画・実行コマンド・工程時間・失敗・未開始工程・対応するrun・ソース照合をまとめる。stdoutは結果JSON、詳細と進捗はログとstderrに分ける。成功したiOS runは同じソース・端末・媒体のintegrityを自動照合する。失敗・中断・ソース変更は成功へ書き換えず、新しい結果ディレクトリへ再実行する。
+
+合格後に追加変更をした場合は、その結果からの差分を再計画できる。
+
+```sh
+python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
+  --device "$NIBBLE_SIMULATOR"
+```
+
+`--since`はソースが安定した成功結果だけを受理する。再計画でも共通検査は実行し、過去のUI媒体を現在のソースへ自動で認定しない。未解決の懸念がある導線は個別コマンドで追加する。`--scope fixture|product|all`は明示した範囲を選ぶための指定で、除外理由も残す。一部のscope成功を全targetの成功と扱わない。
+
 ## ビルド・テスト・動作確認
 
 以下は標準設定のVerificationAppを検証するコマンド。製品・ResearchProbeには[対象設定](#検証対象の切り替え)を指定する。
@@ -81,7 +107,7 @@ nix develop --command python3 scripts/ios.py smoke \
 
 `test` は `xcodebuild` の終了コードと `xcresulttool` のsummaryを確認する。成功したテストが1件以上必要で、0件・全skip・失敗を成功扱いしない。fixtureのSwift Testingはホストの識別と、ViewControllerを経由するUnicode・空白の保持を検査する。
 
-`smoke` はビルド・起動後、画面読取 → リセット → 入力欄選択 → ダミーテキストの貼り付け → 反映 → 出力値の照合を実行する。入力は `日本語 👩🏽‍💻` と改行・`Hello, nibble!`。`--text` で変更できる。Swift Testingは別の `test` コマンドで実行する。
+`smoke` はビルド・起動後、画面読取 → リセット → 入力欄選択 → ダミーテキストの貼り付け → 反映 → 出力値の照合を実行する。入力は `日本語 👩🏽‍💻` と改行・`Hello, nibble!`。`--text` で変更できる。個別に呼ぶ場合はSwift Testingを `test` コマンドで実行する。`verify.py`のfixture計画はテストとsmokeを順に実行する。
 
 smokeはSimulatorのクリップボードとfixtureの入力を書き換えるため、専用端末とダミーデータを使う。iOS 26.5のみで、変更の影響範囲を確認する。SimulatorのRelease実行と実機の性能測定は、それぞれ別の検証として記録する。
 
@@ -118,7 +144,7 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 
 ## 成果物とレビュー
 
-各runの結果は`artifacts/ios/<UTC日時>-<コマンド>-<ID>/`、ビルドキャッシュは`artifacts/ios/DerivedData/<UDID>/`へ保存する。Git管理対象外であり、新しいcheckoutには含まれない。失敗runも残す。
+各runの結果は`artifacts/ios/<UTC日時>-<コマンド>-<ID>/`、ビルドキャッシュは`artifacts/ios/DerivedData/<UDID>/<ビルド条件のhash>/`へ保存する。Git管理対象外であり、新しいcheckoutには含まれない。失敗runも残す。
 
 [証跡とPRの検査](review-evidence.md)に従い、manifestの対象ソース・実行結果・媒体を照合し、観測と閲覧条件をreview.jsonへ記録する。単独の撮影は、インストール済みアプリとソースの対応を保証しない。
 
@@ -151,6 +177,21 @@ nix develop --command python3 scripts/ios.py run \
 `smoke`はVerificationApp専用。ResearchProbeの画面操作には`nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_SIMULATOR"`を使う。APIやデータの比較条件、Safari・日本語入力・表示設定の手順は[研究用の設計と手順](../validation/RESEARCH.md)で定義する。
 
 検証targetを定義する際は同じ形式の設定を用意する。`project` / `scheme` / `bundle_id` / `app_name` / `minimum_ios`を実際の構成に合わせ、`--project-config <設定ファイル>`で選択する。共通のビルド・テスト・実行管理・撮影を利用し、操作と期待結果は製品の仕様に対応するdriverで検査する。
+
+## 検証時間を比較する
+
+[benchmark-verification.py](../scripts/benchmark-verification.py)は、JSONで指定したコマンド列を連続実行し、各工程と1サイクルの所要時間、中央値・最小/最大・ばらつき、実測した時間窓内の完了数を保存する。コマンドはNixシェル内で実行し、`--commands`にはargv配列の配列を渡す。失敗は記録して停止し、自動再試行しない。
+
+```sh
+python3 scripts/benchmark-verification.py \
+  --commands artifacts/verification-commands.json \
+  --output artifacts/verification-benchmark --samples 3 \
+  --condition 'Release、起動済み専用Simulator、依存取得済み、増分cache、ソース変更なし'
+```
+
+コマンド列の例は`[["python3", "scripts/ios.py", "test", "--device", "専用UDID", "--configuration", "Release"], ["python3", "scripts/ios.py", "smoke", "--device", "専用UDID", "--configuration", "Release"]]`。出力先は新しいディレクトリとする。初回、ソース変更なし、代表変更、失敗と修正後を別の条件で記録し、対象ソース・依存lock・端末・キャッシュ状態・負荷をそろえる。初回の依存取得とSimulator準備、人の媒体レビューは通常の反復時間と分ける。
+
+runの`timing`は開始から結果と媒体確定までの経過、外部コマンドの合計、manifest書込と終了処理の内訳を持つ。内訳には重複する工程があるので単純に合算しない。`xcodebuild`ログには`-showBuildTimingSummary`の内訳も残る。
 
 ## 検証範囲
 

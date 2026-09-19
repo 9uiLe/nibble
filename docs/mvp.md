@@ -92,6 +92,8 @@ Simulatorでは、入力欄へフォーカスがあってもソフトウェア�
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
+変更の確認には[検証計画と実行](ios-verification.md#変更から検証を実行する)を使う。以下は対象を指定して個別に実行する場合のコマンドで、計画で合格した工程を重複実行する必要はない。
+
 すべてリポジトリルートで実行する。`NIBBLE_SIMULATOR`には[専用SimulatorのUDID](ios-verification.md#simulatorの作成と選択)を指定する。
 
 ```sh

@@ -303,13 +303,13 @@ def main():
                 "search_term": term, "appearance": args.appearance, "copy_expired": True,
                 "undo_same_id": True, "search_and_lifecycle": not args.baseline,
                 "navigation_frames_stable": not args.baseline}
-    except Exception as caught:
+    except (Exception, KeyboardInterrupt) as caught:
         error = caught
     finally:
         if appearance in ("light", "dark"):
             try:
                 run.command([XCRUN, "simctl", "ui", args.device, "appearance", appearance])
-            except Exception as caught:
+            except (Exception, KeyboardInterrupt) as caught:
                 error = error or caught
         run.finish(error)
     if error:

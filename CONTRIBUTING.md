@@ -59,7 +59,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | ui-design / ios-tooling | 共通設計ツールと製品Adapter、実行・証跡・PR検査の回帰 |
 | rive-assets | 制作ソース・生成物・Data Binding契約 |
 
-共通検査はApple SDK・Simulator・GitHub認証を必要としない。初回の依存取得にはネットワークが必要となる。編集中は影響する検査を選び、仕上げに共通検査を実行する。合格後は新しい変更・失敗・未解決の懸念がある範囲だけ再検査する。
+共通検査はApple SDK・Simulator・GitHub認証を必要としない。初回の依存取得にはネットワークが必要となる。編集中は[変更から検証する入口](docs/ios-verification.md#変更から検証を実行する)で影響する検査を選び、仕上げに共通検査を実行する。合格後は新しい変更・失敗・未解決の懸念がある範囲だけ再検査する。
 
 | 変更 | 追加で確認すること |
 | --- | --- |

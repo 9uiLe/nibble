@@ -1,0 +1,106 @@
+"""Build cache separation never replaces Xcode/source validation."""
+import copy
+import json
+from pathlib import Path
+import plistlib
+import tempfile
+from types import SimpleNamespace
+import unittest
+import sys
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
+import ios
+from verification_evidence import inputs
+
+
+class BuildCacheTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.run = ios.Run.__new__(ios.Run)
+        self.run.args = SimpleNamespace(device='12345678-1234-1234-1234-123456789abc', configuration='Release')
+        self.run.path = self.root / 'run'
+        self.run.path.mkdir()
+        self.run.config = {'project': 'app/Nibble.xcodeproj', 'scheme': 'Nibble', 'bundle_id': 'nibble.example', 'app_name': 'Nibble'}
+        self.run.manifest = {'commands': [], 'environment': {'xcode': '26.5', 'swift': '6.3', 'simulator_sdk': '26.5', 'developer_dir': '/Xcode'}}
+        for name in ['boot', 'command']:
+            patcher = patch.object(self.run, name)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(ios, 'ARTIFACTS', self.root)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def build(self, test=False):
+        with patch.object(ios, 'validate_summary'):
+            self.run.build(test=test)
+        return self.run.derived
+
+    def test_testability_configuration_project_sdk_and_architecture_partition_cache(self):
+        original = self.build()
+        with patch.object(ios.platform, 'machine', return_value='another-arch'):
+            self.assertNotEqual(original, self.build())
+        self.assertNotEqual(original, self.build(test=True))
+        self.run.args.configuration = 'Debug'
+        self.assertNotEqual(original, self.build())
+        self.run.args.configuration = 'Release'
+        self.run.config['scheme'] = 'Another'
+        self.assertNotEqual(original, self.build())
+        self.run.config['scheme'] = 'Nibble'
+        self.run.manifest['environment']['simulator_sdk'] = '27.0'
+        self.assertNotEqual(original, self.build())
+
+    def test_existing_output_and_source_lock_changes_still_invoke_xcodebuild(self):
+        original = self.build()
+        original.mkdir(parents=True)
+        for key in ['app/Nibble/App.swift', 'app/Nibble.xcodeproj/project.pbxproj', 'app/Package.resolved', 'flake.lock']:
+            self.run.manifest['files_sha256'] = {key: 'changed'}
+            self.assertEqual(original, self.build())
+        self.assertEqual(self.run.command.call_count, 5)
+        for call in self.run.command.call_args_list:
+            argv = call.args[0]
+            self.assertEqual(argv[-1], 'build')
+            self.assertIn('ONLY_ACTIVE_ARCH=YES', argv)
+            self.assertIn('-disableAutomaticPackageResolution', argv)
+            self.assertNotIn('ENABLE_TESTABILITY=YES', argv)
+        self.build(test=True)
+        self.assertIn('ENABLE_TESTABILITY=YES', self.run.command.call_args.args[0])
+
+    def test_incomplete_or_wrong_products_never_reach_install(self):
+        self.build()
+        app = self.run.derived / 'Build/Products/Release-iphonesimulator/Nibble.app'
+        app.mkdir(parents=True)
+        info = {'CFBundleIdentifier': 'nibble.example', 'CFBundleExecutable': 'Nibble'}
+        for wrong in [None, {**info, 'CFBundleIdentifier': 'another.app'}, info,
+                      {**info, 'CFBundleExecutable': '../outside'}]:
+            if wrong is not None:
+                (app / 'Info.plist').write_bytes(plistlib.dumps(wrong))
+            self.run.command.reset_mock()
+            with self.assertRaises(ios.VerificationError):
+                self.run.launch()
+            self.assertTrue(all('install' not in call.args[0] for call in self.run.command.call_args_list))
+        (app / 'Info.plist').write_bytes(plistlib.dumps(info))
+        (app / 'Nibble').write_bytes(b'compiled fixture')
+        ios.validate_app(app, 'nibble.example')
+
+    def test_repeated_boot_in_one_run_checks_readiness_once(self):
+        run = ios.Run.__new__(ios.Run)
+        run.args = self.run.args
+        run.device = {'state': 'Booted'}
+        with patch.object(run, 'command') as command:
+            run.boot()
+            run.boot()
+        self.assertEqual(command.call_count, 1)
+
+    def test_device_lock_remains_exclusive_across_independent_runs(self):
+        other = ios.Run.__new__(ios.Run)
+        other.args = self.run.args
+        with patch.object(ios.tempfile, 'gettempdir', return_value=str(self.root)):
+            with self.run.device_lock():
+                with self.assertRaisesRegex(ios.VerificationError, 'Another'):
+                    with other.device_lock():
+                        self.fail('A second owner acquired the Simulator')
+            with other.device_lock():
+                pass

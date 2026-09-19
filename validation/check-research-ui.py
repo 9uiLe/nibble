@@ -58,8 +58,8 @@ try:
         run.screenshot("final-editor")
         (run.path / "assertions.json").write_text(json.dumps({"copiedUTF8Exact": True, "deletedAbsent": True,
                                                             "undoRestored": True, "row": row}, indent=2))
-except Exception as caught:
-    error = str(caught)
+except (Exception, KeyboardInterrupt) as caught:
+    error = repr(caught)
 finally:
     run.finish(error)
 if error:

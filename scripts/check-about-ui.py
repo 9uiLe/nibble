@@ -178,7 +178,7 @@ def main():
             flow.read_page("largest")
         run.manifest["reading_observations"] = flow.observations
         run.manifest["assertions"] = {"paragraphs_reachable": True, "illustration_loaded_without_playback_controls": True}
-    except Exception as caught:
+    except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
         raise
     finally:
@@ -187,7 +187,7 @@ def main():
                 flow.option(name, value)
             if original_motion is not None:
                 flow.motion(original_motion)
-        except Exception as caught:
+        except (Exception, KeyboardInterrupt) as caught:
             cleanup_error = caught
             error = (error + "; " if error else "") + "restore: " + repr(caught)
         contexts.close()

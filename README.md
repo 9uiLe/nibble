@@ -128,6 +128,8 @@ xcodebuild -resolvePackageDependencies \
 
 [製品手順](docs/mvp.md#開発環境とビルド)でiOS 26.5の専用Simulatorを選び、Nibbleをビルド・実行します。製品の変更には製品driver、実行基盤の確認には[fixture](docs/ios-verification.md)、保存方式の比較には[ResearchProbe](validation/RESEARCH.md)を使います。
 
+変更後は[検証計画](docs/ios-verification.md#変更から検証を実行する)を確認し、選択した共通検査・テスト・UI導線を一度ずつ実行します。
+
 ### 5. 証跡を確認してPRへ記載する
 
 [証跡とPRの手順](docs/review-evidence.md)で、実行ソース・結果・画像・録画を照合します。文書だけの変更は[共通検査](CONTRIBUTING.md#実行と検査)とPR本文の確認を行い、撮影が不要な理由を記載します。

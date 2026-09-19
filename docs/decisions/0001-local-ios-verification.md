@@ -23,6 +23,16 @@
 
 明示したiOS 26.5の専用UDIDだけを操作する。同じUDIDの共通driverは排他制御し、直接sim-useや研究driverも端末単位で直列化する。既存端末の消去・削除は行わない。DerivedDataはcacheであり、実行ソースの証明に使わない。
 
+### 増分ビルドと検証計画
+
+`verify.py`は差分から対象targetの全テストとUI導線を計画し、共通検査を先に、同じ端末の工程を直列に実行する。選択・除外・手動条件と実際の成否を保存する。前回の成功以降の変更だけを再計画できるが、失敗した結果で検査を省かない。
+
+ローカルビルドは実行MacのSimulator architectureだけを生成する。Debug/Releaseの最適化と、テストだけに追加するtestabilityは維持する。DerivedDataはUDID・project設定・構成・architecture・testability・Xcode/SDK等の条件ごとに分離し、設定を往復して依存を再コンパイルする費用を避ける。初回の準備と保存容量は条件ごとに必要になる。
+
+すべてのbuild/test/launchでXcodeによる増分検査を行う。ソースやlockが変わればXcodeが再ビルドまたは失敗を返し、lockにない依存版の自動解決を許可しない。ビルド完了前の成果物、別bundle、実行ファイルを欠くappはinstallしない。インストール済みアプリや別runの成功だけでビルドを省く経路は持たず、同runの成功buildを証跡の根拠にする。
+
+`build-for-testing`・`test-without-building`や複数runnerは、現在の証跡契約を満たす経路としては採用していない。Swift Testingの同一プロセス内の並行性と、Xcodeが別Simulatorを使う並列テストを区別する。速度と成立条件は[比較記録](../verification-performance.md)を参照する。
+
 テストはxcodebuild終了コードとxcresult summaryで判定し、成功1件以上・失敗なしを要求する。0件・全skip・timeoutを成功にしない。driverが既知の終了コード1を扱う場合だけ、理由と対応assertionのtrueを記録する。失敗runは独立して保存し、成功で上書きしない。
 
 画面取得と入力は対象を照合してから行う。遷移中の空AXは、最終的な期待状態を判定する有限待機の内部でのみ許す。任意の操作失敗や空画面を正常化しない。文字列はOS経路で入力/コピーして原文を比較し、テスト用DBやclipboardの書換えで成功を作らない。
