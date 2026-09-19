@@ -54,7 +54,7 @@ struct LibraryView: View {
                     .searchPresentationToolbarBehavior(.avoidHidingContent)
             }
         }
-        .modifier(LibraryTabAccessory(all: all, search: search, origin: noticeOrigin, taskOwner: routeOwner))
+        .modifier(LibraryTabAccessory(all: all, search: search, origin: noticeOrigin, searchFocused: searchFocused, taskOwner: routeOwner))
         .tabViewSearchActivation(.searchTabSelection)
         .tabBarMinimizeBehavior(.never)
         .textInputAutocapitalization(.never)
@@ -114,6 +114,12 @@ struct LibraryView: View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
                           showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
+                .safeAreaBar(edge: .top) {
+                    if showsSearchPrompt, searchFocused, noticeOrigin == .search, search.notice != nil {
+                        LibraryAccessoryContent(model: search, taskOwner: routeOwner)
+                            .frame(minHeight: 48)
+                    }
+                }
         }
     }
 
@@ -144,12 +150,13 @@ private struct LibraryTabAccessory: ViewModifier {
     let all: LibraryModel
     let search: LibraryModel
     let origin: LibraryModel.Notice.Origin?
+    let searchFocused: Bool
     let taskOwner: LibraryTaskOwner
 
     private var model: LibraryModel? {
         switch origin {
         case .library: all
-        case .search: search
+        case .search: searchFocused ? nil : search
         default: nil
         }
     }

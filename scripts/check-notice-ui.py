@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
     parser.add_argument("--baseline", action="store_true")
+    parser.add_argument("--scroll", action="store_true", help="Also seed a scrollable list and check its final row")
     parser.add_argument("--appearance", choices=("light", "dark"), default="light")
     args = parser.parse_args()
     run = Run(SimpleNamespace(command="notice-ui", device=args.device, configuration="Release",
@@ -52,8 +53,26 @@ def main():
     def assert_no_notice(name):
         return wait(name, lambda data: "library.notice" not in ids(data) and "library.undo" not in ids(data))
 
+    def tap_row(identifier):
+        for attempt in range(12):
+            data = run.ui(f"reveal-{attempt}")
+            bottom = min((e["frame"]["y"] for e in data["entries"]
+                          if e.get("uniqueId") == "library.add" or e.get("role") == "TextField"), default=490)
+            top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
+                       if e.get("role") == "Heading" and e["frame"]["y"] < 200), default=126) + 8
+            entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
+            if entry and entry["frame"]["y"] >= top and entry["frame"]["y"] + entry["frame"]["height"] <= bottom:
+                run.tap(identifier)
+                return
+            high, low = top + 20, min(bottom - 20, 460)
+            downward = entry is not None and entry["frame"]["y"] < top
+            run.command(["sim-use", "swipe", "--from", f"180,{high if downward else low}",
+                         "--to", f"180,{low if downward else high}",
+                         "--duration", "0.4", "--post-delay", "0.3", "--device", args.device])
+        raise VerificationError("Could not reveal row control: " + identifier)
+
     def delete(snippet):
-        run.tap("more." + snippet)
+        tap_row("more." + snippet)
         wait("delete-menu", lambda data: any(e.get("label") == "削除" for e in data["entries"]))
         label("削除")
 
@@ -62,7 +81,35 @@ def main():
         entry = next(e for e in data["entries"] if e.get("uniqueId") == "library.undo")
         if entry["frame"]["height"] < 44:
             raise VerificationError("Undo hit target is shorter than 44 points")
+        for field in (e for e in data["entries"] if e.get("role") == "TextField"):
+            button, text = entry["frame"], field["frame"]
+            if (button["x"] < text["x"] + text["width"] and text["x"] < button["x"] + button["width"]
+                    and button["y"] < text["y"] + text["height"] and text["y"] < button["y"] + button["height"]):
+                raise VerificationError("Undo overlaps the search field")
         run.command(["sim-use", "tap", "@" + str(entry["aliases"]["at"]), "--device", args.device])
+        wait("undo-succeeded", lambda data: any(e.get("uniqueId") == "library.notice"
+             and e.get("label", "").endswith("元に戻しました") for e in data["entries"]))
+
+    def create_item(title, data):
+        run.tap("library.add" if "library.add" in ids(data) else "library.createFirst")
+        wait("editor", lambda data: "editor.body" in ids(data))
+        run.command(["sim-use", "paste", "--via-menu", "--target-id", "editor.title",
+                     "--device", args.device, title])
+        run.command(["python3", "-c", "import subprocess,sys; subprocess.run(['/usr/bin/xcrun','simctl','pbcopy',sys.argv[1]], input=sys.argv[2].encode(), check=True)",
+                     args.device, "通知を確認するダミー本文"])
+        label("本文の末尾にペースト")
+        wait("body-pasted", lambda data: any(e.get("uniqueId") == "editor.body" and e.get("value") == "通知を確認するダミー本文" for e in data["entries"]))
+        run.tap("editor.save")
+        wait("created-list", lambda data: "library.add" in ids(data) and "editor.body" not in ids(data))
+        for attempt in range(15):
+            data = run.ui(f"created-row-{attempt}")
+            entry = next((e for e in data["entries"] if e.get("uniqueId", "").startswith("snippet.")
+                          and title in e.get("label", "")), None)
+            if entry:
+                return entry["uniqueId"].removeprefix("snippet.")
+            run.command(["sim-use", "swipe", "--from", "180,460", "--to", "180,180",
+                         "--duration", "0.4", "--post-delay", "0.3", "--device", args.device])
+        raise VerificationError("Created row was not found in the list")
 
     try:
         run.setup()
@@ -75,28 +122,20 @@ def main():
             if "editor.close" in ids(data):
                 run.tap("editor.close")
                 data = wait("editor-closed", lambda data: "library.add" in ids(data) or "library.createFirst" in ids(data))
-            run.tap("library.add" if "library.add" in ids(data) else "library.createFirst")
-            wait("editor", lambda data: "editor.body" in ids(data))
-            run.command(["sim-use", "paste", "--via-menu", "--target-id", "editor.title",
-                         "--device", args.device, title])
-            run.command(["python3", "-c", "import subprocess,sys; subprocess.run(['/usr/bin/xcrun','simctl','pbcopy',sys.argv[1]], input=sys.argv[2].encode(), check=True)",
-                         args.device, "通知を確認するダミー本文"])
-            label("本文の末尾にペースト")
-            wait("body-pasted", lambda data: any(e.get("uniqueId") == "editor.body" and e.get("value") == "通知を確認するダミー本文" for e in data["entries"]))
-            run.tap("editor.save")
-            data = wait("saved", lambda data: any(e.get("uniqueId", "").startswith("snippet.")
-                                                   and term in e.get("label", "") for e in data["entries"]))
-            snippet = next(e["uniqueId"].removeprefix("snippet.") for e in data["entries"]
-                           if e.get("uniqueId", "").startswith("snippet.") and term in e.get("label", ""))
+            snippet = create_item(title, data)
+            # Reveal the new row before establishing the notification-free baseline.
+            tap_row("copy." + snippet)
+            time.sleep(2.3)
+            assert_no_notice("initial-copy-expired")
             run.screenshot("notice-before")
             with run.recording():
-                run.tap("copy." + snippet)
+                tap_row("copy." + snippet)
                 run.screenshot("notice-copy")
                 time.sleep(2.3)
                 assert_no_notice("copy-expired")
                 run.screenshot("notice-after")
-                run.tap("copy." + snippet)
-                run.tap("copy." + snippet)
+                tap_row("copy." + snippet)
+                tap_row("copy." + snippet)
                 run.screenshot("notice-repeated-copy")
                 delete(snippet)
                 run.screenshot("notice-deleted")
@@ -115,7 +154,8 @@ def main():
                     data = wait("search-result", lambda data: "copy." + snippet in ids(data) and "Search" in ids(data))
                     search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
                     run.screenshot("search-before")
-                    run.tap("copy." + snippet)
+                    tap_row("copy." + snippet)
+                    wait("search-notice", lambda data: "library.notice" in ids(data) and "Search" in ids(data))
                     run.screenshot("search-copy-keyboard")
                     time.sleep(2.3)
                     data = assert_no_notice("search-expired")
@@ -147,7 +187,7 @@ def main():
                     assert_no_notice("sheet-dismissed")
                     tab("一覧")
                     wait("restored-from-trash", lambda data: "snippet." + snippet in ids(data))
-                    run.tap("copy." + snippet)
+                    tap_row("copy." + snippet)
                     run.tap("library.add")
                     wait("editor-opened", lambda data: "editor.body" in ids(data))
                     run.screenshot("editor-no-notice")
@@ -155,9 +195,71 @@ def main():
                     assert_no_notice("editor-dismissed")
                     delete(snippet)
                     run.command(["sim-use", "button", "home", "--device", args.device])
+                    wait("home-settled", lambda data: data.get("appPackage") == "com.apple.springboard"
+                         and "navigation.title" not in ids(data))
                     run.command([XCRUN, "simctl", "launch", args.device, run.config["bundle_id"]])
+                    def library_is_active(data):
+                        return (data.get("appPackage") == run.config["bundle_id"]
+                                and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "一覧" for e in data["entries"])
+                                and any(e.get("role") == "RadioButton" and e.get("label") == "一覧"
+                                        and "selected" in e.get("states", []) for e in data["entries"])
+                                and ("library.add" in ids(data) or "library.createFirst" in ids(data)))
+                    wait("foreground-root", library_is_active)
+                    time.sleep(0.3)
+                    wait("foreground-stable", library_is_active)
                     assert_no_notice("foreground")
                     run.screenshot("foreground-no-notice")
+                    if args.scroll:
+                        for index in range(8):
+                            data = wait("seed-list", lambda data: "library.add" in ids(data) or "library.createFirst" in ids(data))
+                            seeded_id = create_item(f"{term} スクロール確認 {index + 1}", data)
+                            if index > 0:
+                                tap_row("copy." + seeded_id)
+                                wait("seed-copy", lambda data: "library.notice" in ids(data))
+                        previous = None
+                        for attempt in range(12):
+                            data = run.ui(f"scroll-{attempt}")
+                            add_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
+                            controls = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")
+                                        and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= add_frame["y"]]
+                            signature = [(e["uniqueId"], round(e["frame"]["y"])) for e in controls]
+                            if signature and signature == previous:
+                                break
+                            previous = signature
+                            run.command(["sim-use", "swipe", "--from", "180,460", "--to", "180,160",
+                                         "--duration", "0.5", "--post-delay", "0.5", "--device", args.device])
+                        else:
+                            raise VerificationError("Scrollable list did not reach a stable final row")
+                        if not controls:
+                            raise VerificationError("No final row is operable above the bottom controls")
+                        final_control = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")][-1]
+                        if final_control not in controls:
+                            raise VerificationError("Final row is hidden behind the bottom controls")
+                        final_id = final_control["uniqueId"]
+                        run.screenshot("scroll-before")
+                        run.tap(final_id)
+                        data = wait("scroll-copy-rendered", lambda data: "library.notice" in ids(data))
+                        # Every newer fixture row has already been copied once. The oldest row
+                        # goes from zero uses to one and stays last (the tie uses update time).
+                        # Compare another visible row so usage ranking cannot move this anchor.
+                        anchors = [e for e in data["entries"] if e.get("uniqueId", "").startswith("snippet.")
+                                   and e["uniqueId"] != "snippet." + final_id.removeprefix("copy.")
+                                   and 170 < e["frame"]["y"] < 400]
+                        if not anchors:
+                            raise VerificationError("No visible anchor after final-row copy")
+                        anchor = anchors[0]
+                        run.screenshot("scroll-copy")
+                        time.sleep(2.3)
+                        data = assert_no_notice("scroll-expired")
+                        after = next((e for e in data["entries"] if e.get("uniqueId") == anchor["uniqueId"]), None)
+                        if after is None or abs(after["frame"]["y"] - anchor["frame"]["y"]) > 1:
+                            raise VerificationError("Scroll anchor changed on notification expiry")
+                        run.screenshot("scroll-after")
+                        run.manifest["scroll_assertions"] = {"seeded_rows": 8, "operated_control": final_id,
+                            "anchor_id": anchor["uniqueId"],
+                            "before_y": anchor["frame"]["y"], "after_y": after["frame"]["y"],
+                            "notice_expiry_preserved_scroll": True}
+
             run.manifest["assertions"] = {"baseline": args.baseline, "created_id": snippet,
                 "search_term": term, "appearance": args.appearance, "copy_expired": True,
                 "undo_same_id": True, "search_and_lifecycle": not args.baseline}

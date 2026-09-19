@@ -206,3 +206,17 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 [証跡とPRの検査](review-evidence.md)に従い、runの開始・終了・対象コミットの入力と媒体を照合する。実際の観測・確認範囲・添付URL・閲覧条件を`review.json`へ記入し、検査後に`REVIEW.md`を生成する。PRには画像・動画と対象コミット・端末・OS・手順を記載する。
 
 MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含めない。実機のロック時保護・性能・触覚・Handoff・署名配布は個別の評価が必要である。VoiceOver、横向き、長時間利用、1 MB本文の入力追従の未検証条件と、Reduce Motionの確認済み範囲は[検証結果の制約](mvp-validation.md#検証範囲の制約)を参照する。
+
+## タブの操作完了通知の検証
+
+一覧・検索の結果をTab Bar accessoryへ表示する契約は[通知の設計](design/decisions/0004-tab-accessory-notices.md)、対象ソースと実施範囲は[通知の検証記録](notice-validation.md)を参照する。専用Simulatorで実行する。
+
+```sh
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --scroll
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --appearance dark
+```
+
+ダミーの長い対象名を作り、コピー・連続コピー・削除と取り消し、検索入力中、タブ移動、シート開閉、背景復帰を確認する。表示前・表示中・消去後の画像と録画を保存する。`--baseline`は配置変更前のコピー・削除・取り消しを撮影する。ドライバーはAXと結果状態を照合する。VoiceOver音声、触覚、録画の視聴範囲は別に申告する。
+
+`--scroll`は8件のダミーを追加し、末尾のコピーと通知消去時の位置保持も確認する。最古以外を先に一度ずつコピーし、使用回数による並べ替えを位置保持の判定に混ぜない。再現条件は専用端末のダミーデータで固定する。検索入力中の配置は[G13](design/audit.md#g13-b--検索入力中の通知配置)の上部バー試作を含む。
