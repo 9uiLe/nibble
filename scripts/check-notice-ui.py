@@ -112,7 +112,8 @@ def main():
                     frame = field["frame"]
                     run.command(["sim-use", "paste", "--via-menu", "--target-x", str(frame["x"] + frame["width"] / 2),
                                  "--target-y", str(frame["y"] + frame["height"] / 2), "--device", args.device, term])
-                    data = wait("search-result", lambda data: "copy." + snippet in ids(data))
+                    data = wait("search-result", lambda data: "copy." + snippet in ids(data) and "Search" in ids(data))
+                    search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
                     run.screenshot("search-before")
                     run.tap("copy." + snippet)
                     run.screenshot("search-copy-keyboard")
@@ -120,6 +121,9 @@ def main():
                     data = assert_no_notice("search-expired")
                     if not any(e.get("role") == "TextField" and e.get("value") == term for e in data["entries"]):
                         raise VerificationError("Search query was lost on notification expiry")
+                    field_after = next(e for e in data["entries"] if e.get("role") == "TextField")
+                    if "Search" not in ids(data) or any(abs(field_after["frame"][key] - search_frame[key]) > 1 for key in ("x", "y", "width", "height")):
+                        raise VerificationError("Search keyboard or field placement changed on expiry")
                     run.screenshot("search-after")
                     delete(snippet)
                     run.screenshot("search-delete-keyboard")

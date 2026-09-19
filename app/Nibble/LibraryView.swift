@@ -170,9 +170,20 @@ private struct LibraryTabAccessory: ViewModifier {
 
     @ViewBuilder private var accessory: some View {
         if let model, model.notice != nil {
-            LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) }, inAccessory: true)
+            LibraryAccessoryContent(model: model, taskOwner: taskOwner)
                 .animationBarrier(warnsOnLeaks: false)
         }
+    }
+}
+
+@Equatable
+private struct LibraryAccessoryContent: View {
+    private let inputRevision = UUID()
+    @SkipEquatable let model: LibraryModel
+    @SkipEquatable let taskOwner: LibraryTaskOwner
+
+    var body: some View {
+        LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) }, inAccessory: true)
     }
 }
 

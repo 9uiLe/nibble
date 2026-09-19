@@ -78,6 +78,31 @@ extension UIIntegrationTests {
             #expect(effects.events == (copy ? [.copy("遅れて完了する")] : []))
         }
 
+        @Test func restorationFinishesAfterLeavingWithoutReplayingFeedback() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let id = try await create(files.store, body: "復元する本文")
+            let storage = PausedNoticeStorage(store: files.store)
+            let effects = RecordingLibraryEffects()
+            let model = LibraryModel(store: storage, effects: effects)
+            await model.delete(id)
+            let notice = try #require(model.notice)
+            let feedback = model.feedback
+            let events = effects.events
+            storage.pausesMutation = true
+            let owner = LibraryTaskOwner()
+            owner.startTask(.undoNotice(notice.id), on: model)
+            await storage.gate.waitForRequests(1)
+            model.setNoticePresentation(false)
+            owner.endScreen()
+            model.setNoticePresentation(true)
+            storage.gate.finish(0)
+            await owner.waitForIdle()
+            #expect(try await !files.store.snippet(id).deleted)
+            #expect(model.notice == nil && model.failure == nil && model.restoringIDs.isEmpty)
+            #expect(model.feedback == feedback && effects.events == events)
+        }
+
         @Test func undoIsOwnedDeduplicatedAndRecoverableAfterFailure() async throws {
             let files = try TestDatabase()
             defer { files.removeFiles() }
@@ -117,26 +142,26 @@ extension UIIntegrationTests {
             let first = try #require(model.notice?.id)
             #expect(sleeper.deadlines.isEmpty, "A data operation does not start a display timer")
             let tasks = ViewTaskStore()
-            let latestTasks = ViewTaskStore()
-            tasks.start(id: "first", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
+            let firstRun = tasks.start(id: "first", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
             await sleeper.gate.waitForRequests(1)
             let firstDeadline = try #require(sleeper.deadlines.first)
             #expect(ContinuousClock.now.duration(to: firstDeadline) > .seconds(1))
             // Rebuilding the same notification view must not extend its deadline.
-            tasks.start(id: "remount", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
+            let remountedRun = tasks.start(id: "remount", lifetime: .screenBound) { _ in await model.expireNotice(id: first) }
             await sleeper.gate.waitForRequests(2)
             #expect(sleeper.deadlines[1] == firstDeadline)
             await model.delete(id)
             let latest = try #require(model.notice?.id)
-            latestTasks.start(id: "latest", lifetime: .screenBound) { _ in await model.expireNotice(id: latest) }
+            tasks.start(id: "latest", lifetime: .screenBound) { _ in await model.expireNotice(id: latest) }
             await sleeper.gate.waitForRequests(3)
             #expect(ContinuousClock.now.duration(to: sleeper.deadlines[2]) > .seconds(5))
             sleeper.gate.finish(0)
             sleeper.gate.finish(1)
-            await tasks.waitForIdle()
+            await tasks.awaitCompletion(of: try #require(firstRun.run))
+            await tasks.awaitCompletion(of: try #require(remountedRun.run))
             #expect(model.notice?.id == latest && model.notice?.undoID == id)
             sleeper.gate.finish(2)
-            await latestTasks.waitForIdle()
+            await tasks.waitForIdle()
             #expect(model.notice == nil)
             #expect(try await files.store.snippet(id).deleted, "Expiry never permanently deletes data")
             await model.restore(id)
