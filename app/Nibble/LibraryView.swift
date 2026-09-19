@@ -54,7 +54,7 @@ struct LibraryView: View {
                     .searchPresentationToolbarBehavior(.avoidHidingContent)
             }
         }
-        .modifier(LibraryTabAccessory(all: all, search: search, origin: noticeOrigin, searchFocused: searchFocused, taskOwner: routeOwner))
+        .modifier(LibraryResultFeedback(all: all, search: search))
         .tabViewSearchActivation(.searchTabSelection)
         .tabBarMinimizeBehavior(.never)
         .textInputAutocapitalization(.never)
@@ -115,8 +115,8 @@ struct LibraryView: View {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
                           showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
                 .safeAreaBar(edge: .top) {
-                    if showsSearchPrompt, searchFocused, noticeOrigin == .search, search.notice != nil {
-                        LibraryAccessoryContent(model: search, taskOwner: routeOwner)
+                    if let notice = model.notice, noticeOrigin == notice.origin {
+                        LibraryAccessoryContent(model: model, taskOwner: routeOwner)
                             .frame(minHeight: 48)
                     }
                 }
@@ -145,41 +145,15 @@ struct LibraryView: View {
     }
 }
 
-/// Only the accessory observes transient result content. The tab hierarchy keeps its identity.
-private struct LibraryTabAccessory: ViewModifier {
+/// Keeps success feedback tied to completed operations rather than notice appearances.
+private struct LibraryResultFeedback: ViewModifier {
     let all: LibraryModel
     let search: LibraryModel
-    let origin: LibraryModel.Notice.Origin?
-    let searchFocused: Bool
-    let taskOwner: LibraryTaskOwner
-
-    private var model: LibraryModel? {
-        switch origin {
-        case .library: all
-        case .search: searchFocused ? nil : search
-        default: nil
-        }
-    }
 
     func body(content: Content) -> some View {
-        Group {
-            if #available(iOS 26.1, *) {
-                content.tabViewBottomAccessory(isEnabled: model?.notice != nil) { accessory }
-            } else {
-                // 26.0 removes the accessory when the builder has no content.
-                // Branch inside the accessory, never around the TabView.
-                content.tabViewBottomAccessory { accessory }
-            }
-        }
-        .sensoryFeedback(.success, trigger: all.feedback)
-        .sensoryFeedback(.success, trigger: search.feedback)
-    }
-
-    @ViewBuilder private var accessory: some View {
-        if let model, model.notice != nil {
-            LibraryAccessoryContent(model: model, taskOwner: taskOwner)
-                .animationBarrier(warnsOnLeaks: false)
-        }
+        content
+            .sensoryFeedback(.success, trigger: all.feedback)
+            .sensoryFeedback(.success, trigger: search.feedback)
     }
 }
 

@@ -214,9 +214,12 @@ MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含め�
 ```sh
 nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"
 nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --scroll
+nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --geometry-only
 nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR" --appearance dark
 ```
 
 ダミーの長い対象名を作り、コピー・連続コピー・削除と取り消し、検索入力中、タブ移動、シート開閉、背景復帰を確認する。表示前・表示中・消去後の画像と録画を保存する。`--baseline`は配置変更前のコピー・削除・取り消しを撮影する。ドライバーはAXと結果状態を照合する。VoiceOver音声、触覚、録画の視聴範囲は別に申告する。
 
 `--scroll`は8件のダミーを追加し、末尾のコピーと通知消去時の位置保持も確認する。最古以外を先に一度ずつコピーし、使用回数による並べ替えを位置保持の判定に混ぜない。再現条件は専用端末のダミーデータで固定する。検索入力中の配置は[G13](design/audit.md#g13-b--検索入力中の通知配置)の上部バー試作を含む。
+
+`--geometry-only`は専用端末の既存ダミー項目をコピーし、通知の表示前・表示中・消去後で「一覧」「設定」「検索」と作成ボタンの位置・寸法を比較する。1 ptを超える変化を失敗とする。項目がなければダミーを作成する。タブ再配置の回帰検査であり、一覧内のスクロール位置の検査とは別である。

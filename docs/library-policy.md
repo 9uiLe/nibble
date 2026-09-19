@@ -102,7 +102,7 @@ Releaseは`-Osize`・whole-moduleでコードを生成し、`ENABLE_TESTABILITY=
 
 actor、checked continuation、`CancellationError`を利用できる。既存タスク内での待機・協調には`Task.sleep`・`yield`・`checkCancellation`・`isCancelled`・`currentPriority`を使える。
 
-`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。タブの触覚は常設のaccessory配置層、シートの触覚はシートが観測し、通知Viewの出現を成功イベントの代用にしない。どちらの部品にもタスク所有者を渡さない。
+`SnippetRow.perform`と`LibraryNotice.restore`は、Buttonから直接呼ばれる同期のUIイベントである。これらのコールバックで、親画面が`startTask`を呼ぶ。行は表示値と操作意図のコールバックだけを受け取る。通知はモデルの通知を観測して期限を待つが、復元タスクの開始と所有は親画面が担当する。タブの触覚は常設のLibraryResultFeedback、シートの触覚はシートが観測し、通知Viewの出現を成功イベントの代用にしない。どちらの部品にもタスク所有者を渡さない。
 
 Lintはコンストラクタの`perform:`・`restore:`という明示ラベル付きのclosureだけを開始境界として許可し、未登録のコンストラクタ、表示用closure、別名化された開始関数を拒否する。
 

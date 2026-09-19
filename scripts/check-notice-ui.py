@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
     parser.add_argument("--baseline", action="store_true")
+    parser.add_argument("--geometry-only", action="store_true", help="Check tab and create-button stability during one copy notice")
     parser.add_argument("--scroll", action="store_true", help="Also seed a scrollable list and check its final row")
     parser.add_argument("--appearance", choices=("light", "dark"), default="light")
     args = parser.parse_args()
@@ -52,6 +53,13 @@ def main():
 
     def assert_no_notice(name):
         return wait(name, lambda data: "library.notice" not in ids(data) and "library.undo" not in ids(data))
+
+    def navigation_frames(data):
+        frames = {e["label"]: e["frame"] for e in data["entries"] if e.get("role") == "RadioButton"}
+        frames.update({"library.add": e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add"})
+        if not {"一覧", "設定", "検索", "library.add"}.issubset(frames):
+            raise VerificationError("Navigation controls are missing")
+        return frames
 
     def tap_row(identifier):
         for attempt in range(12):
@@ -122,18 +130,39 @@ def main():
             if "editor.close" in ids(data):
                 run.tap("editor.close")
                 data = wait("editor-closed", lambda data: "library.add" in ids(data) or "library.createFirst" in ids(data))
-            snippet = create_item(title, data)
-            # Reveal the new row before establishing the notification-free baseline.
-            tap_row("copy." + snippet)
-            time.sleep(2.3)
-            assert_no_notice("initial-copy-expired")
+            existing_copy = next((e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")), None)
+            if args.geometry_only and existing_copy:
+                snippet = existing_copy["uniqueId"].removeprefix("copy.")
+            else:
+                snippet = create_item(title, data)
+                # Reveal the new row before establishing the notification-free baseline.
+                tap_row("copy." + snippet)
+                time.sleep(2.3)
+            data = assert_no_notice("initial-copy-expired")
+            before_frames = navigation_frames(data)
             run.screenshot("notice-before")
             with run.recording():
                 tap_row("copy." + snippet)
+                data = wait("copy-notice-visible", lambda data: "library.notice" in ids(data))
+                during_frames = navigation_frames(data)
                 run.screenshot("notice-copy")
                 time.sleep(2.3)
-                assert_no_notice("copy-expired")
+                data = assert_no_notice("copy-expired")
+                after_frames = navigation_frames(data)
                 run.screenshot("notice-after")
+                if args.geometry_only:
+                    run.manifest["navigation_frames"] = {"before": before_frames, "during": during_frames, "after": after_frames}
+                    movements = {phase: {label: {axis: current[label][axis] - frame[axis]
+                                                for axis in ("x", "y", "width", "height")
+                                                if abs(current[label][axis] - frame[axis]) > 1}
+                                          for label, frame in before_frames.items()}
+                                 for phase, current in (("during", during_frames), ("after", after_frames))}
+                    run.manifest["navigation_movements"] = movements
+                    run.save()
+                    if any(delta for phase in movements.values() for delta in phase.values()):
+                        raise VerificationError("Navigation controls moved with the notice: " + str(movements))
+                    run.manifest["assertions"] = {"navigation_frames_stable": True, "copy_expired": True}
+                    return
                 tap_row("copy." + snippet)
                 tap_row("copy." + snippet)
                 run.screenshot("notice-repeated-copy")
