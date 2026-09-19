@@ -14,7 +14,9 @@ nibbleはiOS向けのスニペットツール。作業中の文脈を保ちな�
 | [検証基盤の設計](docs/decisions/0001-local-ios-verification.md) | 実行、証跡、CI、レビューの責務と保証範囲 |
 | [ローカルiOS検証](docs/ios-verification.md) | ビルド・テスト・画面操作・撮影 |
 | [証跡とPRの検査](docs/review-evidence.md) | ソースと媒体の照合、レビュー記録、PR本文とGitHubの確認 |
-| [AGENTS.md](AGENTS.md)と[共有Skill](.agents/skills/nibble-verification/SKILL.md) | エージェントの判断基準と作業手順 |
+| [AGENTS.md](AGENTS.md)と[共有Skill](.agents/skills/nibble-verification/SKILL.md) | エージェントの判断基準、iOS実行・証跡・PRの工程選択 |
+
+このガイドは開発規約の正本である。作業内容に対応する節から、必要な設計資料・実行手順へ進む。確認済みで内容が変わっていない資料は再利用でき、全資料の通読は必要ない。エージェント向けの入口とSkillの責務は[エージェント指示の設計](docs/agent-instructions.md)に定義する。
 
 設計資料は目的、採用構成、責務、契約、制約を定義する。実験条件、対象コミット、観測、失敗、未実施項目は検証記録に置く。用語を文書内で説明し、新規参加者が実装判断できる構成にする。
 
@@ -100,6 +102,8 @@ flakeが参照するファイルはGitの追跡対象にする。nixpkgsの更�
 | Viewの比較と入力 | 自作Viewは`@Equatable`を宣言。値表示は`@MainActor EquatableBodyView`で全入力を比較。親入力を持つ通常のViewは生成ごとの比較用UUID（`inputRevision`）で接続先の差し替えを反映 | 表示値の変更・復元、Binding・操作先の差し替え、同じ入力での外観・文字サイズの更新を検査 |
 | SwiftUIのアニメーション | swift-scoped-animationの`AnimationScope` / `animationBarrier`で適用範囲を定義 | Debug診断、入力・通知・Reduce Motionの画像・録画を確認 |
 | 説明イラスト | RMLが図形・時間・演出状態を持ち、RivePresentationが読込・接続検査・表示を担当する | 生成契約、実バイナリ、複数周期、配色・Reduce Motion・画面寿命を確認 |
+
+各責務の検証は、変更の影響に応じて実施する。比較ゲート単体は、外観・文字サイズの環境更新を遮断しないことを検査する。製品の入口は[固定表示方針](docs/design/decisions/0002-fixed-interface.md#検証と見直し)に従い、文字サイズ・太字・コントラストが固定され、Reduce Motion下でも独自演出が続くことを検査する。
 
 同期メソッド・setterによる隠れた開始や、タスク開始後に完了を待たず戻る操作APIは禁止する。入力setterは値と入力順序の番号だけを更新し、UIはその時点の下書きを固定して渡す。保存・閉じるは最新入力を永続化し、コピーと通知期限は別の操作にする。
 
