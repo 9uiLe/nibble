@@ -4,6 +4,25 @@ import Testing
 
 @Suite("Draft snapshots and recovery")
 struct DraftLifecycleTests {
+    @Test func newerSequenceKeepsLongInputAndEqualSequenceRequiresExactBytes() async throws {
+        let database = try TestDatabase()
+        defer { database.removeFiles() }
+        let original = String(repeating: "長い本文\n", count: 50_000)
+        var draft = try await database.store.beginDraft(body: original)
+        draft.body = original + "か\u{3099}\0"
+        try await database.store.keepDraft(draft)
+        #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
+        // Equal sequence remains valid after persistence and can close again.
+        try await database.store.keepDraft(draft)
+        let conflicting = Draft(id: draft.id, snippetID: draft.snippetID, baseRevision: draft.baseRevision,
+                                title: draft.title, body: original + "が\0", sequence: draft.sequence)
+        await #expect(throws: StoreError.staleDraft) { try await database.store.keepDraft(conflicting) }
+        let foreign = Draft(id: draft.id, snippetID: UUID(), baseRevision: draft.baseRevision,
+                            title: draft.title, body: draft.body, sequence: draft.sequence + 1)
+        await #expect(throws: StoreError.staleDraft) { try await database.store.discardDraft(foreign) }
+        #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
+    }
+
     @Test func byteComparisonPreservesEmptyNullUnicodeAndLongInput() {
         #expect(SnippetText.hasSameBytes("", ""))
         #expect(!SnippetText.hasSameBytes("", "a"))

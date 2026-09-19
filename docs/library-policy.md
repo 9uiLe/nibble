@@ -25,7 +25,7 @@ nibbleのSwift実装は、依存の所有者、外部状態への作用、操作
 | 境界 | 実装する契約 |
 | --- | --- |
 | 保存先 | `SnippetStorage`がApp Groupを解決する。最初の操作時に解決し、取得失敗を回復可能なエラーとして返す |
-| 永続化 | `SnippetStore`が業務単位を定義し、`SnippetSchema`がschema、`SQLiteDatabase`が接続とstatementを管理する。トランザクション中は中断しない |
+| 永続化 | モデルは`LibraryStorage`・`DraftEditing`を参照する。`SnippetStore`が接続を所有・直列化し、`SnippetQueries`・`DraftQueries`・`SnippetCommands`が同期SQLを実行する。トランザクション中は中断しない |
 | 同期OS操作 | `LibraryModel`は`LibraryEffects`を参照する。`SystemLibraryEffects`がMainActor上でコピー・読み上げ通知を実行し、処理の終了前に戻らない |
 | UIイベント | 行は表示値と意味のある操作意図を受け渡す。親画面が意図をモデルの操作へ接続し、タスクを所有する |
 | 一時的な表示 | `LibraryNotice`が通知・触覚を観測する。通知期限はSwiftUIのタスク、復元操作は親画面の所有者へ接続する |

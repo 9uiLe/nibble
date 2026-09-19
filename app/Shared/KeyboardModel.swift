@@ -18,21 +18,33 @@ protocol KeyboardEffects: AnyObject {
 @MainActor @Observable
 final class KeyboardModel {
     enum Use { case insert, copy }
+    private enum LoadState: Equatable {
+        case inactive, pending, loading(UUID), ready, failed(String)
+    }
     private let reader: any KeyboardReading
     private weak var effects: (any KeyboardEffects)?
     private(set) var request = KeyboardRequest()
     private(set) var loadID = UUID()
-    private(set) var isActive = false
-    private(set) var loading = true
-    private(set) var failure: String?
+    private var loadState = LoadState.inactive
     private(set) var message: String?
     private(set) var hasFullAccess = false
     private(set) var needsSwitchKey = false
     private var operation: UUID?
     private var snapshot: (request: KeyboardRequest, page: KeyboardPage)?
 
+    var isActive: Bool { loadState != .inactive }
+    var loading: Bool {
+        switch loadState {
+        case .inactive, .pending, .loading: true
+        case .ready, .failed: false
+        }
+    }
+    var failure: String? {
+        if case .failed(let message) = loadState { return message }
+        return nil
+    }
     var page: KeyboardPage? { snapshot?.page }
-    var isCurrent: Bool { snapshot?.request == request && !loading && failure == nil }
+    var isCurrent: Bool { snapshot?.request == request && loadState == .ready }
     var isUsing: Bool { operation != nil }
 
     init(reader: any KeyboardReading, effects: any KeyboardEffects) {
@@ -41,19 +53,16 @@ final class KeyboardModel {
     }
 
     func activate() {
-        isActive = true
-        request = KeyboardRequest(filter: request.filter)
+        loadState = .pending
         requestReload()
     }
 
     func deactivate() {
-        isActive = false
+        loadState = .inactive
         loadID = UUID()
         operation = nil
         snapshot = nil
-        failure = nil
         message = nil
-        loading = true
     }
 
     func updateCapabilities(fullAccess: Bool, needsSwitchKey: Bool) {
@@ -81,8 +90,7 @@ final class KeyboardModel {
 
     private func invalidate() {
         loadID = UUID()
-        loading = true
-        failure = nil
+        if isActive { loadState = .pending }
         message = nil
         operation = nil
     }
@@ -91,22 +99,24 @@ final class KeyboardModel {
         guard isActive, !Task.isCancelled else { return }
         let id = loadID
         let requested = request
+        let readID = UUID()
+        loadState = .loading(readID)
         do {
             let page = try await reader.page(requested)
             try Task.checkCancellation()
-            guard isActive, loadID == id else { return }
+            guard loadID == id, loadState == .loading(readID) else { return }
             snapshot = (requested, page)
-            loading = false
+            loadState = .ready
         } catch {
-            guard isActive, loadID == id else { return }
-            loading = false
-            failure = Task.isCancelled || error is CancellationError
-                ? "読み込みを中断しました。更新して再試行できます。" : error.localizedDescription
+            guard loadID == id, loadState == .loading(readID) else { return }
+            loadState = .failed(Task.isCancelled || error is CancellationError
+                ? "読み込みを中断しました。更新して再試行できます。" : error.localizedDescription)
         }
     }
 
     func use(_ item: SnippetSummary, as use: Use) async {
         guard isActive, isCurrent, operation == nil, !Task.isCancelled, let effects else { return }
+        guard page?.items.contains(where: { $0.id == item.id && $0.revision == item.revision }) == true else { return }
         if case .copy = use, !effects.canCopy {
             message = "コピーには、iOS設定でnibbleのフルアクセスを許可してください。"
             return

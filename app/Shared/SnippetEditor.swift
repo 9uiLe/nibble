@@ -18,7 +18,7 @@ struct SnippetEditor: View {
     @Environment(\.scenePhase) private var scenePhase
     private let complete: (@MainActor () -> Void)?
 
-    init(draft: Draft, store: SnippetStore, complete: (@MainActor () -> Void)? = nil) {
+    init(draft: Draft, store: any DraftEditing, complete: (@MainActor () -> Void)? = nil) {
         _model = State(initialValue: EditorModel(draft: draft, store: store))
         self.complete = complete
     }

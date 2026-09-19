@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
-actor SnippetStore: LibraryReading {
+actor SnippetStore: LibraryStorage, DraftEditing {
     private let location: @Sendable () throws -> URL
     private var connection: SQLiteDatabase?
     private let signposter = OSSignposter(subsystem: "nibble.9uiLe.com", category: "Store")
@@ -47,140 +47,53 @@ actor SnippetStore: LibraryReading {
     }
 
     func summary(_ id: UUID) throws -> SnippetSummary {
-        let values = try database().rows("SELECT id,title,substr(body,1,180),pinned,revision FROM snippets WHERE id=?",
-                                         [.text(id.uuidString)]) { row in
-            SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2), pinned: row.int(3) == 1, revision: row.int(4))
-        }
-        guard let value = values.first else { throw StoreError.missing }
-        return value
+        try SnippetQueries.summary(database(), id: id)
     }
 
     func snippet(_ id: UUID) throws -> Snippet {
         try SnippetQueries.snippet(database(), id: id)
     }
 
-    /// Creates a distinct editing session. The library uses editingDraft(for:) to resume one.
     func beginDraft(snippetID: UUID? = nil, body: String = "") throws -> Draft {
-        let db = try database()
-        return try db.writeTransaction { try insertDraft(snippetID: snippetID, body: body, into: db) }
+        try DraftQueries.beginDraft(database(), snippetID: snippetID, body: body)
     }
 
-    /// Lookup and creation share one write transaction, even across app/extension connections.
-    func editingDraft(for snippetID: UUID) throws -> Draft {
-        let db = try database()
-        return try db.writeTransaction {
-            guard try !snippet(snippetID).deleted else { throw StoreError.missing }
-            let existing = try db.rows("SELECT id FROM drafts WHERE snippet_id=? ORDER BY updated DESC,id LIMIT 1",
-                                       [.text(snippetID.uuidString)]) { try $0.uuid(0) }
-            if let id = existing.first { return try draft(id) }
-            return try insertDraft(snippetID: snippetID, body: "", into: db)
-        }
-    }
-
-    private func insertDraft(snippetID: UUID?, body: String, into db: SQLiteDatabase) throws -> Draft {
-        let snippet = try snippetID.map { try self.snippet($0) }
-        guard snippet?.deleted != true else { throw StoreError.missing }
-        let draft = Draft(id: UUID(), snippetID: snippetID, baseRevision: snippet?.revision ?? 0,
-                          title: snippet?.title ?? "", body: snippet?.body ?? body)
-        try db.execute("INSERT INTO drafts(id,snippet_id,base_revision,title,body,sequence,updated) VALUES(?,?,?,?,?,0,?)",
-            [.text(draft.id.uuidString), .text(snippetID?.uuidString ?? ""), .int(draft.baseRevision),
-             .text(draft.title), .text(draft.body), .real(Date().timeIntervalSince1970)])
-        return draft
+    func editingDraft(for id: UUID) throws -> Draft {
+        try DraftQueries.editingDraft(database(), for: id)
     }
 
     func drafts(limit: Int = Int.max) throws -> [DraftSummary] {
-        try database().rows("SELECT id,substr(title,1,180),substr(body,1,180),updated FROM drafts ORDER BY updated DESC,id LIMIT ?",
-                            [.int(max(1, limit))]) { row in
-            DraftSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2),
-                         updatedAt: Date(timeIntervalSince1970: row.double(3)))
-        }
+        try DraftQueries.drafts(database(), limit: limit)
     }
 
-    func draft(_ id: UUID) throws -> Draft {
-        let values = try database().rows("SELECT snippet_id,base_revision,title,body,sequence FROM drafts WHERE id=?",
-                                         [.text(id.uuidString)]) { row in
-            let target = row.text(0)
-            return Draft(id: id, snippetID: target.isEmpty ? nil : try row.uuid(0), baseRevision: row.int(1),
-                         title: row.text(2), body: row.text(3), sequence: row.int(4))
-        }
-        guard let value = values.first else { throw StoreError.missing }
-        return value
-    }
-
-    func updateDraft(_ draft: Draft) throws {
-        // UPDATE only: a late queued write cannot resurrect a saved/discarded draft.
-        try database().execute("UPDATE drafts SET title=?,body=?,sequence=?,updated=? WHERE id=? AND sequence<?",
-            [.text(draft.title), .text(draft.body), .int(draft.sequence), .real(Date().timeIntervalSince1970),
-             .text(draft.id.uuidString), .int(draft.sequence)])
-    }
-
-    func keepDraft(_ snapshot: Draft) throws {
-        let db = try database()
-        try db.writeTransaction {
-            guard try snapshot.canReplace(draft(snapshot.id)) else { throw StoreError.staleDraft }
-            if snapshot.isDisposable { try removeDraft(snapshot.id, from: db) }
-            else { try updateDraft(snapshot) }
-        }
-    }
-
-    func discardDraft(_ snapshot: Draft) throws {
-        let db = try database()
-        try db.writeTransaction {
-            guard try snapshot.canReplace(draft(snapshot.id)) else { throw StoreError.staleDraft }
-            try removeDraft(snapshot.id, from: db)
-        }
-    }
-
-    private func removeDraft(_ id: UUID, from db: SQLiteDatabase) throws {
-        try db.execute("DELETE FROM drafts WHERE id=?", [.text(id.uuidString)])
-    }
+    func draft(_ id: UUID) throws -> Draft { try DraftQueries.draft(database(), id: id) }
+    func updateDraft(_ draft: Draft) throws { try DraftQueries.updateDraft(draft, in: database()) }
+    func keepDraft(_ draft: Draft) throws { try DraftQueries.keepDraft(draft, in: database()) }
+    func discardDraft(_ draft: Draft) throws { try DraftQueries.discardDraft(draft, in: database()) }
 
     @discardableResult
     func save(_ draft: Draft, asNew: Bool = false) throws -> UUID {
         let interval = signposter.beginInterval("Save")
         defer { signposter.endInterval("Save", interval) }
-        try SnippetText.validate(title: draft.title, body: draft.body)
-        let db = try database()
-        let id = asNew ? UUID() : (draft.snippetID ?? UUID())
-        let key = SnippetText.searchKey(draft.title + "\n" + draft.body)
-        try db.writeTransaction {
-            let replacesDraft: Bool
-            do { replacesDraft = try draft.canReplace(self.draft(draft.id)) }
-            catch StoreError.missing where asNew { replacesDraft = false }
-            guard asNew || replacesDraft else { throw StoreError.staleDraft }
-            if draft.snippetID != nil && !asNew {
-                try db.execute("UPDATE snippets SET title=?,body=?,search_key=?,updated=?,revision=revision+1 WHERE id=? AND revision=? AND deleted=0",
-                    [.text(draft.title), .text(draft.body), .text(key), .real(Date().timeIntervalSince1970), .text(id.uuidString), .int(draft.baseRevision)])
-                guard db.changes == 1 else { throw StoreError.conflict }
-            } else {
-                try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted) VALUES(?,?,?,?,0,1,?,0)",
-                    [.text(id.uuidString), .text(draft.title), .text(draft.body), .text(key), .real(Date().timeIntervalSince1970)])
-            }
-            // A conflict copy must not remove another editor's newer input.
-            if replacesDraft { try removeDraft(draft.id, from: db) }
-        }
-        return id
+        return try DraftQueries.save(draft, asNew: asNew, in: database())
+    }
+
+    func savedBody(_ id: UUID) throws -> String { try SnippetQueries.savedBody(database(), id: id) }
+
+    func mutate(_ mutation: SnippetMutation, id: UUID) throws -> SnippetMutationResult {
+        try SnippetCommands.apply(mutation, id: id, to: database())
     }
 
     func setPinned(_ pinned: Bool, id: UUID) throws {
-        let db = try database()
-        try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND deleted=0", [.int(pinned ? 1 : 0), .text(id.uuidString)])
-        guard db.changes == 1 else { throw StoreError.missing }
+        try SnippetCommands.setPinned(pinned, id: id, in: database())
     }
 
     func setDeleted(_ deleted: Bool, id: UUID) throws {
-        let db = try database()
-        try db.execute("UPDATE snippets SET deleted=?,updated=?,revision=revision+1 WHERE id=?",
-            [.int(deleted ? 1 : 0), .real(Date().timeIntervalSince1970), .text(id.uuidString)])
-        guard db.changes == 1 else { throw StoreError.missing }
+        try SnippetCommands.setDeleted(deleted, id: id, in: database())
     }
 
     func permanentlyDelete(_ id: UUID) throws {
         let db = try database()
-        try db.writeTransaction {
-            try db.execute("DELETE FROM snippets WHERE id=? AND deleted=1", [.text(id.uuidString)])
-            guard db.changes == 1 else { throw StoreError.missing }
-            try db.execute("DELETE FROM drafts WHERE snippet_id=?", [.text(id.uuidString)])
-        }
+        try db.writeTransaction { try SnippetCommands.remove(id, from: db) }
     }
 }

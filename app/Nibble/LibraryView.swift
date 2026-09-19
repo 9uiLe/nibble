@@ -12,14 +12,14 @@ struct LibraryView: View {
     @AppStorage(ActionButtonSide.storageKey) private var actionButtonSide = ActionButtonSide.right
     @State private var all: LibraryModel
     @State private var search: LibraryModel
-    @SkipEquatable private let store: SnippetStore
+    @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: SnippetStore, effects: any LibraryEffects) {
+    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
         self.store = store
         self.effects = effects
         _all = State(initialValue: LibraryModel(store: store, effects: effects))
@@ -110,7 +110,7 @@ private struct DeletedSnippetsView: View {
     @FocusState private var searchFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
-    init(store: SnippetStore, effects: any LibraryEffects) {
+    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
         _model = State(initialValue: LibraryModel(store: store, effects: effects, filter: .trash))
     }
 

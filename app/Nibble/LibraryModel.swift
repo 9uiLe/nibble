@@ -1,18 +1,9 @@
 import Foundation
 import Observation
 
-/// Draft lookup is separate from presentation so late database results can be discarded.
-protocol LibraryOpening: Sendable {
-    func beginDraft(snippetID: UUID?, body: String) async throws -> Draft
-    func editingDraft(for id: UUID) async throws -> Draft
-    func draft(_ id: UUID) async throws -> Draft
-}
-
-extension SnippetStore: LibraryOpening { }
-
 @MainActor @Observable
 final class LibraryModel {
-    let store: SnippetStore
+    private let store: any LibraryStorage
     private let effects: any LibraryEffects
     enum EditorSource { case new, snippet(UUID), draft(UUID) }
 
@@ -90,7 +81,7 @@ final class LibraryModel {
     func showMore() { request = request.expanded }
     func dismissFailure() { operationFailure = nil }
 
-    init(store: SnippetStore, effects: any LibraryEffects, filter: LibraryFilter = .all,
+    init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil) {
         self.store = store
         self.effects = effects
@@ -177,10 +168,9 @@ final class LibraryModel {
         operationFailure = nil
         do {
             try Task.checkCancellation()
-            let snippet = try await store.snippet(id)
+            let body = try await store.savedBody(id)
             try Task.checkCancellation()
-            guard !snippet.deleted else { throw StoreError.missing }
-            effects.copy(snippet.body)
+            effects.copy(body)
             feedback += 1
             announce("コピーしました")
         } catch is CancellationError { }
@@ -198,10 +188,9 @@ final class LibraryModel {
         guard !Task.isCancelled else { return }
         operationFailure = nil
         do {
-            let name = try await subject(id)
-            try await store.setDeleted(true, id: id)
+            let result = try await store.mutate(.delete, id: id)
             await refresh()
-            announce("削除しました", subject: name, undo: id)
+            announce("削除しました", subject: result.subject, undo: id)
         } catch { report("削除できませんでした", error) }
     }
 
@@ -209,10 +198,9 @@ final class LibraryModel {
         guard !Task.isCancelled else { return }
         operationFailure = nil
         do {
-            let name = try await subject(id)
-            try await store.setDeleted(false, id: id)
+            let result = try await store.mutate(.restore, id: id)
             await refresh()
-            announce("元に戻しました", subject: name)
+            announce("元に戻しました", subject: result.subject)
         } catch { report("復元できませんでした", error) }
     }
 
@@ -220,16 +208,10 @@ final class LibraryModel {
         guard !Task.isCancelled else { return }
         operationFailure = nil
         do {
-            let name = try await subject(id)
-            try await store.permanentlyDelete(id)
+            let result = try await store.mutate(.permanentlyDelete, id: id)
             await refresh()
-            announce("完全に削除しました", subject: name)
+            announce("完全に削除しました", subject: result.subject)
         } catch { report("完全に削除できませんでした", error) }
-    }
-
-    private func subject(_ id: UUID) async throws -> String {
-        if let item = items.first(where: { $0.id == id }) { return item.displayTitle }
-        return try await store.summary(id).displayTitle
     }
 
     private func report(_ title: String, _ error: Error) {

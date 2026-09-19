@@ -4,6 +4,49 @@ import Testing
 
 @Suite("Persistence boundaries")
 struct PersistenceBoundaryTests {
+    @Test @MainActor func mutationNoticeUsesCommittedDataInsteadOfCachedRows() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let id = try await create(files.store, title: "一覧の古い題名", body: "本文")
+        let model = LibraryModel(store: files.store)
+        await model.refresh()
+        let otherProcess = SnippetStore(location: files.url)
+        var draft = try await otherProcess.editingDraft(for: id)
+        draft.title = "別の画面で更新した題名"
+        try await otherProcess.save(draft)
+        await model.delete(id)
+        #expect(model.notice?.subject == draft.title)
+        #expect(try await files.store.snippet(id).deleted)
+        await model.restore(id)
+        #expect(model.notice?.subject == draft.title)
+        #expect(try await !files.store.snippet(id).deleted)
+    }
+
+    @Test func failedPermanentDeletionPreservesTheSnippetAndItsDraft() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let id = try await create(files.store, body: "保存済み")
+        let draft = try await files.store.editingDraft(for: id)
+        await #expect(throws: StoreError.missing) { try await files.store.mutate(.permanentlyDelete, id: id) }
+        #expect(try await files.store.snippet(id).body == "保存済み")
+        #expect(try await files.store.draft(draft.id).id == draft.id)
+        _ = try await files.store.mutate(.delete, id: id)
+        let result = try await files.store.mutate(.permanentlyDelete, id: id)
+        #expect(result.subject == "保存済み")
+        await #expect(throws: StoreError.missing) { try await files.store.draft(draft.id) }
+    }
+
+    @Test func bodyReadRejectsDeletedAndMissingRowsAndPreservesBytes() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let body = "  か\u{3099}\0\n👩🏽‍💻  "
+        let id = try await create(files.store, body: body)
+        #expect(try await files.store.savedBody(id).utf8.elementsEqual(body.utf8))
+        try await files.store.setDeleted(true, id: id)
+        await #expect(throws: StoreError.missing) { try await files.store.savedBody(id) }
+        await #expect(throws: StoreError.missing) { try await files.store.savedBody(UUID()) }
+    }
+
     @Test func reusedStatementsReplaceEveryBindingAndKeepOriginalBytes() throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }

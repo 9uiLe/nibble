@@ -2,6 +2,32 @@ import Foundation
 
 /// Saved-text queries shared by writable stores and the keyboard's read-only connection.
 enum SnippetQueries {
+    static func requireSaved(_ db: SQLiteDatabase, id: UUID) throws {
+        let deleted = try db.rows("SELECT deleted FROM snippets WHERE id=?", [.text(id.uuidString)]) { $0.int(0) }
+        guard deleted.first == 0 else { throw StoreError.missing }
+    }
+
+    static func summary(_ db: SQLiteDatabase, id: UUID) throws -> SnippetSummary {
+        let values = try db.rows("SELECT id,title,substr(body,1,180),pinned,revision FROM snippets WHERE id=?",
+                                [.text(id.uuidString)]) { row in
+            SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2),
+                           pinned: row.int(3) == 1, revision: row.int(4))
+        }
+        guard let value = values.first else { throw StoreError.missing }
+        return value
+    }
+
+    /// Read only the body. Validate the row before allocating its full text in Swift.
+    static func savedBody(_ db: SQLiteDatabase, id: UUID, revision: Int? = nil) throws -> String {
+        let values = try db.rows("SELECT deleted,revision,body FROM snippets WHERE id=?", [.text(id.uuidString)]) { row in
+            guard row.int(0) == 0 else { throw StoreError.missing }
+            if let revision, row.int(1) != revision { throw StoreError.conflict }
+            return row.text(2)
+        }
+        guard let value = values.first else { throw StoreError.missing }
+        return value
+    }
+
     static func search(_ db: SQLiteDatabase, query: String, filter: LibraryFilter,
                        limit: Int, offset: Int = 0) throws -> [SnippetSummary] {
         guard filter != .drafts else { return [] }
