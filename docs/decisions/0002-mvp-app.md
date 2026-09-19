@@ -361,7 +361,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 検索は`Tab(role: .search)`と`.searchable`を使い、タブ選択時の入力開始を`.tabViewSearchActivation(.searchTabSelection)`で指定する。`.searchPresentationToolbarBehavior(.avoidHidingContent)`で見出しを保ち、入力中は新規作成を隠す。検索語が空白のみの案内と検索0件を分ける。タブバーはスクロールで縮小せず、検索の位置はOSへ委ねる。
 
-左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。`safeAreaInset`で通知と作成の領域を確保する。
+左右設定は新規作成と行のコピーへ同時に適用し、`ActionButtonSide.storageKey`のUserDefaultsへ保持する。既定値は右側。物理的な左右を表し、言語の表示方向と標準検索タブの位置を変えない。新規作成は下部の56 pt、コピーは行横の44 pt以上の操作領域を持つ。新規作成の領域は`LibraryScreen`の`safeAreaInset`で確保し、通常のタブ画面の完了通知は`LibraryView`がシステムのTab Bar accessoryへ配置する。検索入力中の通知配置は[未決定条件と受け入れ](../design/decisions/0004-tab-accessory.md#未決定条件と受け入れ)に従う。
 
 ### 一覧の選択と行操作
 
@@ -384,10 +384,10 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 | 構成 | 担当するView | 入力と更新 |
 | --- | --- | --- |
 | 値だけを表示する部品 | `SnippetRowContent`、`KeyboardRowContent`、`AboutURL` | 通常の値型`let`をすべて比較する。`@MainActor EquatableBodyView`に準拠し、`equatableBody`に表示を定義 |
-| 親の入力を受け取る画面と部品 | `LibraryView`、`LibraryScreen`、`LibraryFilterBar`、`LibraryNotice`、`LibrarySettingsView`、`SnippetRow`、`AboutSection`、`SnippetEditor`、`KeyboardView`、`KeyboardInputModeButton`、`RiveCanvas` | View値の生成ごとに比較用UUIDの`inputRevision`を作り、Binding・操作・モデル参照・contentの差し替えを反映 |
+| 親の入力を受け取る画面と部品 | `LibraryView`、`LibraryScreen`、`LibraryFilterBar`、`LibraryAccessory`、`LegacyLibraryAccessory`、`LibraryNotice`、`LibrarySettingsView`、`SnippetRow`、`AboutSection`、`SnippetEditor`、`KeyboardView`、`KeyboardInputModeButton`、`RiveCanvas` | View値の生成ごとに比較用UUIDの`inputRevision`を作り、Binding・操作・モデル参照・contentの差し替えを反映 |
 | 親入力を格納しない画面と接続 | `AboutView`、`AboutIllustration`、`KeyboardGuideView`、`DeletedSnippetsView`、`SceneInterfaceDefaults` | 所有するStateやEnvironmentによる更新に従う。比較用UUIDは持たない |
 
-一覧行では、`SnippetRowContent`がタイトル・本文プレビュー・ピン状態を表示し、`SnippetRow`が操作を`LibraryScreen`へ渡す。表示値が同じでも、操作は親が渡す現在の接続先を使う。`LibraryAccessory`とシート内の`LibraryNotice`は通知を独立して観測し、一時的なフィードバックの更新を一覧内容の読み取りから分離する。
+一覧行では、`SnippetRowContent`がタイトル・本文プレビュー・ピン状態・未使用の補足を表示し、`SnippetRow`が操作を`LibraryScreen`へ渡す。表示値が同じでも、操作は親が渡す現在の接続先を使う。`LibraryAccessory`とシート内の`LibraryNotice`は通知を独立して観測し、一時的なフィードバックの更新を一覧内容の読み取りから分離する。
 
 `inputRevision`は等価比較の入力であり、表示や永続データのIDには使わない。入力を差し替えるために編集内容、フォーカス、Task所有者、RiveのSessionを破棄しない。状態の保持期間はSwiftUIのidentityと各所有者の寿命に従う。Riveの描画更新番号`renderingRevision`は、同じSessionを使う表示用Viewの再生成だけに使用する。
 
