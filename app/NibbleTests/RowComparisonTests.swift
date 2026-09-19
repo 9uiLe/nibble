@@ -9,18 +9,6 @@ extension UIIntegrationTests {
     @Suite("AppMacros row comparison", .serialized)
     @MainActor
     struct RowComparisonTests {
-        @Test func everyDisplayedInputParticipatesInEquality() {
-            let row = SnippetRowContent(title: "返信", preview: "確認します", pinned: false)
-            #expect(row == SnippetRowContent(title: "返信", preview: "確認します", pinned: false))
-            #expect(row != SnippetRowContent(title: "予定", preview: "確認します", pinned: false))
-            #expect(row != SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false))
-            #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: true))
-            #expect(row != SnippetRowContent(title: "返信", preview: "確認します", pinned: false, unusedSince: Date(timeIntervalSince1970: 0)))
-            // A body-derived heading must also invalidate when its preview changes.
-            #expect(SnippetRowContent(title: "", preview: "一件目", pinned: false)
-                    != SnippetRowContent(title: "", preview: "二件目", pinned: false))
-        }
-
         @Test func brandColorsKeepTheSamePaletteWhenContrastSettingChanges() {
             func luminance(_ color: UIColor, _ traits: UITraitCollection) -> Double {
                 var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -83,12 +71,20 @@ extension UIIntegrationTests {
                 SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false),
                 SnippetRowContent(title: "返信", preview: "確認します", pinned: true),
                 SnippetRowContent(title: "", preview: "本文から見出し", pinned: false),
+                SnippetRowContent(title: "返信", preview: "確認します", pinned: false,
+                                  unusedSince: Date(timeIntervalSince1970: 0)),
             ] {
                 let updated = try await render(row)
                 #expect(updated != initial)
                 let restored = try await render(original)
                 #expect(restored == initial)
             }
+
+            let untitled = SnippetRowContent(title: "", preview: "一件目", pinned: false)
+            let untitledPixels = try await render(untitled)
+            #expect(try await render(SnippetRowContent(title: "", preview: "二件目", pinned: false)) != untitledPixels)
+            #expect(try await render(untitled) == untitledPixels)
+            #expect(try await render(original) == initial)
 
             // Equal row inputs must not freeze environment updates in Text/Image.
             window.overrideUserInterfaceStyle = .dark
@@ -170,30 +166,6 @@ private final class FilterSelection {
 }
 
 extension UIIntegrationTests {
-    @Test @MainActor
-    func replacedCallbacksAndBindingsAreNotEqual() {
-        let item = SnippetSummary(id: UUID(), title: "コピー対象", preview: "本文", pinned: false, revision: 1)
-        var firstCalls = 0
-        var secondCalls = 0
-        let first = SnippetRow(item: item, isTrash: false, actionsAtLeading: false, perform: { _ in firstCalls += 1 })
-        let second = SnippetRow(item: item, isTrash: false, actionsAtLeading: false, perform: { _ in secondCalls += 1 })
-        #expect(first != second)
-        let copy = first
-        #expect(first == copy)
-        second.perform(.copy)
-        #expect(firstCalls == 0 && secondCalls == 1)
-
-        let left = FilterSelection()
-        let right = FilterSelection()
-        let oldFilter = LibraryFilterBar(selection: left.binding)
-        let newFilter = LibraryFilterBar(selection: right.binding)
-        #expect(oldFilter != newFilter)
-        newFilter.selection = .pinned
-        #expect(left.value == .all && right.value == .pinned)
-        #expect(LibrarySettingsView(actionButtonSide: .constant(.right), showTrash: {})
-                != LibrarySettingsView(actionButtonSide: .constant(.right), showTrash: {}))
-    }
-
     @Test @MainActor
     func mountedFilterTracksReplacementBindingWithoutRetainingTheOldSource() async throws {
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)

@@ -1,14 +1,8 @@
 {
   "version": 1,
-  "summary": "S01・S02の通知を、同じUIWindowSceneに属する非keyな専用UIWindowとして設計資料へ定義した。LibraryViewの表示資格、LibraryModelの通知ID・滞在・期限、LibraryTaskOwnerの取り消し、AnchorViewの接続・再利用・解放、カード矩形のhitTestを実装と照合した。safe areaと入力先を維持する責務、固定表示、画面と部品の配置理由、代替案、評価条件が最終構成を説明していることを確認した。実測・失敗・未実施条件は対象ソース付きの検証記録へ分離した。",
+  "summary": "共通UI設計ツールのテスト統合を公開Interface・性能契約と照合した。各path欄の検証、receiptとpolicy変更の検出、入力を一度だけ読む契約を保持し、assetのreadサイズを128KiB以内として観測する検査へ置換した。並行呼出しは異なるrootの結果が混線しない構成へ変更した。製品UI、台帳、検査範囲、共通Module本体は変更していないため、画面・部品の設計変更はない。",
   "references": [
-    "docs/design/decisions/0004-result-notices.md",
-    "docs/design/screens.md",
-    "docs/design/components.md",
-    "docs/design/foundations.md",
-    "docs/design/audit.md",
-    "docs/design/decisions/0002-fixed-interface.md",
-    "docs/decisions/0002-mvp-app.md"
+    "docs/design/README.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -100,7 +94,7 @@
     "tools/ui-design/templates/evidence.md": "5d2161394a846c7e951b268042ed9e064aa56aabf42a52d43f124c02759499e7",
     "tools/ui-design/templates/foundations.md": "a70efbd6f8bfa172291fe52b0520d9ffceb85834e252622119e2bed2662e22b8",
     "tools/ui-design/templates/screen.md": "5912deeba35558fb23e96d62aad7712274adfd4d46c6e1155598f678b594a423",
-    "tools/ui-design/tests/test_engine.py": "f87d0d9762f86c9d5ddc5bc20ca0bde61994a414ab7b880e5ce8dca07a1ebc99",
+    "tools/ui-design/tests/test_engine.py": "01209fee6013c4cacb3761473a6fb98b68587fd4ecb853bf7f6423933796e9c9",
     "tools/ui-design/ui_design/__init__.py": "9c34d0bc8f3fbdc42c68d792509bb476986b1d7228bf922560eb7d97579f7586",
     "tools/ui-design/ui_design/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
     "tools/ui-design/ui_design/_catalog.py": "fbfff00c3b3f234001d77246219642e08802a782eef1209cd69a92a977530f74",

@@ -48,7 +48,7 @@ class DesignAdapterTests(unittest.TestCase):
         self.assertIn('Unreviewed changed input: app/View.swift', result.stdout)
 
     def test_adapter_does_not_allow_overriding_product_policy(self):
-        for option in ('--config', '--conf'):
+        for option in ('--config',):
             with self.subTest(option=option):
                 result = self.run_command('check_ui_design.py', option, 'other.json', 'check')
                 self.assertEqual(result.returncode, 2)

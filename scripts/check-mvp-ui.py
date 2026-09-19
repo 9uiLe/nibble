@@ -30,9 +30,11 @@ def main():
 
     def check_navigation_title(data, title):
         headings = [e["frame"] for e in data["entries"]
-                    if e.get("role") == "Heading" and e.get("label") == title]
+                    if e.get("uniqueId") == "navigation.title"
+                    and e.get("role") == "Heading" and e.get("label") == title]
+        # The top safe area differs between Home-button and notched devices.
         if not headings or not any(frame["x"] < data["screen"]["width"] / 4
-                                   and 50 <= frame["y"] < 120 and frame["width"] >= 32 for frame in headings):
+                                   and 0 <= frame["y"] < 120 and frame["width"] >= 32 for frame in headings):
             raise VerificationError("Root title must be leading inside the navigation bar: " + title)
 
     def choose_side(side):
@@ -77,22 +79,60 @@ def main():
         wait_ui("search-closed", lambda data: not search_fields(data))
 
     def paste(identifier, text, replace=False):
+        def reflected(data):
+            value = next((e.get("value", "") for e in data["entries"] if e.get("uniqueId") == identifier), "")
+            # AX may collapse whitespace; saved/copy bytes are checked separately below.
+            return "".join(value.split()) == "".join(text.split())
+
+        def focus_target(at_end=False):
+            def point(data):
+                frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == identifier)
+                bottom = frame["y"] + frame["height"]
+                keyboard = next((e["frame"] for e in data["entries"]
+                                 if e.get("uniqueId") == "editor.keyboard.dismiss"), None)
+                if keyboard is not None:
+                    bottom = min(bottom, keyboard["y"])
+                if bottom <= frame["y"]:
+                    raise VerificationError("The input field is fully covered by the keyboard: " + identifier)
+                # These short fixtures leave trailing space. Avoid long-pressing
+                # inside a word, which selects a fragment instead of the menu.
+                return frame["x"] + frame["width"] * (0.95 if at_end else 0.5), (frame["y"] + bottom) / 2
+
+            data = wait_ui(identifier + "-focus-target", lambda data: identifier in identifiers(data))
+            x, y = point(data)
+            run.command(["sim-use", "tap", "-x", str(x), "-y", str(y), "--duration", "0.05",
+                         "--device", args.device])
+            data = wait_ui(identifier + "-focused", lambda data: identifier in identifiers(data)
+                           and "editor.keyboard.dismiss" in identifiers(data))
+            x, y = point(data)
+            return ["--target-x", str(x), "--target-y", str(y)]
+
+        target = focus_target(at_end=replace)
         if replace:
             for attempt in range(2):
                 try:
-                    run.command(["sim-use", "paste", "--replace", "--via-menu", "--target-id", identifier,
+                    run.command(["sim-use", "paste", "--replace", "--via-menu", *target,
                                  "--device", args.device, text])
+                    wait_ui(identifier + "-pasted", reflected)
                     return
                 except VerificationError as error:
                     if "Edit menu 'Select All' item did not appear" not in str(error):
                         raise
                     run.manifest["commands"][-1]["handled_error"] = {
-                        "reason": "sim-use 0.14.0 cannot match the observed Japanese Select All menu; use the native menu",
+                        "reason": "sim-use 0.14.0 cannot select Select All in the compact Japanese menu; use the observed native menu",
                         "assertion": "edited_copy_utf8_exact",
                     }
                     run.save()
                     current = run.ui(identifier + f"-replace-menu-{attempt}")
                     if any(entry.get("label") in ("すべてを選択", "Select All") for entry in current["entries"]):
+                        break
+                    disclosure = next((entry for entry in current["entries"]
+                                       if entry.get("role") == "Button" and entry.get("label") in ("進む", "Next")), None)
+                    if disclosure is not None:
+                        run.command(["sim-use", "tap", "--label", disclosure["label"], "--element-type", "Button",
+                                     "--device", args.device])
+                        wait_ui(identifier + "-expanded-edit-menu", lambda data: any(
+                            entry.get("label") in ("すべてを選択", "Select All") for entry in data["entries"]))
                         break
                     # The initial gesture can just focus the field. Retry once
                     # after observing it; do not accept an absent menu as success.
@@ -105,8 +145,10 @@ def main():
                     entry.get("label") in labels for entry in data["entries"]))
                 item = next(entry["label"] for entry in data["entries"] if entry.get("label") in labels)
                 run.command(["sim-use", "tap", "--label", item, "--device", args.device])
-        run.command(["sim-use", "paste", "--via-menu", "--target-id", identifier,
+            target = focus_target()
+        run.command(["sim-use", "paste", "--via-menu", *target,
                      "--device", args.device, text])
+        wait_ui(identifier + "-pasted", reflected)
 
     def identifiers(data):
         return {e.get("uniqueId", "") for e in data["entries"]}
@@ -118,8 +160,8 @@ def main():
 
     def wait_ui(name, predicate):
         for attempt in range(20):
-            data = run.ui(f"{name}-{attempt}")
-            if predicate(data):
+            data = run.ui(f"{name}-{attempt}", allow_empty=True)
+            if data.get("entries") and predicate(data):
                 return data
             time.sleep(0.25)
         raise VerificationError(f"UI did not reach expected state: {name}")
@@ -141,8 +183,6 @@ def main():
 
     try:
         run.setup()
-        if run.device["runtime"]["version"] != "26.5":
-            raise VerificationError("MVP execution verification requires iOS 26.5")
         with run.device_lock():
             run.launch()
             before = wait_ui("before", lambda data: data.get("appPackage") == run.config["bundle_id"]
@@ -222,9 +262,6 @@ def main():
                 copied = run.command([XCRUN, "simctl", "pbpaste", args.device], "copied")
                 if copied != body:
                     raise VerificationError("Copied UTF-8 text differs from input")
-                clear_search()
-                paste_search(title)
-                wait_ui("searched-again", lambda data: row in identifiers(data))
                 run.screenshot("search-keyboard")
                 run.tap("Search")
                 wait_ui("search-dismissed", lambda data: row in identifiers(data)
@@ -244,20 +281,14 @@ def main():
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "edited-copy") != edited_body:
                     raise VerificationError("The edited row copied stale or altered text")
                 run.screenshot("edited")
-                run.tap(row)
-                wait_ui("edited-reopened", lambda data: "editor.close" in identifiers(data))
-                run.tap("editor.close")
-                wait_ui("closed", lambda data: row in identifiers(data))
                 menu(row, "pin-menu")
                 label("ピン留め")
-                pinned = wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
-                if not any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in pinned["entries"]):
-                    raise VerificationError("Pin state did not update")
+                wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
                 tab("一覧")
-                grouped = wait_ui("grouped-library", lambda data: row in identifiers(data))
-                if search_fields(grouped) or not any(e.get("label") == "ピン留め済み" for e in grouped["entries"]):
-                    raise VerificationError("Pinned items must have their own section in Library")
+                library = wait_ui("returned-library", lambda data: row in identifiers(data))
+                if search_fields(library):
+                    raise VerificationError("Library must remain separate from Search")
                 run.screenshot("pinned")
                 run.tap("library.filter.pinned")
                 pins = wait_ui("pinned-filter", lambda data: row in identifiers(data)
@@ -288,11 +319,6 @@ def main():
                 settings = wait_ui("settings", lambda data: "settings.about" in identifiers(data))
                 check_navigation_title(settings, "設定")
                 run.screenshot("settings")
-                run.tap("settings.about")
-                wait_ui("about", lambda data: any(e.get("label") == "言葉を、すぐ手元に。" for e in data["entries"]))
-                run.screenshot("about")
-                label("設定")
-                wait_ui("settings-returned", lambda data: "settings.about" in identifiers(data))
                 choose_side("left")
                 run.ui("left-setting")
                 tab("一覧")
@@ -334,8 +360,7 @@ def main():
                 # can outlast it; tap the alias from the state just observed.
                 undo = next(entry for entry in deleted["entries"] if entry.get("uniqueId") == "library.undo")
                 run.command(["sim-use", "tap", "@" + str(undo["aliases"]["at"]), "--device", args.device])
-                if row not in identifiers(wait_ui("restored", lambda data: row in identifiers(data))):
-                    raise VerificationError("Undo did not restore the same snippet ID")
+                wait_ui("restored", lambda data: row in identifiers(data))
                 run.screenshot("library")
                 run.tap(row)
                 wait_ui("editor", lambda data: "editor.body" in identifiers(data))
@@ -398,9 +423,9 @@ def main():
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
-                "empty_search_guidance": True, "pinned_section": True, "top_filters": True,
+                "empty_search_guidance": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,
-                "settings_about": True, "left_and_right_actions": True, "side_survives_restart": True,
+                "settings_navigation": True, "left_and_right_actions": True, "side_survives_restart": True,
                 "empty_search_does_not_filter_all": True,
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",

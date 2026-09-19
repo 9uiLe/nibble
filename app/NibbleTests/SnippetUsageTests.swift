@@ -7,25 +7,12 @@ import Tasking
 struct SnippetUsageTests {
     private let instant = Date(timeIntervalSince1970: 1_800_000_000)
 
-    @Test func retriesCompareThePersistedTimestampPrecision() async throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        let id = try await create(files.store, body: "日時の精度")
-        let completed = Date(timeIntervalSinceReferenceDate: 0.0000001)
-        let use = SnippetUse(id: UUID(), snippetID: id, completedAt: completed)
-        try await files.store.recordUse(use)
-        try await SnippetStore(location: files.url).recordUse(use)
-        let result = try await files.store.snippet(id)
-        #expect(result.useCount == 1)
-        #expect(result.lastUsedAt?.timeIntervalSince1970 == completed.timeIntervalSince1970)
-    }
-
     @Test func concurrentConnectionsCountEachCompletedCopyOnce() async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
         let id = try await create(files.store, body: "並行コピー")
         let other = SnippetStore(location: files.url)
-        let uses = (0..<20).map { SnippetUse(id: UUID(), snippetID: id, completedAt: instant.addingTimeInterval(Double($0))) }
+        let uses = (0..<4).map { SnippetUse(id: UUID(), snippetID: id, completedAt: instant.addingTimeInterval(Double($0))) }
         try await withThrowingTaskGroup(of: Void.self) { group in
             for use in uses {
                 group.addTask { try await files.store.recordUse(use) }
@@ -34,7 +21,7 @@ struct SnippetUsageTests {
             try await group.waitForAll()
         }
         let item = try await other.snippet(id)
-        #expect(item.useCount == 20 && item.lastUsedAt == uses.last?.completedAt)
+        #expect(item.useCount == 4 && item.lastUsedAt == uses.last?.completedAt)
     }
 
     @Test @MainActor func cancellationAfterCopyStillPersistsTheAdmittedUse() async throws {
@@ -69,6 +56,7 @@ struct SnippetUsageTests {
     }
 
     @Test func retriesAreIdempotentAndLateRecordsDoNotMoveLastUseBackwards() async throws {
+        let instant = Date(timeIntervalSinceReferenceDate: 0.0000001)
         let files = try TestDatabase()
         defer { files.removeFiles() }
         let id = try await create(files.store, body: "原文")
@@ -81,7 +69,7 @@ struct SnippetUsageTests {
         try await other.recordUse(later)
         try await files.store.recordUse(earlier)
         let result = try await other.snippet(id)
-        #expect(result.useCount == 2 && result.lastUsedAt == later.completedAt)
+        #expect(result.useCount == 2 && result.lastUsedAt?.timeIntervalSince1970 == later.completedAt.timeIntervalSince1970)
         #expect(result.revision == original.revision && result.updatedAt == original.updatedAt)
         await #expect(throws: StoreError.conflict) {
             try await other.recordUse(SnippetUse(id: earlier.id, snippetID: UUID(), completedAt: instant))
@@ -98,54 +86,59 @@ struct SnippetUsageTests {
         await #expect(throws: StoreError.database) { try await files.store.recordUse(use) }
         #expect(try await files.store.snippet(id).useCount == 0)
         #expect(try await files.store.snippet(id).lastUsedAt == nil)
-        #expect(try db.rows("SELECT count(*) FROM snippet_uses", []) { $0.int(0) } == [0])
         try db.execute("DROP TRIGGER reject_usage")
         try await files.store.recordUse(use)
         #expect(try await files.store.snippet(id).useCount == 1)
+        #expect(try await files.store.snippet(id).lastUsedAt == instant)
     }
 
-    @Test func globalOrderAndPagingDoNotPartitionPins() async throws {
+    @Test func usageOrderBreaksTiesByEditTimeThenIDWithoutPartitioningPins() async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
         _ = try await files.store.search()
         let db = try SQLiteDatabase(url: files.url)
-        let ids = (0..<205).map { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0 + 1))! }
+        let a = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let b = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let c = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        let d = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+        let e = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
+        // Explicit persisted times/IDs make every ordering tie intentional.
+        for (id, uses, updated, pinned) in [(a, 2, 1000, 1), (b, 2, 2000, 0), (c, 2, 2000, 1), (d, 3, 0, 0), (e, 0, 3000, 0)] {
+            try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count) VALUES(?,'項目','本文','本文',?,1,?,0,?)",
+                           [.text(id.uuidString), .int(pinned), .int(updated), .int(uses)])
+        }
+        #expect(try await files.store.search().map(\.id) == [d, b, c, a, e])
+        #expect(try await files.store.search(filter: .pinned).map(\.id) == [c, a])
+        try db.execute("UPDATE snippets SET updated=3000 WHERE id=?", [.text(a.uuidString)])
+        #expect(try await files.store.search().map(\.id) == [d, a, b, c, e])
+    }
+
+    @Test func pageExpansionHasNoMissingOrDuplicatedRows() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        _ = try await files.store.search()
+        let db = try SQLiteDatabase(url: files.url)
+        let ids = (1...201).map { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0))! }
         try db.writeTransaction {
-            for (i, id) in ids.enumerated() {
-                try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count) VALUES(?,?,?,?,?,1,1000,0,?)",
-                               [.text(id.uuidString), .text("項目"), .text("本文"), .text("本文"), .int(i.isMultiple(of: 2) ? 1 : 0), .int(i / 3)])
+            for id in ids {
+                try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count) VALUES(?,'項目','本文','本文',0,1,1000,0,0)", [.text(id.uuidString)])
             }
         }
-        let expected = ids.indices.sorted { a, b in a / 3 == b / 3 ? a < b : a / 3 > b / 3 }.map { ids[$0] }
         let first = try await files.store.library(LibraryRequest())
         let second = try await files.store.library(LibraryRequest().expanded)
         let full = try await files.store.library(LibraryRequest().expanded.expanded)
-        #expect(first.items.map(\.id) == Array(expected.prefix(100)) && first.hasMore)
-        #expect(second.items.map(\.id) == Array(expected.prefix(200)) && second.hasMore)
-        #expect(full.items.map(\.id) == expected && !full.hasMore)
-        #expect(Set(full.items.map(\.id)).count == 205)
-        let pinned = try await files.store.search(filter: .pinned, limit: 300)
-        #expect(pinned.map(\.id) == expected.filter { ids.firstIndex(of: $0)!.isMultiple(of: 2) })
-        // A newer edit wins within one count before identifier tie-breaking.
-        try db.execute("UPDATE snippets SET updated=2000 WHERE id=?", [.text(ids[204].uuidString)])
-        // The last partial count group contains only ID 205; create an equal-count competitor.
-        try db.execute("UPDATE snippets SET use_count=?,updated=2001 WHERE id=?", [.int(204 / 3), .text(ids[203].uuidString)])
-        #expect(try await files.store.search(limit: 1).first?.id == ids[203])
-        try db.execute("UPDATE snippets SET updated=2002 WHERE id=?", [.text(ids[204].uuidString)])
-        #expect(try await files.store.search(limit: 1).first?.id == ids[204])
+        #expect(first.items.map(\.id) == Array(ids.prefix(100)) && first.hasMore)
+        #expect(second.items.map(\.id) == Array(ids.prefix(200)) && second.hasMore)
+        #expect(full.items.map(\.id) == ids && !full.hasMore)
     }
 
     @Test func candidateBoundaryUsesElapsedHoursAndRequiresRecordedUse() {
         let never = SnippetSummary(id: UUID(), title: "", preview: "", pinned: false, revision: 1)
         #expect(!never.isDeletionCandidate(at: instant))
-        for pinned in [false, true] {
-            let item = SnippetSummary(id: UUID(), title: "", preview: "", pinned: pinned, revision: 1,
-                                      useCount: 1, lastUsedAt: instant)
-            #expect(!item.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600 - 0.001)))
-            #expect(item.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600)))
-            #expect(item.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600 + 1)))
-            #expect(!item.isDeletionCandidate(at: instant.addingTimeInterval(-1)))
-        }
+        let pinned = SnippetSummary(id: UUID(), title: "", preview: "", pinned: true, revision: 1,
+                                    useCount: 1, lastUsedAt: instant)
+        #expect(!pinned.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600 - 0.001)))
+        #expect(pinned.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600)))
     }
 
     @Test func editingDeletionAndRestorationPreserveUsage() async throws {

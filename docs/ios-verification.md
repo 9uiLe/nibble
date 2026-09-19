@@ -99,6 +99,8 @@ nix develop --command python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fi
 
 `tap` / `paste` は操作前後の画面情報を保存する。任意のアプリの期待結果は呼出側で確認する。`smoke` の自動照合はfixture専用である。
 
+状態遷移を待つdriverは、`Run.ui(allow_empty=True)`で成功・要素0件の取得を中間状態として扱える。有限回のpollと最終状態の条件は呼出側が所有し、空の取得で条件成立とはしない。通常の単発読取では空を失敗とし、ツールの失敗と対象processの終了は待機中でも失敗させる。
+
 sim-useを直接使う場合も `nix develop` 内で実行する。`sim-use ui --json --no-raw` の `uniqueId` で要素を特定し、原文の比較には `value` を使う。表示用の `label` / outlineには空白・改行の整形が入る場合がある。
 
 `paste --via-menu` はメニュー操作を使い、Simulatorのハードウェアキーボード接続に依存しない。日本語の貼り付けはIMEの変換・未確定文字・候補選択を試験しないため、IMEは独立した操作で検証する。許可ダイアログや想定外の画面は読み取って対応する。検証スクリプトによる権限の一括許可は行わない。

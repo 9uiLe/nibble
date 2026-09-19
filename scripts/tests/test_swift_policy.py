@@ -1,7 +1,6 @@
 """Policy regression tests exercise actual forbidden and library-owned forms."""
 
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -186,6 +185,7 @@ class SwiftPolicyTests(unittest.TestCase):
                 violations(source)
 
     def test_comments_strings_raw_strings_and_regex_are_not_code(self):
+        self.assertEqual(violations('let example = "@SkipEquatable Row().equatable()"\n// static func ==\n/* EquatableView */'), [])
         source = r'''
         // Task { }
         /* withAnimation {} /* nested .animation */ Task.detached */
@@ -201,6 +201,7 @@ class SwiftPolicyTests(unittest.TestCase):
         self.assertEqual(violations(source), [])
 
     def test_string_interpolations_are_checked_including_nested_literals(self):
+        self.assertTrue(violations('let example = "\\(Row().equatable())"'))
         for source in [r'"result: \(Task { 1 })"',
                        r'##"result: \##(Task.detached { 1 })"##',
                        '"""result: \\(Task { 1 })"""',
@@ -235,9 +236,6 @@ class SwiftPolicyTests(unittest.TestCase):
             count, errors = check(root)
             self.assertEqual(count, 4)
             self.assertEqual(len(errors), 4)
-            result = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'check_swift_policy.py'), '--root', str(root)], capture_output=True, text=True)
-            self.assertEqual(result.returncode, 1)
-            self.assertIn('app/Main.swift:1:1: error:', result.stderr)
 
     def test_symlink_sources_and_directories_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:

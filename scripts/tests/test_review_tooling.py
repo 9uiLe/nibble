@@ -107,7 +107,7 @@ class PRTests(unittest.TestCase):
                 check_pr.remote_snapshot('example/repo', 1)
 
 
-class EvidenceTests(unittest.TestCase):
+class EvidenceFixture:
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -120,10 +120,7 @@ class EvidenceTests(unittest.TestCase):
         (self.root / 'scripts/driver.py').write_text('print(1)\n')
         (self.root / 'README.md').write_text('# Docs\n')
         (self.root / '.gitignore').write_text('artifacts/\n')
-        self.git('init', '-b', 'main')
-        self.git('add', '.')
-        self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--no-gpg-sign', '-m', 'fixture')
-        self.revision, self.hashes = revision_hashes(self.root, 'HEAD')
+        self.revision, self.hashes = self.source_identity()
         (self.run / 'image.png').write_bytes(b'fixture-image')
         (self.run / 'command.log').write_text('success')
         self.manifest = {'evidence_version': 1, 'status': 'passed', 'command': 'smoke', 'commit': self.revision,
@@ -142,6 +139,17 @@ class EvidenceTests(unittest.TestCase):
 
     def save(self):
         (self.run / 'manifest.json').write_text(json.dumps(self.manifest))
+
+    def source_identity(self):
+        return 'a' * 40, {'app/source.swift': 'b' * 64, 'scripts/driver.py': 'c' * 64}
+
+
+class EvidenceSourceTests(EvidenceFixture, unittest.TestCase):
+    def source_identity(self):
+        self.git('init', '-b', 'main')
+        self.git('add', '.')
+        self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--no-gpg-sign', '-m', 'fixture')
+        return revision_hashes(self.root, 'HEAD')
 
     def test_reference_compares_files_and_allows_document_only_commit(self):
         self.assertEqual(check_evidence.check_run(self.run, self.hashes)['status'], 'passed')
@@ -171,6 +179,8 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(saved['files_sha256_end'])
         self.assertTrue((self.run / 'REVIEW.md').exists())
 
+
+class EvidenceTests(EvidenceFixture, unittest.TestCase):
     def test_tampered_media_failed_run_old_os_or_missing_logs_rejected(self):
         original = copy.deepcopy(self.manifest)
         for mutation in ['status', 'runtime', 'media', 'logs', 'legacy']:
@@ -261,7 +271,7 @@ class DocumentationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / 'target.md').write_text('# Target\n')
-            (root / 'README.md').write_text('[Target](target.md#target)\n' * 200)
+            (root / 'README.md').write_text('[Target](target.md#target)\n' * 2)
             original = Path.read_text
             reads = []
             def read(path, *args, **kwargs):
@@ -270,7 +280,7 @@ class DocumentationTests(unittest.TestCase):
             with patch.object(Path, 'read_text', read), patch.object(check_docs, 'anchors', wraps=check_docs.anchors) as headings:
                 result = check_docs.check(root)
             self.assertEqual(result['errors'], [])
-            self.assertEqual(result['local_links'], 200)
+            self.assertEqual(result['local_links'], 2)
             self.assertCountEqual(reads, ['README.md', 'target.md'])
             self.assertEqual(headings.call_count, 2)
 

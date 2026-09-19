@@ -26,11 +26,19 @@ class AboutCheck:
         time.sleep(0.4)
 
     def motion(self, requested=None):
+        def wait_switch(expected=None):
+            for index in range(10):
+                data = self.run.ui(f"motion-{index}", allow_empty=True)
+                switch = element(data, "REDUCE_MOTION")
+                if (data.get("appPackage") == "com.apple.Preferences" and switch is not None
+                        and switch.get("value") in ("0", "1")
+                        and (expected is None or switch["value"] == str(int(expected)))):
+                    return switch
+                time.sleep(0.3)
+            raise VerificationError("Settings > Accessibility > Motion did not reach the expected switch state")
+
         self.run.command([XCRUN, "simctl", "launch", self.device, "com.apple.Preferences"])
-        data = self.run.ui()
-        switch = element(data, "REDUCE_MOTION")
-        if switch is None or switch.get("value") not in ("0", "1"):
-            raise VerificationError("Open Simulator Settings > Accessibility > Motion before running")
+        switch = wait_switch()
         current = switch["value"] == "1"
         if requested is not None and requested != current:
             # Settings exposes the whole row as the checkbox; its center is the label.
@@ -38,11 +46,7 @@ class AboutCheck:
             frame = switch["frame"]
             point = f"{frame['x'] + frame['width'] - 30},{frame['y'] + frame['height'] / 2}"
             self.run.command(["sim-use", "tap", "--point", point, "--duration", "0.05", "--device", self.device])
-            time.sleep(0.3)
-            data = self.run.ui()
-            switch = element(data, "REDUCE_MOTION")
-            if switch is None or switch.get("value") != str(int(requested)):
-                raise VerificationError("Reduce Motion change did not take effect")
+            switch = wait_switch(requested)
         self.run.manifest.setdefault("motion_observations", []).append({
             "before": current, "requested": requested, "observed": switch["value"] == "1"
         })
@@ -160,14 +164,8 @@ def main():
         with run.recording():
             flow.open_about()
             if reduced:
-                data = flow.check_illustration("reduce-motion-initial")
+                flow.check_illustration("reduce-motion-initial")
                 run.screenshot("reduce-motion-initial")
-                # The host always requests motion; review different poses with Reduce Motion on.
-                for index in range(7):
-                    time.sleep(2.1)
-                    run.screenshot(f"reduce-motion-loop-{index}")
-                if element(data, "about.story.playback"):
-                    raise VerificationError("Automatic playback must not have controls")
             flow.playback()
             flow.read_page("light")
             flow.option("appearance", "dark")

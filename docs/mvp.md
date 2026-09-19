@@ -109,6 +109,16 @@ Releaseのbuildはサイズ優先の`-Osize`で生成する。`ios.py test`は�
 
 Swift Testingでは使い捨てのDBと製品のモデル・保存層を使用する。利用者の保存データを試験へ流用しない。
 
+通常のテストは契約を区別できる最小のデータを使う。10,000件での検索・一覧・入力の計測は、通常テストから分離した次のコマンドで明示的に実行する。比較元と比較先は同じ`-Osize`、同じ専用Simulatorとseedで測り、ソースhashと各回の測定値を保存する。合否閾値のない計測値を回帰テストの成功と混同しない。
+
+```sh
+nix develop --command python3 scripts/benchmark-store.py \
+  --device "$NIBBLE_SIMULATOR" --baseline-ref origin/main \
+  --output artifacts/store-benchmark-comparison
+```
+
+出力先は未作成のディレクトリを指定する。通常テストの削除・統合と保持する保証は[テスト整理](test-consolidation.md)を参照する。
+
 | 検査する契約 | 確認方法 |
 | --- | --- |
 | 保存と検索 | 原文保持、日本語・記号の検索、復元、競合、同時書込、入力上限、未知schema・破損DBを照合 |
@@ -135,6 +145,8 @@ Reduce Motionは`check-about-ui.py`で初期有効と表示中の切替を別々
 ```sh
 nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
 ```
+
+説明画面の導線・演出はMVPのCRUDシナリオから分け、`scripts/check-about-ui.py`で確認する。全画面の固定表示設定は`check-interface-ui.py`の通常設定と最大文字・高コントラスト設定で確認し、最小文字設定への固定はhostedテストが担当する。説明画面・表示入口の変更時はこれらの専用検査を選ぶ。
 
 driverはダミーデータを使い、次の契約を実際の画面操作で確認する。
 

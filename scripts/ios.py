@@ -244,9 +244,9 @@ class Run:
         if self.process_identity() != self.launched_identity:
             raise VerificationError("The target app exited or restarted during UI verification")
 
-    def ui(self, name="ui"):
+    def ui(self, name="ui", *, allow_empty=False):
         result = json.loads(self.command(["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"], name))
-        if not result.get("ok") or not result.get("data", {}).get("entries"):
+        if not result.get("ok") or (not result.get("data", {}).get("entries") and not allow_empty):
             raise VerificationError(f"Cannot observe UI: {result}")
         write_json(self.path / (name + ".json"), result)
         return result["data"]

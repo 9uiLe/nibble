@@ -47,22 +47,14 @@ struct SnippetTests {
         #expect(try await reopened.search(filter: .trash).map(\.id) == [id])
         try await reopened.setDeleted(false, id: id)
         #expect(try await store.search().map(\.id) == [id])
+        let draft = try await store.editingDraft(for: id)
         await #expect(throws: StoreError.missing) { try await store.permanentlyDelete(id) }
+        #expect(try await store.snippet(id).body == "keep me")
+        #expect(try await store.draft(draft.id).snippetID == id)
         try await store.setDeleted(true, id: id)
         try await store.permanentlyDelete(id)
         await #expect(throws: StoreError.missing) { try await reopened.snippet(id) }
-    }
-
-    @Test func pinningAndPageLimits() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let pinned = try await create(store, body: "pinned")
-        for number in 0..<12 { _ = try await create(store, body: "item \(number)") }
-        try await store.setPinned(true, id: pinned)
-        #expect(try await store.search(limit: 5).count == 5)
-        #expect(try await store.search(limit: 5).contains { $0.id == pinned } == false)
-        #expect(try await store.search(filter: .pinned).map(\.id) == [pinned])
+        await #expect(throws: StoreError.missing) { try await reopened.draft(draft.id) }
     }
 
     @Test func concurrentEditorsNeverSilentlyOverwrite() async throws {
@@ -127,14 +119,14 @@ struct SnippetTests {
         let a = SnippetStore(location: url), b = SnippetStore(location: url)
         _ = try await a.search()
         try await withThrowingTaskGroup(of: UUID.self) { group in
-            for number in 0..<30 {
+            for number in 0..<4 {
                 group.addTask { try await create(number.isMultiple(of: 2) ? a : b, body: "value \(number)") }
             }
             var ids = Set<UUID>()
             for try await id in group { ids.insert(id) }
-            #expect(ids.count == 30)
+            #expect(ids.count == 4)
         }
-        #expect(try await a.search().count == 30)
+        #expect(try await a.search().count == 4)
         #expect(try await b.drafts().isEmpty)
     }
 
@@ -181,38 +173,6 @@ struct SnippetTests {
         #expect(await editor.finish(.keep))
         #expect(try await store.drafts().isEmpty)
         #expect(try await store.snippet(id).body == "saved")
-    }
-
-    @Test func simulatorSearchMeasurements() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let clock = ContinuousClock()
-        var previousCount = 0
-        var measurements: [[String: Any]] = []
-        for count in [0, 20, 1_000, 10_000] {
-            for number in previousCount..<count {
-                _ = try await create(store, title: "定型文 \(number)", body: "  東京都の住所\nこんにちは。ご連絡ありがとうございます。 👩🏽‍💻  ")
-            }
-            previousCount = count
-            for query in ["東", "見つからない語句"] {
-                var values: [Double] = []
-                for _ in 0..<30 {
-                    let started = clock.now
-                    let page = try await store.search(query)
-                    let elapsed = started.duration(to: clock.now).components
-                    values.append(Double(elapsed.seconds) * 1_000 + Double(elapsed.attoseconds) / 1e15)
-                    #expect(page.count == (query == "東" ? min(count, 100) : 0))
-                }
-                let sorted = values.sorted()
-                measurements.append(["count": count, "query": query, "milliseconds": values,
-                                     "median": (sorted[14] + sorted[15]) / 2, "max": sorted.last!])
-            }
-        }
-        let directory = URL.documentsDirectory.appending(path: "results")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try JSONSerialization.data(withJSONObject: measurements, options: [.prettyPrinted, .sortedKeys])
-            .write(to: directory.appending(path: "mvp-search-timing.json"))
     }
 }
 

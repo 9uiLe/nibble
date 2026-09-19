@@ -22,37 +22,12 @@ struct PersistenceBoundaryTests {
         #expect(try await !files.store.snippet(id).deleted)
     }
 
-    @Test func failedPermanentDeletionPreservesTheSnippetAndItsDraft() async throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        let id = try await create(files.store, body: "保存済み")
-        let draft = try await files.store.editingDraft(for: id)
-        await #expect(throws: StoreError.missing) { try await files.store.mutate(.permanentlyDelete, id: id) }
-        #expect(try await files.store.snippet(id).body == "保存済み")
-        #expect(try await files.store.draft(draft.id).id == draft.id)
-        _ = try await files.store.mutate(.delete, id: id)
-        let result = try await files.store.mutate(.permanentlyDelete, id: id)
-        #expect(result.subject == "保存済み")
-        await #expect(throws: StoreError.missing) { try await files.store.draft(draft.id) }
-    }
-
-    @Test func bodyReadRejectsDeletedAndMissingRowsAndPreservesBytes() async throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        let body = "  か\u{3099}\0\n👩🏽‍💻  "
-        let id = try await create(files.store, body: body)
-        #expect(try await files.store.savedBody(id).utf8.elementsEqual(body.utf8))
-        try await files.store.setDeleted(true, id: id)
-        await #expect(throws: StoreError.missing) { try await files.store.savedBody(id) }
-        await #expect(throws: StoreError.missing) { try await files.store.savedBody(UUID()) }
-    }
-
     @Test func reusedStatementsReplaceEveryBindingAndKeepOriginalBytes() throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
         let db = try SQLiteDatabase(url: files.url)
         try db.execute("CREATE TABLE values_under_test(id INTEGER PRIMARY KEY, text TEXT)")
-        let values = ["", "a\0b", "か\u{3099}", String(repeating: "長文", count: 50_000), "短文"]
+        let values = ["", "a\0b", "か\u{3099}", "bindを切り替える本文", "短文"]
         for (index, value) in values.enumerated() {
             try db.execute("INSERT INTO values_under_test VALUES(?,?)", [.int(index), .text(value)])
             let result = try db.rows("SELECT text FROM values_under_test WHERE id=?", [.int(index)]) { $0.text(0) }
@@ -64,21 +39,6 @@ struct PersistenceBoundaryTests {
         }
         try db.execute("INSERT INTO values_under_test VALUES(?,?)", [.int(99), .text("after error")])
         #expect(try db.rows("SELECT text FROM values_under_test WHERE id=?", [.int(99)]) { $0.text(0) } == ["after error"])
-    }
-
-    @Test func statementFailureRollsBackAndTheNextTransactionCanCommit() throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        let db = try SQLiteDatabase(url: files.url)
-        try db.execute("CREATE TABLE values_under_test(id INTEGER PRIMARY KEY)")
-        #expect(throws: StoreError.database) {
-            try db.writeTransaction {
-                try db.execute("INSERT INTO values_under_test VALUES(?)", [.int(1)])
-                try db.execute("INSERT INTO values_under_test VALUES(?)", [.int(1)])
-            }
-        }
-        try db.writeTransaction { try db.execute("INSERT INTO values_under_test VALUES(?)", [.int(2)]) }
-        #expect(try db.rows("SELECT id FROM values_under_test", []) { $0.int(0) } == [2])
     }
 
     @Test func nestedReadAndCacheEvictionDoNotInvalidateActiveRows() throws {
@@ -123,6 +83,11 @@ struct PersistenceBoundaryTests {
         let id = try await create(files.store, body: text)
         await model.copy(id)
         #expect(effects.events == [.copy(text), .announce("コピーしました")])
+        guard case .copy(let copied) = effects.events.first else {
+            Issue.record("The successful read must reach the copy effect")
+            return
+        }
+        #expect(copied.utf8.elementsEqual(text.utf8))
         #expect(model.feedback == 1 && model.notice?.message == "コピーしました")
         try await files.store.setDeleted(true, id: id)
         await model.copy(id)
