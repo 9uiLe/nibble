@@ -77,6 +77,41 @@ struct KeyboardStorageTests {
         #expect(throws: StoreError.database) { try db.execute("CREATE TABLE forbidden(id INTEGER)") }
     }
 
+    @Test func pinChangesOnlyTheFlagAndRevisionAndRejectsStaleItems() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let original = "  か\u{3099}\n\t👩🏽‍💻  "
+        let id = try await create(files.store, body: original)
+        let before = try await files.store.snippet(id)
+        let reader = KeyboardReader(location: { files.url })
+        let item = try #require(try await reader.page(KeyboardRequest()).items.first)
+        let pinned = try await reader.setPinned(true, for: item)
+        let after = try await files.store.snippet(id)
+        #expect(pinned.pinned && pinned.revision == item.revision + 1)
+        #expect(after.body.utf8.elementsEqual(original.utf8))
+        #expect(after.updatedAt == before.updatedAt && after.title == before.title)
+        await #expect(throws: KeyboardReadError.changed) { try await reader.setPinned(false, for: item) }
+        #expect(try await files.store.snippet(id).pinned)
+        let unpinned = try await reader.setPinned(false, for: pinned)
+        #expect(!unpinned.pinned)
+        #expect(try await reader.page(KeyboardRequest(filter: .pinned)).items.isEmpty)
+        try await files.store.setDeleted(true, id: id)
+        await #expect(throws: KeyboardReadError.changed) { try await reader.setPinned(true, for: unpinned) }
+    }
+
+    @Test func pinCannotCreateOrMigrateTheSharedDatabase() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let reader = KeyboardReader(location: { files.url })
+        let item = SnippetSummary(id: UUID(), title: "", preview: "", pinned: false, revision: 1)
+        await #expect(throws: KeyboardReadError.notPrepared) { try await reader.setPinned(true, for: item) }
+        #expect(!FileManager.default.fileExists(atPath: files.url.path))
+        let db = try SQLiteDatabase(url: files.url)
+        try db.execute("PRAGMA user_version=99")
+        await #expect(throws: StoreError.newerVersion) { try await reader.setPinned(true, for: item) }
+        #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [99])
+    }
+
     @Test func unknownSchemaIsNotMigrated() async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
@@ -238,6 +273,93 @@ struct KeyboardOperationTests {
         #expect(effects.events == [.insert(original), .copy(original)])
     }
 
+    @Test func openingAndClosingPreviewNeverInsertsAndDiscardsLateText() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        model.openDetail(item)
+        async let first: Void = model.loadDetail()
+        await reader.bodies.waitForRequests(1)
+        model.closeDetail()
+        model.openDetail(item)
+        reader.bodies.finish(0, .success("古い結果"))
+        await first
+        #expect(model.detail?.body == nil && effects.events.isEmpty)
+        async let second: Void = model.loadDetail()
+        await reader.bodies.waitForRequests(2)
+        let body = String(repeating: "長い本文\n", count: 5_000)
+        reader.bodies.finish(1, .success(body))
+        await second
+        #expect(model.detail?.body == body && effects.events.isEmpty)
+        model.closeDetail()
+        #expect(model.isCurrent && model.page?.items == [item] && model.request.filter == .all)
+    }
+
+    @Test func detailInsertionUsesFreshBodyExactlyOnceAndClosesOnlyAfterSuccess() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        model.openDetail(item)
+        async let preview: Void = model.loadDetail()
+        await reader.bodies.waitForRequests(1)
+        reader.bodies.finish(0, .success("本文"))
+        await preview
+        async let insert: Void = model.use(item, as: .insert)
+        await reader.bodies.waitForRequests(2)
+        await model.use(item, as: .insert)
+        #expect(reader.bodies.count == 2 && model.notice == nil && model.detail != nil)
+        reader.bodies.finish(1, .success("本文"))
+        await insert
+        #expect(effects.events == [.insert("本文")])
+        #expect(model.detail == nil && model.notice?.insertedID == item.id)
+    }
+
+    @Test func previewReadFailureDoesNotReportSuccess() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        model.openDetail(item)
+        async let preview: Void = model.loadDetail()
+        await reader.bodies.waitForRequests(1)
+        reader.bodies.finish(0, .failure(KeyboardReadError.changed))
+        await preview
+        #expect(model.detail?.failure != nil && model.detail?.body == nil)
+        #expect(model.notice == nil && effects.events.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func pinReportsOnlyPersistedResultsAndKeepsPreview(fails: Bool) async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        model.openDetail(item)
+        async let preview: Void = model.loadDetail()
+        await reader.bodies.waitForRequests(1)
+        reader.bodies.finish(0, .success("本文"))
+        await preview
+        effects.canCopy = false
+        await model.togglePin()
+        #expect(reader.pins.count == 0 && model.notice?.expires == false)
+        effects.canCopy = true
+        async let pin: Void = model.togglePin()
+        await reader.pins.waitForRequests(1)
+        await model.togglePin()
+        #expect(reader.pins.count == 1 && model.notice == nil && model.detail?.item.pinned == false)
+        let updated = SnippetSummary(id: item.id, title: item.title, preview: item.preview, pinned: true, revision: 2)
+        reader.pins.finish(0, fails ? .failure(StoreError.database) : .success(updated))
+        if !fails {
+            await reader.pages.waitForRequests(2)
+            reader.pages.finish(1, .success(KeyboardPage(items: [updated], hasMore: false)))
+        }
+        await pin
+        #expect(model.detail?.item.pinned == !fails && model.detail?.body == "本文")
+        #expect(model.notice?.expires == !fails && model.request.filter == .all && effects.events.isEmpty)
+    }
+
     private func prepare(_ model: KeyboardModel, reader: KeyboardGateReader) async {
         model.activate()
         async let load: Void = model.refresh()
@@ -260,8 +382,10 @@ struct KeyboardOperationTests {
 @MainActor private final class KeyboardGateReader: KeyboardReading {
     let pages = KeyboardReadGate<KeyboardPage>()
     let bodies = KeyboardReadGate<String>()
+    let pins = KeyboardReadGate<SnippetSummary>()
     func page(_ request: KeyboardRequest) async throws -> KeyboardPage { try await pages.read() }
     func body(for item: SnippetSummary) async throws -> String { try await bodies.read() }
+    func setPinned(_ pinned: Bool, for item: SnippetSummary) async throws -> SnippetSummary { try await pins.read() }
 }
 
 @MainActor private final class KeyboardReadGate<Value: Sendable> {

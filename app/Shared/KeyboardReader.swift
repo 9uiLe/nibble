@@ -5,7 +5,7 @@ enum KeyboardFilter: String, CaseIterable, Sendable {
     var title: String { self == .all ? "すべて" : "ピン留め" }
 }
 
-struct KeyboardRequest: Equatable, Sendable {
+struct KeyboardRequest: Hashable, Sendable {
     static let pageSize = 50
     let filter: KeyboardFilter
     let offset: Int
@@ -24,6 +24,7 @@ struct KeyboardPage: Equatable, Sendable {
 protocol KeyboardReading: Sendable {
     func page(_ request: KeyboardRequest) async throws -> KeyboardPage
     func body(for item: SnippetSummary) async throws -> String
+    func setPinned(_ pinned: Bool, for item: SnippetSummary) async throws -> SnippetSummary
 }
 
 enum KeyboardReadError: Error, LocalizedError {
@@ -37,7 +38,7 @@ enum KeyboardReadError: Error, LocalizedError {
     }
 }
 
-/// Every request has a short-lived read-only connection; no schema or file attributes are changed.
+/// Reads stay read-only. Pinning opens an existing database without preparing or migrating it.
 actor KeyboardReader: KeyboardReading {
     private let location: @Sendable () throws -> URL
 
@@ -45,15 +46,28 @@ actor KeyboardReader: KeyboardReading {
         self.location = location
     }
 
-    private func database() throws -> SQLiteDatabase {
+    private func database(access: SQLiteDatabase.Access = .readOnly) throws -> SQLiteDatabase {
         try Task.checkCancellation()
         let url = try location()
         guard FileManager.default.fileExists(atPath: url.path) else { throw KeyboardReadError.notPrepared }
-        let db = try SQLiteDatabase(url: url, access: .readOnly)
+        let db = try SQLiteDatabase(url: url, access: access)
         let version = try db.rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
         guard version <= 1 else { throw StoreError.newerVersion }
         guard version == 1 else { throw KeyboardReadError.notPrepared }
         return db
+    }
+
+    func setPinned(_ pinned: Bool, for item: SnippetSummary) throws -> SnippetSummary {
+        let db = try database(access: .readWriteExisting)
+        // Retain the shared WAL for readers that have no write permission.
+        try db.preserveWAL()
+        return try db.writeTransaction {
+            try Task.checkCancellation()
+            try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND revision=? AND deleted=0",
+                [.int(pinned ? 1 : 0), .text(item.id.uuidString), .int(item.revision)])
+            guard db.changes == 1 else { throw KeyboardReadError.changed }
+            return try SnippetQueries.summary(db, id: item.id)
+        }
     }
 
     func page(_ request: KeyboardRequest) throws -> KeyboardPage {

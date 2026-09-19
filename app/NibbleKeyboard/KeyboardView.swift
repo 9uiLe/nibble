@@ -8,24 +8,99 @@ struct KeyboardView: View {
     @SkipEquatable let model: KeyboardModel
     @SkipEquatable let globe: UIButton
     @State private var tasks = ViewTaskStore()
+    @AccessibilityFocusState private var focusedControl: String?
+    @State private var detailOrigin: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("スニペットの絞り込み", selection: Binding(get: { model.request.filter }, set: { model.select($0) })) {
-                ForEach(KeyboardFilter.allCases, id: \.self) { filter in
-                    Text(filter.title).tag(filter)
-                        .accessibilityIdentifier("keyboard.filter.\(filter.rawValue)")
-                }
+            ZStack {
+                browse
+                    .opacity(model.detail == nil ? 1 : 0)
+                    .allowsHitTesting(model.detail == nil)
+                    .accessibilityHidden(model.detail != nil)
+                if let detail = model.detail { preview(detail) }
             }
-            .pickerStyle(.segmented)
-            .padding(6)
-            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             controls
         }
-        .tint(.primary)
+        .tint(Color(uiColor: .systemBlue))
         .task(id: model.loadID) { await model.refresh() }
+        .task(id: model.detail?.id) { await model.loadDetail() }
+        .task(id: model.notice?.id) {
+            if let id = model.notice?.id { await model.expireNotice(id: id) }
+        }
+        .onChange(of: model.notice?.id) {
+            if let message = model.message { AccessibilityNotification.Announcement(message).post() }
+        }
+        .onChange(of: model.detail?.id) {
+            if model.detail != nil {
+                focusedControl = "back"
+            } else if let detailOrigin, model.page?.items.contains(where: { $0.id == detailOrigin }) == true {
+                focusedControl = "more.\(detailOrigin)"
+            } else {
+                focusedControl = "filter.\(model.request.filter.rawValue)"
+            }
+        }
         .onChange(of: model.loadID) { tasks.cancel(lifetime: .screenBound) }
         .onDisappear { tasks.cancel(lifetime: .screenBound) }
+    }
+
+    private var browse: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                filters
+                Spacer(minLength: 0)
+                Button("更新", systemImage: "arrow.clockwise", action: model.requestReload)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(KeyboardControlStyle())
+                    .accessibilityIdentifier("keyboard.refresh")
+            }
+            .padding(.horizontal, 10)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 13))
+                .clipShape(.rect(cornerRadius: 13))
+                .padding(.horizontal, 10)
+        }
+    }
+
+    // The compact segment surface sits inside two full-height 44pt touch targets.
+    private var filters: some View {
+        ViewThatFits(in: .horizontal) {
+            segments.fixedSize(horizontal: true, vertical: false)
+            segments
+        }
+    }
+
+    private var segments: some View {
+        HStack(spacing: 0) {
+            ForEach(KeyboardFilter.allCases, id: \.self) { filter in
+                Button { model.select(filter) } label: {
+                    Text(filter.title)
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 12).padding(.vertical, 5)
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            if model.request.filter == filter {
+                                RoundedRectangle(cornerRadius: 7).fill(Color(uiColor: .tertiarySystemBackground))
+                            }
+                        }
+                        .padding(2)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(model.request.filter == filter ? .isSelected : [])
+                .accessibilityIdentifier("keyboard.filter.\(filter.rawValue)")
+                .accessibilityFocused($focusedControl, equals: "filter.\(filter.rawValue)")
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 9).fill(Color(uiColor: .quaternarySystemFill))
+                .padding(.vertical, 6)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("スニペットの絞り込み")
     }
 
     @ViewBuilder private var content: some View {
@@ -33,72 +108,146 @@ struct KeyboardView: View {
             ScrollView { Text(failure).padding(16).frame(maxWidth: .infinity, alignment: .leading) }
         } else if let page = model.page, !page.items.isEmpty {
             ScrollView {
-                LazyVStack(spacing: 6) {
+                LazyVStack(spacing: 0) {
                     ForEach(page.items) { item in
-                        HStack(spacing: 6) {
-                            Button { startTask(item, as: .insert) } label: {
-                                KeyboardRowContent(item: item)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 10).padding(.vertical, 6)
-                                    .frame(minHeight: 48)
-                            }
-                            .buttonStyle(KeyboardKeyStyle())
-                            .accessibilityLabel("\(item.displayTitle)を入力")
-                            .accessibilityHint("保存済みの本文を入力先へ挿入します")
-                            .accessibilityIdentifier("keyboard.insert.\(item.id)")
-                            Button { startTask(item, as: .copy) } label: {
-                                Image(systemName: model.hasFullAccess ? "doc.on.doc" : "lock.doc")
-                                    .font(.body)
-                                    .frame(width: 44, height: 48)
-                            }
-                            .buttonStyle(KeyboardKeyStyle())
-                            .accessibilityLabel("\(item.displayTitle)をコピー")
-                            .accessibilityHint(model.hasFullAccess ? "クリップボードへコピーします" : "フルアクセスの案内を表示します")
-                            .accessibilityIdentifier("keyboard.copy.\(item.id)")
+                        VStack(spacing: 0) {
+                            row(item)
+                            if item.id != page.items.last?.id { Divider().padding(.horizontal, 12) }
                         }
                     }
                 }
-                .padding(.horizontal, 6).padding(.bottom, 6)
             }
+            .id(model.request)
             .disabled(!model.isCurrent || model.isUsing)
             .overlay { if model.loading { ProgressView().accessibilityLabel("読み込み中") } }
         } else if model.loading {
             ProgressView().accessibilityLabel("読み込み中")
         } else {
             ScrollView {
-                Text(model.request.filter == .pinned ? "ピン留めしたスニペットはありません。" : "nibbleでスニペットを保存すると、ここから入力できます。")
-                    .foregroundStyle(.secondary).padding(16)
+                VStack(spacing: 6) {
+                    Text(model.request.filter == .pinned ? "ピン留めはまだありません" : "スニペットはまだありません")
+                        .font(.subheadline.weight(.semibold))
+                    Text(model.request.filter == .pinned
+                        ? "「すべて」の「…」から、よく使うスニペットをピン留めできます。"
+                        : "nibbleでスニペットを保存すると、ここから入力できます。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .multilineTextAlignment(.center).padding(16).frame(maxWidth: .infinity)
             }
         }
     }
 
+    private func row(_ item: SnippetSummary) -> some View {
+        HStack(spacing: 0) {
+            Button { startTask(item, as: .insert) } label: {
+                KeyboardRowContent(item: item)
+                    .padding(.leading, 12).padding(.trailing, 4).padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("\(item.displayTitle)を入力")
+            .accessibilityValue(item.pinned ? "ピン留め済み" : "")
+            .accessibilityHint("保存済みの本文を入力先へ挿入します")
+            .accessibilityIdentifier("keyboard.insert.\(item.id)")
+            Button {
+                detailOrigin = item.id
+                model.openDetail(item)
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 18))
+                    .frame(width: 44, height: 54).contentShape(Rectangle())
+            }
+            .accessibilityLabel("\(item.displayTitle)の全文と操作")
+            .accessibilityIdentifier("keyboard.more.\(item.id)")
+            .accessibilityFocused($focusedControl, equals: "more.\(item.id)")
+        }
+        .buttonStyle(KeyboardRowStyle())
+        .background(model.notice?.insertedID == item.id ? Color(uiColor: .systemBlue).opacity(0.14) : .clear)
+    }
+
+    private func preview(_ detail: KeyboardModel.Detail) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Button("一覧に戻る", systemImage: "chevron.left", action: model.closeDetail)
+                    .accessibilityIdentifier("keyboard.back")
+                    .accessibilityFocused($focusedControl, equals: "back")
+                Spacer(minLength: 0)
+                Button { startTask() } label: {
+                    Image(systemName: detail.item.pinned ? "pin.fill" : "pin")
+                }
+                .accessibilityLabel(detail.item.pinned ? "ピン留めを解除" : "ピン留めする")
+                .accessibilityValue(detail.item.pinned ? "ピン留め済み" : "")
+                .accessibilityHint(model.hasFullAccess ? "" : "フルアクセスの案内を表示します")
+                .accessibilityIdentifier("keyboard.pin")
+                .disabled(model.isUsing || detail.body == nil)
+            }
+            .font(.subheadline).buttonStyle(KeyboardControlStyle())
+            .padding(.horizontal, 10)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(detail.item.displayTitle).font(.headline)
+                        .accessibilityAddTraits(.isHeader)
+                    if let body = detail.body {
+                        Text(verbatim: body).font(.body)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("keyboard.detail.body")
+                    } else if let failure = detail.failure {
+                        Text(failure).font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        ProgressView().accessibilityLabel("全文を読み込み中")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).padding(12)
+            }
+            .id(detail.id)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 13))
+            .clipShape(.rect(cornerRadius: 13))
+            .padding(.horizontal, 10)
+            HStack(spacing: 10) {
+                Button { startTask(detail.item, as: .copy) } label: {
+                    Label("コピー", systemImage: model.hasFullAccess ? "doc.on.doc" : "lock.doc")
+                        .frame(minHeight: 44).padding(.horizontal, 12)
+                        .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 10))
+                }
+                .accessibilityIdentifier("keyboard.copy.\(detail.item.id)")
+                Button { startTask(detail.item, as: .insert) } label: {
+                    Text("入力する").fontWeight(.semibold)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(.white)
+                        .background(Color(uiColor: .systemBlue), in: .rect(cornerRadius: 10))
+                }
+                .accessibilityIdentifier("keyboard.detail.insert")
+            }
+            .font(.subheadline).buttonStyle(.plain)
+            .disabled(model.isUsing || detail.body == nil || !model.isCurrent)
+            .padding(.horizontal, 10).padding(.top, 6)
+        }
+    }
+
     private var controls: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             if model.needsSwitchKey { KeyboardInputModeButton(button: globe).frame(width: 44, height: 44) }
             Text(model.message ?? "nibble")
                 .font(.caption)
                 .foregroundStyle(model.message == nil ? Color.secondary : Color.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("keyboard.status")
-            if model.request.offset > 0 || model.page?.hasMore == true {
+            if model.detail == nil, model.request.offset > 0 || model.page?.hasMore == true {
                 Button("前のページ", systemImage: "chevron.left") { model.movePage(forward: false) }
-                    .disabled(!model.isCurrent || model.request.offset == 0)
+                    .disabled(!model.isCurrent || model.isUsing || model.request.offset == 0)
                     .accessibilityIdentifier("keyboard.previous")
                 Text("\(model.request.offset / KeyboardRequest.pageSize + 1)").font(.caption.monospacedDigit())
                     .accessibilityLabel("\(model.request.offset / KeyboardRequest.pageSize + 1)ページ目")
                 Button("次のページ", systemImage: "chevron.right") { model.movePage(forward: true) }
-                    .disabled(!model.isCurrent || model.page?.hasMore != true)
+                    .disabled(!model.isCurrent || model.isUsing || model.page?.hasMore != true)
                     .accessibilityIdentifier("keyboard.next")
             }
-            Button("更新", systemImage: "arrow.clockwise", action: model.requestReload)
-                .accessibilityIdentifier("keyboard.refresh")
             Button("キーボードを閉じる", systemImage: "keyboard.chevron.compact.down", action: model.dismiss)
                 .accessibilityIdentifier("keyboard.dismiss")
         }
-        .font(.body)
-        .labelStyle(.iconOnly)
-        .buttonStyle(KeyboardControlStyle())
+        .font(.body).foregroundStyle(.primary)
+        .labelStyle(.iconOnly).buttonStyle(KeyboardControlStyle())
         .padding(.horizontal, 10)
     }
 
@@ -108,26 +257,32 @@ struct KeyboardView: View {
             await model.use(item, as: use)
         }
     }
+
+    private func startTask() {
+        tasks.start(id: "keyboard.use", lifetime: .screenBound, policy: .ignoreNew) { cancellation in
+            try cancellation.check()
+            await model.togglePin()
+        }
+    }
 }
 
 @Equatable
 private struct KeyboardRowContent: @MainActor EquatableBodyView {
     let item: SnippetSummary
     var equatableBody: some View {
-        HStack(spacing: 6) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.displayTitle).font(.subheadline).lineLimit(1)
-                Text(item.preview).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(item.displayTitle).font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                if item.pinned {
+                    Image(systemName: "pin.fill").font(.system(size: 12)).foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if item.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(.secondary) }
-            Text("入力")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color(uiColor: .systemBlue))
-                .fixedSize()
-                .padding(.horizontal, 10).padding(.vertical, 8)
-                .background(Color(uiColor: .systemBlue).opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+            Text(item.preview).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
+        .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -144,22 +299,16 @@ private struct KeyboardControlStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
             .opacity(isEnabled ? (configuration.isPressed ? 0.5 : 1) : 0.3)
     }
 }
 
-/// A neutral raised input target; the surrounding input plane belongs to UIKit.
-private struct KeyboardKeyStyle: ButtonStyle {
+private struct KeyboardRowStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(Color(uiColor: .tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.primary.opacity(configuration.isPressed ? 0.12 : 0))
-                    .allowsHitTesting(false)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .background(configuration.isPressed ? Color.primary.opacity(0.10) : .clear)
             .opacity(isEnabled ? 1 : 0.45)
     }
 }

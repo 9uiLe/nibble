@@ -2,6 +2,24 @@
 
 [配布設計](decisions/0003-testflight-distribution.md)に対し、対象ソース、ビルド番号、工程、観測範囲を記録する。操作方法は[配布手順](testflight.md)を参照する。別の日付・ビルドの結果を、現在のビルドの実行結果として扱わない。
 
+## タイトル中心の一覧と全文操作の内部配布
+
+2026-09-19（JST）、コミット`3c91f027a2c4ef6f0ec219473177e0030c59f255`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609190447)**。
+
+対象は行タップによる挿入、独立した「…」からの全文確認、コピー・ピン操作、短い結果表示。文字サイズ・太字・コントラストを標準値に固定する本体・共有拡張・キーボードを含むReleaseビルドである。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nix checkと共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。3ターゲットの識別子・バージョン・Privacy Manifest・輸出申告のBoolean falseを確認 |
+| アップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609190447/manifest.json`。`destination: upload`、`stage: upload`、`completed: true` |
+| Apple側の処理・グループ配信・実機操作 | 配布担当者が確認する。エージェントは未確認 |
+
+認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。App Store Connectの画面確認は、Chrome接続の無応答と内蔵ブラウザーの未ログインにより成立していない。エージェントの確認範囲は署名・アップロードと公開manifestであり、Apple側の処理・配信状態は配布担当者が確認する。責務は[配布手順](testflight.md)に定義する。
+
+配布対象コミットはReleaseの96テスト、Simulator操作と証跡のソース照合に成功している。確認した条件と未確認事項は[行タップ・全文・ピン操作の検証](keyboard-readability-validation.md)を参照する。
+
 ## キーボードのデザインと入力操作を確認する内部配布
 
 2026-09-19（JST）、コミット`53ac97488418b58d15f9439dfc58b93b20e9b831`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609181612)**。ビルド番号はUTCの実行日時に基づく。

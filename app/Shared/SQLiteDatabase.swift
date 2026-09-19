@@ -7,7 +7,7 @@ enum SQLValue {
 
 /// Non-Sendable handle owner, confined to a store or reader actor; no pointer escapes.
 final class SQLiteDatabase {
-    enum Access { case readWrite, readOnly }
+    enum Access { case readWrite, readOnly, readWriteExisting }
     private let handle: OpaquePointer
     private var statements: [String: OpaquePointer] = [:]
     private var recency: [String] = []
@@ -16,7 +16,11 @@ final class SQLiteDatabase {
 
     init(url: URL, access: Access = .readWrite) throws {
         var opened: OpaquePointer?
-        let flags = access == .readOnly ? SQLITE_OPEN_READONLY : SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE
+        let flags: Int32 = switch access {
+        case .readOnly: SQLITE_OPEN_READONLY
+        case .readWrite: SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE
+        case .readWriteExisting: SQLITE_OPEN_READWRITE
+        }
         guard sqlite3_open_v2(url.path, &opened, flags | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
               let opened else {
             if let opened { sqlite3_close_v2(opened) }
