@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "使用履歴の設計を目的、集計対象、全体の並び順、整理候補、保存と回復、各部品の責務から構成した。S01/S02とC05/C06/C10/C17を製品コードへ照合し、コピーの完了契約に使用記録と再取得を明記した。機能の契約と実行結果を分離し、会話や改修経緯への依存を除いた。",
+  "summary": "S01/S02とC05/C06/C10/C17について、使用の定義、一覧の並び順、720時間の整理候補、保存と再試行、schema互換性を独立した設計契約として照合した。本体と共有拡張の書込接続、キーボードの読取接続の責務を明記した。製品コードは変更していない。",
   "references": [
     "docs/design/decisions/0003-usage-order.md",
     "docs/design/screens.md",
@@ -77,7 +77,7 @@
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
     "docs/design/decisions/0001-library-actions.md": "158f5682ce157dec493eaa7e5fbf2746a750ae3fa3ece304dcf87aace311b0f5",
     "docs/design/decisions/0002-fixed-interface.md": "fa9deae1184f7835595784ede9fcf52723236c1cbcf45f07d3d50d387f94f2de",
-    "docs/design/decisions/0003-usage-order.md": "324dcced84337d02e3c01e482964f94b2dbdd4c57ebb72250a0eb8cfd13c3355",
+    "docs/design/decisions/0003-usage-order.md": "f960704afcbe68d5acb842209fc7f9caae9a2a28ca6c61f6db9eb1a776483887",
     "docs/design/foundations.md": "b59028848b292ec357081066042d8fa8cdca7d7618c93d50f0a6bb7dd7a98739",
     "docs/design/policy.json": "c283e8abdb39579d295e37fe5debda45e072f85ce600ffd0240e1a76093981dc",
     "docs/design/screens.md": "73d73d3d0efb05f9dd55db44cddcbf092f0c1584825c28ab18ebe0aae8d08f71",
