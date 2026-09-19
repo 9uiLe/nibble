@@ -16,7 +16,7 @@ nibbleは文字の階層、一覧の密度、操作の位置、説明の動き�
 | 太字設定 | `legibilityWeight=regular`。見出しに明示したbold/semiboldは保持する | 共通の`NibbleInterface` |
 | コントラスト設定 | `accessibilityContrast=normal`。ブランド色はライト・ダークの二組 | 共通の`NibbleInterface`と`NibbleTheme` |
 | 一覧の配置 | 内容と操作を横並びにし、タイトル・要約は各2行まで | `LibraryScreen` / `SnippetRowContent` |
-| 通知の動き | シート内は160 msのopacity遷移。タブ付属領域の表示・消去はOSの標準表現 | シート内は`Library.Notice`のAnimationScope、タブは[通知の設計](0004-tab-accessory-notices.md) |
+| 通知の動き | シート内は160 msのopacity遷移。上部safe-areaバーの表示・消去はOSの標準表現 | シート内は`Library.Notice`のAnimationScope、タブは[通知の設計](0004-tab-accessory-notices.md) |
 | 説明イラスト | `motionAllowed=true`、6.2秒の自動ループ | `AboutIllustration` |
 | 表示範囲・画面寿命 | 不可視・バックグラウンドではフレーム停止。同じSessionで復帰 | ホストとRiveCanvas |
 

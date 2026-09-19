@@ -150,7 +150,7 @@ def main():
                 data = assert_no_notice("copy-expired")
                 after_frames = navigation_frames(data)
                 run.screenshot("notice-after")
-                if args.geometry_only:
+                if not args.baseline:
                     run.manifest["navigation_frames"] = {"before": before_frames, "during": during_frames, "after": after_frames}
                     movements = {phase: {label: {axis: current[label][axis] - frame[axis]
                                                 for axis in ("x", "y", "width", "height")
@@ -161,6 +161,7 @@ def main():
                     run.save()
                     if any(delta for phase in movements.values() for delta in phase.values()):
                         raise VerificationError("Navigation controls moved with the notice: " + str(movements))
+                if args.geometry_only:
                     run.manifest["assertions"] = {"navigation_frames_stable": True, "copy_expired": True}
                     return
                 tap_row("copy." + snippet)
@@ -266,17 +267,18 @@ def main():
                             raise VerificationError("Final row is hidden behind the bottom controls")
                         final_id = final_control["uniqueId"]
                         run.screenshot("scroll-before")
-                        run.tap(final_id)
-                        data = wait("scroll-copy-rendered", lambda data: "library.notice" in ids(data))
                         # Every newer fixture row has already been copied once. The oldest row
                         # goes from zero uses to one and stays last (the tie uses update time).
-                        # Compare another visible row so usage ranking cannot move this anchor.
+                        # Compare before presentation with after expiry: the top bar temporarily
+                        # changes the viewport while it is visible, but must restore its position.
                         anchors = [e for e in data["entries"] if e.get("uniqueId", "").startswith("snippet.")
                                    and e["uniqueId"] != "snippet." + final_id.removeprefix("copy.")
                                    and 170 < e["frame"]["y"] < 400]
                         if not anchors:
-                            raise VerificationError("No visible anchor after final-row copy")
+                            raise VerificationError("No visible anchor before final-row copy")
                         anchor = anchors[0]
+                        run.tap(final_id)
+                        data = wait("scroll-copy-rendered", lambda data: "library.notice" in ids(data))
                         run.screenshot("scroll-copy")
                         time.sleep(2.3)
                         data = assert_no_notice("scroll-expired")
@@ -291,7 +293,8 @@ def main():
 
             run.manifest["assertions"] = {"baseline": args.baseline, "created_id": snippet,
                 "search_term": term, "appearance": args.appearance, "copy_expired": True,
-                "undo_same_id": True, "search_and_lifecycle": not args.baseline}
+                "undo_same_id": True, "search_and_lifecycle": not args.baseline,
+                "navigation_frames_stable": not args.baseline}
     except Exception as caught:
         error = caught
     finally:
