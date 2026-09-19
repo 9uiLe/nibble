@@ -100,6 +100,8 @@ darkの`notice-copy`・`search-delete-keyboard`・`editor-no-notice`・`foregrou
 
 run `20260919T132154Z-test-df8b02`は専用SE / iOS 26.5 / Releaseで製品テスト118件（パラメーター展開後138件）が成功し、失敗・skipは0件。追加した2件は、実際にマウントした通知ウィンドウが元のkey windowとUITextFieldのfirst responderを維持すること、カード内外のhitTest、同じシーンへの所属、更新時の再利用、切断・破棄時の非表示と参照解放を確認した。共通Nix全checkと文書検査も成功した。
 
+採用実装を`81a6e52b80c7bab65330db2563c5bf7d728bbbf9`へコミットし、light / scroll・dark・製品テストの3 runで同commitへの`check_evidence.py --integrity-only`が成功した。媒体レビュー申告や公開先の閲覧を認定する検査ではない。同commitの共通検査・Release archive・署名・アップロードに成功し、**0.1.0 (202609191331)**をTestFlightへ送信した。公開manifestとApple側の未確認範囲は[配布記録](testflight-validation.md#issue-26の専用uiwindow通知の更新配布)を参照する。
+
 ## 確認の限界
 
 実行OSはリポジトリ規約どおりiOS 26.5だけである。iOS 26.0はSDKのavailabilityと分岐のコンパイルで確認し、実画面での空白解放・キーボード配置は未実施。VoiceOver音声・触覚の体感はAXや発行回数のテストでは保証しない。実機、定量的なend-to-end入力遅延・hitch・GPU時間は未測定であり、高速化を主張しない。
