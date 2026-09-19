@@ -1,12 +1,10 @@
 {
   "version": 1,
-  "summary": "S01/S02の保存済みを使用回数・更新日時・UUID順の単一集合にし、C06に720時間未使用と最終使用日を補足する。C10のコピー完了と使用記録、C17の記録だけの再試行を実装・設計で照合。schema 2の移行・操作ID・原子的更新と、キーボードのschema 1/2互換・既存順序維持を確認。規約・要件レビューの日時精度と完全削除後の回復指摘を修正。",
+  "summary": "使用履歴の設計を目的、集計対象、全体の並び順、整理候補、保存と回復、各部品の責務から構成した。S01/S02とC05/C06/C10/C17を製品コードへ照合し、コピーの完了契約に使用記録と再取得を明記した。機能の契約と実行結果を分離し、会話や改修経緯への依存を除いた。",
   "references": [
     "docs/design/decisions/0003-usage-order.md",
     "docs/design/screens.md",
-    "docs/design/components.md",
-    "docs/decisions/0002-mvp-app.md",
-    "docs/decisions/0005-snippet-keyboard.md"
+    "docs/decisions/0002-mvp-app.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -70,7 +68,7 @@
     "app/Shared/StorageContracts.swift": "8746397b70b1cc259ccc1fef74874e418af65f73402009050b73e7156d315e1f",
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
-    "docs/decisions/0002-mvp-app.md": "4db520188c900dc3c1ead6972f1254aaa063ae5f51426b9b10d25bdf7b84ffc2",
+    "docs/decisions/0002-mvp-app.md": "73c51c34ea7e5e8e63a8b03dfc0bd174453fe5c815ed1d595f7b5cd56aa234b8",
     "docs/decisions/0004-rive-presentation.md": "16114a367cfd8a1ca8cc21dd3a2df36556ddb9e50d5f7f48e039677a21bf0d60",
     "docs/decisions/0005-snippet-keyboard.md": "8fc81f23073bc884871fb28070910f01af1d4905e02faae5b558229bbc38f4df",
     "docs/design/README.md": "649bd14941d53447c5f9d30102768bd862ff32192840449a98316111b6db34c6",
@@ -79,10 +77,10 @@
     "docs/design/decision-template.md": "c7bb279235bdd6db6755c12b02736994bcd7e3daae21a6800a67d53e221141c6",
     "docs/design/decisions/0001-library-actions.md": "158f5682ce157dec493eaa7e5fbf2746a750ae3fa3ece304dcf87aace311b0f5",
     "docs/design/decisions/0002-fixed-interface.md": "fa9deae1184f7835595784ede9fcf52723236c1cbcf45f07d3d50d387f94f2de",
-    "docs/design/decisions/0003-usage-order.md": "dcffe8d65f8bc0fa6abaa02274760dd83ba8848d32e5cd57cf494db3ad3b83bd",
+    "docs/design/decisions/0003-usage-order.md": "324dcced84337d02e3c01e482964f94b2dbdd4c57ebb72250a0eb8cfd13c3355",
     "docs/design/foundations.md": "b59028848b292ec357081066042d8fa8cdca7d7618c93d50f0a6bb7dd7a98739",
     "docs/design/policy.json": "c283e8abdb39579d295e37fe5debda45e072f85ce600ffd0240e1a76093981dc",
-    "docs/design/screens.md": "282596d509817fcef900b1ed43f4e36a644f99adc8707d350d7e11090489a8a4",
+    "docs/design/screens.md": "73d73d3d0efb05f9dd55db44cddcbf092f0c1584825c28ab18ebe0aae8d08f71",
     "flake.lock": "6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365",
     "research/06-interface-design-evidence.md": "4870399d7581f243d4d534faac9d96ab02fdd0b7bc69cf15250bf1e337eaa4c5",
     "research/08-keyboard-interface.md": "91d5946bf5464c847f429e5b08ad7b0144cbd3cc9efb055828ffaf773ffff32c",
