@@ -4,7 +4,7 @@ nibbleの開発スクリプトは、検査、ビルド、Simulator操作、ア�
 
 進捗と結果の整形には、ターミナル表示ツールのhamioを使う。Python側の接続層である[表示Adapter](../scripts/script_ui.py)が、公開可能な文言をhamioのAPIへ渡す。処理順序、成否の判定、再試行、権限、記録の保存は各スクリプトが担当する。
 
-この文書は構成と実装契約を定義する。コマンドの入口は[開発ガイド](../CONTRIBUTING.md)、測定条件・結果・未確認事項は[スクリプト基盤の検証記録](hamio-validation.md)を参照する。
+この文書は構成と実装契約を定義する。コマンドの入口は[開発ガイド](../CONTRIBUTING.md)を参照する。
 
 ## 構成と責務
 
@@ -68,7 +68,7 @@ NIBBLE_UI_FORMAT=human python3 scripts/check_swift_policy.py
 
 `step`は例外の内容を表示せず、そのまま呼び出し元へ返す。戻り値や外部コマンドの終了コードを自動判定しないため、呼び出し元は成功条件を満たした時点でcontextを抜ける。録画では停止・ファイル確定・媒体検査までを工程に含める。
 
-AdapterはAPI v1、`status: ok`、終了コード、選択した形式の出力を検査する。JSON形式では要求した表示部品と応答の一致も確認する。文字列は1,000 Unicode code pointずつに分け、hamioの文字列上限4,096 UTF-8 bytes以内に収める。`render`の呼び出しごとに3秒のタイムアウトを設ける。
+AdapterはAPI・成否・形式・要求と応答の一致を検査し、Unicodeを失わずに文字列上限へ収める。表示待ちには期限を設ける。具体値は[実装](../scripts/script_ui.py)と回帰テストで管理する。
 
 | 状態 | 処理 |
 | --- | --- |
@@ -77,22 +77,6 @@ AdapterはAPI v1、`status: ok`、終了コード、選択した形式の出力�
 | stderrへの書き込み失敗 | 表示を配送できなくても、処理側の例外・終了コードに影響させない |
 
 代替出力はUnicodeと端末制御文字をJSONでエスケープする。hamioの生のエラーや例外内容は転送しない。表示障害に対して業務処理を再試行しないため、署名・アップロードなどの実行済み操作が重複しない。端末を失った実行の成否は、呼び出し元の終了状態と保存した記録から確認する。
-
-## スクリプトごとの接続
-
-| 対象 | 表示 | データと記録 |
-| --- | --- | --- |
-| `check_docs.py`、`check_ui_design.py` | 検査の要約 | 結果・snapshotのJSONをstdoutへ出力 |
-| `check_swift_policy.py`、`check_workflows.py`、`check_pr.py` | 結果と診断 | `check_pr.py commits`はMarkdown表をstdoutへ出力 |
-| `check_evidence.py` | 記入欄作成と検査の要約 | 照合結果JSONをstdoutへ出力 |
-| `rive_assets.py` | 生成工程と契約検査の結果 | 制作ソース、生成物、manifestをファイルへ保存 |
-| `ios.py` | コマンド・録画の開始と終了、実行結果と保存先 | `doctor`・`devices`・`ui`はJSON、`create`はUDIDをstdoutへ出力。内部の画面観測は実行ごとのJSONに保存 |
-| 製品・研究のUI操作driver | `ios.Run`の工程表示 | `Run`が対象ソース・端末・コマンド・媒体を記録 |
-| `testflight.py` / `deploy-testflight.sh` | 固定した工程名・公開メタデータ・安全な診断 | `archive-check`のJSONはstdout。認証を伴う生ログは保護された保存先 |
-| `benchmark-store.py`、`validation/check-research-sdk.py` | 測定後の進捗・コンパイル結果 | 測定値とコマンド詳細は結果ファイル |
-| `benchmark_docs.py`、`validation/check-research-processes.py`、`video_frames.swift` | 計測中のAdapter呼び出しなし | 各CLIの契約に従い、測定JSON・保存先・媒体を返す |
-
-iOSでは1回の実行をrunと呼び、manifestに条件・コマンド・成否・生成物を記録する。工程名は実行記録と対応させる。表示プロセスの起動時間はネイティブコマンドの所要時間から分離し、run全体の経過時間には含める。端末の排他制御、ソースと媒体のhash、証跡の照合は[検証基盤の契約](decisions/0001-local-ios-verification.md)に従う。
 
 ## 秘密情報の扱い
 
@@ -106,16 +90,7 @@ hamioへ渡す環境変数は`PATH`、`LANG`、`LC_ALL`、`TERM`、`NO_COLOR`に
 
 hamioは開発用の依存であり、アプリには組み込まない。`flake.nix`がパッケージを選択し、`flake.lock`が依存のrevisionを固定する。hamio側のnixpkgsは提供元のlockで独立して固定し、nibbleのツール環境へ依存を合わせる`follows`は使用しない。
 
-| 項目 | 採用構成 |
-| --- | --- |
-| hamio本体 | 0.1.0 |
-| 表示API | v1の`render` |
-| Nix定義 | `dd8c86c6923f692ef183152958147bf095e85daa` |
-| 提供対象 | macOS arm64、Linux arm64 / x86_64 |
-| 固定情報 | 公開バイナリ、checksum、構成部品表（SBOM）、ライセンス告知、展開後の実行ファイルのhash |
-| ライセンス資料 | hamioのMITと同梱部品の告知をNix store内の`share/hamio/`に配置 |
-
-Intel Mac向けのhamioパッケージはない。Adapter単体は代替JSON出力を利用できるが、nibbleのNix環境全体にはtree-sitter-language-packのIntel Mac非対応という制約がある。対応OS・CPUの宣言、構成評価、実行結果は[環境別の検証記録](hamio-validation.md)で区別する。
+提供版・対応環境は`flake.nix`と`flake.lock`で確定する。MITと同梱部品の告知はNix storeの`share/hamio/`へ保持する。Intel Macではhamioに加えtree-sitter-language-packも非対応のため、Adapter単体のfallbackを開発環境全体の対応と扱わない。aarch64-darwinで実行確認し、Linux arm64は構成評価のみで実行は未確認。
 
 依存の更新はNixで行う。hamio本体の版とNix定義のrevisionを照合し、API、対応OS・CPU、固定hash、ライセンス、lock差分をレビューする。
 
@@ -134,11 +109,11 @@ nix flake check --no-update-lock-file --print-build-logs
 
 CLIの接続を変更した場合は、その呼び出し元も検証する。iOSの実行管理・撮影はVerificationAppのテストとsmokeで確認する。配布の秘密情報境界は、一時ディレクトリの偽認証情報で検査する。実際の署名や送信の成立には、配布用の検証が別に必要となる。
 
-表示のコストは同じ環境・出力先・回数で測り、処理本体の時間と分けて記録する。測定値や実行可能な環境は[検証記録](hamio-validation.md)を参照する。
+表示のコストは同じ環境・出力先・回数で測り、処理本体の時間と分けて記録する。処理本体の性能指標へ表示時間を混ぜない。
 
 ## 参照する上流契約
 
-確認日：2026-09-18。対象：hamio 0.1.0 / API v1、上記のNix定義revision。
+確認日：2026-09-18。対象：hamio 0.1.0 / API v1、下記URLで固定するNix定義revision。
 
 - [hamioのAPI契約](https://github.com/9uiLe/hamio/blob/dd8c86c6923f692ef183152958147bf095e85daa/docs/api.md)
 - [hamioのNix導入手順](https://github.com/9uiLe/hamio/blob/dd8c86c6923f692ef183152958147bf095e85daa/docs/distribution.md#nix-で導入する)

@@ -1,101 +1,46 @@
 # nibble
 
-nibbleは、よく使うテキストをiPhoneに保存し、他アプリで再利用するスニペットツールです。日本語UIの本体アプリ、共有拡張、キーボード拡張を持ち、最低対応OSはiOS 26.0です。
-
-本体では検索やピン留めから本文を選んでコピーし、キーボード拡張では他アプリの入力欄へ直接挿入できます。テキストとURLは他アプリの共有シートから取り込めます。作成・編集、下書きの再開、削除・復元は本体で行います。
-
-日常操作は端末内で完結し、アカウントと通信を必要としません。保存・編集・挿入・コピーでは原文の空白・改行・Unicodeを保持します。同期と独自バックアップは提供範囲外です。
+nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0以上向けアプリです。端末内で動作し、アカウント・同期・独自バックアップを持ちません。保存・編集・挿入・コピーでは原文の空白・改行・Unicodeを保持します。
 
 ## 画面と基本操作
 
-| 画面 | できること |
+| 場所 | できること |
 | --- | --- |
-| 一覧 | 上部の「すべて／ピン留め／下書き」で対象を選び、保存済み項目を編集・コピーします。「すべて」では下書き、ピン留め済み、その他の順に表示します |
-| 検索 | タイトルと本文から保存済み項目を探します。検索タブを選ぶと標準検索欄とキーボードが開きます |
-| 設定 | 新規作成・コピーの左右位置を選び、削除した項目の復元、キーボード利用案内、製品情報へ進みます |
-| 共有拡張 | 他アプリの共有シートから受け取ったテキスト・URLを確認して保存します |
-| キーボード拡張 | 「すべて／ピン留め」から項目を選び、「入力」または本文をタップして他アプリへ直接挿入します。フルアクセスを許可すると独立したコピーキーも使えます |
+| 一覧 | 保存済みを使用回数順に表示し、編集・コピー・整理する。直近の下書きは別区分から再開する。ピン留め/下書きはフィルターで絞る |
+| 検索 | 保存済みのタイトル・本文を日本語1文字から探す |
+| 設定 | 作成・コピーの左右位置、削除一覧、キーボード案内、製品情報を開く |
+| 編集 | 任意タイトルと本文を入力する。「保存」は利用対象へ確定、「閉じる」は下書きを保持する |
+| 共有拡張 | 他アプリの共有シートからテキスト・URLを取り込む |
+| キーボード | 行タップで本文を挿入し、右端の「その他」から全文を読む。フルアクセスを許可するとコピー・ピン更新も使える |
 
-新規作成は一覧・検索の下部にある＋から始めます。本体の新規作成・コピーの左右設定は再起動後も保持します。本体の一覧・設定・検索は標準ナビゲーションとLiquid Glassのタブバーを使い、リストの行と余白は共通の背景色、境界は区切り線で表します。
+削除した項目は通知の「元に戻す」または設定の削除一覧から復元できます。全文、入力の保持、操作の失敗を区別して扱う契約は[製品設計](docs/decisions/0002-mvp-app.md)に定義します。
 
 ## 開発を始めるときに読む資料
 
-最初に[製品設計](docs/decisions/0002-mvp-app.md)で目的・用語・責務・処理の流れを確認し、このREADMEの[セットアップ](#セットアップ)で開発環境を用意してください。実装には[開発ガイド](CONTRIBUTING.md)と[実装規約](docs/library-policy.md)を適用します。
-
-| 知りたいこと | 資料 |
+| 目的 | 入口 |
 | --- | --- |
-| 製品の目的、機能、構成、データ、操作の成立条件 | [製品設計](docs/decisions/0002-mvp-app.md) |
-| キーボードの権限、読取専用接続、挿入とコピーの成立条件 | [キーボード設計](docs/decisions/0005-snippet-keyboard.md)、[検証記録](docs/keyboard-validation.md) |
-| UI要素の目的、配置理由、共通原則、画面構成、改善課題 | [UI設計](docs/design/README.md)、[設計監査](docs/design/audit.md) |
-| 説明アニメーションの意図、制作、iOS表示、他製品での利用 | [演出設計](docs/decisions/0004-rive-presentation.md)、[制作手順](app/Animations/README.md)、[RivePresentation](app/Packages/RivePresentation/README.md) |
-| UI設計基盤の責務、設定、実行と他製品での利用 | [共通ツールキット](tools/ui-design/README.md)、[基盤の測定記録](docs/ui-design-tooling-validation.md) |
-| 開発スクリプトの責務、出力、障害時の動作、依存の保守 | [スクリプトの設計](docs/script-tooling.md)、[基盤の検証記録](docs/hamio-validation.md) |
-| 対応OS、ツール管理、検証とPRの条件 | [開発ガイド](CONTRIBUTING.md) |
-| 非同期処理、タスク所有、View比較、アニメーション、Lint | [ライブラリの実装規約](docs/library-policy.md) |
-| 固定したSwift Package構成の確認結果と未実施条件 | [Swift Package構成の検証](docs/spm-validation.md) |
-| 日常操作と期待結果、製品のビルド・操作・撮影 | [MVPの操作と検証](docs/mvp.md) |
-| 確認したソース、環境、成功・失敗、未検証条件 | [製品検証の索引](docs/mvp-validation.md)、[一覧と編集の検証結果](docs/library-validation.md) |
-| 検証基盤の責務、端末選択、実行記録 | [基盤設計](docs/decisions/0001-local-ios-verification.md)、[実行手順](docs/ios-verification.md) |
-| ソースと媒体の照合、PR本文とGitHubの確認 | [証跡とPRの検査](docs/review-evidence.md) |
-| 基盤の確認結果と技術選定の比較資料 | [基盤の検証記録](docs/review-tooling-validation.md)、[研究資料](research/README.md) |
-| TestFlightの本人向け自動配信、秘密情報の管理、セットアップ | [配布手順](docs/testflight.md)、[配布設計](docs/decisions/0003-testflight-distribution.md)、[検証記録](docs/testflight-validation.md) |
-| エージェントの作業入口 | [AGENTS.md](AGENTS.md)、[共有Skill](.agents/skills/nibble-verification/SKILL.md)、[PRテンプレート](.github/pull_request_template.md) |
-
-設計資料は現在の契約、検証記録は記載したコミットと条件に対する観測を示します。研究用アプリの構成や比較実験は製品の構成とは区別します。
+| 環境を用意して起動する | この文書のセットアップ、[製品の実行手順](docs/mvp.md) |
+| 変更に必要な規約・検査を知る | [開発ガイド](CONTRIBUTING.md)、[エージェント向け入口](AGENTS.md) |
+| データ・状態・失敗回復を理解する | [製品設計](docs/decisions/0002-mvp-app.md)、[Swift規約](docs/library-policy.md) |
+| UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
+| 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
+| 比較実験・未確認条件を調べる | [研究資料](research/README.md)、[検証範囲](docs/mvp-validation.md) |
+| 本人向けに配布する | [TestFlight手順](docs/testflight.md) |
 
 ## アプリの構成
 
-本体と共有拡張は読み書きする保存層、キーボード拡張は読み取り専用のReaderを画面とモデルへ渡します。モデルは操作と状態、UIはタスクの開始と寿命、データ層は取得と整合性を担当します。3つのプロセスはApp Group内の同じSQLiteを別々の接続から利用します。
-
-| 読む場所 | 責務 |
-| --- | --- |
-| `NibbleApp` / `SnippetStorage` / `ShareViewController` | 依存の構成、保存先の解決、本体と共有拡張の入口 |
-| `LibraryView` / `LibraryScreen` | タブごとの状態、一覧の配置、編集・整理の操作を所有者へ接続 |
-| `SnippetRow` / `SnippetRowContent` / `LibraryFilterBar` / `LibraryNotice` | 行の意図、値だけの表示、集合の選択、一時的な通知 |
-| `LibraryTaskOwner` / `LibraryModel` | タスクの所有・重複・寿命 / 一覧状態と完了を待てる操作 |
-| `SnippetEditor` / `EditorModel` / `Draft` | 入力、自動保存、保存・保持・破棄の確定と失敗回復 |
-| `SnippetStore` / `SnippetSchema` / `SQLiteDatabase` | 検索・更新・競合 / 保存構造 / 接続・SQL資源の管理 |
-| `SnippetLocation` / `SnippetQueries` | 3ターゲット共通の保存先と保存済み項目の問い合わせ |
-| `KeyboardViewController` / `KeyboardView` / `KeyboardModel` | キーボードの寿命とOS操作 / 表示とタスク所有 / ページと非同期結果の採用 |
-| `KeyboardReader` / `KeyboardGuideView` | 共有DBの読取専用接続 / 本体から読む追加・権限・制約の案内 |
-| `LibraryEffects` / `SystemLibraryEffects` | コピーと通知の同期契約 / UIKitによる実行 |
-| `LibrarySettingsView` / `AboutView` / `AboutIllustration` | 操作位置、製品情報、説明イラストの表示設定と寿命 |
-| `app/Packages/RivePresentation/` / `app/Animations/` | Riveの読込・表示 / 再生成可能なRMLとアセットの契約 |
-| `app/NibbleTests/` | 保存、下書き、操作完了、タスク所有、表示比較、固定表示、Rive接続の検査 |
-
-一覧は要約を使い、再開・挿入・コピーはその時点のDBから対象1件の全文を読みます。保存・閉じる・破棄は下書きの入力番号を照合し、既存項目の保存では更新番号も確認します。失敗時は入力を残し、競合した内容は別項目として保存できます。
-
-SwiftUI・Observationが表示状態、Taskingがタスク所有、AppMacrosがViewの比較、ScopedAnimationが表示変化の範囲を扱います。自作Viewは比較を宣言し、値表示の更新条件、親から渡される操作やBindingの反映、状態の保持期間をそれぞれ定義します。Releaseはサイズを優先して最適化し、製品容量と応答を同じ条件で評価します。契約の詳細は[製品設計](docs/decisions/0002-mvp-app.md)、Swiftの記述規則は[実装規約](docs/library-policy.md)を参照してください。
-
-| 検証対象 | 用途 | 設定 |
-| --- | --- | --- |
-| `Nibble` / `NibbleShare` / `NibbleKeyboard` | 製品の本体・共有拡張・キーボード | `app/project.json` |
-| `VerificationApp` | コマンド、テスト、文字列反映、撮影を確認するfixture | `validation/project.json` |
-| `ResearchProbe` | 保存方式、検索、復旧、入力、OS連携の比較実験 | `validation/research-project.json` |
-
-製品のXcode projectは`app/Nibble.xcodeproj`、shared schemeは`Nibble`です。基盤・研究用は`validation/<対象名>.xcodeproj`と同名schemeを使います。
-
-## Riveの説明イラスト
-
-「nibbleについて」では、ほかのアプリの文章を選んでコピーし、nibbleに保存する流れを図と動きで説明します。元の文章を残したまま複製が保存先へ移る演出を6.2秒周期で自動再生し、Reduce Motionの設定にかかわらず繰り返します。
-
-説明文と表示設定はSwiftUI、図形と時間はRML、ファイルの読み込みと独立した再生状態の表示はSwift PackageのRivePresentationが担当します。図は説明用であり、コピーや保存を実行しません。
-
-| 目的 | 参照先 |
-| --- | --- |
-| 構成、責務、採用理由を理解する | [演出設計](docs/decisions/0004-rive-presentation.md) |
-| 図や動きを編集し、同梱する`.riv`を再生成する | [アセットの制作と配布](app/Animations/README.md) |
-| iOSへ接続する、表示基盤を他製品で利用する | [RivePresentationの利用契約](app/Packages/RivePresentation/README.md) |
-| 対象ソースの実行結果と未確認条件を調べる | [検証記録](docs/rive-validation.md) |
+本体と共有拡張はApp GroupのSQLiteへ読み書きします。キーボードは既存DBを読み、許可されたピン更新だけを書き込みます。UIがタスクの寿命、モデルが操作と表示状態、保存層が原文と更新の整合性を所有します。画面はSwiftUI、説明イラストはRivePresentationとRMLで構成します。
 
 ## セットアップ
+
+Intel Macではtree-sitter-language-packが未対応のためNix環境全体の検査は成立しない。Linux arm64は構成評価と実行確認を区別し、CIの実行対象はUbuntu x86_64とする。
 
 補助ツールは[flake.nix](flake.nix)に宣言し、[flake.lock](flake.lock)で固定します。ローカルとCIは同じlockを使います。Xcode・Apple Swift・SDK・Simulator runtime・署名情報はローカルMacで管理します。
 
 | 環境 | 用途 |
 | --- | --- |
-| macOS（Apple Silicon / Intel） | Nix共通検査。製品ビルドにはmacOS 26以上、対応するXcodeと対象runtimeが必要 |
-| Linux（ARM64 / x86_64） | Nix共通検査。GitHub Actionsは`ubuntu-24.04`のみ |
+| macOS（Apple Silicon） | Nix共通検査。製品ビルドにはmacOS 26以上、対応するXcodeと対象runtimeが必要 |
+| Linux x86_64 | Ubuntu CIでNix共通検査。ARM64は構成評価のみで実行は未確認 |
 | iOSの確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
 | 対応OSと実行対象 | deployment target 26.0。ビルド・テスト・操作・性能の実行検証はiOS 26.5のみ |
 | 研究用driver | Apple Silicon Mac。SDK型検査とSQLite workerはarm64を指定 |
@@ -176,74 +121,17 @@ xcodebuild -resolvePackageDependencies \
 2. Xcodeで`app/Nibble.xcodeproj`を開き、Issue Navigatorの「Macro “AppMacrosMacros” … must be enabled」を選びます。
 3. 対象パッケージの確認画面で「Trust & Enable」を選び、CLIのビルド・テストを実行します。
 
-通常のセットアップでは共有lockを使用し、全マクロの検証を無効にする設定は使いません。ライセンスと依存構成の見直し条件は[実装規約](docs/library-policy.md#採用理由と更新条件)、この構成の実行結果は[Swift Package構成の検証](docs/spm-validation.md)を参照してください。
+通常のセットアップでは共有lockを使用し、全マクロの検証を無効にする設定は使いません。ライセンスと依存構成の見直し条件は[実装規約](docs/library-policy.md#採用理由と更新条件)を参照してください。
+
 
 ### 4. 専用Simulatorで製品を実行する
 
-```sh
-nix develop --command python3 scripts/ios.py doctor
-nix develop --command python3 scripts/ios.py devices
-```
-
-[Simulatorの作成・選択手順](docs/ios-verification.md#simulatorの作成と選択)に従い、iOS 26.5の専用端末を用意します。そのUDID（端末の一意な識別子）を明示して製品をテスト・起動します。本体と共有拡張のApp GroupにはXcodeのad hoc署名を使用し、Developer Team・証明書は不要です。
-
-```sh
-export NIBBLE_SIMULATOR='対象SimulatorのUDID'
-nix develop --command python3 scripts/ios.py test \
-  --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
-nix develop --command python3 scripts/ios.py run \
-  --project-config app/project.json --configuration Release --device "$NIBBLE_SIMULATOR"
-```
-
-基本操作と撮影を自動確認するには製品用driverを使います。共有・ペースト・日本語入力の手順は[MVP手順](docs/mvp.md)を参照してください。
-
-```sh
-nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
-```
-
-画面の読取・操作はNixのsim-use、ビルド・テスト・実行管理・撮影はApple CLIを使用します。同じSimulatorへの操作は直列に行い、実行中は検証対象のソースを編集しません。結果はGit管理対象外の`artifacts/`へ保存します。
+[製品手順](docs/mvp.md#開発環境とビルド)でiOS 26.5の専用Simulatorを選び、Nibbleをビルド・実行します。製品の変更には製品driver、実行基盤の確認には[fixture](docs/ios-verification.md)、保存方式の比較には[ResearchProbe](validation/RESEARCH.md)を使います。
 
 ### 5. 証跡を確認してPRへ記載する
 
-[証跡とPRの検査](docs/review-evidence.md)に従い、実行記録を対象コミットと照合します。画像・動画を開いて確認し、観測と確認範囲、添付URL、ブラウザーでの閲覧結果を`review.json`へ記録します。検査後に生成する`REVIEW.md`を共有用の記録として使います。
-
-PR本文はテンプレートの全欄を埋め、実際の全コミット表と照合します。GitHubを使う場合は`nix develop --command gh auth status`で認証状態を確認してください。PR公開後は本文・現在head・CIの結果も照合します。ソースと媒体の整合性、画面の確認、アップロードと閲覧を、それぞれ独立して確認します。
-
-## 基盤・研究用アプリを検証する
-
-VerificationAppのテストと撮影を確認する場合は標準設定を使います。`smoke`はこのfixture専用です。
-
-```sh
-nix develop --command python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR"
-nix develop --command python3 scripts/ios.py smoke --device "$NIBBLE_SIMULATOR"
-```
-
-保存・検索などの比較にはResearchProbeの設定と専用driverを使います。
-
-```sh
-nix develop --command python3 scripts/ios.py test \
-  --project-config validation/research-project.json \
-  --configuration Release --device "$NIBBLE_SIMULATOR"
-nix develop --command python3 validation/check-research-ui.py --device "$NIBBLE_SIMULATOR"
-```
-
-## よく使うコマンド
-
-| 操作 | コマンド |
-| --- | --- |
-| 開発シェル | `nix develop` |
-| CIと同じ検査 | `nix flake check --no-update-lock-file --print-build-logs` |
-| runner方針の検査 | `nix develop --command python3 scripts/check_workflows.py` |
-| Swift規約の検査 | `nix develop --command python3 scripts/check_swift_policy.py` |
-| 文書の検査 | `nix develop --command python3 scripts/check_docs.py` |
-| PRのコミット表生成 | `nix develop --command python3 scripts/check_pr.py commits --base origin/main` |
-| Nix定義の整形 | `nix fmt flake.nix` |
-| iOS検証環境の確認 | `nix develop --command python3 scripts/ios.py doctor` |
-
-依存の追加・更新は[開発ツールの管理](CONTRIBUTING.md#開発ツールの管理)、実装・証跡・PRは[開発ガイド](CONTRIBUTING.md)に従います。
+[証跡とPRの手順](docs/review-evidence.md)で、実行ソース・結果・画像・録画を照合します。文書だけの変更は[共通検査](CONTRIBUTING.md#実行と検査)とPR本文の確認を行い、撮影が不要な理由を記載します。
 
 ## 他アプリで使うキーボード
 
-保存済みの項目をタップして直接挿入し、別ボタンでコピーできます。iOSの「設定」→「一般」→「キーボード」→「キーボード」→「新しいキーボードを追加」でnibbleを追加し、入力欄の地球儀キーから切り替えます。直接挿入はフルアクセス不要、コピーはフルアクセスを許可して使います。
-
-下書きと削除済み項目は表示しません。パスワード欄、電話番号用の入力欄、独自キーボードを禁止するアプリでは利用できません。[要件と技術仕様](docs/decisions/0005-snippet-keyboard.md)に権限・保存領域・競合・配布条件を定義しています。
+設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/decisions/0005-snippet-keyboard.md)と[検証方法](docs/mvp.md#キーボードの操作検証)を参照してください。

@@ -2,8 +2,6 @@
 
 nibbleは、よく使うテキストを端末内に保存し、挿入・コピーで再利用する日本語UIのiPhoneアプリである。本体とShare Extensionで作成・編集・取り込みを行い、Keyboard Extensionから保存済み本文を直接挿入でき、本体でのコピーは利用者が入力先へ貼り付ける。最低対応OSはiOS 26.0、実行検証はiOS 26.5 Simulatorに限定する。
 
-操作・識別・回復の改善に対する実行結果は[UI改善の検証](ui-ux-validation.md)に記録する。
-
 設計の契約と採用理由は[製品設計](decisions/0002-mvp-app.md)、実施済みの確認と未検証項目は[検証結果](mvp-validation.md)を参照する。この文書は、操作手順とその期待結果を定義する。
 
 ## 画面の選び方
@@ -91,7 +89,6 @@ Simulatorでは、入力欄へフォーカスがあってもソフトウェア�
 | App Group | `group.nibble.9uiLe.com` |
 | Swift | language mode 6、strict concurrency complete、default isolation nonisolated |
 | アプリ依存 | Apple SDK、swift-tasking 0.3.0、swift-scoped-animation 0.2.2、swift-app-macros 0.3.0（[実装規約](library-policy.md)） |
-| 依存構成の検証結果 | [Swift Package構成の検証](spm-validation.md)。ビルド・テスト・画面確認の成否と対象revision |
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
@@ -117,7 +114,7 @@ nix develop --command python3 scripts/benchmark-store.py \
   --output artifacts/store-benchmark-comparison
 ```
 
-出力先は未作成のディレクトリを指定する。通常テストの削除・統合と保持する保証は[テスト整理](test-consolidation.md)を参照する。
+出力先は未作成のディレクトリを指定する。モデル・所有者・Viewごとの保証範囲は次表で区別する。
 
 | 検査する契約 | 確認方法 |
 | --- | --- |
@@ -157,7 +154,7 @@ driverはダミーデータを使い、次の契約を実際の画面操作で�
 | ピン留め・解除とフィルター切り替え | 解除した項目がピン留めから消え、保存済み全体の検索で見つかる |
 | 削除とUndo、下書きの破棄 | 復元時のUUIDが一致し、破棄しても保存済み本文を保持する |
 | 設定の左右位置とアプリ再起動 | 新規作成・コピーの配置が反映され、再起動後も保持される |
-| 製品情報と削除一覧への移動、削除済み項目の検索・復元 | 標準の戻る・閉じるが使え、検索0件を案内し、復元のUUIDと本文が一致する |
+| 削除一覧への移動、削除済み項目の検索・復元 | 標準の戻る・閉じるが使え、検索0件を案内し、復元のUUIDと本文が一致する |
 
 実行ごとに一意の日本語タイトルで対象を特定し、既存項目を削除しない。新規作成はタブバーの上にあり44 pt以上60 pt以下で、検索入力中は隠れることを確認する。検索0件でも一覧は絞り込まれない。
 
@@ -184,7 +181,7 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 
 ## 画面・入力の確認条件
 
-以下を製品UIの確認項目とする。条件の定義は実施済みを意味せず、成否は[検証結果](mvp-validation.md)に記録する。
+以下を製品UIの確認項目とする。条件の定義は実施済みを意味せず、成否は対象ソースを明示したrunへ記録し、[検証範囲](mvp-validation.md)の限界と区別する。
 
 | 観点 | 期待結果 |
 | --- | --- |
@@ -205,7 +202,7 @@ nix develop --command python3 -m http.server 8766 --bind 127.0.0.1 --directory v
 2. 同じ操作の連打と別項目への連続操作を行い、重複する編集画面や下書きができず、別項目の操作は受理されることを確認する。入力直後に保存・閉じる操作を行い、最新本文と下書きを照合する。
 3. Settingsの「視差効果を減らす」を無効・有効にしてselected状態を確認する。それぞれでコピー通知の表示と消去、編集の開閉を撮影する。最後のコピーから2秒で通知が消える設計に対し、自動操作では2.3秒後の表示状態を照合する。製品の固定表示方針に従い、専用ウィンドウの通知は表示・消去アニメーションなし、削除シート内の通知は0.16秒のopacity遷移とする。
 4. Debug実行では、内部の`detectAnimationLeaks`・入力barrierと、Taskingの未処理エラーの診断を確認する。OSのシートtransactionは画面外側のbarrierで遮断する。診断が届く位置と実行した導線を記録する。
-5. 検証終了後に表示設定を実行前の状態へ戻す。操作・画像・録画・診断の対象ソースと実施範囲を記録する。[非同期API境界の検証記録](async-policy-validation.md)に結果の記載例がある。
+5. 検証終了後に表示設定を実行前の状態へ戻す。操作・画像・録画・診断の対象ソースと実施範囲を記録する。記録の形式は[証跡手順](review-evidence.md)に従う。
 
 ## 性能の検証
 
@@ -221,7 +218,7 @@ MVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証は含め�
 
 ## 操作完了通知の検証
 
-一覧・検索の結果を専用UIWindowの上部へ表示する契約は[通知の設計](design/decisions/0004-result-notices.md)、対象ソースと実施範囲は[通知の検証記録](notice-validation.md)を参照する。専用Simulatorで実行する。
+一覧・検索の結果を専用UIWindowの上部へ表示する契約は[通知の設計](design/decisions/0004-result-notices.md)、保証範囲は[検証範囲](mvp-validation.md)を参照する。専用Simulatorで実行する。
 
 ```sh
 nix develop --command python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"

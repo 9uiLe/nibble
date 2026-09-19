@@ -79,9 +79,7 @@ nix develop --command python3 scripts/ios.py smoke \
   --device "$NIBBLE_SIMULATOR" --configuration Release
 ```
 
-`test` は `xcodebuild` の終了コードと `xcresulttool` のsummaryを確認する。成功したテストが1件以上必要で、0件・全skip・失敗を成功扱いしない。fixtureのSwift Testingはホストの識別・対応OSと、ViewControllerを経由するUnicode・空白の保持を検査する。
-
-起動後はAppleの`simctl spawn launchctl list`で対象bundle IDとPIDを確認する。プロセスが現れるまで1秒間隔・最大5回待つ。SimulatorのプロセスはホストのPIDを使うため、各sim-use操作の前後にはホストの`ps`で同じPIDの起動時刻と実行ファイルを照合する。操作ごとにSimulator内へ監視プロセスを起動する待ち時間を避ける。終了・再起動・複数候補・取得エラーはrunを失敗にする。sim-useは操作ごとに新しいAX接続を使い、driverが起動したアプリでは組み込みのプロセス監視をこの照合で置き換える。監視方式・PID・プロセス情報はmanifestに記録する。
+`test` は `xcodebuild` の終了コードと `xcresulttool` のsummaryを確認する。成功したテストが1件以上必要で、0件・全skip・失敗を成功扱いしない。fixtureのSwift Testingはホストの識別と、ViewControllerを経由するUnicode・空白の保持を検査する。
 
 `smoke` はビルド・起動後、画面読取 → リセット → 入力欄選択 → ダミーテキストの貼り付け → 反映 → 出力値の照合を実行する。入力は `日本語 👩🏽‍💻` と改行・`Hello, nibble!`。`--text` で変更できる。Swift Testingは別の `test` コマンドで実行する。
 
@@ -120,33 +118,9 @@ smokeでは録画の確定後に操作後の静止画を撮影する。同時取
 
 ## 成果物とレビュー
 
-1回の実行をrunと呼ぶ。各runは`artifacts/ios/<UTC日時>-<コマンド>-<ID>/`へ結果を保存する。ビルドキャッシュは`artifacts/ios/DerivedData/<UDID>/`に置く。`artifacts/`全体をGit管理対象外とする。
+各runの結果は`artifacts/ios/<UTC日時>-<コマンド>-<ID>/`、ビルドキャッシュは`artifacts/ios/DerivedData/<UDID>/`へ保存する。Git管理対象外であり、新しいcheckoutには含まれない。失敗runも残す。
 
-| ファイル | 内容 |
-| --- | --- |
-| `manifest.json` | 実行成否、コミット、未コミット状態、開始・終了の入力SHA-256、媒体SHA-256、ツール・端末・runtime、コマンドと終了コード |
-| `review.json` | 確認した媒体のhash、目視の方法・観測・限界、安定した添付URL、ブラウザーでの閲覧確認の申告 |
-| `*.log` / `*.stderr.log` | stdout / stderr。失敗時の出力も保存 |
-| `build.xcresult` / `test.xcresult` | Xcodeの結果bundle。Xcodeで開いて調査できる |
-| `test-summary.json` / `attachments/` | テスト件数・成否とテストに含まれる添付物。Swift Testingだけの場合は画像添付がないこともある |
-| `before.json` / `after.json` 等 | sim-useの画面観測。要素や文字列の照合に使用 |
-| `before.png` / `after.png` / `screenshot.png` | Apple CLIで撮影した静止画 |
-| `recording.mp4` / `recording.log` | H.264動画と録画ログ |
-| `video-frames/` | 動画の長さと代表フレーム3枚 |
-| `REVIEW.md` | driverが作成する実行情報と記入欄。証跡検査後は`review.json`から生成したレビュー記録 |
-
-共通driverは`evidence_version: 1`のmanifestに、開始時の`files_sha256`、終了時の`files_sha256_end`、run確定時の`media_sha256`を保存する。実行中に検証入力が変わったrunは失敗にし、ログと媒体を残す。文書だけの変更を含むrunの再利用は、コミット名ではなく検証入力のファイル照合で判断する。
-
-レビューは[証跡とPRの検査](review-evidence.md)の順序で行う。
-
-1. `check_evidence.py --integrity-only`で対象revision、runの成否、入力と媒体を照合する。
-2. `--init-review`で記入用の`review.json`を作り、画像・動画を開いて表示・操作・時間経過を確認する。確認方法・観測・未実施条件を記載する。
-3. 必要な画像・動画をPRへ添付するか、レビュー担当者が閲覧できる保存先へ置く。ブラウザーで読込を確認し、安定したURLと閲覧条件を記録する。
-4. `check_evidence.py`でソース・媒体・レビュー申告を検査し、`REVIEW.md`を生成する。
-
-ソース照合には同じrun内で対象scheme・UDIDへのビルド成功が必要になる。単独の`screenshot`・`record`は補助的な撮影記録であり、install済みアプリとソースの対応を保証しない。
-
-コマンド成功、ファイル生成、動画デコード、抽出フレーム確認、全編再生、アップロード、閲覧確認を別々に記録する。公開するログ・画像・動画に個人情報や秘密情報が含まれないことを確認し、未実施を完了として記載しない。
+[証跡とPRの検査](review-evidence.md)に従い、manifestの対象ソース・実行結果・媒体を照合し、観測と閲覧条件をreview.jsonへ記録する。単独の撮影は、インストール済みアプリとソースの対応を保証しない。
 
 ## 検証対象の切り替え
 
@@ -178,8 +152,6 @@ nix develop --command python3 scripts/ios.py run \
 
 検証targetを定義する際は同じ形式の設定を用意する。`project` / `scheme` / `bundle_id` / `app_name` / `minimum_ios`を実際の構成に合わせ、`--project-config <設定ファイル>`で選択する。共通のビルド・テスト・実行管理・撮影を利用し、操作と期待結果は製品の仕様に対応するdriverで検査する。
 
-## 実機と製品固有の検証
+## 検証範囲
 
-このスクリプトとMVPの実行評価はiOS 26.5 Simulatorを対象とし、実機検証はMVPの受け入れ範囲に含めない。実機条件を評価する場合もiOS 26.5を使用する。実機の検出はAppleの `xcrun devicectl list devices`、ビルド・署名・インストール・起動は対象端末と署名設定に合わせて構成する。未接続・未信頼・署名未設定の場合は、その実機条件を未実施として記録する。
-
-実機性能、VoiceOver・Dynamic Type、IME、キーボードextension、権限、保存・同期・配布は製品ごとの検証を行う。fixtureの合格をこれらの実施結果へ置き換えず、[製品の検証計画](../research/05-decisions-and-validation.md) の条件・期待結果と対応する証跡を残す。
+共通fixtureの合格は製品の操作・権限・表示の合格を意味しない。製品の受け入れ条件は[MVP手順](mvp.md)、未確認条件は[検証範囲](mvp-validation.md)に従う。実機検証はMVPの受け入れ範囲外で、配布後の確認は[TestFlight手順](testflight.md)の担当者が行う。

@@ -1,22 +1,10 @@
 # ResearchProbeの設計と実行手順
 
-ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品構成の採用条件は[製品の検証計画](../research/05-decisions-and-validation.md)、観測結果は[iOS 26.5の検証結果](../research/experiments/ios-26-5-validation.md)に定義する。
+ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品の採用構成は[製品設計](../docs/decisions/0002-mvp-app.md)、観測結果は[iOS 26.5の検証結果](../research/experiments/ios-26-5-validation.md)に定義する。
 
-## 構成と責務
+## 対象
 
-| 構成 | 責務 |
-| --- | --- |
-| [ResearchProbe.xcodeproj](ResearchProbe.xcodeproj/project.pbxproj) / shared scheme `ResearchProbe` | 研究用アプリとSwift Testingのホストをビルドする |
-| [research-project.json](research-project.json) | 共通driverにproject・scheme・bundle ID・最低対応OSを渡す |
-| [App.swift](ResearchProbe/App.swift) | UIKitによる一覧・検索・編集・コピー・削除・復元、下書き、URL遷移を提供する |
-| [Stores.swift](ResearchProbe/Stores.swift) | 保存方式3案、検索用文字列、版付きJSONの比較条件を定義する |
-| [HostedTests.swift](ResearchProbeTests/HostedTests.swift) | 原文保持、保存・再読込、移行、履歴、検索、コピー期限、復旧を検査し、詳細JSONを出力する |
-| [SDKCompileProbe.swift](ResearchProbe/SDKCompileProbe.swift) / [check-research-sdk.py](check-research-sdk.py) | App Intents、WidgetKit、Keyboard等のAPIを26.0 targetで型検査する |
-| [SQLiteWorker.swift](SQLiteWorker.swift) / [check-research-processes.py](check-research-processes.py) | Simulatorの別プロセスでSQLiteの競合・強制終了・読取専用接続を比較する |
-| [check-research-ui.py](check-research-ui.py) | 作成から削除・復元までをsim-useで操作し、Apple CLIで記録する |
-| [HostForm.html](HostForm.html) | Safariのペースト先とUTF-8照合画面を提供する |
-
-bundle IDは`dev.nibble.ResearchProbe`。検証コマンド自体を試験する`dev.nibble.VerificationApp`とは保存領域を分ける。全データを使い捨てのダミーデータとし、実際のスニペットや秘密情報を入れない。
+設定は[research-project.json](research-project.json)、schemeはResearchProbe、bundle IDは`dev.nibble.ResearchProbe`。基盤fixtureと別の保存領域で、使い捨てのダミーデータだけを使う。保存方式は[Stores.swift](ResearchProbe/Stores.swift)、UIは[App.swift](ResearchProbe/App.swift)、期待値は[HostedTests.swift](ResearchProbeTests/HostedTests.swift)が定義する。
 
 ## データと操作の契約
 
@@ -158,4 +146,4 @@ xcrun simctl get_app_container "$NIBBLE_SIMULATOR" dev.nibble.ResearchProbe data
 
 生成物は`artifacts/`に置き、Gitへ追加しない。共通driverのrunは[証跡とPRの検査](../docs/review-evidence.md)に従い、開始・終了・対象コミットの入力と媒体を照合する。画像・動画の観測、確認範囲、添付先と閲覧条件は`review.json`へ記載し、検査後に`REVIEW.md`を生成する。
 
-検証結果は期待条件ごとに成功・失敗・未実施を判定し、対象ソース・端末・OS・操作とともに[実行結果](../research/experiments/ios-26-5-validation.md)へ対応付ける。共通driverを使わない測定やSDK検査も、固有の結果ファイルとログを残す。公開APIや原著の根拠は[一次資料検証](../research/experiments/primary-source-validation.md)を参照する。
+検証結果は期待条件ごとに成功・失敗・未実施を判定し、対象ソース・端末・OS・操作とともに[実行結果](../research/experiments/ios-26-5-validation.md)へ対応付ける。共通driverを使わない測定やSDK検査も、固有の結果ファイルとログを残す。公開APIや原著の根拠は[研究資料](../research/README.md)を参照する。
