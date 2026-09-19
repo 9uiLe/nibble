@@ -42,8 +42,12 @@ struct SnippetUsageTests {
         defer { files.removeFiles() }
         let id = try await create(files.store, body: "コピー後の記録")
         let tasks = ViewTaskStore()
-        let model = LibraryModel(store: files.store, effects: CancellingCopyEffects(tasks: tasks), now: { instant })
+        let recorder = PausedUsageRecorder(store: files.store)
+        let model = LibraryModel(store: files.store, effects: RecordingLibraryEffects(), usageRecorder: recorder, now: { instant })
         tasks.start(id: "copy.then.cancel", lifetime: .screenBound) { _ in await model.copy(id) }
+        await recorder.waitForRecord()
+        tasks.cancelAll()
+        recorder.resume()
         await tasks.waitForIdle()
         #expect(try await files.store.snippet(id).useCount == 1)
         #expect(try await files.store.snippet(id).lastUsedAt == instant)
@@ -262,10 +266,16 @@ struct SnippetUsageTests {
     }
 }
 
-@MainActor private struct CancellingCopyEffects: LibraryEffects {
-    let tasks: ViewTaskStore
-    func copy(_ text: String) { tasks.cancelAll() }
-    func announce(_ text: String) { }
+@MainActor private final class PausedUsageRecorder: SnippetUsageRecording {
+    let store: SnippetStore
+    private var continuation: CheckedContinuation<Void, Never>?
+    init(store: SnippetStore) { self.store = store }
+    func recordUse(_ use: SnippetUse) async throws {
+        await withCheckedContinuation { continuation = $0 }
+        try await store.recordUse(use)
+    }
+    func waitForRecord() async { while continuation == nil { await Task.yield() } }
+    func resume() { continuation?.resume(); continuation = nil }
 }
 
 private actor OnceFailingUsageRecorder: SnippetUsageRecording {
