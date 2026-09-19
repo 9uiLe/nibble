@@ -80,6 +80,11 @@ actor SnippetStore: LibraryStorage, DraftEditing {
 
     func savedBody(_ id: UUID) throws -> String { try SnippetQueries.savedBody(database(), id: id) }
 
+    /// The OS copy has already completed; cancellation must not discard this admitted write.
+    func recordUse(_ use: SnippetUse) throws {
+        try SnippetCommands.recordUse(use, in: database())
+    }
+
     func mutate(_ mutation: SnippetMutation, id: UUID) throws -> SnippetMutationResult {
         try SnippetCommands.apply(mutation, id: id, to: database())
     }

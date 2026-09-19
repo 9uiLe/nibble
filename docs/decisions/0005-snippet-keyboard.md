@@ -90,7 +90,7 @@ UIとOS操作はMainActor、DB処理はactorで行う。行はスニペットUUI
 
 ## 共有データと読み取りの契約
 
-正本はApp Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`、schema versionは1とする。本体が保存領域を準備し、キーボードはDBの作成・schema移行・別保存先へのfallbackを行わない。未準備、未知schema、アクセス不能は利用者に失敗として伝える。
+正本はApp Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`、対応するschema versionは1と2とする。本体が保存領域を準備し、キーボードはDBの作成・schema移行・別保存先へのfallbackを行わない。未準備、未知schema、アクセス不能は利用者に失敗として伝える。
 
 一覧と本文には読取専用接続を使う。一覧はピン留め優先、更新日時の降順、UUIDの昇順で最大50件を表示する。51件まで問い合わせて続きの有無を判定する。要約にはUUID、タイトル、本文の先頭180文字、ピン状態、更新番号`revision`を含む。全文は詳細を開く、または挿入・コピーする1件だけ取得し、未削除とrevision一致を照合する。
 

@@ -7,6 +7,14 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
     let title: String
     let preview: String
     let pinned: Bool
+    let unusedSince: Date?
+
+    init(title: String, preview: String, pinned: Bool, unusedSince: Date? = nil) {
+        self.title = title
+        self.preview = preview
+        self.pinned = pinned
+        self.unusedSince = unusedSince
+    }
 
     var equatableBody: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -16,6 +24,14 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
             }
             if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+            }
+            if let unusedSince {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("30日以上未使用")
+                    Text("最終使用 \(unusedSince, format: .dateTime.year().month().day())")
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("snippet.unused")
             }
         }
         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)

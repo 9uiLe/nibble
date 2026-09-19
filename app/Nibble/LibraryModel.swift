@@ -5,6 +5,12 @@ import Observation
 final class LibraryModel {
     private let store: any LibraryStorage
     private let effects: any LibraryEffects
+    private let usageRecorder: any SnippetUsageRecording
+    private let now: () -> Date
+    private(set) var evaluatedAt: Date
+    private var pendingUses: [SnippetUse] = []
+    private var recordingUses: Set<UUID> = []
+    private var usageErrors: [UUID: String] = [:]
     enum EditorSource { case new, snippet(UUID), draft(UUID) }
 
     struct Notice: Identifiable, Equatable {
@@ -17,7 +23,7 @@ final class LibraryModel {
     }
 
     struct Failure: Equatable {
-        enum Recovery: Equatable { case reload, dismiss }
+        enum Recovery: Equatable { case reload, dismiss, retryUsage }
         let title: String
         let message: String
         let recovery: Recovery
@@ -54,6 +60,11 @@ final class LibraryModel {
     private var operationFailure: Failure?
     var failure: Failure? {
         if let operationFailure { return operationFailure }
+        if let pending = pendingUses.first(where: { usageErrors[$0.id] != nil }) {
+            return Failure(title: "コピーは完了しましたが、使用記録を保存できませんでした",
+                           message: "本文はコピー済みです。記録だけを再試行できます。\n" + (usageErrors[pending.id] ?? ""),
+                           recovery: .retryUsage)
+        }
         if completedRead?.request == request, case .failed(let failure) = completedRead?.outcome { return failure }
         return nil
     }
@@ -82,11 +93,15 @@ final class LibraryModel {
     func dismissFailure() { operationFailure = nil }
 
     init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all,
-         libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil) {
+         libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
+         usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init) {
         self.store = store
         self.effects = effects
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
+        self.usageRecorder = usageRecorder ?? store
+        self.now = now
+        evaluatedAt = now()
         request = LibraryRequest(filter: filter)
     }
 
@@ -121,6 +136,7 @@ final class LibraryModel {
             try Task.checkCancellation()
             guard activeRefresh == token, request == requested else { return }
             snapshot = Snapshot(request: requested, page: page)
+            evaluatedAt = now()
             completedRead = (requested, .loaded)
         } catch {
             guard activeRefresh == token, request == requested else { return }
@@ -171,10 +187,33 @@ final class LibraryModel {
             let body = try await store.savedBody(id)
             try Task.checkCancellation()
             effects.copy(body)
+            let use = SnippetUse(id: UUID(), snippetID: id, completedAt: now())
             feedback += 1
             announce("コピーしました")
+            pendingUses.append(use)
+            await persistUse(use)
+            await refresh()
         } catch is CancellationError { }
         catch { if !Task.isCancelled { report("コピーできませんでした", error) } }
+    }
+
+    /// Retries the completed copy's record, never the clipboard effect.
+    func retryUsageRecording() async {
+        guard !Task.isCancelled else { return }
+        for use in pendingUses { await persistUse(use) }
+        await refresh()
+    }
+
+    private func persistUse(_ use: SnippetUse) async {
+        guard recordingUses.insert(use.id).inserted else { return }
+        defer { recordingUses.remove(use.id) }
+        do {
+            try await usageRecorder.recordUse(use)
+            pendingUses.removeAll { $0.id == use.id }
+            usageErrors[use.id] = nil
+        } catch {
+            usageErrors[use.id] = error.localizedDescription
+        }
     }
 
     func pin(_ item: SnippetSummary) async {

@@ -137,6 +137,7 @@ final class SQLiteDatabase {
 
 struct SQLRow {
     let statement: OpaquePointer
+    func isNull(_ column: Int32) -> Bool { sqlite3_column_type(statement, column) == SQLITE_NULL }
     func uuid(_ column: Int32) throws -> UUID {
         guard let value = UUID(uuidString: text(column)) else { throw StoreError.database }
         return value

@@ -169,23 +169,10 @@ struct LibraryScreen: View {
         if model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil {
             emptyState
         } else if model.contentRequest.filter != .drafts {
-            if showsFilters && model.contentRequest.filter == .all {
-                if !model.page.pinnedItems.isEmpty {
-                    Section("ピン留め済み") {
-                        ForEach(model.page.pinnedItems) { item in snippetRow(item) }
-                    }
-                }
-                if !model.page.otherItems.isEmpty {
-                    Section("その他") {
-                        ForEach(model.page.otherItems) { item in snippetRow(item) }
-                    }
-                }
-            } else {
-                Section {
-                    ForEach(visibleItems) { item in snippetRow(item) }
-                } header: {
-                    if model.contentRequest.filter != .pinned && model.contentRequest.filter != .trash { Text(sectionTitle) }
-                }
+            Section {
+                ForEach(visibleItems) { item in snippetRow(item) }
+            } header: {
+                if model.contentRequest.filter != .pinned && model.contentRequest.filter != .trash { Text(sectionTitle) }
             }
             if model.contentRequest.filter == .trash {
                 Text("自動では消えません。必要な項目を復元できます。")
@@ -211,6 +198,10 @@ struct LibraryScreen: View {
                     Button("一覧を再読み込み") { startTask(.reload) }
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.reload")
+                } else if failure.recovery == .retryUsage {
+                    Button("使用記録を再試行") { startTask(.retryUsage) }
+                        .buttonStyle(.bordered).controlSize(.large)
+                        .accessibilityIdentifier("library.retryUsage")
                 } else {
                     Button("閉じる") { model.dismissFailure() }
                         .buttonStyle(.bordered).controlSize(.large)
@@ -289,7 +280,9 @@ struct LibraryScreen: View {
     }
 
     private func snippetRow(_ item: SnippetSummary) -> some View {
-        SnippetRow(item: item, isTrash: model.contentRequest.filter == .trash, actionsAtLeading: actionsAtLeading, perform: { action in
+        SnippetRow(item: item, isTrash: model.contentRequest.filter == .trash, actionsAtLeading: actionsAtLeading,
+                   unusedSince: model.contentRequest.filter != .trash && item.isDeletionCandidate(at: model.evaluatedAt) ? item.lastUsedAt : nil,
+                   perform: { action in
             switch action {
             case .edit: startTask(.open(.snippet(item.id)))
             case .copy: startTask(.copy(item.id))

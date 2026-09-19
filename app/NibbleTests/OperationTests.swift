@@ -74,8 +74,8 @@ extension UIIntegrationTests {
             try await store.setPinned(true, id: pinned)
             let other = try await create(store, body: "その他の項目")
             let firstPage = try await store.library(LibraryRequest(limit: 1))
-            #expect(firstPage.pinnedItems.map(\.id) == [pinned])
-            #expect(firstPage.otherItems.isEmpty && firstPage.hasMore)
+            #expect(firstPage.items.map(\.id) == [other])
+            #expect(firstPage.pinnedItems.isEmpty && firstPage.hasMore)
             let expanded = try await store.library(LibraryRequest(limit: 1).expanded)
             #expect(expanded.pinnedItems.map(\.id) == [pinned])
             #expect(expanded.otherItems.map(\.id) == [other])
@@ -393,6 +393,7 @@ extension UIIntegrationTests {
             #expect(library.editor == nil)
             #expect(library.notice == nil)
             #expect(library.feedback == 0)
+            #expect(try await store.snippet(id).useCount == 0)
             #expect(try await store.drafts().isEmpty)
             #expect(try await store.snippet(id).deleted == false)
         }

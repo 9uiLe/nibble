@@ -52,8 +52,8 @@ actor KeyboardReader: KeyboardReading {
         guard FileManager.default.fileExists(atPath: url.path) else { throw KeyboardReadError.notPrepared }
         let db = try SQLiteDatabase(url: url, access: access)
         let version = try db.rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
-        guard version <= 1 else { throw StoreError.newerVersion }
-        guard version == 1 else { throw KeyboardReadError.notPrepared }
+        guard version <= 2 else { throw StoreError.newerVersion }
+        guard version >= 1 else { throw KeyboardReadError.notPrepared }
         return db
     }
 
@@ -66,7 +66,7 @@ actor KeyboardReader: KeyboardReading {
             try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND revision=? AND deleted=0",
                 [.int(pinned ? 1 : 0), .text(item.id.uuidString), .int(item.revision)])
             guard db.changes == 1 else { throw KeyboardReadError.changed }
-            return try SnippetQueries.summary(db, id: item.id)
+            return try SnippetQueries.summary(db, id: item.id, includesUsage: false)
         }
     }
 
@@ -74,7 +74,7 @@ actor KeyboardReader: KeyboardReading {
         let db = try database()
         return try db.readTransaction {
             let items = try SnippetQueries.search(db, query: "", filter: request.filter == .all ? .all : .pinned,
-                limit: KeyboardRequest.pageSize + 1, offset: request.offset)
+                limit: KeyboardRequest.pageSize + 1, offset: request.offset, keyboard: true)
             try Task.checkCancellation()
             return KeyboardPage(items: Array(items.prefix(KeyboardRequest.pageSize)), hasMore: items.count > KeyboardRequest.pageSize)
         }

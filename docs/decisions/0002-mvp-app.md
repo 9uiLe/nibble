@@ -163,7 +163,7 @@ flowchart TB
 
 ## 保存形式と接続
 
-本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 1には、保存済み項目の`snippets`と下書きの`drafts`がある。
+本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、キーボード`nibble.9uiLe.com.keyboard`は、App Group `group.nibble.9uiLe.com`の`Library/snippets.sqlite`を使う。schema version 2には、保存済み項目の`snippets`、下書きの`drafts`、使用操作IDの`snippet_uses`がある。使用回数と最終使用日時の移行・更新は[使用履歴の設計](../design/decisions/0003-usage-order.md)に定義する。
 
 各`SnippetStore` actorが一つの非Sendableな`SQLiteDatabase`を所有する。同一接続の操作はactorが直列化し、別プロセス・別接続の排他はSQLiteが担う。SQLを扱う`SnippetQueries`、`DraftQueries`、`SnippetCommands`は同期関数であり、呼出元actorの実行中だけ接続を借りる。接続を保持するTaskやUIへの通知を開始しない。トランザクション内に`await`を置かず、読取には`BEGIN`、書込には`BEGIN IMMEDIATE`を使う。失敗時はrollbackを試み、元のエラーを返す。
 
@@ -171,14 +171,15 @@ flowchart TB
 | --- | --- |
 | 書込接続のWAL、`synchronous=FULL`、`PERSIST_WAL` | 更新の確定と、書込接続の終了後も読み取り専用接続が使うWAL・SHMの保持 |
 | busy timeout 2秒 | 読書き双方で競合の待機時間を制限する |
-| `snippets_order` | 削除状態、ピン状態、更新日時、UUIDで一覧を取得する |
+| `snippets_order` | キーボードを削除状態、ピン状態、更新日時、UUIDで取得する |
+| `snippets_usage_order` / `snippets_pinned_usage_order` | 本体の全件／ピン条件を使用回数、更新日時、UUID順に取得する |
 | `drafts_order` | 下書きを更新日時・UUID順に取得する |
 | `drafts_snippet` | 対象スニペットの下書きの再開・除去を支える |
 | schemaの確認 | 未対応version・破損DBをエラーにする。既存データを消して初期化しない |
 
 書き込み用の保存層は接続時に索引の存在を確認して作成する。列構造を変更する場合はmigrationと既存データの検証を必要とする。
 
-`KeyboardReader`は読取要求ごとに短命の読み取り専用接続を所有する。ピン操作だけはフルアクセス確認後、既存DBへの書込接続でrevisionを照合して属性を更新する。schema version 1だけを扱い、DB作成・migration・索引作成を行わない。保存済みの要約問い合わせは`SnippetQueries`を共用する。ページ・本文照合とWALの条件は[キーボード設計](0005-snippet-keyboard.md)に定義する。
+`KeyboardReader`は読取要求ごとに短命の読み取り専用接続を所有する。ピン操作だけはフルアクセス確認後、既存DBへの書込接続でrevisionを照合して属性を更新する。schema version 1と2を扱い、DB作成・migration・索引作成を行わない。保存済みの要約問い合わせは`SnippetQueries`を共用する。ページ・本文照合とWALの条件は[キーボード設計](0005-snippet-keyboard.md)に定義する。
 
 `SQLiteDatabase`は準備済みSQL（statement）を接続ごとに最大32件保持し、最も長く使われていないものから解放する。実行中のstatementは保持対象から外すため、入れ子の同じSQLにも独立したstatementを使う。
 
@@ -226,7 +227,7 @@ Listのidentityは表示中の結果のフィルターを使う。別フィル�
 | --- | --- |
 | 日本語・記号 | 日本語1文字から検索可能。ひらがなとカタカナ、清音と濁音を区別し、`%`・`_`・バックスラッシュを通常文字として扱う |
 | フィルター | 全項目・ピン留めは未削除、削除一覧は削除済み。下書きの検索語による絞り込みは行わない |
-| 並び順 | ピン留め優先、更新日時降順、UUID昇順 |
+| 並び順 | 本体のすべて・ピン留め・検索は使用回数降順、更新日時降順、UUID昇順。削除一覧は更新日時降順、UUID昇順 |
 | SQLの選択 | ピン条件・検索語の有無から固定した述語を選ぶ。ユーザー文字列は常にbindingで渡す |
 | 読込量 | 一覧は要約、コピーと再開は対象1件の全文。検索語が空なら部分一致を評価しない |
 
@@ -363,7 +364,7 @@ lifetimeはキャンセル対象の分類であり、OSのイベントは所有�
 
 ### 一覧の選択と行操作
 
-「すべて」は直近の下書き、ピン留め済み、その他の順に表示し、空区分を省く。「ピン留め」はピン項目、「下書き」は未完了の編集だけを示す。フィルターは文字・塗り・枠の色で選択を表し、チェックマークを付けない。横スクロールと44 pt以上の操作領域を使う。
+「すべて」は直近の下書き、使用回数順の保存済みを表示し、空区分を省く。「ピン留め」はピン項目、「下書き」は未完了の編集だけを示す。フィルターは文字・塗り・枠の色で選択を表し、チェックマークを付けない。横スクロールと44 pt以上の操作領域を使う。
 
 行の内容をタップすると編集、コピーアイコンは本文をコピーする。メニューと長押しで整理操作を選べる。保存済み行は左フルスワイプで削除、右フルスワイプでピン留め／解除を実行する。削除一覧の完全削除はフルスワイプで実行せず、確認を必要とする。
 
