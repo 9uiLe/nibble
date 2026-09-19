@@ -8,7 +8,7 @@
 
 エージェントは署名・アップロードの成功と公開manifestを確認し、version・build番号を報告する。Apple側の処理完了と「本人用」への配信状態は配布担当者が確認する。通常の配布依頼ではエージェントによるブラウザー確認を行わず、そのためのサインインも依頼しない。送信結果が不明な場合のApple側の確認も配布担当者が行う。
 
-[配布設計](decisions/0003-testflight-distribution.md)は構成と責務、[検証記録](testflight-validation.md)は対象ソース・結果・未確認事項を定義する。以下の初回設定を済ませ、リポジトリのルートでコマンドを実行する。
+[配布設計](decisions/0003-testflight-distribution.md)が構成と責務を定義する。以下の初回設定を済ませ、リポジトリのルートでコマンドを実行する。
 
 ## 秘密情報の取り扱い
 
@@ -92,11 +92,7 @@ scripts/deploy-testflight.sh --dry-run
 
 ## 輸出コンプライアンス
 
-本体・共有拡張・キーボードの`Info.plist`に`ITSAppUsesNonExemptEncryption`をBooleanの`false`として保存する。これは「免除対象外の暗号化を使用しない」という申告である。nibbleはApple同梱SQLiteに保存し、ファイルの保護はiOSのData Protectionを使う。製品とリンクする依存ライブラリには、独自の暗号化実装を含めない。
-
-申告をビルドに含めることで、App Store Connectで各ビルドの暗号化に関する質問へ回答する操作を省略する。配布スクリプトは完成したarchiveの本体・共有拡張・キーボードを検査し、キーの欠落、`true`、文字列や数値などの型の誤りがあれば、export・upload前に停止する。確認した値を公開メタデータ`uses_non_exempt_encryption`へ記録する。
-
-申告値は秘密情報ではなく、製品の構成としてGitで管理する。スクリプトは申告を推測したり、archiveを書き換えたりしない。暗号化機能や依存ライブラリの追加・変更時は、配布担当者が申告の適合性を再確認し、必要に応じて設定と検査を変更する。Appleの[申告キーの定義](https://developer.apple.com/documentation/bundleresources/information-property-list/itsappusesnonexemptencryption)と[ベータビルドの申告](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-export-compliance-information-for-beta-builds)を参照する。
+本体と両拡張の`Info.plist`へ保存した`ITSAppUsesNonExemptEncryption`の申告を、完成したarchiveで検査してから送信する。申告の理由と依存変更時の再確認は[配布設計](decisions/0003-testflight-distribution.md)に従う。エージェントやスクリプトは申告を推測して書き換えない。
 
 ## 毎回の配布
 

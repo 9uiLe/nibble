@@ -50,11 +50,6 @@
       "references": true
     },
     {
-      "path": "research/08-keyboard-interface.md",
-      "kind": "file",
-      "references": true
-    },
-    {
       "path": "tools/ui-design",
       "kind": "tree",
       "exclude_directories": [

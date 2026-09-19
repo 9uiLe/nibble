@@ -4,7 +4,7 @@ iOS 26.0以上のSwiftUIアプリで、ローカルの`.riv`を読み込み、�
 
 ## 依存とAPI世代
 
-[Package.swift](Package.swift)はSwift tools 6.0、rive-ios 6.27.0、swift-app-macros 0.3.0のexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンが必要である。利用アプリは解決済みの依存をPackage.resolvedで共有する。
+[Package.swift](Package.swift)はSwift tools 6.0、rive-iosとswift-app-macrosのexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンが必要である。利用アプリは解決済みの依存をPackage.resolvedで共有する。
 
 使用するのはApple runtime APIの`Worker`、`File`、`Rive`、`ViewModelInstance`とData Bindingである。Legacy APIやState Machineの旧inputsへの接続は提供しない。Data Bindingの型付きプロパティ操作はランタイムのAPIを直接使い、このパッケージで重複実装しない。
 
@@ -70,15 +70,7 @@ Canvasは次のいずれかが成立するとフレーム進行を止める。
 
 ## ホストの設計事項
 
-| 領域 | ホストが定義すること |
-| --- | --- |
-| アセット | 接続名、初期値、値域、更新方向、状態遷移、業務状態との関係 |
-| 寿命と回復 | 読込中・失敗時の表示、再試行、Sessionの保持期間、購読の終了 |
-| 表示環境 | 配色、自動再生と静止表示の方針、スクロール可視性 |
-| レイアウト | サイズ、縦横比、fit、クリッピング、タッチの可否と座標の一致 |
-| 利用可能性 | 説明文、読み上げ、操作ボタン、Dynamic Type |
-
-Canvasはアセットのサイズや意味を強制しない。fitなどのランタイム設定は`session.rive`から行う。インタラクティブなアセットでは、表示範囲とタッチ座標が一致することを対象環境で確認する。
+ホストはアセット契約、読込失敗からの回復、Sessionの寿命、配色・可視性・再生方針、説明文と読み上げを定義する。Canvasは意味やレイアウトを強制せず、fitなどは`session.rive`で設定する。操作可能なアセットでは表示範囲とタッチ座標を照合する。
 
 ## アプリへの導入と別リポジトリへの移設
 
@@ -89,4 +81,4 @@ Canvasはアセットのサイズや意味を強制しない。fitなどのラ�
 3. RiveRuntimeのFramework同梱と探索経路を設定し、テストhostだけでなく通常アプリ起動を確認する。
 4. 依存lockとライセンスを管理し、実バイナリの契約、独立状態、停止・復帰、設定変更、失敗時の表示を検証する。
 
-接続例は[AboutIllustration](../../Nibble/AboutIllustration.swift)、演出の入力仕様は[アセット契約](../../Animations/README.md#接続契約)にある。採用理由と依存更新の基準は[演出設計](../../../docs/decisions/0004-rive-presentation.md)、実行済みの条件と限界は[検証記録](../../../docs/rive-validation.md)を参照する。
+接続例は[AboutIllustration](../../Nibble/AboutIllustration.swift)、演出の入力仕様は[アセット契約](../../Animations/README.md#接続契約)にある。採用理由と依存更新の基準は[演出設計](../../../docs/decisions/0004-rive-presentation.md)、製品での確認範囲は[検証範囲](../../../docs/mvp-validation.md)を参照する。

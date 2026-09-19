@@ -100,5 +100,8 @@ xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
 
 `artifacts/`へコマンド、対象ソース、端末、開始時刻、終了コード、打ち切り、ログ、trace、export結果を保存する。確認した事実、原因の仮説、未実施条件を分け、[証跡の契約](review-evidence.md)に従って対象と結果を対応させる。
 
-- [SwiftUIの評価記録](swiftui-investigation.md): 対象別の調査範囲、モデル処理、画面操作、未確認条件。
-- [Instrumentsの診断記録](instruments-diagnosis.md): 計測サービスの障害と比較試験。記録失敗を製品の性能値として使用しない。
+## Simulator計測の既知の制約
+
+macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
+
+この環境でフレーム時間・hitch・CPU・メモリ・電力を取得済みとは扱わない。環境更新時は上記の短時間接続確認から再判定する。モデルとSQLiteの比較値は[保存・容量の測定](product-architecture-validation.md)、キーボードは[モデルの測定](keyboard-readability-validation.md)を参照し、描画指標へ換算しない。

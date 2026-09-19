@@ -1,112 +1,34 @@
-# 製品の検証結果
+# 製品の検証範囲
 
-本書は、本体`Nibble`・共有拡張`NibbleShare`・キーボード`NibbleKeyboard`の評価記録を案内する。設計の正本は[製品設計](decisions/0002-mvp-app.md)、再現する操作と期待結果は[MVP手順](mvp.md)とする。各記録は対象ソース・環境・確認方法を持ち、設計上の契約と実施した検証を区別する。
+検証の担当範囲と未確認条件を示す。実行結果はrunの対象ソースとともに記録し、現在のcheckoutが合格済みかは[証跡手順](review-evidence.md)で照合する。テストやdriverが存在することは、この版で実行したことを意味しない。
 
-## 共有データと操作境界
+## 確認する契約と入口
 
-タブの操作完了通知と削除取り消しは[通知の検証記録](notice-validation.md)を参照する。通知の識別子・表示可能期間・復元対象、期限の交差と離脱後の遅延完了を、製品テストと小画面の実操作で評価する。
+| 範囲 | 検査・手順 | 保証するもの / 保証しないもの |
+| --- | --- | --- |
+| 保存と操作 | 製品Swift Testing、[MVP手順](mvp.md#開発環境とビルド) | 永続化、競合、直接await後の状態。実画面やOS権限は別 |
+| View | hostedテストと[比較規約](library-policy.md#viewの比較境界) | 入力変更・復元、Binding差し替え、環境更新。全画面の可読性は別 |
+| 本体の基本操作 | `check-mvp-ui.py` | 作成、下書き、検索、コピー、ピン、復元、設定。説明イラストは専用driver |
+| 表示方針 | `check-interface-ui.py` | 通常と最大文字・高コントラストで製品の配置を固定。最小文字はhostedテストで確認 |
+| About・利用案内 | `check-about-ui.py`、`check-keyboard-guide-ui.py` | 導線・説明・Rive表示。GPUやフレーム時間の改善は別 |
+| 結果通知 | `check-notice-ui.py` | 内容と期限、検索focus、通知前後の座標。音声・触覚は別 |
+| 共有・呼び出し・IME | [MVP手順](mvp.md)の実操作 | 原文と対象UUID、入力先への受け渡し。貼付はIMEの代替にならない |
+| Keyboard | [操作手順](mvp.md#キーボードの操作検証) | 行挿入、全文、コピー・ピンの権限、復帰、ページ。ホストごとの受理は別 |
+| 基盤fixture | [共通手順](ios-verification.md) | 実行・入力・撮影の成立。製品の機能や品質は別 |
+| 比較実験 | [ResearchProbe](../validation/RESEARCH.md) | 明示した条件の方式比較。製品targetの合格には使わない |
 
-[共有データの検証記録](shared-data-validation.md)は、本体・共有拡張・キーボードの接続所有、SQL操作、下書き終了、読込競合を評価する。Releaseテスト90件（展開後107件）とローカルNixの全7 checkが成功した。長文下書きの再開・新入力保持は同条件の補助プロセス計測で短縮し、Simulator向け実行ファイル合計は約0.30%増加した。対象ソース、実操作、媒体、失敗run、測定条件と未確認範囲は詳細記録を参照する。
+## 判断に使う測定
 
-## スニペットキーボード
+- [保存層と配布容量](product-architecture-validation.md)：索引・SQL再利用とサイズ最適化を含む構成の比較。
+- [Keyboard](keyboard-readability-validation.md)：モデル・SQLiteの応答、全文や挿入を検査する際の限界。
+- [性能手順](performance-verification.md)：測定の成立条件とSimulatorのInstruments障害。
 
-[キーボードの検証記録](keyboard-validation.md)は、表示、読取専用DB、挿入・コピー、権限、操作寿命、配布の結果と対象ソースを対応付ける。採用レイアウトは、全幅のセグメント、一列の入力キー、「入力」の動作名、独立したコピーキーで構成する。
-
-| 対象 | 確認したことと範囲 |
-| --- | --- |
-| 採用レイアウト | `85b392f800180089f2215a45f2c1e74a06224e07`と入力が一致するRelease runで縦ライト／ダーク、横向き、375pt幅、0件・53件のページ、挿入、権限別コピー、閉じる・再表示を確認 |
-| 製品テスト・本体 | 同ソースのReleaseテスト82件成功、失敗・skipなし。本体標準UI driverで保存・検索・編集・原文コピー・設定・削除復元・背景復帰を確認 |
-| OS連携 | 許可ありコピー41 byte完全一致、拒否時のクリップボード維持。標準キーボードへの復帰・利用案内は詳細記録に対象ソースを記載 |
-| 媒体 | [PR #27](https://github.com/9uiLe/nibble/pull/27)へPNG9枚と録画4本を添付。原本画像・指定フレームを閲覧し、未ログインのブラウザーで公開先の読込を確認 |
-| 性能 | 同条件の1万件データで共通保存層の処理時間・補助プロセスのメモリを比較。KeyboardReaderの時間、拡張RSS150標本、容量を測定。描画性能・高速化の根拠には使わない |
-| 配布 | ソース`53ac97488418b58d15f9439dfc58b93b20e9b831`、TestFlight 0.1.0 (202609181612)の署名・アップロード成功。[配布記録](testflight-validation.md)に工程と公開manifestを記載 |
-| 未確認 | VoiceOver音声、secure入力、end-to-end入力遅延・fps・hitch・GPU時間、実機。Apple側の処理・グループ反映と実機操作も未確認 |
-
-確認済みの条件、採用ソースとの照合、失敗run、計測環境の制約は詳細記録に集約する。SimulatorのAnimation Hitchesは非対応であり、出力ファイルの存在を成功と扱わない。
-
-## Viewの比較と入力反映
-
-対象ソースは`f1ef9eb6d69c7d550e202983df231da25b04d127`。[View比較の評価記録](view-comparison-validation.md)に、自作View全15型の比較方式、Binding・操作先の差し替え、環境更新、状態寿命に関する結果をまとめる。
-
-| 確認項目 | 結果と範囲 |
-| --- | --- |
-| 自動検査 | ReleaseのSwiftテスト74件（パラメーター展開後80件）、Python回帰106件、ローカルNix全7 checkが成功 |
-| 実操作 | 一覧・検索・編集・設定・削除復元、共有拡張からの保存と原文コピー、Aboutの配色・背景復帰をiOS 26.5 Simulatorで確認 |
-| 媒体 | 原本PNGと録画の抽出フレームを確認し、[PR #23](https://github.com/9uiLe/nibble/pull/23)へ画像9枚・録画2本を添付。所有者のChromeで読込確認。本体録画は全区間の再圧縮版で、全編再生と未認証の閲覧は未確認 |
-| 性能 | 宣言数による高速化は評価しない。比較時間・描画時間・メモリ・電力の比較測定は未実施 |
-
-## 状態の整合性とSwiftUI
-
-対象ソースは`f14c5008008b44ea6ca25c67ceeb685775ec0522`。[SwiftUIの評価記録](swiftui-investigation.md)に、全ターゲットの調査範囲、状態とTaskの所有、画面の寿命、UIKit接続、実行結果と未確認条件をまとめる。
-
-| 確認項目 | 結果と範囲 |
-| --- | --- |
-| Release製品テスト | 72件成功。取消後の読込表示、旧編集要求の成功・失敗、取消直後の再入場を含む |
-| 本体UI | 標準操作、一覧・検索の編集途中の背景復帰、原文UTF-8、復元UUIDを照合 |
-| 小画面 | iPhone SEで固定表示設定、長いタイトル、120行本文とキーボード、背景復帰を確認 |
-| 共有拡張・モデル測定 | 実行対象は`4a1f0cb9ff2f9995709e6d74214a30c8aea1adfa`。対象ソースと手順は詳細記録で対応付ける |
-| 性能 | 同条件の1万件モデル計測で大きな負荷増加を観測しなかった。描画時間・fps・hitchは未評価 |
-| Instruments | [診断記録](instruments-diagnosis.md)にSimulatorの計測サービス生成失敗を記載。製品の有効なtraceは未取得 |
-| 媒体 | 原本画像と動画の抽出フレームを観察。[PR #22](https://github.com/9uiLe/nibble/pull/22)へ画像11枚・録画3本を添付し、ログイン済み所有者のChromeで読込確認。本体録画は容量上限に対応する全区間の再圧縮版。全編再生は未実施 |
-
-計測の成立条件と再確認コマンドは[性能検証の手順](performance-verification.md)を参照する。
-
-## 製品構造・応答・容量
-
-対象ソースは`c84280c3c26b6cf0a8cbf75dd46e8d3ee78e40e2`。保存資源、OS作用、画面の責務、Release構成を[製品基盤の検証](product-architecture-validation.md)で評価した。
-
-| 確認項目 | 結果と範囲 |
-| --- | --- |
-| Release製品テスト | iOS 26.5 Simulatorで67件成功、失敗・skipなし |
-| 本体UI | 作成・下書き再開・保存・編集・原文コピー、検索・フィルター、設定・About、削除・Undo・復元 |
-| 行の操作 | 左右のフルスワイプ、同じUUIDと本文での復元 |
-| 共有拡張 | Safariからテキストを保存し共有元へ復帰。本体のコピーでUTF-8完全一致 |
-| 性能 | 同一Simulatorの保存層・編集モデルを比較。描画と実機性能は含めない |
-| 容量 | 同じ条件のunsigned Release archiveで、本体・共有拡張を含むファイル合計を比較 |
-| 共通検査 | Nixの7検査が成功。iOS tooling 101件、共通UI設計ツール35件を含む |
-| 証跡 | Releaseテストと3種類のUI runを対象コミットと照合。画像と抽出フレームを観察。[PR #21](https://github.com/9uiLe/nibble/pull/21)に添付し、ログイン済み所有者のブラウザーで読込確認 |
-
-本体`nibble.9uiLe.com`、共有拡張`nibble.9uiLe.com.share`、App Group `group.nibble.9uiLe.com`を使う。実行はXcode 26.5・Swift 6.3.2・iPhone 17 Pro Simulator・iOS 26.5（23F77）。性能・容量の数値、比較元、失敗run、画像の確認時刻は詳細記録に集約する。
-
-## 契約ごとの詳細記録
-
-表の文書は、それぞれの対象コミットに対する評価である。特定の画面や依存を確認するときは、文書の冒頭で対象ソース・版・端末を確認する。
-
-| 契約・対象 | 参照先 |
-| --- | --- |
-| 文字・太字・独自配色・演出の固定、OS部品に残る表示差 | [表示設定](interface-validation.md) |
-| 説明文、Riveの接続、自動ループ、画面寿命、配色、配布 | [Rive](rive-validation.md) |
-| 取得待ち・空表示・失敗回復、行の識別、削除対象の提示 | [UI操作と回復](ui-ux-validation.md) |
-| 標準タブ、上部フィルター、共通背景 | [標準ナビゲーション](native-navigation-validation.md) |
-| 一覧区分、左右位置、再起動後の設定保持 | [一覧と設定](library-settings-validation.md) |
-| すべて・ピン留め・下書きの選択 | [一覧フィルター](library-filters-validation.md) |
-| 見出し、ボタン寸法、背景 | [ナビゲーションバーとリスト](navigation-header-validation.md) |
-| 検索中の見出し、検索欄、キーボード | [検索画面](search-layout-validation.md) |
-| 要約読込、下書き照合、編集終了、入力の比較 | [一覧と編集](library-validation.md) |
-| 操作APIの完了、所有者、通知期限 | [非同期API](async-policy-validation.md) |
-| 全Viewの比較宣言、入力・操作先の差し替え、状態の更新 | [View比較](view-comparison-validation.md) |
-| AppMacros 0.2.0での一覧行の比較・環境更新 | [一覧行の比較](app-macros-validation.md) |
-| Tasking・ScopedAnimationの採用構成 | [タスクとアニメーション](library-policy-validation.md) |
-| SPM解決、マクロ承認、採用版の互換性 | [Swift Package構成](spm-validation.md) |
-| 署名・送信・内部配信と実機確認 | [TestFlight](testflight-validation.md) |
-| 初期構成のビルド、日本語入力、URL、共有、検索測定 | [初期構成の検証](mvp-initial-validation.md) |
-
-文字拡大や動作軽減へ追従する構成の観測を、固定表示方針の評価として扱わない。表示比較View単体の環境テスト、OS設定を変えた画面操作、利用者の操作確認も別々の結果として読む。
-
-## 証跡の参照方法
-
-1回の検証実行をrunと呼ぶ。`artifacts/ios/<run>/manifest.json`が、入力ファイルのhash、ツール、端末、コマンド、終了コード、媒体を記録する。未コミットのソースを実行した場合も、コミット後のファイル照合で対応を確認する。
-
-画像の目視、動画の抽出フレーム、全編再生、アップロード、ブラウザーでの閲覧は独立した確認である。`review.json`に実際の方法と範囲を記入し、[証跡検査](review-evidence.md)で形式と整合性を確認する。
-
-生ログ・画像・動画はGit管理対象外のため、新しいcheckoutに含まれない。公開済みの記録は詳細文書に示すPR添付を使う。未公開の記録はローカル媒体を必要とする。録画に含まれるdriverの待機時間をアプリの応答時間へ換算しない。
+いずれも対象版・条件を限定した値であり、新しいcheckoutの性能を保証しない。
 
 ## 検証範囲の制約
 
-- 最低対応OSは26.0、実行評価は26.5 Simulator。最低OSへの適合と、実行したOSでの結果は区別する。
-- Simulatorの測定から実機の描画時間・電力・触覚・ロック時保護を推定しない。unsigned archiveは署名・配信・インストール成功を示さない。
-- 1 MB入力のsetterと保存可能判定の測定は、キーボード入力や画面描画の測定を含まない。
-- VoiceOverの実操作、横向き、長時間利用、表示設定の全組み合わせは、上記`c84280c3c26b6cf0a8cbf75dd46e8d3ee78e40e2`の評価範囲に含めていない。設定別の観測は各詳細記録の対象ソースに限る。
-- 共有の操作hostはSafari。サードパーティアプリが提供する全形式を網羅しない。
-- URL呼び出しの観測と、ホーム画面・コントロールセンターへの配置操作は別の確認である。
-- 別ソースのテスト件数や画面結果を合成して、同じ構成で全条件を確認済みとは扱わない。同期・独自バックアップなど提供範囲外の機能は受け入れ項目に含めない。
+MVPの実行評価はiOS 26.5 Simulatorのみ。実機の触覚・熱・電力・ロック時保護・Handoff・ホストごとのKeyboard受理は未確認。署名・送信は[TestFlight](testflight.md)の工程で、Apple側の配信と端末での受け入れは配布担当者が確認する。
+
+VoiceOver音声と通知順、Voice Control、Switch Control、全画面の横向き、複数scene、長時間利用、1 MB本文の入力追従は未確認。AXのラベルや座標は、これらの操作成立を証明しない。説明イラストは製品方針でReduce Motionへ追従しないため、OS設定との一致を受け入れ条件にしない。
+
+画面の発見性・片手操作・誤操作・復旧の理解は[UI評価課題](design/audit.md)で評価する。自動driverの所要時間を利用者のタスク時間として扱わない。実施した観測、抽出フレーム、全編再生、添付先の閲覧は区別して申告する。
