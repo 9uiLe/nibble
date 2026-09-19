@@ -123,13 +123,13 @@ flowchart TB
 | `DraftQueries` | 下書きの作成・再開・入力保存・終了と、入力順序・保存済みrevisionの競合検出 |
 | `SnippetCommands` | ピン・削除・復元・完全削除。通知を伴う変更と対象の取得を一つのtransactionで確定し、ピンは単一のUPDATEで完了する |
 | `KeyboardViewController` / `KeyboardView` | キーボードのモデル・OS操作・入力先の識別 / 表示と読込・利用操作のタスク所有 |
-| `KeyboardModel` / `KeyboardReader` | ページ・要求世代・操作ID・通知 / 保存済みデータだけを読む短命の接続 |
+| `KeyboardModel` / `KeyboardReader` | ページ・要求世代・詳細・操作ID・通知 / 保存済みの読取と許可時のピン更新を行う短命の接続 |
 | `SnippetQueries` | 保存済み要約の検索・並び順、未削除の確認、必要に応じてrevisionを照合する本文読取。本体・キーボードで共用する |
 | `SnippetSchema` / `SQLiteDatabase` | テーブル・索引・version / 接続・準備済みSQL・引数・トランザクションの資源管理 |
 | `LibraryEffects` / `SystemLibraryEffects` | コピーと読み上げ通知の同期契約 / UIKitによる実行 |
 | `AboutIllustration` / `RivePresentation` | 説明と表示設定・再生Sessionの保持 / 読込・接続検査・表示・フレーム停止 |
 
-保存層を必要とする画面・モデルはinitializerで受け取る。本体の各モデルは一つの保存層を共有し、共有拡張は自身の保存層、キーボードは読み取り専用のReaderを持つ。App Groupの解決は最初の保存操作まで遅らせ、利用できない場合は回復可能なエラーとして表示する。モデルが参照する型は`LibraryStorage`、`DraftEditing`、`KeyboardReading`とし、具体的な保存先やSQLite接続を公開しない。テストには専用の一時URLまたは完了順を制御する実装を渡す。
+保存層を必要とする画面・モデルはinitializerで受け取る。本体の各モデルは一つの保存層を共有し、共有拡張は自身の保存層、キーボードは読取とピン更新に限定したReaderを持つ。App Groupの解決は最初の保存操作まで遅らせ、利用できない場合は回復可能なエラーとして表示する。モデルが参照する型は`LibraryStorage`、`DraftEditing`、`KeyboardReading`とし、具体的な保存先やSQLite接続を公開しない。テストには専用の一時URLまたは完了順を制御する実装を渡す。
 
 ### 状態の寿命
 
@@ -137,7 +137,7 @@ flowchart TB
 
 | 状態 | 所有者と寿命 | 更新と読取 |
 | --- | --- | --- |
-| 保存済み項目・下書き | App GroupのDB。プロセス終了後も保持 | 本体・共有拡張がそれぞれの`SnippetStore`から読書きし、キーボードは保存済みだけを読む |
+| 保存済み項目・下書き | App GroupのDB。プロセス終了後も保持 | 本体・共有拡張がそれぞれの`SnippetStore`から読書きし、キーボードは保存済みを読み、許可時だけピン属性を更新する |
 | 一覧・検索の要求と結果 | `LibraryView`が保持する独立した`LibraryModel`。シーン中保持 | 各`LibraryScreen`が選択を更新し、表示時・active復帰時・編集終了時に再取得する |
 | 削除一覧の要求と結果 | 削除一覧シートの`LibraryModel` | 本体と同じ保存層を使い、シート内の検索条件を保持する |
 | 編集対象 | 呼出元の`LibraryModel.editor`。提示する下書きのUUIDを持つ | `LibraryView`がBindingでシートを提示する |
@@ -178,7 +178,7 @@ flowchart TB
 
 書き込み用の保存層は接続時に索引の存在を確認して作成する。列構造を変更する場合はmigrationと既存データの検証を必要とする。
 
-`KeyboardReader`は要求ごとに短命の読み取り専用接続を所有する。schema version 1だけを読み、DB作成・migration・索引作成を行わない。保存済みの要約問い合わせは`SnippetQueries`を共用する。ページ・本文照合とWALの条件は[キーボード設計](0005-snippet-keyboard.md)に定義する。
+`KeyboardReader`は読取要求ごとに短命の読み取り専用接続を所有する。ピン操作だけはフルアクセス確認後、既存DBへの書込接続でrevisionを照合して属性を更新する。schema version 1だけを扱い、DB作成・migration・索引作成を行わない。保存済みの要約問い合わせは`SnippetQueries`を共用する。ページ・本文照合とWALの条件は[キーボード設計](0005-snippet-keyboard.md)に定義する。
 
 `SQLiteDatabase`は準備済みSQL（statement）を接続ごとに最大32件保持し、最も長く使われていないものから解放する。実行中のstatementは保持対象から外すため、入れ子の同じSQLにも独立したstatementを使う。
 

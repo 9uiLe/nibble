@@ -32,9 +32,9 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
         globe.accessibilityIdentifier = "keyboard.nextKeyboard"
         globe.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
         let host = UIHostingController(rootView: KeyboardView(model: model, globe: globe).modifier(NibbleInterface()))
+        NibbleInterface.apply(to: &host.traitOverrides)
         // Keep the system keyboard surface visible through the SwiftUI content.
         host.view.backgroundColor = .clear
-        NibbleInterface.apply(to: &host.traitOverrides)
         addChild(host)
         host.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(host.view)
