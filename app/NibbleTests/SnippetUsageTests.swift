@@ -7,6 +7,19 @@ import Tasking
 struct SnippetUsageTests {
     private let instant = Date(timeIntervalSince1970: 1_800_000_000)
 
+    @Test func retriesCompareThePersistedTimestampPrecision() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let id = try await create(files.store, body: "日時の精度")
+        let completed = Date(timeIntervalSinceReferenceDate: 0.0000001)
+        let use = SnippetUse(id: UUID(), snippetID: id, completedAt: completed)
+        try await files.store.recordUse(use)
+        try await SnippetStore(location: files.url).recordUse(use)
+        let result = try await files.store.snippet(id)
+        #expect(result.useCount == 1)
+        #expect(result.lastUsedAt?.timeIntervalSince1970 == completed.timeIntervalSince1970)
+    }
+
     @Test func concurrentConnectionsCountEachCompletedCopyOnce() async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
@@ -226,6 +239,26 @@ struct SnippetUsageTests {
         #expect(try await files.store.snippet(id).useCount == 1)
         #expect(try await files.store.snippet(id).lastUsedAt == instant)
         #expect(effects.events == [.copy("一度だけコピー"), .announce("コピーしました")])
+    }
+
+    @Test @MainActor func permanentlyDeletedPendingUseCanBeAcknowledged() async throws {
+        let files = try TestDatabase()
+        defer { files.removeFiles() }
+        let id = try await create(files.store, body: "削除する本文")
+        let effects = RecordingLibraryEffects()
+        let model = LibraryModel(store: files.store, effects: effects,
+                                 usageRecorder: OnceFailingUsageRecorder(store: files.store, committed: false))
+        await model.copy(id)
+        #expect(model.failure?.recovery == .retryUsage)
+        let trash = SnippetStore(location: files.url)
+        _ = try await trash.mutate(.delete, id: id)
+        _ = try await trash.mutate(.permanentlyDelete, id: id)
+        await model.retryUsageRecording()
+        #expect(model.failure?.recovery == .dismiss)
+        model.dismissFailure()
+        await model.retryUsageRecording()
+        #expect(model.failure == nil && model.items.isEmpty)
+        #expect(effects.events == [.copy("削除する本文"), .announce("コピーしました")])
     }
 }
 

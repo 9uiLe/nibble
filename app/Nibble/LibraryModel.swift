@@ -211,6 +211,12 @@ final class LibraryModel {
             try await usageRecorder.recordUse(use)
             pendingUses.removeAll { $0.id == use.id }
             usageErrors[use.id] = nil
+        } catch StoreError.missing {
+            pendingUses.removeAll { $0.id == use.id }
+            usageErrors[use.id] = nil
+            operationFailure = Failure(title: "コピーした項目の使用記録を保存できませんでした",
+                                       message: "本文はコピー済みですが、対象が完全に削除されています。",
+                                       recovery: .dismiss)
         } catch {
             usageErrors[use.id] = error.localizedDescription
         }

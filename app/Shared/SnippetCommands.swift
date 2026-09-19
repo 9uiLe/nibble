@@ -6,10 +6,13 @@ enum SnippetCommands {
         guard use.completedAt.timeIntervalSince1970.isFinite else { throw StoreError.database }
         try db.writeTransaction {
             let existing = try db.rows("SELECT snippet_id,used FROM snippet_uses WHERE id=?", [.text(use.id.uuidString)]) {
-                SnippetUse(id: use.id, snippetID: try $0.uuid(0), completedAt: Date(timeIntervalSince1970: $0.double(1)))
+                (snippetID: try $0.uuid(0), timestamp: $0.double(1))
             }
             if let existing = existing.first {
-                guard existing == use else { throw StoreError.conflict }
+                // Compare in SQLite's epoch representation: converting back to Date
+                // can round away precision and reject the original operation's retry.
+                guard existing.snippetID == use.snippetID,
+                      existing.timestamp == use.completedAt.timeIntervalSince1970 else { throw StoreError.conflict }
                 return
             }
             try db.execute("INSERT INTO snippet_uses(id,snippet_id,used) VALUES(?,?,?)",
@@ -20,7 +23,10 @@ enum SnippetCommands {
                 WHERE id=? AND use_count<?
                 """, [.real(use.completedAt.timeIntervalSince1970), .real(use.completedAt.timeIntervalSince1970),
                        .text(use.snippetID.uuidString), .int(Int.max)])
-            guard db.changes == 1 else { throw StoreError.missing }
+            if db.changes != 1 {
+                let exists = try db.rows("SELECT 1 FROM snippets WHERE id=?", [.text(use.snippetID.uuidString)]) { $0.int(0) }
+                throw exists.isEmpty ? StoreError.missing : StoreError.database
+            }
         }
     }
 
