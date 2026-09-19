@@ -2,6 +2,23 @@
 
 [配布設計](decisions/0003-testflight-distribution.md)に対し、対象ソース、ビルド番号、工程、観測範囲を記録する。操作方法は[配布手順](testflight.md)を参照する。別の日付・ビルドの結果を、現在のビルドの実行結果として扱わない。
 
+## Issue #26の通知配置の評価用配布
+
+2026-09-19（JST）、コミット`f306ed3b1c6883829898e1f2d93c04bb731f68d7`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609191149)**。
+
+一覧のTab Bar accessory通知と削除取り消し、検索入力中だけ上部に通知を置く試作を含む。ユーザーからTestFlightでの確認依頼を受けた評価用配布であり、検索入力中の配置の正式採用を意味しない。[G13の評価条件](design/audit.md#g13-b--検索入力中の通知配置)に従って判断する。
+
+| 確認対象 | 結果 |
+| --- | --- |
+| 共通検査・依存解決 | Nix全checkと共有lockに基づくSwift Packageの解決が成功 |
+| archive・署名・メタデータ | Release、iPhoneOS SDK 26.5 / 最低iOS 26.0で成功。本体・共有拡張・キーボードの識別子、バージョン、Privacy Manifest、輸出申告のBoolean falseを検査 |
+| アップロード | 成功。配布スクリプトの終了コード0 |
+| 公開記録 | `artifacts/testflight/202609191149/manifest.json`。`destination: upload`、`stage: upload`、`completed: true`、対象commitとversion・buildの一致を確認 |
+| Simulatorの操作記録 | run `20260919T111823Z-notice-ui-f0a627`を配布commitへ照合し、`check_evidence.py --integrity-only`が成功。画像・動画の閲覧範囲は[通知の検証](notice-validation.md)を参照 |
+| Apple側の処理・グループ配信・実機操作 | 配布担当者が確認する。エージェントは未確認 |
+
+認証設定・秘密鍵・Keychain・保護された生ログは直接参照していない。上部配置追加前の`980fd6d`で製品テスト116件が成功しているが、配布候補での全製品テスト再実行は未実施。ダーク、通知中の末尾「その他」の操作、VoiceOver音声と触覚の体感も未確認として残す。この配布記録の追加はアップロード後であり、配布ソースへ含めない。
+
 ## タイトル中心の一覧と全文操作の内部配布
 
 2026-09-19（JST）、コミット`3c91f027a2c4ef6f0ec219473177e0030c59f255`のcleanな作業ツリーから、`NIBBLE_UI_FORMAT=json scripts/deploy-testflight.sh`を実行した。バージョンは**0.1.0 (202609190447)**。
