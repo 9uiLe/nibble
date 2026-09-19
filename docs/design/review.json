@@ -1,11 +1,10 @@
 {
   "version": 1,
-  "summary": "S01/S02とC18/C19の完了通知をシステムTab Bar accessoryへ集約。C09新規作成は独立させ、通知ID・発生元・表示世代・初回表示時の期限と読み上げ・触覚を照合。iOS 26.1以降はisEnabled、26.0は公開UIKitのaccessoryを追加・除去し、タブの同一性を維持する。シートと拡張は各画面の通知を保持する。",
+  "summary": "S01・S02の操作結果をC18・C19のシステムTab Bar accessoryへ集約し、C09新規作成から独立させる。表示ID・発生元・世代・復元対象を一体で管理する。26.0のUIKit接続はNavigationStackの内側に置き、検索の標準接続を保つ。状態の契約・通知の寿命・OS別の責務を画面と部品の台帳および判断記録に照合した。",
   "references": [
-    "docs/design/decisions/0004-tab-accessory.md",
     "docs/design/screens.md",
     "docs/design/components.md",
-    "docs/decisions/0002-mvp-app.md"
+    "docs/design/decisions/0004-tab-accessory.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -29,11 +28,11 @@
     "app/Nibble/LibraryFilterBar.swift": "6309c4aa5ea4135efcf9aafbd408979bbcff3c6b1236448d5a85d35921d21c06",
     "app/Nibble/LibraryModel.swift": "83008210711f68fb79026e7e32e2ae6833d3dc25df2a65dd23d89b89a9864176",
     "app/Nibble/LibraryNotice.swift": "d678b665029d5f65bf89117a51500c6c1732f0e1f8c6693d0308a3ceb9660a85",
-    "app/Nibble/LibraryNotifications.swift": "8c17de5b6e422f27ac8f32b69fa7c132d860eebfb79d84eb1c24604b08dc1e77",
+    "app/Nibble/LibraryNotifications.swift": "b05dd8017908dd2ee88584429c9008f94b3ab7ffc1aa81bf0380354593c1d52d",
     "app/Nibble/LibraryScreen.swift": "ec6c06d1fa96e8043845cb40cd6393dabbcfbddf45d62d394ac90ac215b0b5ac",
     "app/Nibble/LibrarySettingsView.swift": "e56ecb370159172cd1b8e02a3f78e12a729a92778ad1b914e71da56e91f49279",
     "app/Nibble/LibraryTaskOwner.swift": "8c74195d15204d31625676a21510e48dc2e43107172d7ac8dcea3db2f47d2028",
-    "app/Nibble/LibraryView.swift": "200ac66aa9eb653c555ea0ba65cf4b3e67ddefc55fabedb8b35eb86a29b11b75",
+    "app/Nibble/LibraryView.swift": "d27cac318cb0bc6413c69f1b5ab6566d431937c239e9ea84fb60fd7ac4ba02ae",
     "app/Nibble/Nibble.entitlements": "d8ac075b30113d562981437e6f63626915a9082005d1a0a88cf131a19e3a5a5c",
     "app/Nibble/NibbleApp.swift": "55789d3d0723cbc90345cef6885a9911e25b1ab25e0d7fc8d0ab16c5d93578b6",
     "app/Nibble/PrivacyInfo.xcprivacy": "3e4a93cbe86acef7dd7e063a28c849992f556e7f52cadc5f37c1e8b0e1b54686",

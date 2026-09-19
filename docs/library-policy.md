@@ -28,7 +28,7 @@ nibbleのSwift実装は、依存の所有者、外部状態への作用、操作
 | 永続化 | モデルは`LibraryStorage`・`DraftEditing`を参照する。`SnippetStore`が接続を所有・直列化し、`SnippetQueries`・`DraftQueries`・`SnippetCommands`が同期SQLを実行する。トランザクション中は中断しない |
 | 同期OS操作 | `LibraryModel`は`LibraryEffects`を参照する。`SystemLibraryEffects`がMainActor上でコピー・読み上げ通知を実行し、処理の終了前に戻らない |
 | UIイベント | 行は表示値と意味のある操作意図を受け渡す。親画面が意図をモデルの操作へ接続し、タスクを所有する |
-| 一時的な表示 | `LibraryNotice`が通知・触覚を観測する。通知期限はSwiftUIのタスク、復元操作は親画面の所有者へ接続する |
+| 一時的な表示 | 一覧・検索は`LibraryNotifications`が発生元・期限・復元対象を保持し、`LibraryView`がシステムのTab Bar accessoryへ配置する。削除一覧シートは`LibraryNotice`を使う。期限はSwiftUIのタスク、復元操作は親画面の所有者へ接続する |
 
 モデルのテストには一時URLの保存層と記録用の`LibraryEffects`を注入する。OSの状態を使う統合テストは、実装を明示して直列に実行する。業務上の状態とOS作用の順序をテストできること、画面から保存先やグローバルな保存層を探索しないことをレビューする。
 
@@ -181,7 +181,7 @@ struct ExampleView: View {
 
 ### 通知とエラー
 
-通知のID・本文・取り消し対象は1つの値として保持する。コピー等の操作完了に表示期間を含めず、`.task(id: notice?.id)`から`expireNotice(id:)`をawaitする。
+通知のID・本文・取り消し対象は1つの値として保持する。一覧・検索の`LibraryNotifications`は発生元タブと表示世代も照合し、タブ移動・シート表示・非アクティブ化の後に完了した処理を再表示しない。`LibraryAccessory`の表示タスクが`presented(id:)`で期限と一度だけの読み上げ・触覚を確定し、`expire(id:)`をawaitする。削除一覧シートは`LibraryNotice`の`.task(id: notice?.id)`から`LibraryModel.expireNotice(id:)`をawaitする。どちらもコピー等の操作完了に表示期間を含めない。
 
 業務上の失敗はモデルの表示状態へ変換する。編集失敗には説明と回復可能な操作を持たせ、入力を残す。非同期の書込結果はsnapshotの入力番号と編集状態を確認し、新しい入力や終了結果へ古いエラーを反映しない。
 
@@ -254,7 +254,7 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 表示変化の範囲を名前付き`AnimationScope`で囲み、valueによる変更検知またはproxyの`scope.animate`を使う。複数triggerのfactoryは`AnimationTrigger.animation`と型名を明記する。入力など親のアニメーションを受けない領域には`animationBarrier()`を置く。
 
-製品の通知scopeは`Library.Notice`とし、通知の有無をvalueで検知する。表示・消去はReduce Motionの設定にかかわらず0.16秒のopacity遷移とする。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
+一覧・検索のTab Bar accessoryはシステムが背景・配置・表示遷移を所有する。アプリは通知の有無と内容を渡し、独自のアニメーションを重ねない。削除一覧シートの`LibraryNotice`は`Library.Notice` scopeで通知の有無をvalueとして検知し、Reduce Motionの設定にかかわらず0.16秒のopacity遷移を使う。通知本文の更新と表示の有無を区別し、scopeを通知部分に限定する。
 
 `LibraryScreen`と`SnippetEditor`の外側の`animationBarrier(warnsOnLeaks: false)`は、OSのシートtransactionが内容へ伝わるのを防ぐ。内側の`detectAnimationLeaks()`と編集入力領域の警告付きbarrierは、アプリ内部の伝播をDebug実行時に診断する。標準シート・メニュー・キーボードの遷移はOS部品が管理する。
 

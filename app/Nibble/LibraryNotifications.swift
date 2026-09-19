@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 /// One tab-scoped result, independent of the lifetime of accepted storage writes.
 @MainActor @Observable
@@ -72,7 +73,13 @@ final class LibraryNotifications {
             notice = nil
             self.presented = nil
         } catch is CancellationError { }
-        catch { /* A failed timer must never clear a newer result. */ }
+        catch {
+            Logger(subsystem: "nibble.9uiLe.com", category: "LibraryNotifications")
+                .error("Notification timer failed; dismissing its current notice.")
+            guard notice?.id == id else { return }
+            notice = nil
+            self.presented = nil
+        }
     }
 
     /// Claim the visible notice, not a row or a previously captured snippet identifier.

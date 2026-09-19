@@ -45,8 +45,7 @@ struct LibraryView: View {
             notifications.activate(activeNoticeTab)
         })) {
             Tab("一覧", systemImage: "list.bullet", value: TabID.library) {
-                library(all, title: "一覧", showsFilters: true)
-                    .background { legacyAccessory(for: .library) }
+                library(all, title: "一覧", tab: .library, showsFilters: true)
             }
             Tab("設定", systemImage: "gearshape", value: TabID.settings) {
                 NavigationStack {
@@ -54,8 +53,7 @@ struct LibraryView: View {
                 }
             }
             Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
-                library(search, title: "検索", showsSearchPrompt: true)
-                    .background { legacyAccessory(for: .search) }
+                library(search, title: "検索", tab: .search, showsSearchPrompt: true)
                     .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
                     .searchFocused($searchFocused)
                     .searchPresentationToolbarBehavior(.avoidHidingContent)
@@ -105,10 +103,11 @@ struct LibraryView: View {
         }
     }
 
-    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
+    private func library(_ model: LibraryModel, title: String, tab: LibraryNotifications.SourceTab, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
                           showsSearchPrompt: showsSearchPrompt, showsInlineNotice: false, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
+                .background { legacyAccessory(for: tab) }
         }
     }
 
