@@ -8,7 +8,7 @@
 | --- | --- |
 | 対象製品 | nibbleの日本語iPhone UI、本体・共有拡張・Keyboard |
 | OS | 最低対応iOS 26.0、実行評価iOS 26.5 Simulator |
-| 資料確認日 | 2026-09-17 |
+| 資料確認日 | Apple HIG・WWDC・W3Cは2026-09-17。R13の日本語文言資料は2026-09-20 |
 | Apple HIG | 公式ページに対応する公開DocC JSON本文の共通節とiOS/iPadOS節 |
 | WWDC | 公式transcriptの記載範囲。動画の連続視聴・サンプルの実行は未実施 |
 | W3C | 成功基準の説明、目的、適用対象と例外 |
@@ -96,20 +96,19 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 ### R13 文言
 
-出典：[Apple HIG — Writing](https://developer.apple.com/design/human-interface-guidelines/writing)。閲読範囲：tone、Best practices、空状態・エラー・入力欄。
+文言設計では、操作結果の正確さ、利用者が理解できる語彙、画面内で実行できる回復方法、入力条件の読み取りやすさを確認する。以下は公開されている一次資料の要約であり、nibbleの利用者評価の結果ではない。
 
-操作結果が分かる短い表現を使い、空画面では次の行動を示す。エラーは問題の近くで、利用者を責めずに回復方法を伝える。入力欄のラベルとhintを使い分ける。
-
-2026-09-20にIssue #35の改稿で次の一次資料も照合した。以下は外部指針の要約であり、nibbleでの利用者評価の結果ではない。
-
-| 出典と閲読範囲 | 確認した指針 | nibbleへの適用と限界 |
+| 出典と確認範囲 | 指針 | 製品への適用と限界 |
 | --- | --- | --- |
-| [Apple WWDC24 — UXライティングでアプリにパーソナリティを追加](https://developer.apple.com/jp/videos/play/wwdc2024/10140/)の日本語transcript（voice / tone） | 製品のボイスを保ち、状況に合わせてトーンを変える | 平常時は穏やかに、失敗時は事実と回復を優先する。動画の視聴や効果測定は含まない |
-| [SmartHR — 基本的な考え方](https://smarthr.design/products/contents/writing-style/)の公開本文 | 冗長さ、過剰な敬語、一般的でない用語を避け、意味をつなぐ助詞と表記を揃える | 「保持」「使用記録」を画面の具体的な対象・操作へ置き換える。同社の社内議事録は確認していない |
-| [SmartHR — その他のUIテキスト](https://smarthr.design/products/contents/ui-text/app-writing/)の説明文・ラベル・見出し | 説明、操作、対象名を役割に応じて書き分ける | iOSの保存・コピーなど既知のラベルと整合させ、同社固有の語尾規則を一律に移植しない |
-| [デジタル庁 — インプットテキストの使い方](https://design.digital.go.jp/dads/components/input-text/usage/)の入力条件・サポートテキスト・エラー | 入力条件と訂正方法を具体的に説明する | 条件は入力中も読める補足へ置く。Webの配置をそのままiOSへ移さない |
+| [Apple HIG — Writing](https://developer.apple.com/design/human-interface-guidelines/writing)のtone、Best practices、空状態・エラー・入力欄。2026-09-17に公開DocC JSON本文を確認 | 短い表現で操作結果を伝え、空状態には次の行動、エラーには回復方法を示す。ラベルとhintを使い分ける | 画面の対象・状態・操作を区別する根拠とする。日本語の具体的な語彙や理解度を保証する資料ではない |
+| [Apple WWDC24 — UXライティングでアプリにパーソナリティを追加](https://developer.apple.com/jp/videos/play/wwdc2024/10140/)の日本語トランスクリプト。ボイスとトーンに関する説明 | 製品全体のボイスを保ち、状況に合わせてトーンを調整する | 平常時は穏やかな説明、失敗時は事実と回復方法を中心に書く。確認範囲はトランスクリプトであり、動画視聴や効果測定は含まない |
+| [SmartHR — 基本的な考え方](https://smarthr.design/products/contents/writing-style/)の公開本文 | 冗長さ、過剰な敬語、一般的でない用語を避け、助詞と表記を整える | 「下書きに残る」「コピー回数と日時」のように、利用者が判断する対象を具体的に表す。社内資料は確認範囲に含めない |
+| [SmartHR — その他のUIテキスト](https://smarthr.design/products/contents/ui-text/app-writing/)の説明文・ラベル・見出し | 説明、操作、対象名を役割に応じて書き分ける | 見出しは対象・状態、ボタンは操作、補足は条件と結果を伝える。同社固有の語尾規則をiOSへ一律に適用しない |
+| [デジタル庁 — インプットテキストの使い方](https://design.digital.go.jp/dads/components/input-text/usage/)の入力条件・サポートテキスト・エラー | 入力条件と訂正方法を具体的に説明する | 任意・必須・長さ制限を入力中も読めるラベルと補足で伝える。Webの配置をそのままiOSへ適用しない |
 
-今回のHIG直接取得はJavaScript要求で本文を再取得できなかったため、上記の既存閲読範囲とIssueの調査を引き継ぐ。採用する語彙・文体・優先順位は[F09](../docs/design/foundations.md#f09-文言とデータ)の製品判断として分離する。
+日本語トランスクリプトとSmartHR・デジタル庁の公開本文の確認日は2026-09-20。HIGの要約は2026-09-17のDocC本文に基づき、2026-09-20のHTML取得ではJavaScriptが必要なため本文を確認できていない。
+
+nibbleの語彙、文体、表記と優先順位は[文言とデータの原則（F09）](../docs/design/foundations.md#f09-文言とデータ)に定める。具体的な文言は[文言設計](../docs/design/copy.md)、理解度と読み上げの評価は[検証記録](../docs/copy-validation.md)で扱う。
 
 ## 外観とアクセシビリティ
 
