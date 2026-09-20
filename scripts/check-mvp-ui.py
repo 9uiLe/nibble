@@ -430,7 +430,7 @@ def main():
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",
             })
-    except Exception as caught:
+    except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
     finally:
         run.finish(error)

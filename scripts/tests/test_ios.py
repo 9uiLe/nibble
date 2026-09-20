@@ -149,7 +149,7 @@ class ProcessTests(unittest.TestCase):
                 self.run.check_process()
         with patch.object(self.run, "command", return_value=self.run.launched_identity + "\n") as command:
             self.run.check_process()
-        command.assert_called_once_with(["/bin/ps", "-p", "42", "-o", "lstart=,comm="])
+        command.assert_called_once_with(["/bin/ps", "-p", "42", "-o", "lstart=,comm="], display=False)
 
     def test_native_probe_command_failure_is_not_ignored(self):
         self.run.config = {"bundle_id": "nibble.9uiLe.com"}
@@ -275,3 +275,20 @@ class ProductDriverFailureTests(unittest.TestCase):
         self.assertTrue(str(stopped.exception))
         run.finish.assert_called_once()
         self.assertTrue(run.finish.call_args.args[0])
+
+
+class DriverCancellationTests(unittest.TestCase):
+    def test_interrupt_is_recorded_as_failure_in_every_product_driver(self):
+        for filename in ['check-mvp-ui.py', 'check-notice-ui.py', 'check-interface-ui.py', 'check-about-ui.py']:
+            with self.subTest(filename=filename):
+                spec = importlib.util.spec_from_file_location('cancel_driver', Path(__file__).parents[1] / filename)
+                driver = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(driver)
+                run = Mock()
+                run.setup.side_effect = KeyboardInterrupt()
+                with patch.object(driver, 'Run', return_value=run), patch.object(
+                        sys, 'argv', [filename, '--device', 'selected']):
+                    with self.assertRaises((KeyboardInterrupt, SystemExit)):
+                        driver.main()
+                run.finish.assert_called_once()
+                self.assertTrue(run.finish.call_args.args[0])

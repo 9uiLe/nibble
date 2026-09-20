@@ -22,12 +22,38 @@ def revision_hashes(root, revision):
     commit = subprocess.check_output(
         ['git', 'rev-parse', '--verify', revision + '^{commit}'], cwd=root, text=True
     ).strip()
-    names = subprocess.check_output(['git', 'ls-tree', '-rz', '--name-only', commit], cwd=root).decode().split('\0')
+    tree = subprocess.check_output(['git', 'ls-tree', '-rz', '--full-tree', commit], cwd=root)
+    blobs = []
+    for row in tree.split(b'\0'):
+        if not row:
+            continue
+        metadata, name = row.split(b'\t', 1)
+        _, kind, oid = metadata.split()
+        if kind != b'blob':
+            raise ValueError('Unsupported revision entry: ' + name.decode())
+        blobs.append((oid, name.decode()))
     hashes = {}
-    for name in names:
-        if name:
-            data = subprocess.check_output(['git', 'show', f'{commit}:{name}'], cwd=root)
-            hashes[name] = hashlib.sha256(data).hexdigest()
+    # One process per bounded batch, rather than one `git show` per file.
+    # Binary content and filenames containing newlines remain unambiguous.
+    for index in range(0, len(blobs), 128):
+        batch = blobs[index:index + 128]
+        payload = subprocess.run(['git', 'cat-file', '--batch'], cwd=root, check=True,
+                                 input=b'\n'.join(oid for oid, _ in batch) + b'\n',
+                                 capture_output=True).stdout
+        offset = 0
+        for oid, name in batch:
+            end = payload.index(b'\n', offset)
+            header = payload[offset:end].split()
+            if len(header) != 3 or header[:2] != [oid, b'blob']:
+                raise ValueError('Unexpected Git object for ' + name)
+            size = int(header[2])
+            offset = end + 1
+            if size < 0 or len(payload) < offset + size + 1 or payload[offset + size:offset + size + 1] != b'\n':
+                raise ValueError('Incomplete Git object for ' + name)
+            hashes[name] = hashlib.sha256(payload[offset:offset + size]).hexdigest()
+            offset += size + 1
+        if offset != len(payload):
+            raise ValueError('Unexpected trailing Git object data')
     return commit, hashes
 
 

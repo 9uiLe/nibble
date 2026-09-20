@@ -2,13 +2,15 @@
 """Local iOS verification using Xcode CLI tools and pinned sim-use. Python stdlib only."""
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import platform
+import plistlib
 import shlex
 import shutil
 import signal
@@ -78,24 +80,31 @@ def select_device(devices, runtimes, udid, minimum):
 
 class Run:
     def __init__(self, args):
+        self.started = time.monotonic()
+        self.save_seconds = 0.0
+        self.save_count = 0
         self.args = args
         self.path = ARTIFACTS / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
                                  + "-" + args.command + "-" + uuid.uuid4().hex[:6])
         self.path.mkdir(parents=True)
         self.manifest = {"status": "running", "command": args.command,
-                         "started_at": datetime.now(timezone.utc).isoformat(), "commands": []}
+                         "started_at": datetime.now(timezone.utc).isoformat(), "commands": [],
+                         "session": os.environ.get("NIBBLE_VERIFICATION_SESSION")}
         self.save()
 
     def save(self):
+        start = time.monotonic()
         write_json(self.path / "manifest.json", self.manifest)
+        self.save_seconds = getattr(self, "save_seconds", 0.0) + time.monotonic() - start
+        self.save_count = getattr(self, "save_count", 0) + 1
 
-    def command(self, argv, name=None, timeout=60):
+    def command(self, argv, name=None, timeout=60, *, display=True):
         argv = [str(a) for a in argv]
         monitor = argv[0] == "sim-use" and hasattr(self, "launched_pid")
         if monitor:
             self.check_process()
         name = name or f"command-{len(self.manifest['commands']):03}"
-        with ui.step(name):
+        with ui.step(name) if display else nullcontext():
             output = self._command(argv, name, timeout, monitor)
             if monitor:
                 self.check_process()
@@ -170,14 +179,29 @@ class Run:
             yield
 
     def boot(self):
+        if getattr(self, "boot_ready", False):
+            return
         if self.device["state"] != "Booted":
             self.command([XCRUN, "simctl", "boot", self.args.device], "boot")
         self.command([XCRUN, "simctl", "bootstatus", self.args.device, "-b"], "bootstatus", timeout=180)
         self.device["state"] = "Booted"
+        self.boot_ready = True
 
     def build(self, test=False):
         self.boot()
-        derived = ARTIFACTS / "DerivedData" / self.args.device
+        # Xcode still validates every build. Cache partitioning avoids toggling
+        # testability/architectures in the same intermediate products.
+        environment = self.manifest.get("environment", {})
+        context = {"project": self.config, "configuration": self.args.configuration,
+                   "testability_override": test, "architecture": platform.machine(),
+                   "tools": {key: environment.get(key) for key in
+                             ("developer_dir", "xcode", "swift", "simulator_sdk")},
+                   "signing": simulator_signing_arguments(self.config)}
+        key = hashlib.sha256(json.dumps(context, sort_keys=True).encode()).hexdigest()[:20]
+        derived = ARTIFACTS / "DerivedData" / self.args.device / key
+        self.manifest["build_context"] = context
+        self.manifest["build_cache"] = {"path": str(derived), "existed": derived.exists(),
+                                        "validation": "xcodebuild on every invocation"}
         self.derived = derived
         action = "test" if test else "build"
         result_path = self.path / f"{action}.xcresult"
@@ -185,7 +209,9 @@ class Run:
         command = [XCODEBUILD, "-project", ROOT / self.config["project"], "-scheme", self.config["scheme"],
                    "-configuration", self.args.configuration, "-destination", f"platform=iOS Simulator,id={self.args.device}",
                    "-derivedDataPath", derived, "-resultBundlePath", result_path,
-                   "-parallel-testing-enabled", "NO", *simulator_signing_arguments(self.config),
+                   "-parallel-testing-enabled", "NO", "-showBuildTimingSummary",
+                   "-disableAutomaticPackageResolution", "ONLY_ACTIVE_ARCH=YES",
+                   "ARCHS=" + platform.machine(), *simulator_signing_arguments(self.config),
                    *(["ENABLE_TESTABILITY=YES"] if test else []), action]
         try:
             self.command(command, "xcodebuild-" + action, timeout=900)
@@ -202,6 +228,7 @@ class Run:
     def launch(self):
         self.build()
         app = self.derived / "Build" / "Products" / (self.args.configuration + "-iphonesimulator") / (self.config["app_name"] + ".app")
+        validate_app(app, self.config["bundle_id"])
         self.command([XCRUN, "simctl", "install", self.args.device, app], "install")
         self.command([XCRUN, "simctl", "launch", "--terminate-running-process", self.args.device,
                       self.config["bundle_id"]], "launch")
@@ -235,7 +262,7 @@ class Run:
     def process_identity(self):
         # Simulator processes share the host PID namespace. Avoid spawning a
         # process inside the device for every check: it can delay timed UI.
-        identity = self.command(["/bin/ps", "-p", str(self.launched_pid), "-o", "lstart=,comm="]).strip()
+        identity = self.command(["/bin/ps", "-p", str(self.launched_pid), "-o", "lstart=,comm="], display=False).strip()
         if not identity:
             raise VerificationError("The target app has no live process")
         return identity
@@ -327,6 +354,7 @@ class Run:
         self.manifest.setdefault("assertions", {})["fixture_output_exact"] = True
 
     def finish(self, error=None):
+        finalizing = time.monotonic()
         source_error = None
         if "files_sha256" in self.manifest:
             try:
@@ -357,8 +385,28 @@ class Run:
             "- PR の添付先: **未記入**（ローカルパスだけでは添付完了にならない）\n\n"
             + "\n".join(f"- [{name}]({name})" for name in media) + "\n")
         ui.result(not error, f"{self.args.command}: {self.manifest['status']}. Artifacts: {self.path}")
+        self.manifest["timing"] = {
+            "elapsed_seconds": round(time.monotonic() - getattr(self, "started", finalizing), 6),
+            "command_seconds": round(sum(event.get("seconds", 0) for event in self.manifest["commands"]), 6),
+            "manifest_write_seconds": round(getattr(self, "save_seconds", 0.0), 6),
+            "manifest_write_count": getattr(self, "save_count", 0),
+            "finalize_seconds": round(time.monotonic() - finalizing, 6),
+        }
+        self.save()
         if source_error and not original_error:
             raise VerificationError(source_error)
+
+
+def validate_app(app, bundle_id):
+    """Fail before installation when a successful build has incomplete/wrong output."""
+    try:
+        info = plistlib.loads((app / "Info.plist").read_bytes())
+        executable = app / info["CFBundleExecutable"]
+        if (info["CFBundleIdentifier"] != bundle_id or not executable.resolve().is_relative_to(app.resolve())
+                or not executable.is_file() or executable.stat().st_size == 0):
+            raise ValueError("Wrong bundle or missing executable")
+    except (OSError, ValueError, TypeError, KeyError, plistlib.InvalidFileException) as error:
+        raise VerificationError("Incomplete or wrong build product: " + str(app)) from error
 
 
 def expect_text(data, identifier, text):

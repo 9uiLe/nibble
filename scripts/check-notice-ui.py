@@ -83,8 +83,8 @@ def main():
 
     def delete(snippet):
         tap_row("more." + snippet)
-        wait("delete-menu", lambda data: any(e.get("label") == "削除" for e in data["entries"]))
-        label("削除")
+        wait("delete-menu", lambda data: "delete." + snippet in ids(data))
+        run.tap("delete." + snippet)
 
     def undo():
         data = wait("undo", lambda data: "library.undo" in ids(data))
@@ -303,13 +303,13 @@ def main():
                 "search_term": term, "appearance": args.appearance, "copy_expired": True,
                 "undo_same_id": True, "search_and_lifecycle": not args.baseline,
                 "navigation_frames_stable": not args.baseline}
-    except Exception as caught:
+    except (Exception, KeyboardInterrupt) as caught:
         error = caught
     finally:
         if appearance in ("light", "dark"):
             try:
                 run.command([XCRUN, "simctl", "ui", args.device, "appearance", appearance])
-            except Exception as caught:
+            except (Exception, KeyboardInterrupt) as caught:
                 error = error or caught
         run.finish(error)
     if error:

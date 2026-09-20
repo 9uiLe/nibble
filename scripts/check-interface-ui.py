@@ -84,14 +84,14 @@ def main():
                 time.sleep(0.5)
         run.manifest["layout_frames"] = frames
         run.manifest["assertions"] = {"library_editor_settings_about_frames_unchanged": True}
-    except Exception as caught:
+    except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
         raise
     finally:
         try:
             for name, value in original.items():
                 option(name, value)
-        except Exception as caught:
+        except (Exception, KeyboardInterrupt) as caught:
             error = (error + "; " if error else "") + "restore: " + repr(caught)
             raise
         finally:

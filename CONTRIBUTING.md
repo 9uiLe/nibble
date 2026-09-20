@@ -11,6 +11,8 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | Swiftの宣言・非同期・比較・アニメーション | [実装規約](docs/library-policy.md) |
 | 画面・部品と配置理由 | [UI設計](docs/design/README.md) |
 | 実行管理と保証範囲 | [検証基盤](docs/decisions/0001-local-ios-verification.md) |
+| 変更からの検証計画・実行・結果の確認 | [ローカルiOS検証](docs/ios-verification.md) |
+| 検証実行方式の測定条件と観測値 | [検証時間の評価記録](docs/verification-performance.md) |
 | ソース・媒体・PRの照合 | [証跡手順](docs/review-evidence.md) |
 | 配布操作と秘密情報 | [TestFlight手順](docs/testflight.md) |
 | エージェントの作業選択 | [AGENTS](AGENTS.md)、[検証Skill](.agents/skills/nibble-verification/SKILL.md) |
@@ -59,7 +61,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | ui-design / ios-tooling | 共通設計ツールと製品Adapter、実行・証跡・PR検査の回帰 |
 | rive-assets | 制作ソース・生成物・Data Binding契約 |
 
-共通検査はApple SDK・Simulator・GitHub認証を必要としない。初回の依存取得にはネットワークが必要となる。編集中は影響する検査を選び、仕上げに共通検査を実行する。合格後は新しい変更・失敗・未解決の懸念がある範囲だけ再検査する。
+共通検査はApple SDK・Simulator・GitHub認証を必要としない。初回の依存取得にはネットワークが必要となる。通常の検証は[検証計画と実行](docs/ios-verification.md#変更から検証を実行する)を入口とし、共通検査と変更に対応する追加検査を実行する。以下の表で自動計画の範囲と手動確認の必要性を判断する。合格後は追加差分を再計画し、失敗や未解決の懸念がある範囲を確認する。
 
 | 変更 | 追加で確認すること |
 | --- | --- |
