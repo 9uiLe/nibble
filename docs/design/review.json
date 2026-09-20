@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "S10/C48の導入と追加手順の間へC49を配置。入力欄とキーボードの同時表示、行タップによる一度の挿入、原文保持、8.4秒周期と結果保持、失敗時の説明・再試行をF03/F08/F09/F10と技術仕様0005に照合した。生成用buildは配布物と区別してGit管理外とする。G15の理解度・音声評価は実装の成立と区別する。",
+  "summary": "S10の導入文と追加手順の間にC49を配置し、入力欄とキーボードの同時表示、行タップによる本文挿入、原文保持、8.4秒周期を定義する。RMLが図形・時間・演出状態、ホストがSession・配色・可視性・説明文・再読み込みを担当する。F03/F08/F09/F10と技術仕様0005へ照合し、利用者理解とVoiceOver音声の評価条件はG15に置く。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
@@ -79,7 +79,7 @@
     "app/Shared/ThirdPartyNotices.txt": "89878d25e562dfa9b3196891f1a19f123ee8c875b8726854e608a779d3b37ea9",
     "app/project.json": "1c6fdcbe91f0cf5128ab2ee02d032a6bef2146cd66066ed44f091e917b310005",
     "docs/decisions/0002-mvp-app.md": "b4364c2b0f83470b851afb2ffba29e1ec637624562fc19fce5f3755f608de767",
-    "docs/decisions/0004-rive-presentation.md": "a412c88f3335bc42a75f8896dd364f4eb5cffb7f5780be4e2c98fde24ce4a4e1",
+    "docs/decisions/0004-rive-presentation.md": "6f18296272c89ed773a45bd1e3567d32fbedaac3afc8d644623741685b188d88",
     "docs/decisions/0005-snippet-keyboard.md": "ae3ffb660888dab7a265e0b94a8fade48e2fa4852446d40a4d3eb7a1e7aac5e2",
     "docs/design/README.md": "e6ad3414f003365e9cc23cfff6a6018c45d5cad6527bd32bf5d097ac536e0fda",
     "docs/design/audit.md": "fa4635ef542d7ed85fabcb970d72156a0a555ce82ee8bb6a8520436dfcabf0e3",
