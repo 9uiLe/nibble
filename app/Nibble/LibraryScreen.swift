@@ -22,14 +22,17 @@ struct LibraryScreen: View {
     var body: some View {
         @Bindable var library = model
         VStack(spacing: 0) {
+            if model.filter != .trash { libraryHeading }
             if showsFilters {
-                LibraryFilterBar(selection: $library.filter)
+                LibraryFilterBar(selection: $library.filter, counts: model.snapshot?.page.counts)
                     .fixedSize(horizontal: false, vertical: true)
             }
             snippetList
         }
         .background(Color.nibbleCanvas)
-        .modifier(LibraryNavigationTitle(title: title, leading: model.filter != .trash))
+        .navigationTitle(title)
+        .toolbarTitleDisplayMode(.inline)
+        .toolbar(model.filter == .trash ? .visible : .hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
             VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
                 if model.filter == .trash {
@@ -39,18 +42,19 @@ struct LibraryScreen: View {
                     Button { startTask(.open(.new)) } label: {
                         Image(systemName: "plus")
                             .font(.title3.weight(.medium))
-                            .frame(minWidth: 56, minHeight: 56)
+                            .frame(width: 50, height: 50)
                             .contentShape(.circle)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.nibbleAccent)
-                    .glassEffect(.regular.interactive(), in: .circle)
+                    .foregroundStyle(Color.nibbleCanvas)
+                    .background(Color.nibbleAccent, in: .circle)
+                    .shadow(color: Color.nibbleAccent.opacity(0.15), radius: 7, y: 4)
                     .accessibilityLabel("新しく作る")
                     .accessibilityIdentifier("library.add")
                     .keyboardShortcut("n", modifiers: .command)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 22)
             .padding(.bottom, 8)
         }
         .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
@@ -80,6 +84,35 @@ struct LibraryScreen: View {
 
     private var searchPrompt: Bool {
         showsSearchPrompt && model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var libraryHeading: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(title)
+                    .font(.largeTitle.weight(.bold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("navigation.title")
+                if showsFilters, let counts = model.snapshot?.page.counts {
+                    Text("保存した項目 \(counts.saved)件")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("library.savedCount")
+                } else {
+                    Text(showsFilters ? "保存した文章やURL" : "タイトルや本文の言葉で探す")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+            Image(systemName: showsFilters ? "doc.text" : "magnifyingglass")
+                .font(.body)
+                .foregroundStyle(Color.nibbleAccent)
+                .frame(width: 34, height: 34)
+                .background(Color.nibbleSoft, in: .rect(cornerRadius: 11))
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 23)
+        .padding(.top, 12)
+        .padding(.bottom, 18)
     }
 
     private var snippetList: some View {
@@ -131,7 +164,11 @@ struct LibraryScreen: View {
     }
 
     @ViewBuilder private var libraryContent: some View {
-        if displaysDrafts && !model.drafts.isEmpty {
+        if displaysDrafts && model.contentRequest.filter == .all, let draft = model.drafts.first {
+            draftResume(draft)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 15, leading: 22, bottom: 4, trailing: 22))
+        } else if displaysDrafts && !model.drafts.isEmpty {
             Section("下書き") {
                 ForEach(model.drafts) { draft in
                     Button { startTask(.open(.draft(draft.id))) } label: {
@@ -158,13 +195,6 @@ struct LibraryScreen: View {
                     .accessibilityHint("編集を再開します")
                     .accessibilityIdentifier("draft.\(draft.id)")
                 }
-                if model.page.hasMoreDrafts {
-                    Button { model.filter = .drafts } label: {
-                        Label("下書きをすべて見る", systemImage: "arrow.right")
-                            .frame(minHeight: 44).contentShape(.rect)
-                    }
-                        .accessibilityIdentifier("library.allDrafts")
-                }
             }
         }
         if model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil {
@@ -173,13 +203,60 @@ struct LibraryScreen: View {
             Section {
                 ForEach(visibleItems) { item in snippetRow(item) }
             } header: {
-                if model.contentRequest.filter != .pinned && model.contentRequest.filter != .trash { Text(sectionTitle) }
+                if model.contentRequest.filter != .trash && !visibleItems.isEmpty {
+                    HStack {
+                        Text(sectionTitle).fontWeight(.semibold)
+                        Spacer()
+                        Label("使用回数順", systemImage: "arrow.down")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
+                    .padding(.vertical, 6)
+                }
             }
             if model.contentRequest.filter == .trash {
                 Text("削除した項目は自動で消えません。復元すると、一覧からまた使えます。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func draftResume(_ draft: DraftSummary) -> some View {
+        HStack(spacing: 4) {
+            Button { startTask(.open(.draft(draft.id))) } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.pencil").font(.callout)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("下書きを再開").font(.footnote.weight(.medium))
+                        Text(draft.displayTitle).font(.caption2).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    if !model.page.hasMoreDrafts {
+                        Image(systemName: "chevron.right").font(.caption2)
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("下書きを再開、\(draft.displayTitle)")
+            .accessibilityIdentifier("draft.\(draft.id)")
+            if model.page.hasMoreDrafts {
+                Button { model.filter = .drafts } label: {
+                    Text("ほか\(model.page.counts.drafts - 1)件")
+                        .font(.caption2)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("下書きをすべて見る、\(model.page.counts.drafts)件")
+                .accessibilityIdentifier("library.allDrafts")
+            }
+        }
+        .foregroundStyle(Color.nibbleAccent)
+        .padding(.horizontal, 12)
+        .background(Color.nibbleSoft, in: .rect(cornerRadius: 12))
     }
 
     private var loadingRow: some View {

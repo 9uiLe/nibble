@@ -68,6 +68,7 @@ extension UIIntegrationTests {
             let all = try await store.library(LibraryRequest())
             #expect(Set(all.items.map(\.id)) == [pinned, other])
             #expect(all.drafts.map(\.id) == [draft.id])
+            #expect(all.counts == LibraryCounts(saved: 2, pinned: 1, drafts: 1))
             let pins = try await store.library(LibraryRequest(filter: .pinned, limit: 1))
             #expect(pins.items.map(\.id) == [pinned])
             #expect(pins.drafts.isEmpty && !pins.hasMore)
@@ -78,6 +79,12 @@ extension UIIntegrationTests {
             #expect(drafts.drafts.map(\.id) == [draft.id])
             let trash = try await store.library(LibraryRequest(filter: .trash))
             #expect(trash.items.map(\.id) == [deleted] && trash.drafts.isEmpty)
+            for page in [pins, missing, drafts, trash] {
+                #expect(page.counts == all.counts)
+            }
+            let limited = try await store.library(LibraryRequest(limit: 1))
+            #expect(limited.items.count == 1 && limited.hasMore)
+            #expect(limited.counts == all.counts)
             #expect(try await store.search(filter: .drafts).isEmpty)
             let model = LibraryModel(store: store, filter: .drafts)
             await model.open(.draft(draft.id))

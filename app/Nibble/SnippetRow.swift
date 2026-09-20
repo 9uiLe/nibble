@@ -17,10 +17,10 @@ struct SnippetRow: View {
     private func copyButton(_ item: SnippetSummary) -> some View {
         Button { perform(.copy) } label: {
             Image(systemName: "doc.on.doc")
-                .font(.body)
-                .padding(8)
-                .background(Color.nibbleAccent.opacity(0.07), in: .rect(cornerRadius: 10))
-                .frame(minWidth: 44, minHeight: 44)
+                .font(.callout)
+                .frame(width: 36, height: 36)
+                .background(Color.nibbleSoft, in: .rect(cornerRadius: 10))
+                .frame(width: 44, height: 44)
                 .contentShape(.rect)
         }
         .buttonStyle(.borderless)
@@ -40,8 +40,9 @@ struct SnippetRow: View {
                     .accessibilityIdentifier("restore.\(item.id)")
             } else { copyButton(item) }
             Menu { rowMenu(item) } label: {
-                Image(systemName: "ellipsis").font(.body)
-                    .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+                Image(systemName: "ellipsis").font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44).contentShape(.rect)
             }
             .menuStyle(.borderlessButton)
             .accessibilityLabel("\(item.displayTitle)のその他の操作")
@@ -72,12 +73,14 @@ struct SnippetRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             if actionsAtLeading { rowActions(item) }
             rowContent(item)
             if !actionsAtLeading { rowActions(item) }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 14)
+        .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 16))
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         .contextMenu { rowMenu(item) }
         .swipeActions(edge: .trailing, allowsFullSwipe: !isTrash) {
             if isTrash {

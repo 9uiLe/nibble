@@ -25,17 +25,30 @@ actor SnippetStore: LibraryStorage, DraftEditing {
         try Task.checkCancellation()
         let db = try database()
         return try db.readTransaction {
+            let counts = try libraryCounts(db)
             if request.filter == .drafts {
                 let values = try drafts(limit: request.limit + 1)
-                return LibraryPage(drafts: Array(values.prefix(request.limit)), hasMore: values.count > request.limit)
+                return LibraryPage(drafts: Array(values.prefix(request.limit)), hasMore: values.count > request.limit,
+                                   counts: counts)
             }
             let values = try search(request.query, filter: request.filter, limit: request.limit + 1)
             let drafts = request.filter == .all ? try drafts(limit: LibraryRequest.draftPreviewLimit + 1) : []
             return LibraryPage(items: Array(values.prefix(request.limit)),
                                drafts: Array(drafts.prefix(LibraryRequest.draftPreviewLimit)),
                                hasMore: values.count > request.limit,
-                               hasMoreDrafts: drafts.count > LibraryRequest.draftPreviewLimit)
+                               hasMoreDrafts: drafts.count > LibraryRequest.draftPreviewLimit, counts: counts)
         }
+    }
+
+    private func libraryCounts(_ db: SQLiteDatabase) throws -> LibraryCounts {
+        let values = try db.rows("""
+            SELECT count(*), coalesce(sum(pinned),0), (SELECT count(*) FROM drafts)
+            FROM snippets WHERE deleted=0
+            """, []) { row in
+            LibraryCounts(saved: row.int(0), pinned: row.int(1), drafts: row.int(2))
+        }
+        guard let counts = values.first else { throw StoreError.unavailable }
+        return counts
     }
 
     func search(_ query: String = "", filter: LibraryFilter = .all, limit: Int = 100) throws -> [SnippetSummary] {

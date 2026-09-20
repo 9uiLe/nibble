@@ -17,20 +17,22 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
     }
 
     var equatableBody: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if pinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(Color.nibbleAccent) }
-                Text(Snippet.displayTitle(title: title, body: preview)).font(.headline).foregroundStyle(.primary).lineLimit(2)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(Color.nibbleAccent) }
+                Text(Snippet.displayTitle(title: title, body: preview))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
             }
             if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(preview).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                Text(preview.split(whereSeparator: \.isWhitespace).joined(separator: " "))
+                    .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
             }
             if let unusedSince {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("30日以上コピーしていません")
                     Text("最後のコピー \(unusedSince, format: .dateTime.year().month().day())")
                 }
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption2).foregroundStyle(.secondary)
                 .accessibilityIdentifier("snippet.unused")
             }
         }

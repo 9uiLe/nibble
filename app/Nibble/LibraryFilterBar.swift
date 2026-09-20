@@ -9,6 +9,7 @@ struct LibraryFilterBar: View {
     private let inputRevision = UUID()
 
     @Binding var selection: LibraryFilter
+    var counts: LibraryCounts?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -16,29 +17,31 @@ struct LibraryFilterBar: View {
                 HStack(spacing: 8) {
                     ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
                         Button { selection = filter } label: {
-                            Text(filter.title)
-                            .font(.subheadline.weight(.semibold))
-                            .fixedSize()
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 36)
-                            .foregroundStyle(selection == filter ? Color.nibbleAccent : Color.primary)
-                            .background(selection == filter ? Color.nibbleAccent.opacity(0.14) : Color.clear,
-                                        in: .rect(cornerRadius: 10))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(selection == filter ? Color.nibbleAccent : Color.secondary.opacity(0.4))
+                            HStack(spacing: 7) {
+                                Text(filter.title).font(.footnote.weight(.semibold))
+                                if let count = counts?.count(for: filter) {
+                                    Text(count, format: .number)
+                                        .font(.caption2).monospacedDigit()
+                                }
                             }
+                            .fixedSize()
+                            .padding(.horizontal, 14)
                             .frame(minHeight: 44)
+                            .foregroundStyle(selection == filter ? Color.nibbleOnSelection : Color.secondary)
+                            .background(selection == filter ? Color.nibbleSelection : Color.clear,
+                                        in: .rect(cornerRadius: 14))
                             .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(filter.title)
+                        .accessibilityValue(counts?.count(for: filter).map { "\($0)件" } ?? "")
                         .accessibilityAddTraits(selection == filter ? [.isSelected] : [])
                         .accessibilityIdentifier("library.filter.\(filter.rawValue)")
                         .id(filter)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 14)
             }
             .scrollIndicators(.hidden)
             .background(Color.nibbleCanvas)

@@ -7,7 +7,7 @@ protocol LibraryReading: Sendable {
 
 struct LibraryRequest: Equatable, Sendable {
     static let pageSize = 100
-    static let draftPreviewLimit = 3
+    static let draftPreviewLimit = 1
     let query: String
     let filter: LibraryFilter
     let limit: Int
@@ -23,8 +23,25 @@ struct LibraryRequest: Equatable, Sendable {
     }
 }
 
+/// Collection totals are independent of the current search and pagination limit.
+struct LibraryCounts: Equatable, Sendable {
+    var saved = 0
+    var pinned = 0
+    var drafts = 0
+
+    func count(for filter: LibraryFilter) -> Int? {
+        switch filter {
+        case .all: saved
+        case .pinned: pinned
+        case .drafts: drafts
+        case .trash: nil
+        }
+    }
+}
+
 /// Snippet rows, draft rows and pagination all describe the same database read snapshot.
 struct LibraryPage: Equatable, Sendable {
+    let counts: LibraryCounts
     let items: [SnippetSummary]
     let drafts: [DraftSummary]
     let hasMore: Bool
@@ -32,7 +49,9 @@ struct LibraryPage: Equatable, Sendable {
     let pinnedItems: [SnippetSummary]
     let otherItems: [SnippetSummary]
 
-    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false, hasMoreDrafts: Bool = false) {
+    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false, hasMoreDrafts: Bool = false,
+         counts: LibraryCounts = LibraryCounts()) {
+        self.counts = counts
         self.items = items
         self.drafts = drafts
         self.hasMore = hasMore
@@ -47,4 +66,3 @@ struct LibraryPage: Equatable, Sendable {
         otherItems = others
     }
 }
-

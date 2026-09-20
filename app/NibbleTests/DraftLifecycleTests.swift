@@ -107,7 +107,8 @@ struct DraftLifecycleTests {
         }
         let all = try await store.library(LibraryRequest())
         #expect(all.items.map(\.id) == [saved])
-        #expect(all.drafts.count == 3 && all.hasMoreDrafts)
+        #expect(all.drafts.count == 1 && all.hasMoreDrafts)
+        #expect(all.counts == LibraryCounts(saved: 1, pinned: 0, drafts: 4))
         let first = try await store.library(LibraryRequest(filter: .drafts, limit: 2))
         #expect(first.drafts.count == 2 && first.hasMore)
         let expanded = try await store.library(LibraryRequest(filter: .drafts, limit: 2).expanded)
@@ -115,7 +116,7 @@ struct DraftLifecycleTests {
         #expect(Set(expanded.drafts.map(\.id)) == Set(ids))
         #expect(Set(expanded.drafts.map(\.displayTitle)).count == 4)
         #expect(expanded.drafts.allSatisfy { $0.preview.count == 180 })
-        #expect(Array(expanded.drafts.prefix(3)) == all.drafts)
+        #expect(Array(expanded.drafts.prefix(1)) == all.drafts)
         let full = try #require(titled)
         let summary = try #require(expanded.drafts.first { $0.id == full.id })
         #expect(summary.title.count == 180)
