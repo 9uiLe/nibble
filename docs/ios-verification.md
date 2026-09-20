@@ -80,6 +80,12 @@ python3 scripts/verify.py plan --base origin/main
 | その他の`validation/` | fixtureと研究targetのテスト・UI |
 | 共通基盤・依存設定・分類できない変更 | fixture・製品・研究targetの全工程 |
 
+製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。MVPは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
+
+```sh
+xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
+```
+
 計画に`about`が含まれる場合は、専用Simulatorの「設定 > アクセシビリティ > 動作」を開いておく。英語表示ではSettings > Accessibility > Motionに当たる。driverは「視差効果を減らす」を観測・操作し、終了時に元へ戻す。共有拡張・キーボードのOS導線や研究の比較実験は、変更した責務と製品・研究手順に照らして確認する。
 
 準備ができたら実行する。`run`は実行時のソースから計画を作るので、先に表示した`plan`の結果を固定して実行するコマンドではない。
