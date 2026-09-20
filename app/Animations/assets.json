@@ -21,6 +21,27 @@
         "scene.rml": "4d91ffe44747c68ecd4afe03a493563b5fe6f3b380a1487014c321a1db43d3e1"
       },
       "output_sha256": "d19985127a961abb687dcea6b819fb3eda2f63bf7681ad8145daf1a0a227cffd"
+    },
+    {
+      "source": "app/Animations/keyboard",
+      "output": "app/Nibble/Animations/keyboard-story.riv",
+      "artboard": "Keyboard",
+      "state_machine": "Presentation",
+      "view_model": "KeyboardStory",
+      "properties": {
+        "motionAllowed": "Boolean",
+        "active": "Boolean",
+        "paper": "Color",
+        "ink": "Color",
+        "accent": "Color",
+        "muted": "Color",
+        "action": "Color"
+      },
+      "sources_sha256": {
+        "rive.yaml": "27ba2015cdef017d7f88b3634c4521e800c3497e0e796edb6ec99838a619142d",
+        "scene.rml": "24cb23d392b76194c0cbcccdc2a2d63479509860bad9e3724382ab6ac4d0f3d5"
+      },
+      "output_sha256": "9a8ca87f2915372164fbb321626866be7da6f58319a3b957031b8e26677f5633"
     }
   ]
 }

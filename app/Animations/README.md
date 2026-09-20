@@ -1,86 +1,98 @@
 # 説明アニメーションの制作と配布
 
-「nibbleについて」とキーボード利用案内に使うイラストは、メモ画面の文章を選び、コピーした複製をnibbleへ保存する流れを表す。二つのモバイル画面を並べ、元の文章が残ることと保存先に項目が増えることを示す。図形と時間はRive、説明文と画面の設定はiOSのホストが管理する。
+nibbleは、文章のコピーと保存を説明する`about-story`と、保存済み本文の入力を説明する`keyboard-story`を本体アプリへ同梱する。図形・時間・演出状態はRML、説明文・外観・表示中の寿命はSwiftUIのホストが管理する。
 
-本書は制作ファイル、外部との接続、再生成、検証の手順を定める。配置と表現の理由は[演出設計](../../docs/decisions/0004-rive-presentation.md)、iOSの所有関係は[RivePresentation](../Packages/RivePresentation/README.md)を参照する。
+本書は制作ファイル、接続契約、再生成、検証の手順を定める。構図と時間の採用理由は[演出設計](../../docs/decisions/0004-rive-presentation.md)、iOSの汎用APIは[RivePresentation](../Packages/RivePresentation/README.md)を参照する。
 
-## 制作ファイルと環境
+## アセットと制作環境
 
-| ファイル | 役割 |
-| --- | --- |
-| [about/scene.rml](about/scene.rml) | 編集の正本。図形、タイムライン、状態遷移、Data Bindingを定義する |
-| [about/rive.yaml](about/rive.yaml) | CLIプロジェクト名と主Artboardの指定 |
-| [assets.json](assets.json) | 制作ディレクトリ、配布先、接続契約、CLI版、入力と出力のハッシュを登録するmanifest |
-| [about-story.riv](../Nibble/Animations/about-story.riv) | アプリのBundleへ同梱する生成済みバイナリ |
+| 用途 | 制作ソース | Bundleへ同梱する生成物 | ホスト |
+| --- | --- | --- | --- |
+| コピーと保存 | [about/scene.rml](about/scene.rml)・[about/rive.yaml](about/rive.yaml) | [about-story.riv](../Nibble/Animations/about-story.riv) | AboutIllustration |
+| キーボードからの入力 | [keyboard/scene.rml](keyboard/scene.rml)・[keyboard/rive.yaml](keyboard/rive.yaml) | [keyboard-story.riv](../Nibble/Animations/keyboard-story.riv) | KeyboardIllustration |
 
-制作・プレビュー・生成にはNixで固定したRive CLIをApple Silicon Macで使用する。表示先は共有lockのrive-iosのApple runtime APIとData Bindingである。採用版との整合を優先し、機能を使う前にCLIのhelp・schemaとランタイムの対応を別々に確認する。
+`scene.rml`は図形、タイムライン、状態遷移、Data Bindingの編集の正本である。`rive.yaml`はCLIプロジェクト名と主Artboardを指定する。[assets.json](assets.json)には制作ディレクトリ、配布先、接続契約、CLI版、入力と出力のハッシュを登録する。各制作ディレクトリの`build/`はGit管理外の生成作業領域とする。
 
-図中のラベルはRML内のベクター輪郭であり、外部画像・フォントファイルを必要としない。Luauスクリプトとシェーダーは使用しない。Rive Editor、`.rev`、ログイン、Riveの署名は本構成の制作工程に含まれない。`.riv`を直接修正せず、RMLから再生成する。
+制作・プレビュー・生成には、Apple Silicon Mac上でNixの固定版Rive CLIを使う。表示には共有lockで固定したrive-iosのApple runtime APIとData Bindingを使う。CLIのhelp・schemaとruntimeの対応を確認してから機能を採用する。
+
+図中のラベルはRML内のベクター輪郭で、外部画像・フォントファイルを必要としない。Luauスクリプトとシェーダーは使用しない。制作はCLIで完結し、Rive Editor、`.rev`、ログイン、Riveの署名を必要としない。`.riv`の変更は必ずRMLからの再生成で行う。両アセットの配布先は本体Bundleとし、キーボード拡張へは同梱しない。
 
 ## 接続契約
 
-Artboardは描画面、State Machineは演出の状態と遷移、View Modelは外部と受け渡す型付きデータを定義する。ホストは次の名前で読み込み、View Modelのdefault instanceを各Sessionへ生成する。
+Artboardは描画面、State Machineは演出の状態と遷移、View Modelは外部と受け渡す型付きデータを定義する。ホストは次の接続名を検査し、表示ごとにView Modelのdefault instanceからSessionを生成する。
 
-接続名・型・初期値は[assets.json](assets.json)を正本とし、`AboutIllustration`の契約と実バイナリを照合する。`motionAllowed`と配色はホスト→Rive、`active`はRive→ホストの出力である。`active`は演出の状態を表し、実際のコピーや保存の成否ではない。
+| アセット | Artboard | State Machine | View Model | default instance | ループのタイムライン |
+| --- | --- | --- | --- | --- | --- |
+| about-story | About | Presentation | AboutStory | Default | CopyAndSave |
+| keyboard-story | Keyboard | Presentation | KeyboardStory | Default | SwitchAndInsert |
 
-配色の制作初期値はライト用で、ホストがライト／ダーク外観へ合わせる。製品はコントラストを標準に固定する。アセット固有のタイムライン長・図形値は[scene.rml](about/scene.rml)で管理する。
+接続名・型の正本は[assets.json](assets.json)、初期値の正本は各RMLのdefault instanceとする。生成物、manifest、ホストの`RiveContract`を照合する。
 
-## 演出の状態と時間
+| プロパティ | 型・初期値 | 更新方向と意味 |
+| --- | --- | --- |
+| motionAllowed | Boolean・true | ホスト→Rive。ループ演出と完成静止図の選択 |
+| active | Boolean・false | Rive→ホスト。演出の状態。実際の保存・コピー・挿入の成否には使わない |
+| paper・ink・accent・muted | Color・ライト色 | ホスト→Rive。背景、文字・輪郭、操作の強調、補助表現の色 |
+| action（keyboard-story） | Color・ライトの青 | ホスト→Rive。選択行、入力カーソル、挿入結果の色 |
 
-`CopyAndSave`は文章選択→コピー→複製の移動→保存→完了表示を繰り返し、`Overview`は完成図を示す。
+## ホストと再生状態
 
-| 入力・寿命 | Riveの状態と再生位置 |
+SessionはホストViewのStateが所有する。読込と再試行は`attempt`に結び付くtaskからawaitし、取消済みの読込結果を表示しない。同じ表示ではSessionを保持し、別表示には独立したSessionを生成する。
+
+ホストはライト／ダーク外観に合う配色を渡す。nibbleの[表示固定方針](../../docs/design/decisions/0002-fixed-interface.md)に従い、コントラストは標準、`motionAllowed`はtrueとする。図はタップ操作を受けず、図の下の説明文が意味と読み上げを担う。読込中・失敗中も説明文を表示し、失敗時は再読み込みボタンを表示する。
+
+| 入力・表示状態 | 演出と再生位置 |
 | --- | --- |
-| `motionAllowed=true`で開始 | CopyAndSaveを先頭から自動ループする。`active=true` |
-| `motionAllowed=false`で開始、または再生中にfalseへ変更 | Overviewの完成図へ移る。`active=false` |
-| `motionAllowed`をfalseからtrueへ変更 | CopyAndSaveの先頭から自動ループする |
-| ホストがフレーム進行を停止 | 選択中の状態、再生位置、Data Binding値を保持する |
-| ホストがフレーム進行を再開 | 保持した位置から進む。停止中の入力は次の評価で反映する |
-| Sessionを破棄して新規生成 | default instanceから開始し、現在のホスト設定を適用する |
+| motionAllowed=trueで開始 | 各ループの先頭から開始し、active=trueになる |
+| motionAllowed=falseで開始、または途中でfalseへ変更 | Overviewの完成図へ移り、active=falseになる |
+| motionAllowedをfalseからtrueへ変更 | ループの先頭から開始する |
+| 図の可視部分が10%未満、View離脱、scene非active | フレーム進行を停止する |
+| 同じSessionの表示へ復帰 | 停止時の状態、再生位置、Data Binding値を保持して進む |
+| 停止中に外観が変化 | 配色と描画更新番号を渡し、再生位置を保持して再描画する |
+| 表示を破棄して開き直す | 独立したSessionを作り、現在のホスト設定を適用する |
 
-アセットへ直接触れる操作や再生ボタンは設けない。図の下の説明文が意味と読み上げを担う。nibbleはmotionAllowedをtrueに固定する。表示範囲外での停止、停止中の配色更新は[ホストとCanvasの契約](../Packages/RivePresentation/README.md#比較と停止再描画)に従って接続する。
+`CopyAndSave`は文章選択→コピー→複製の移動→保存→完了表示、`SwitchAndInsert`は地球儀長押し→nibble選択→行タップ→本文挿入→結果保持を繰り返す。各アセットの図形値と時間はRMLで管理する。停止と再描画の実装は[ホストとCanvasの契約](../Packages/RivePresentation/README.md#比較と停止再描画)に従う。
 
 ## 編集と再生成
 
-[セットアップ](../../README.md#セットアップ)後、リポジトリルートで実行する。
+[セットアップ](../../README.md#セットアップ)後、リポジトリルートのNix環境で実行する。エージェントは`NIBBLE_UI_FORMAT=json`を指定する。
 
 ```sh
 nix develop --command rive app/Animations/about
+nix develop --command rive app/Animations/keyboard
 nix develop --command python3 scripts/rive_assets.py build
 nix develop --command python3 scripts/rive_assets.py check
 ```
 
-最初のコマンドはライブプレビューを起動する。RMLの編集結果を確認して終了し、`build`で配布物を生成する。`build`はCLI版とRMLの構造を照合し、`--verify`、`--once`によるunsigned生成を実行する。エラー・警告があると失敗し、成功時は配布先の`.riv`とmanifestのハッシュを更新する。
+用途に合うriveコマンドでライブプレビューを開き、RMLの編集結果を確認する。プレビューを終了して`build`を実行すると、登録済みアセットのCLI版とRML構造を照合し、`--verify`と`--once`によるunsigned生成を行う。エラー・警告があれば失敗し、成功時は配布用`.riv`とmanifestのハッシュを更新する。
 
-`check`はCLIやApple SDKを使わず、manifestへ登録されたアセットを検査する。
+`check`はCLIやApple SDKを使わず、登録済みアセットを次の範囲で検査する。
 
-| 検査するもの | 検査の境界 |
+| 検査対象 | 確認する契約 |
 | --- | --- |
-| 入力・出力のハッシュ | 保存したソースと生成物の対応。描画や生成処理そのものの正しさは判定しない |
+| 入力・出力のハッシュ | 保存したソースと生成物の対応 |
 | Artboardからの参照 | State Machine、View Model、exportしたdefault instanceの接続 |
-| プロパティ | 必須の名前・型・初期値定義の存在。初期値の意味と状態遷移は別に確認する |
-| 制作要素 | ID重複、旧inputs、スクリプト、シェーダーの混入 |
+| プロパティ | 必須の名前・型・初期値定義の存在 |
+| 制作要素 | ID重複、旧inputs、スクリプト、シェーダーの混入がないこと |
 
-制作ソース、生成物、manifestを一緒にレビューする。ハッシュだけを書き換えて再生成の代用にしない。
+制作ソース、生成物、manifestを一組でレビューする。ハッシュの更新だけで再生成を代用しない。静的検査に加え、初期値の意味、状態遷移、実際の描画を次の手順で確認する。
 
 ## 表現と実行の検証
 
-生成に成功した後、次の独立した観点を確認する。
+1. CLI inspectと実バイナリのiOSテストで、接続名・型・独立したSessionを確認する。
+2. 開始、選択、主動作、結果保持、周期境界の画像を開き、輪郭・配色・重なり・構図を確認する。keyboard-storyでは切替候補、行タップ、入力先と保存元の本文を含める。
+3. 複数周期で操作と結果の順序、周期境界を確認する。motionAllowedの初期値と途中変更を試し、activeを読み戻す。
+4. 同じ生成物を本体アプリで動かし、小画面、ライト／ダーク、停止・復帰・再入場、固定文字・演出、読込失敗と再試行を確認する。
+5. 同条件で容量と負荷を比較し、CLI、Simulator、実機それぞれの測定範囲を記録する。
 
-1. **構造**：CLIのinspectと実バイナリのiOSテストで、接続名・型・独立したSessionを確認する。
-2. **静止画**：開始、選択、持ち上げ、移動、最大変形、収束を出力して開き、輪郭・配色・重なり・構図を確認する。
-3. **時間と状態**：複数周期を再生し、保存前後の順序と周期境界を確認する。`motionAllowed`の初期値と途中変更を試し、`active`を読み戻す。
-4. **iOS統合**：同じ`.riv`を対象アプリで動かし、外観、Reduce Motionへ追従しない製品方針、背景復帰、固定文字、失敗時の表示を確認する。
-5. **負担**：容量と必要な描画指標を条件付きで記録する。CLI、Simulator、実機の測定を区別する。
-
-画像出力ではviewportとfitを明示し、実際の画像寸法と内容を確認する。終了コードの成功だけでフラグの適用を判断しない。記録を`artifacts/`へ保存し、[証跡の手順](../../docs/review-evidence.md)で対象ソースと対応付ける。
+CLIの画像出力はviewportとfitを指定し、実際の寸法と内容で適用を確かめる。記録は`artifacts/`へ保存し、[証跡手順](../../docs/review-evidence.md)で対象ソースと照合する。動画の抽出確認、全編再生、公開後の閲覧確認は別々に記録する。
 
 ## アセットの追加・契約変更
 
-1. 制作ディレクトリへRMLとrive.yamlを置き、表現の目的、名前・型・初期値・更新方向、状態遷移を定義する。
-2. assets.jsonへ制作ディレクトリ、配布先、接続契約を登録する。未登録のディレクトリは検査対象にならない。
-3. ホストの`RiveContract`、所有者、表示条件を定め、生成物を対象Bundleへ同梱する。
-4. `build`と`check`、影響範囲の表現・実行検証を行う。
-5. アセット、ホスト、設計資料、検証記録を同じ変更としてレビューする。
+1. 制作ディレクトリへRMLとrive.yamlを置き、表現の目的、接続名・型・初期値・更新方向、状態遷移を定義する。
+2. assets.jsonへ制作ディレクトリ、配布先、接続契約を登録する。
+3. ホストのRiveContract、Session所有者、表示条件を定め、生成物を対象Bundleへ同梱する。
+4. buildとcheck、影響範囲の表現・実行検証を行う。
+5. アセット、ホスト、設計資料、検証記録を一組でレビューする。
 
-機能や依存を変更するときは、[演出設計の保守条件](../../docs/decisions/0004-rive-presentation.md#保守と受け入れ)に従う。
+機能や依存を変更するときは、[演出設計の保守条件](../../docs/decisions/0004-rive-presentation.md#保守と受け入れ)を適用する。
