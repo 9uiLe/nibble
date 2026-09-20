@@ -65,7 +65,7 @@ struct SnippetRow: View {
                 .accessibilityIdentifier("snippet.\(item.id)")
                 .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
                 .accessibilityValue(unusedSince.map {
-                    "30日以上未使用、最終使用日 " + $0.formatted(date: .numeric, time: .omitted)
+                    "30日以上コピーしていません、最後にコピーした日 " + $0.formatted(date: .numeric, time: .omitted)
                 } ?? "")
                 .accessibilityHint("編集します")
         }
@@ -89,7 +89,7 @@ struct SnippetRow: View {
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if !isTrash {
-                Button(item.pinned ? "解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") {
+                Button(item.pinned ? "ピン留めを解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") {
                     perform(.pin)
                 }
                 .tint(.nibbleAccent)
@@ -105,7 +105,7 @@ struct SnippetRow: View {
                 .accessibilityIdentifier("permanentlyDelete.\(item.id)")
         } else {
             Button("編集", systemImage: "square.and.pencil") { perform(.edit) }
-            Button(item.pinned ? "ピン留めを外す" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { perform(.pin) }
+            Button(item.pinned ? "ピン留めを解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { perform(.pin) }
             Button("削除", systemImage: "trash", role: .destructive) { perform(.delete) }
                 .accessibilityIdentifier("delete.\(item.id)")
         }

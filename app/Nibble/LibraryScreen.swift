@@ -45,7 +45,7 @@ struct LibraryScreen: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.nibbleAccent)
                     .glassEffect(.regular.interactive(), in: .circle)
-                    .accessibilityLabel("新しいスニペット")
+                    .accessibilityLabel("新しく作る")
                     .accessibilityIdentifier("library.add")
                     .keyboardShortcut("n", modifiers: .command)
                 }
@@ -60,7 +60,7 @@ struct LibraryScreen: View {
             }
         } message: {
             if let item = permanentDeletion {
-                Text("「\(item.displayTitle)」と対応する下書きは元に戻せません。")
+                Text("「\(item.displayTitle)」と、この項目の下書きを完全に削除します。元に戻せません。")
             }
         }
         .tint(.nibbleAccent)
@@ -96,7 +96,7 @@ struct LibraryScreen: View {
                 }
                 if searchPrompt {
                     if model.loading { loadingRow }
-                    ContentUnavailableView("スニペットを検索", systemImage: "magnifyingglass",
+                    ContentUnavailableView("保存した項目を検索", systemImage: "magnifyingglass",
                                            description: Text("タイトルや本文の言葉で探せます。"))
                         .accessibilityIdentifier("search.prompt")
                         .listRowSeparator(.hidden)
@@ -176,7 +176,7 @@ struct LibraryScreen: View {
                 if model.contentRequest.filter != .pinned && model.contentRequest.filter != .trash { Text(sectionTitle) }
             }
             if model.contentRequest.filter == .trash {
-                Text("自動では消えません。必要な項目を復元できます。")
+                Text("削除した項目は自動で消えません。復元すると、一覧からまた使えます。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
@@ -200,11 +200,11 @@ struct LibraryScreen: View {
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.reload")
                 } else if failure.recovery == .retryUsage {
-                    Button("使用記録を再試行") { startTask(.retryUsage) }
+                    Button("回数と日時を記録し直す") { startTask(.retryUsage) }
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.retryUsage")
                 } else if case .retryRestore(let id) = failure.recovery {
-                    Button("復元を再試行") { startTask(.restore(id)) }
+                    Button("もう一度復元する") { startTask(.restore(id)) }
                         .buttonStyle(.bordered).controlSize(.large)
                         .disabled(model.restoringIDs.contains(id))
                         .accessibilityIdentifier("library.retryRestore")
@@ -239,23 +239,23 @@ struct LibraryScreen: View {
 
     private var sectionTitle: String {
         if model.contentRequest.filter == .trash { return "削除した項目" }
-        return model.contentRequest.query.isEmpty ? (model.contentRequest.filter == .pinned ? "ピン留めしたスニペット" : "手元のスニペット") : "検索結果"
+        return model.contentRequest.query.isEmpty ? (model.contentRequest.filter == .pinned ? "ピン留めした項目" : "保存した項目") : "検索結果"
     }
 
     private var emptyContent: (title: String, symbol: String, message: String) {
         if !model.query.isEmpty {
-            return ("見つかりませんでした", "magnifyingglass", "別の言葉や、短い語句で探してみてください。")
+            return ("見つかりませんでした", "magnifyingglass", "別の言葉や、短い言葉で検索してください。")
         }
         if model.filter == .trash {
-            return ("削除した項目はありません", "trash", "削除したスニペットはここから復元できます。")
+            return ("削除した項目はありません", "trash", "削除した項目はここに表示されます。復元すると、一覧からまた使えます。")
         }
         if model.filter == .drafts {
-            return ("下書きはありません", "square.and.pencil", "編集中の内容を閉じると、ここから再開できます。")
+            return ("下書きはありません", "square.and.pencil", "編集画面で「閉じる」を押すと、入力した内容が下書きに残ります。ここから編集を再開できます。")
         }
         if model.filter == .pinned {
             return ("ピン留めした項目はありません", "pin", "項目の「その他」からピン留めできます。")
         }
-        return ("言葉を、すぐ手元に。", "text.quote", "よく使う言葉を保存して、\n次からはワンタップでコピー。")
+        return ("保存した項目はありません", "text.quote", "よく使う文章やURLを保存すると、\nいつでもコピーして使えます。")
     }
 
     private var emptyState: some View {
@@ -265,7 +265,7 @@ struct LibraryScreen: View {
             Text(emptyContent.message)
         } actions: {
             if showsCreationCTA {
-                Button("新しいスニペットを作る") { startTask(.open(.new)) }
+                Button("新しく作る") { startTask(.open(.new)) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .accessibilityIdentifier("library.createFirst")

@@ -53,7 +53,7 @@ struct LibraryNotice: View {
                     }
                     .buttonStyle(.borderless)
                         .disabled(model.restoringIDs.contains(id))
-                        .accessibilityHint("\(notice.subject ?? "スニペット")を復元します")
+                        .accessibilityHint("\(notice.subject ?? "項目")を復元します")
                         .accessibilityIdentifier("library.undo")
                 }
             }

@@ -27,8 +27,8 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
             }
             if let unusedSince {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("30日以上未使用")
-                    Text("最終使用 \(unusedSince, format: .dateTime.year().month().day())")
+                    Text("30日以上コピーしていません")
+                    Text("最後のコピー \(unusedSince, format: .dateTime.year().month().day())")
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 .accessibilityIdentifier("snippet.unused")

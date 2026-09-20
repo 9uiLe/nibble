@@ -32,7 +32,7 @@ enum KeyboardReadError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notPrepared: "nibbleでスニペットを保存してから、更新してください。"
+        case .notPrepared: "nibbleで文章やURLを保存してから、更新ボタンを押してください。"
         case .changed: "項目が変更されています。一覧を更新して選び直してください。"
         }
     }

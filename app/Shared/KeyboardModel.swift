@@ -126,7 +126,7 @@ final class KeyboardModel {
         } catch {
             guard loadID == id, loadState == .loading(readID) else { return }
             loadState = .failed(Task.isCancelled || error is CancellationError
-                ? "読み込みを中断しました。更新して再試行できます。" : error.localizedDescription)
+                ? "読み込みを中断しました。更新ボタンを押してください。" : "一覧を読み込めませんでした。" + recoveryMessage(error))
         }
     }
 
@@ -134,7 +134,7 @@ final class KeyboardModel {
         guard isActive, isCurrent, operation == nil, !Task.isCancelled, let effects else { return }
         guard contains(item) else { return }
         if case .copy = use, !effects.canCopy {
-            notify("コピーには設定でフルアクセスを許可してください。")
+            notify(fullAccessMessage(for: "コピー"))
             return
         }
         let id = UUID()
@@ -150,15 +150,15 @@ final class KeyboardModel {
             switch use {
             case .insert:
                 guard effects.destination == destination else {
-                    notify("入力位置が変わりました。もう一度選んでください。")
+                    notify("入力位置が変わったため、本文を送っていません。入力先を確認して、項目をもう一度選んでください。")
                     return
                 }
                 effects.insert(text)
                 closeDetail()
-                notify("入力先へ本文を渡しました", insertedID: item.id, expires: true)
+                notify("本文を送りました", insertedID: item.id, expires: true)
             case .copy:
                 guard effects.canCopy else {
-                    notify("フルアクセスが無効です。コピーしていません。")
+                    notify(fullAccessMessage(for: "コピー"))
                     return
                 }
                 effects.copy(text)
@@ -167,7 +167,8 @@ final class KeyboardModel {
         } catch is CancellationError { }
         catch {
             guard isActive, loadID == generation, operation == id, !Task.isCancelled else { return }
-            notify(error.localizedDescription)
+            let result = use == .copy ? "コピーできませんでした。" : "本文を送れませんでした。"
+            notify(result + recoveryMessage(error))
         }
     }
 
@@ -190,7 +191,8 @@ final class KeyboardModel {
         } catch is CancellationError { }
         catch {
             guard isActive, loadID == generation, detail?.id == selected.id else { return }
-            detail?.failure = error.localizedDescription
+            let message = "本文を読み込めませんでした。" + recoveryMessage(error)
+            detail?.failure = message
         }
     }
 
@@ -198,16 +200,18 @@ final class KeyboardModel {
         guard isActive, isCurrent, !isUsing, !Task.isCancelled,
               let selected = detail, selected.body != nil, let effects else { return }
         guard effects.canCopy else {
-            notify("ピン留めには設定でフルアクセスを許可してください。")
+            notify(fullAccessMessage(for: "ピン留めの変更"))
             return
         }
         let id = UUID()
         let generation = loadID
         operation = id
         notice = nil
+        var pinWasChanged = false
         defer { if operation == id { operation = nil } }
         do {
             let updated = try await reader.setPinned(!selected.item.pinned, for: selected.item)
+            pinWasChanged = true
             // A committed write remains a success even if cancellation arrives after commit.
             guard isActive, loadID == generation, operation == id else { return }
             if detail?.id == selected.id { detail?.item = updated }
@@ -226,7 +230,8 @@ final class KeyboardModel {
         } catch is CancellationError { }
         catch {
             guard isActive, loadID == generation, operation == id else { return }
-            notify(error.localizedDescription)
+            let result = pinWasChanged ? "ピン留めは変更しましたが、一覧を更新できませんでした。" : "ピン留めを変更できませんでした。"
+            notify(result + recoveryMessage(error))
         }
     }
 
@@ -244,6 +249,21 @@ final class KeyboardModel {
 
     private func notify(_ message: String, insertedID: UUID? = nil, expires: Bool = false) {
         notice = Notice(message: message, insertedID: insertedID, expires: expires)
+    }
+
+    private func fullAccessMessage(for operation: String) -> String {
+        "\(operation)にはフルアクセスが必要です。nibbleの「設定」→「nibbleキーボード」で設定方法を確認してください。"
+    }
+
+    private func recoveryMessage(_ error: Error) -> String {
+        if error as? StoreError == .newerVersion {
+            return "nibbleを最新バージョンに更新してください。"
+        }
+        if case KeyboardReadError.notPrepared = error { return error.localizedDescription }
+        let reason = (error as? StoreError)?.localizedDescription
+            ?? (error is KeyboardReadError ? "項目が変更されています。" : "保存データを読み込めませんでした。")
+        let next = detail == nil ? "更新ボタンを押してください。" : "「一覧に戻る」を押してから、更新ボタンを押してください。"
+        return reason + next
     }
 
     func dismiss() { effects?.dismiss() }
