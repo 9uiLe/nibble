@@ -12,6 +12,7 @@ public final class RiveResource {
     public static func load(named name: String, in bundle: Bundle) async throws -> RiveResource {
         try Task.checkCancellation()
         let worker = try await Worker()
+        try Task.checkCancellation()
         let file = try await RiveRuntime.File(source: .local(name, bundle), worker: worker)
         try Task.checkCancellation()
         return RiveResource(file: file)
@@ -20,14 +21,18 @@ public final class RiveResource {
     public func makeSession(_ contract: RiveContract) async throws -> RiveSession {
         try Task.checkCancellation()
         let properties = try await file.getProperties(of: contract.viewModel)
+        try Task.checkCancellation()
         for (name, type) in contract.properties {
             guard properties.contains(where: { $0.name == name && $0.type == type }) else {
                 throw RiveContractError.property(viewModel: contract.viewModel, name: name)
             }
         }
         let artboard = try await file.createArtboard(contract.artboard)
+        try Task.checkCancellation()
         let machine = try await artboard.createStateMachine(contract.stateMachine)
+        try Task.checkCancellation()
         let instance = try await file.createViewModelInstance(.viewModelDefault(from: .name(contract.viewModel)))
+        try Task.checkCancellation()
         let rive = try await Rive(file: file, artboard: artboard, stateMachine: machine, dataBind: .instance(instance))
         try Task.checkCancellation()
         return RiveSession(rive: rive, data: instance)

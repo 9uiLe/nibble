@@ -155,3 +155,11 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 標準コンテナ、toolbar、検索role、検索欄の適用位置によって、iOS 26の外観と振る舞いを構成する方法を説明している。
 
 **適用限界**：transcriptはnibbleの特定コードの動作保証ではない。採用するAPIのavailability、検索終了時の遷移、キーボードとの配置は別に確認する。
+
+### R20 Riveの停止と復帰
+
+出典：rive-ios 6.27.0の[RiveController](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveController.swift)、[RiveUIView](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveUIView.swift)、[DisplayLink](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/Utilities/DisplayLink.swift)。2026-09-20に共有lockとcheckoutのrevisionを照合し、advance、pause、寸法変更、離脱、run loop modeの実装を確認した。
+
+画面外の描画省略だけでは未収束のState Machineは進む。明示pauseはcontrollerとDisplayLinkへ伝播し、時間差をリセットする。DisplayLinkはcommon modeに登録されるため、ホストがドラッグを理由に止める必要はない。初回・寸法変更の単発描画と周期進行を分ける。
+
+**適用限界**：固定revisionの実装上の根拠であり、hitch、表示完了時間、GPU・電力の実測値ではない。ホストの可視性・scene・タブ・sheetの接続と資源解放は実Canvasおよび製品導線で評価する。

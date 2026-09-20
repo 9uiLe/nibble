@@ -104,6 +104,8 @@ struct LibraryView: View {
                         updateNoticePresentation()
                     })
                 }
+                .environment(\.illustrationPlaybackAllowed,
+                             selectedTab == .settings && !showsTrash && all.editor == nil && search.editor == nil)
             }
             Tab("検索", systemImage: "magnifyingglass", value: TabID.search, role: .search) {
                 library(search, title: "検索", showsSearchPrompt: true)
