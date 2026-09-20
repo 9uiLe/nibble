@@ -102,7 +102,7 @@ xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
 
 ## Simulator計測の既知の制約
 
-説明イラストの操作順・補助計測・性能予算の成立範囲は[Rive再生の検証記録](rive-playback-validation.md)を参照する。実Canvasのadvance観測は、以下のInstrumentsの描画指標を代替しない。
+説明イラストの操作条件は[MVP手順](mvp.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Rive再生の検証記録](rive-playback-validation.md)を参照する。runtimeのフレーム評価であるadvanceの観測は、以下のInstrumentsの描画指標を代替しない。
 
 macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
 

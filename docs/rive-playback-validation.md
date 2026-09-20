@@ -1,91 +1,82 @@
-# 説明画面の再生・停止・復帰の検証
+# 説明イラストの再生と資源利用の評価
 
-対象は[Issue #36](https://github.com/9uiLe/nibble/issues/36)のS05・S10、C44・C49。採用仕様は[演出設計](decisions/0004-rive-presentation.md)、汎用APIは[RivePresentation](../app/Packages/RivePresentation/README.md)、評価課題は[G16](design/audit.md#g16-c--説明画面の再生とスクロールの性能)を参照する。本記録は測定したソースと条件の記録であり、未評価の性能を保証しない。
+「nibbleについて」の説明イラスト（S05・C44）と、「nibbleキーボード」の説明イラスト（S10・C49）を対象に、停止・復帰、配色、読込と回復、画面を閉じた後の資源解放を評価する。採用仕様は[演出設計](decisions/0004-rive-presentation.md)、APIは[RivePresentation](../app/Packages/RivePresentation/README.md)、操作手順は[MVP手順](mvp.md#説明イラストの検証)にある。
 
-## ソースと条件
+本記録の製品ソースは `4a467c3887405c9394440a25d50fe03aa9d2162b`、評価日は2026-09-20である。再生状態と寿命の契約、読込失敗からの回復、補助指標を確認している。画面への表示完了時間やスクロールの引っかかりを含む性能受入は未完了で、[G16](design/audit.md#g16-c--説明画面の再生とスクロールの性能)の評価対象である。
 
-基準の製品ソースは`99050be923596ac9d6eee9340b43cde8988e493a`。測定用テストだけを加えた`20260920T122436Z-test-155be5`と、実装変更後の`20260920T130549Z-test-8cf70e`を比較した。各runの`manifest.json`に開始・終了の入力hash、端末、toolchain、コマンドを記録し、`attachments/`に`rive-playback-measurements.json`をexportしている。保存先はGit管理外の`artifacts/ios/`である。
+## 測定対象と条件
 
 | 条件 | 値 |
 | --- | --- |
 | 実行環境 | macOS 26.2、Apple M1 Pro、16GiB、Xcode 26.5 (17F42)、Swift 6.3.2 |
 | Simulator | 専用iPhone SE (3rd generation)、iOS 26.5 (23F77)、UDID `04A79414-64A7-4167-9B1D-998F18DB9DA6` |
-| 構成 | Release、-Osize、whole-module。契約テストのみENABLE_TESTABILITY=YES |
-| アセット・依存 | 両版で同じabout-story.riv（80,316 bytes）・keyboard-story.riv（119,049 bytes）。hashはrunへ保存。rive-ios 6.27.0、revision `4c42e5839167a06a56d336e80813578bac018dde` |
-| 表示 | 375×667ptのhost window、ライト。実画面の図は幅327pt／335pt、scale 2。通常はCanvas 1個、独立性テストは2個 |
-| データと操作 | ダミーDB。各説明画面を開く→350ms再生→末尾へ移動→停止→先頭へ戻る→閉じる |
-| 反復 | 各アセットの準備1回と再訪5回。通常テストの同じserialized suite。OS・Metal cacheは消去しない |
-| 観測負荷 | テスト限定のRiveLog collectorと10ms間隔の状態待ち。録画・Instrumentsなし。製品にフレーム購読や独自時計を追加しない |
+| 構成 | Release、-Osize、whole-module。契約テストはENABLE_TESTABILITY=YES |
+| アセット | about-story.riv：80,316 bytes、keyboard-story.riv：119,049 bytes。内容のhashはrunのmanifestへ保存 |
+| runtime | rive-ios 6.27.0、revision `4c42e5839167a06a56d336e80813578bac018dde` |
+| 表示 | 375×667ptのhost window、ライト、scale 2。実画面の図はAboutが幅327pt、Keyboardが幅335pt。通常はCanvas 1個、独立性テストは2個 |
+| データと操作 | ダミーDB。説明画面を開く→350ms再生→末尾へスクロールして停止→先頭へ戻る→閉じる |
+| 反復 | 各アセットの準備1回と再訪5回。serialized suiteで実行し、OS・Metalのキャッシュは消去しない |
+| 観測負荷 | テスト中だけRiveLog collectorを接続し、10ms間隔で状態を待つ。補助指標の測定中は録画・Instrumentsを使わない |
 
-この準備回はプロセスのcold launchではない。別の契約テストやOS cacheの影響もあるため、初回描画の比較値には使わない。メモリは`task_info`のプロセス全体の`phys_footprint`であり、Workerだけの確保量ではない。
+測定値は `artifacts/ios/20260920T130549Z-test-8cf70e/` のmanifestとattachmentsに対応する。manifestは実行前後の入力hash、端末、toolchain、コマンドを記録し、attachmentsは `rive-playback-measurements.json` の生値を持つ。成果物はGit管理外の `artifacts/` に保存する。ソース・実行結果・媒体の照合は[証跡手順](review-evidence.md)に従う。
 
-## 調整前に固定した補助予算と観測
+## 補助指標と適用範囲
 
-基準測定後、製品実装を変更する前に`artifacts/issue36-budgets-before-implementation.md`へ以下を固定した。待機期限と合否予算は別である。表示完了やhitchの予算を決める測定は成立していない。
+advanceはruntimeによるフレーム評価を指す。評価後に画面へ描画されるまでの時間は含まない。次の予算は読込・再生制御・保持量を確認するためのもので、描画性能の合否予算ではない。
 
-| 指標 | 補助予算 | 基準：About／Keyboard | 変更後：About／Keyboard |
+| 指標 | 補助予算 | About | Keyboard |
 | --- | --- | --- | --- |
-| mountから最初のadvance、再訪5回中央値 | 各回100ms以下 | 31.09／27.09ms | 28.46／25.11ms |
-| 同、再訪最大 | 同上 | 32.18／27.56ms | 35.42／31.57ms |
-| 可視復帰要求から最初のadvance、中央値 | 各回100ms以下 | 32.58／33.18ms | 12.99／16.43ms |
-| 同、最大 | 同上 | 35.54／34.12ms | 34.86／16.61ms |
-| 準備回の最初のadvance | 200ms以下 | 89.54／39.98ms | 33.48／42.47ms |
-| 閉鎖後のfootprint、5回の最大−最小 | 8MiB以下 | 212,992／65,536 bytes | 114,688／32,768 bytes |
-| 各表示の生成回数 | File・Worker・表示用Viewが各1、スクロールで増加なし | 各1 | 各1 |
-| 停止後の周期advance | 150ms収束待ち後、300ms間に0回 | 0回 | 0回 |
-| 復帰初回 | 時間差0 | 0 | 0 |
+| View配置から最初のadvance、再訪5回の中央値／最大 | 各回100ms以下 | 28.46／35.42ms | 25.11／31.57ms |
+| 可視復帰要求から最初のadvance、再訪5回の中央値／最大 | 各回100ms以下 | 12.99／34.86ms | 16.43／16.61ms |
+| 準備回の最初のadvance | 200ms以下 | 33.48ms | 42.47ms |
+| 画面を閉じた後のfootprint、再訪5回の最大−最小 | 8MiB以下 | 114,688 bytes | 32,768 bytes |
+| 各表示で生成するFile・Worker・表示用View | 各1、スクロールでは増加しない | 各1 | 各1 |
+| 停止後の周期advance | 150msの収束待ち後、300ms間に0回 | 0回 | 0回 |
+| 復帰初回のadvance | 時間差0 | 0 | 0 |
 
-補助予算は両構成で満たした。再訪時の処理が小さく、Fileの解放も確認できたため、Resourceの画面間共有は導入しない。この比較は交互のA/B/A実行ではなく、基準→変更後の順である。中央値の差から高速化を断定しない。両版のテストログには初期のMetal drawable取得失敗もあり、advance到達を初回描画や空白フレームなしの証明には使わない。
+この条件では補助予算を満たしている。画面ごとの読込と解放を使う設計の評価資料として扱う。
 
-## 実Canvasの契約
+準備回はプロセスのcold launchではない。別のテストやOSキャッシュの影響があるため、初回表示速度の指標に使わない。footprintは `task_info` によるプロセス全体の物理メモリ使用量であり、Workerだけの確保量ではない。解放の確認には、メモリ量とオブジェクトのweak参照の消失を併用する。ログには初期のMetal drawable取得失敗があり、advance到達を実際の描画完了や空白フレームがないことの証明には使わない。
 
-[RivePresentationTests](../app/NibbleTests/RivePresentationTests.swift)は固定runtimeのloggerをテスト中だけ接続する。State Machineへテスト側から時計を与える方式ではなく、Canvas自身のadvanceの有無と時間差を観測する。
+## 再生状態と寿命の検証
 
-- ホスト停止・inactive・backgroundを重ね、一つだけ解除しても周期進行しない。すべて解除した最初の時間差は0。
-- 可視性の初回通知前と10%未満を停止し、9%／11%の境界を3往復してもSessionと表示用Viewを維持する。スクロール位置の計算はsafe areaを含む。
-- 停止中の配色変更は同じSessionへ反映し、表示用Viewの一回の再生成で時間差0。寸法変更は同じ表示用Viewで時間差0。単発描画後に周期進行しない。
-- 同時CanvasのSessionとData Bindingは独立。3回の開閉でSession・Rive・File・Worker・表示用Viewのweak参照が解放される。Workerの確認だけは固定runtimeの内部保持をテスト内のMirrorで観測する。
-- 実TabView・NavigationStack・fullScreenCoverを使ったhostで、復帰は同じRive、pop後は解放、再訪は新規表示となる。
-- ファイル読込失敗後の操作APIによる再試行と、読込中の離脱後に遅れて届く結果の不採用を確認する。
-- 読込待ちの間に配色を変更しても、完了時の配色を使う。配色変更後のタブ往復は色と表示用Viewを保持する。
+[RivePresentationTests](../app/NibbleTests/RivePresentationTests.swift)は実アセットを読み込み、実Canvasのフレーム評価をruntimeのloggerで観測する。再生用の時計をテスト側から与えず、Canvas自身の停止と復帰を確認する。
 
-操作APIのテストと、再読み込みボタン→attempt→SwiftUI taskの操作接続は区別する。SwiftUIのアクセシビリティ要素をhost内部から取得する試行は成立しなかったため、ボタン接続は後述の製品画面への故障注入で確認した。途中の失敗runも保持している。
-
-## 配色の回帰と製品画面の観測
-
-最初の故障注入run `20260920T125523Z-rive-about-922a78`では、ダークで復旧した後にライトへ変え、タブを往復すると図だけダークへ戻った。`after-tab.png`と録画81.22秒で不一致を確認した。読込タスクが以前の配色を捕捉していたため、Session公開時の現在の配色を使い、初回配色を適用してからCanvasを生成するよう修正した。読込を保留して配色を変えるテストは`20260920T130342Z-test-fc79e2`で両ホストとも失敗し、最終runでは合格した。修正後の実画面と同位置の画素検査でも、タブ復帰後にライト配色が維持された。
-
-| 最終ソースのrun | 結果と範囲 |
+| 対象 | 確認した条件 |
 | --- | --- |
-| `20260920T130549Z-test-8cf70e` | Release、113テスト・13 suite合格。契約・生成回数・解放・補助予算 |
-| `20260920T130800Z-rive-about-b5cbf5` | Aboutの故障注入、実ボタンで復旧、タブ・スクロール・背景往復、配色、本文。161.30秒の録画 |
-| `20260920T131134Z-rive-keyboard-d9deb2` | Keyboardの同じ操作。162.41秒の録画 |
-| `20260920T131436Z-mvp-ui-c8b032` | 保存・編集・コピー・検索・削除・復元の回帰操作合格 |
-| `20260920T131750Z-notice-ui-9cd2d8` | 通知・取り消し・キーボード・シートの回帰操作合格 |
-| `20260920T131918Z-fixed-interface-f219cc` | 通常設定と最大文字・高コントラストで固定表示の回帰操作合格 |
+| 停止理由の合成 | ホストの停止要求とinactive・backgroundが重なった状態で、一つだけ解除しても周期進行しない。すべて解除した最初の時間差は0 |
+| 可視性 | 初回通知前と10%未満で停止する。safe areaを含めて9%／11%を3往復し、Sessionと表示用Viewを保持する |
+| 配色と寸法 | 停止中の配色変更は同じSessionと一度の表示用View生成で反映する。寸法変更は同じ表示用Viewで反映する。単発描画の時間差は0で、周期再生は開始しない |
+| 表示の独立性と解放 | 同時CanvasのSessionとData Binding値が独立する。3回の開閉でSession・Rive・File・Worker・表示用Viewのweak参照が消失する |
+| 画面の寿命 | TabView・NavigationStack・fullScreenCoverを使い、タブとシートからの復帰では同じRive、戻る操作で閉じた後は解放、再訪では新規生成となる |
+| 読込と取消 | 読込失敗から操作APIで再試行できる。離脱による取消後に遅れて届く結果を採用しない |
+| 配色の適用時点 | 読込中に外観を変えた場合は完了時の配色を使う。配色変更後のタブ往復で色と表示用Viewを保持する |
 
-故障注入は専用Simulatorへインストールしたアセットのコピーだけを一時的に不正なバイト列へ置き換えた。元のファイルと製品ソースのhashを照合してから注入し、失敗画面を開いたまま元のバイト列を復元し、実ボタンを押した。元・注入・復元のhashと操作順はmanifestの`fault_injection`にある。これは配布物そのままの実行とは区別する。
+Workerの解放確認だけは、固定runtimeの内部保持をテスト内のMirrorで観測する。runtime更新時はこの観測方法も照合する。
 
-両画面で代替表示・キャプション・戻るを保持し、ボタンからダーク配色の実イラストへ回復した。ライトへの変更、タブ復帰、3往復のスクロール後にも配色と図が表示された。Keyboardでは通常キーボード、nibble選択、行選択、入力結果と保存行の併存、次周期を画像で確認した。30秒背景復帰直後の画像はOSの切替途中であり、その一枚で停止状態は判定しない。停止理由の合成と周期advanceの不在は契約テストの保証である。
+## 製品画面の観測
 
-確認した画像・hash・録画時刻・観測は各runの`local-review.json`に記録した。説明画面の録画抽出確認はAboutが7.95・80.76・145.24秒、Keyboardが8.36・80.98・146.13秒。全編再生、VoiceOver音声、媒体公開・ブラウザー閲覧は未実施である。自動操作の合格と、確認した媒体の範囲を相互に代用しない。最終commitとのソース照合には`check_evidence.py --integrity-only`を使う。
+製品画面の操作記録はAboutが `20260920T130800Z-rive-about-b5cbf5`、Keyboardが `20260920T131134Z-rive-keyboard-d9deb2` である。両runは冒頭の製品ソースに対応するReleaseビルドを使い、専用Simulatorで故障回復・外観変更・タブ移動・スクロール・背景復帰を実行している。
 
-## 製品操作の再現手順
+読込失敗は、インストール済みアセットのコピーを一時的に不正なバイト列へ置き換えて作る。注入前に製品ソースとのhashを照合し、失敗画面を開いたまま元のバイト列を復元して実ボタンを押す。元・注入・復元のhashと操作順はmanifestの `fault_injection` に記録する。この条件で、ボタンから読込taskを経由して図を表示するまでの接続を確認する。
 
-専用Simulatorで「設定 > アクセシビリティ > 動作」を開き、[iOS手順](ios-verification.md)に従ってNix環境を使う。次のdriverは同じReleaseアプリをビルド・インストールし、画像・複数周期・復帰を録画する。`--story keyboard`はキーボード説明の制作変更でも共用できる。
+両画面で代替表示・キャプション・戻る操作を保持し、再読み込みボタンから現在のダーク配色の実イラストへ回復することを確認した。ライトへの変更、タブ復帰、3往復のスクロール後も図と配色を確認した。Keyboardでは通常キーボード、nibble選択、行選択、入力結果と保存行の併存、次周期を画像で確認した。
 
-```sh
-export NIBBLE_UI_FORMAT=json
-python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story about --interruptions --fault-retry
-python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
-```
+媒体の観測範囲は各runの `local-review.json` に、ファイルhashとともに記録している。録画の抽出確認はAboutが7.95・80.76・145.24秒、Keyboardが8.36・80.98・146.13秒である。30秒の背景滞在から復帰する直後の画像はOSの切替途中であり、その画像から停止状態は判定できない。停止理由の合成と周期advanceの不在は契約テストの確認範囲である。
 
-表示中の短いドラッグと減速、可視範囲の往復、タブ往復、3秒と30秒のbackground、画面外のままの復帰、ライト／ダーク、Reduce Motion、末尾の文章と戻る操作を同じ順序で記録する。アセット変更時はhashと描画寸法も更新する。driverの成功、画像確認、動画の抽出確認、全編再生は別に記録する。
+全編再生、VoiceOver音声、媒体公開・ブラウザー閲覧は未実施である。自動操作の成功、画像の確認、録画の抽出確認、公開媒体の閲覧はそれぞれ別の記録として扱う。
 
-## 未評価と完了の境界
+## 未評価の性能と計測環境
 
-Time Profilerの5秒接続試行は、45秒の外側期限とSIGINT後5秒の終了待ちでも記録開始・保存を完了せず、終了コード137だった。ログは`artifacts/issue36-baseline-connection.stdout`と`.stderr`、対象は基準runのPID 92505。既知の[Simulator計測障害](performance-verification.md#simulator計測の既知の制約)と同じ停止段階であり、アプリ変更の原因とは断定しない。
+hitchは、画面更新が描画期限に間に合わず生じる引っかかりを指す。hitchの時間・比率、画面への初回／復帰表示完了時間、SwiftUI body・UIViewRepresentableの更新時間、CPU・GPU時間、電力は未評価である。hitchと表示完了時間の予算を確定して判定するまで、説明画面の性能受入は完了としない。
 
-最終ビルドでは`20260920T132022Z-rive-hitches-probe-8e4357`で同じ専用SimulatorのPID 16366へAnimation Hitchesを5秒接続した。`Hitches is not supported on this platform.`というエラーで終了し、runは失敗である。保存された`hitches.trace`を測定成功の証跡には使わない。コマンド・診断は同runの`animation-hitches.log`に残した。
+この環境の計測には次の制約がある。
 
-したがってhitch時間・比率、画面への初回／復帰表示完了時間、body・Representableの更新時間、CPU、GPU時間、電力は未評価である。hitchと実際の表示完了の予算確定・合格を含むIssue #36全体の性能受入は完了していない。GPU・電力をSimulatorから実機性能へ推定しない。実機は受入範囲に含めない。環境更新後は接続試行を再実行し、iOS 26.5 Simulatorを測定できる手段で実データをexportしてから予算を定め、同条件で比較する。
+| 計測方法 | 対象と観測 | 記録 |
+| --- | --- | --- |
+| Time Profiler | 基準ソース `99050be923596ac9d6eee9340b43cde8988e493a` のSimulatorプロセス。5秒の記録が45秒の外側期限とSIGINT後5秒の終了待ちでも完了せず、終了コード137 | `artifacts/issue36-baseline-connection.stdout` と `.stderr` |
+| Animation Hitches | 冒頭の製品ソースのSimulatorプロセスへの5秒接続。`Hitches is not supported on this platform.` で失敗 | `artifacts/ios/20260920T132022Z-rive-hitches-probe-8e4357/animation-hitches.log` |
+
+Time Profilerの状態は[Simulator計測の既知の制約](performance-verification.md#simulator計測の既知の制約)に該当する。Animation Hitchesが保存したtraceは失敗した記録であり、測定成功の証跡には使わない。これらの観測から製品実装が原因とは判定できない。
+
+環境や計測手段を変更した場合は、iOS 26.5 Simulatorで記録・exportが成立することを短時間の接続で確認する。実データを得てから描画性能の予算を定め、同条件で比較する。実機は製品MVPの受入範囲に含めず、Simulatorの値から実機のGPU性能や電力を推定しない。

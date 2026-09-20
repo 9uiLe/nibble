@@ -37,21 +37,17 @@ Artboardは描画面、State Machineは演出の状態と遷移、View Modelは�
 
 ## ホストと再生状態
 
-SessionはホストViewのStateが所有する。読込と再試行は`attempt`に結び付くtaskからawaitし、取消済みの読込結果を表示しない。同じ表示ではSessionを保持し、別表示には独立したSessionを生成する。
+アセットはData Bindingの`motionAllowed`でループ演出と完成静止図を選び、`active`で演出状態を伝える。ホストがフレーム進行を一時停止する操作とは別の契約である。
 
-ホストはライト／ダーク外観に合う配色を渡す。nibbleの[表示固定方針](../../docs/design/decisions/0002-fixed-interface.md)に従い、コントラストは標準、`motionAllowed`はtrueとする。図はタップ操作を受けず、図の下の説明文が意味と読み上げを担う。読込中・失敗中も説明文を表示し、失敗時は再読み込みボタンを表示する。
-
-| 入力・表示状態 | 演出と再生位置 |
+| Data Binding入力 | 演出と再生位置 |
 | --- | --- |
 | motionAllowed=trueで開始 | 各ループの先頭から開始し、active=trueになる |
 | motionAllowed=falseで開始、または途中でfalseへ変更 | Overviewの完成図へ移り、active=falseになる |
 | motionAllowedをfalseからtrueへ変更 | ループの先頭から開始する |
-| 図の可視部分が10%未満、View離脱、scene非active | フレーム進行を停止する |
-| 同じSessionの表示へ復帰 | 停止時の状態、再生位置、Data Binding値を保持して進む |
-| 停止中に外観が変化 | 配色と描画更新番号を渡し、再生位置を保持して再描画する |
-| 表示を破棄して開き直す | 独立したSessionを作り、現在のホスト設定を適用する |
 
-`CopyAndSave`は文章選択→コピー→複製の移動→保存→完了表示、`SwitchAndInsert`は地球儀長押し→nibble選択→行タップ→本文挿入→結果保持を繰り返す。各アセットの図形値と時間はRMLで管理する。停止と再描画の実装は[ホストとCanvasの契約](../Packages/RivePresentation/README.md#比較と停止再描画)に従う。
+`CopyAndSave`は文章選択→コピー→複製の移動→保存→完了表示、`SwitchAndInsert`は地球儀長押し→nibble選択→行タップ→本文挿入→結果保持を繰り返す。各アセットの図形値と時間はRMLで管理する。
+
+nibbleで適用する再生方針は[演出設計](../../docs/decisions/0004-rive-presentation.md)を正本とする。[読込と画面の寿命](../../docs/decisions/0004-rive-presentation.md#読込と画面の寿命)、[停止と復帰](../../docs/decisions/0004-rive-presentation.md#停止と復帰)、[配色と寸法](../../docs/decisions/0004-rive-presentation.md#配色と寸法)に従ってホストへ接続する。汎用APIの停止と再描画は[Canvasの契約](../Packages/RivePresentation/README.md#比較と停止再描画)で定義する。
 
 ## 編集と再生成
 

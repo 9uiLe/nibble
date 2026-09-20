@@ -1,88 +1,98 @@
 # RivePresentation
 
-iOS 26.0以上のSwiftUIアプリで、ローカルの`.riv`を読み込み、一つの表示ごとに独立した再生状態を持たせるSwift Package。ファイルの再利用、接続契約の検査、画面の寿命に合わせたフレーム停止を担当する。アセット、配色、文章、演出の意味は利用側のアプリ（ホスト）が管理する。
+RivePresentationは、iOS 26.0以上のSwiftUIアプリでローカルの `.riv` を表示するSwift Packageである。ファイルの読込、アセットの接続契約、表示ごとに独立した再生状態、画面の寿命に応じた停止と描画を扱う。
 
-## 依存とAPI世代
+利用側のアプリをホストと呼ぶ。ホストはアセット、Sessionの保持期間、配色、可視性、再生方針、読込失敗からの回復、説明文とアクセシビリティを管理する。パッケージはnibble固有の型やパスに依存しない。
 
-[Package.swift](Package.swift)はSwift tools 6.0、rive-iosとswift-app-macrosのexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンが必要である。利用アプリは解決済みの依存をPackage.resolvedで共有する。
+## 再生を構成する三つの単位
 
-使用するのはApple runtime APIの`Worker`、`File`、`Rive`、`ViewModelInstance`とData Bindingである。Legacy APIやState Machineの旧inputsへの接続は提供しない。Data Bindingの型付きプロパティ操作はランタイムのAPIを直接使い、このパッケージで重複実装しない。
+| 単位 | 保持するもの | 寿命と再利用 |
+| --- | --- | --- |
+| Resource | 読み込んだFile。Fileは処理を実行するWorkerを保持する | 同じファイルから複数のSessionを生成できる。保持期間と共有範囲はホストが決める |
+| Session | 描画面であるArtboard、演出を進めるState Machine、型付きデータを持つView Model instanceを接続したRive | 一つの表示が所有する可変状態。同時に複数のCanvasへ渡さない |
+| Canvas | Sessionを描画するSwiftUI Viewと内部のRiveUIView | Sessionを保持したまま表示用Viewを取り外し、再び表示できる |
 
-## 公開API
+Resourceを共有しても、Sessionごとの再生位置とData Binding値は独立する。SessionのRiveもFileを保持するため、Sessionが生存している間はResourceの変数を破棄してもFileとWorkerを利用できる。表示を閉じるときは、不要になったSessionとResourceへの参照をホストが解放する。
+
+## 公開APIと接続契約
 
 | API | 入力と結果 |
 | --- | --- |
-| `RiveResource.load(named:in:)` | リソース名とBundleからFileを読み込み、FileとそのWorkerを保持するResourceを返す |
+| `RiveResource.load(named:in:)` | リソース名とBundleを受け取り、Fileを読み込んだResourceを返す |
 | `RiveContract` | Artboard、State Machine、View Modelの名前と、必須のroot property名・型を宣言する |
-| `RiveResource.makeSession(_:)` | 実ファイルを契約と照合し、独立したArtboard・State Machine・View Modelのdefault instanceを生成して接続する |
-| `RiveSession` | 再生・表示設定の`rive`と、Data Bindingの`data`を公開する。一つの表示が所有する |
-| `RiveCanvas(session:paused:renderingRevision:)` | SessionをSwiftUIへ表示し、停止要求・Viewの寿命・アプリの状態に従ってフレーム進行を制御する |
+| `RiveResource.makeSession(_:)` | 実ファイルを契約と照合し、独立したArtboard・State Machine・View Modelのdefault instanceを接続したSessionを返す |
+| `RiveSession` | 描画・再生設定の `rive` と、Data Bindingを操作する `data` を公開する |
+| `RiveCanvas(session:paused:renderingRevision:)` | Sessionを表示し、停止要求とView・sceneの状態をフレーム進行へ反映する |
 
-root propertyはView Model直下のプロパティを指す。契約検査は必須名と型を照合する。追加プロパティ、値域、初期値、演出の遷移は検査範囲に含まれず、ホスト側のテストで確認する。
+root propertyはView Model直下のプロパティである。必須名の欠落や型の不一致は `RiveContractError.property(viewModel:name:)` になる。ファイルの読込と各オブジェクトの生成に失敗した場合はruntimeのエラーを呼出元へ返す。
 
-必須プロパティの欠落・型不一致は`RiveContractError.property(viewModel:name:)`になる。ファイル、Artboard、State Machine、View Modelの作成失敗はランタイムのエラーを呼出元へ返す。失敗時の表示と再試行はホストが決める。
+契約検査の範囲は必須プロパティの名前と型である。値域、初期値、追加プロパティ、演出の遷移はホスト側で検証する。型付きプロパティの読み書きにはruntimeのData Binding APIを直接使う。値やtriggerの書込みは演出への要求であり、読み戻した演出状態を保存・通信・コピーなどの業務処理の成功判定に使わない。
 
-## 所有関係
+## 読込と結果の採用
 
-| 対象 | 所有と再利用 |
-| --- | --- |
-| File / Worker | ResourceがFileを保持し、FileがWorkerを保持する。同じファイルを使う機能内でResourceを再利用できる |
-| Artboard / State Machine / View Model instance | `makeSession`ごとに生成する。表示間で可変状態を共有しない |
-| Session | 画面または機能の所有者が保持する。生存中は再生位置とData Binding値を保持する |
-| Canvasの表示用View | 一つのSessionを描画する。一つのSessionを二つのCanvasへ同時に渡さない |
-| 読込・購読タスク | ホストが開始、キャンセル、結果の採用を管理する |
+ResourceとSessionの生成・操作はMainActorで行う。生成APIはasyncで、開始時と非同期の各生成・照合処理の後にキャンセルを確認する。呼出元のタスクがキャンセルされた場合は、生成したオブジェクトを結果として返さない。パッケージ自身はタスクの所有者やキャッシュを持たない。
 
-ロードは呼出しごとに行われるため、共有するResourceは呼出元で保持する。画面の再描画を理由にResourceやSessionを作り直さない。画面を離れても位置を残す場合は、その期間を含む所有者にSessionを置く。Sessionを破棄して再生成すると初期状態からの開始になる。
+ホストは次の順序で表示を準備する。
 
-## 接続の順序と実行条件
+1. アセットの接続名と型を `RiveContract` に宣言する。
+2. 画面や機能が所有する `.task` から、読込とSession生成を直接awaitする。
+3. キャンセルと要求の有効性を確認し、Sessionを画面や機能の状態へ保持する。
+4. 表示時点の配色・動作設定をData Bindingへ渡してから、SessionをCanvasへ渡す。
+5. 外観や表示条件の変更を、保持しているSessionとCanvasへ反映する。
 
-ResourceとSessionの生成・操作はMainActorで行う。生成APIはasyncで、開始時と結果を返す前にキャンセルを確認する。パッケージは独自のタスクや再生時計を起動しない。
+同じ表示の再描画ではResourceやSessionを生成し直さない。ホストがSessionを保持している期間は、再生位置とData Binding値が残る。Sessionを破棄して再訪時に生成すれば、独立した初期状態からの開始となる。
 
-1. ホストがアセットの名前・型を`RiveContract`へ宣言する。
-2. 画面や機能が所有する`.task`から、ロードとSession生成を直接awaitする。
-3. 外観や動作設定をData Bindingへ渡し、キャンセルされていない結果を`@State`等へ保持する。
-4. 同じSessionをCanvasへ渡し、所有者の寿命にわたって再利用する。
-5. 出力を必要とする場合だけ、所有するタスクから購読し、キャンセル時に終了する。
-
-入力値やtriggerの書込みは演出への要求である。読み戻しは演出の状態を示し、保存・通信・コピーなどの業務処理の成功を判定するものではない。非同期処理の失敗、キャンセル後の結果を採用しない処理、再試行の条件はホストの責務とする。
+ホストは、取消や別の要求に置き換わった処理の結果を採用しない責任を持つ。再試行、代替表示、エラー文言、出力の購読が必要な場合のタスク所有もホストが定義する。
 
 ## 比較と停止・再描画
 
-Canvasは、ホスト入力の反映、フレームの停止、停止中の描画更新を別々に扱う。
+Canvasは「ホスト入力の反映」「周期的なフレーム進行」「設定変更の単発描画」を別の制御として扱う。
 
-| 制御 | 所有者と役割 |
+### ホスト入力の反映
+
+Canvasと内部の表示用Viewは `@Equatable` を宣言する。Session参照は不変の `let` として保持し、`@SkipEquatable` で比較から除外する。新しいView値を生成するたびにprivateな `inputRevision` を作り、ホスト入力の更新を比較で取りこぼさないようにする。View値のコピーは同じUUIDを持つ。
+
+`inputRevision` は比較だけに使う。表示用Viewの識別子やSessionの生成条件には使わない。SwiftUIから更新を受けた表示用Viewは、Rive参照と停止状態に変更がある場合にそれぞれを反映する。
+
+### 停止条件の合成
+
+Canvasの停止状態は次のORで決まる。
+
+| 条件 | 情報の所有者 |
 | --- | --- |
-| `inputRevision` | Canvasのprivateな比較用UUID。新しいView値の生成時に作り、ホストが渡すSessionや設定を比較で取りこぼさない |
-| `paused`・Viewの離脱・`scenePhase` | ホストとSwiftUIが停止条件を提供する。同じSessionのフレーム進行を止める |
-| `renderingRevision` | ホストが渡す描画更新番号。停止中の設定変更を描画するため、表示用Viewの再生成を指定する |
+| `paused == true` | ホスト。可視性、選択タブ、別画面による遮蔽などをまとめて渡す |
+| CanvasのViewが表示されていない | Canvasの表示・離脱通知 |
+| `scenePhase != .active` | Canvasが所属するsceneの環境値 |
 
-Canvasは`@Equatable`を宣言する。Session参照は不変の`let`として保持し、`@SkipEquatable`で比較から除外する。代わりに`inputRevision`を比較するため、新しく構築されたCanvasの入力は更新省略の対象にならない。View値のコピーは同じUUIDを持つ。比較用UUIDを`.id()`やSessionの生成条件には使用しない。
+すべての停止理由が解除されるまで周期的なフレーム進行を止める。復帰時は時間差0で最初のフレームを評価し、同じSessionの再生位置から進む。停止していた実時間を演出へ加算しない。
 
-Canvasは次のいずれかが成立するとフレーム進行を止める。
+スクロールで画面外になってもViewは生存し得るため、可視性はホストから停止要求として渡す。可視性の初回通知前の扱いや判定閾値もホストが決める。所属sceneの状態はCanvasが取得するため、ホストによるアプリ全体の通知監視は不要である。
 
-- ホストの`paused`がtrue。
-- CanvasのViewが離脱している。
-- `scenePhase`がactive以外である。
+表示用Viewを取り外す `dismantleUIView` は、同期的にpauseを設定してRive参照を外す。Viewが一時的に保持されても、再生時計とFileを保持し続けないためである。再生の時計はruntimeが所有し、パッケージは独自の時計やフレーム購読を持たない。
 
-すべて解除されると同じSessionの位置から進む。スクロールで見えなくてもViewは生存し得るため、ホストが可視性を判定して`paused`へ渡す。再生の方針はホストがアセット固有のData Bindingへ渡し、フレーム停止とは分けて扱う。OSのReduce Motionに追従する製品はホストで接続できる。
+### 停止中の描画更新
 
-表示用Viewのdismantleでは、SwiftUIの離脱後の再評価を待たず、同期的にpauseを設定してRive参照を外す。画面から離れたViewが一時的に保持されても、再生時計とFileを保持し続けないためである。scenePhaseはCanvasの所属sceneから取得し、アプリ全体の通知へ置き換えない。ホストは可視性の初回通知前も停止し、タブやシートによる非表示を`paused`へ合成する。
+`renderingRevision` は、ホストが渡す描画更新番号である。rive-ios 6.27.0では停止中のData Binding変更だけでは再描画されないため、番号の変更によって表示用Viewを再生成する。同じSessionを時間差0で描き、再生位置とData Binding値を保持する。
 
-`renderingRevision`は、停止中の配色変更などを反映する描画更新番号である。rive-ios 6.27.0では停止中のData Binding変更だけでは再描画されない。番号が変わると表示用Viewを作り直し、同じSessionを時間差0で描画する。FileやSessionの再生成、演出のリセットには使わない。必要な値変更時だけ更新し、フレームごとや通常のbody評価では変えない。
+| 変更 | 表示用Viewの扱い |
+| --- | --- |
+| ホスト入力の通常更新、停止、復帰 | 同じ表示用Viewへ入力を反映する。`renderingRevision` は変えない |
+| 停止中の配色など、Data Binding値の描画反映 | 必要な値変更時に `renderingRevision` を進め、表示用Viewを一度再生成する |
+| 寸法 | 同じ表示用Viewへ反映する。runtimeが時間差0で単発描画する |
 
-寸法変更は同じ表示用Viewへ反映し、停止中でもruntimeが時間差0で単発描画する。通常の停止・再開で`renderingRevision`を変えない。6.27.0で配色変更時のView再生成をなくす公開APIは使っていないため、この単発の再生成を通常スクロールでの再生成と分けて検証する。
+初回や設定変更の単発描画は、停止中でも行われる。周期的なフレーム進行の再開とは区別する。`renderingRevision` はFileやSessionの再生成、演出のリセット、フレームごとの更新には使わない。
 
-## ホストの設計事項
+## ホストへの導入
 
-ホストはアセット契約、読込失敗からの回復、Sessionの寿命、配色・可視性・再生方針、説明文と読み上げを定義する。Canvasは意味やレイアウトを強制せず、fitなどは`session.rive`で設定する。操作可能なアセットでは表示範囲とタッチ座標を照合する。
+ホストは、アセット契約、Sessionの保持期間、読込と再試行、表示時の配色、可視性、再生方針、説明文と読み上げを定義する。Canvasは演出の意味やレイアウトを決めない。fitなどの描画設定は `session.rive` へ指定し、操作可能なアセットでは表示範囲とタッチ座標を照合する。Reduce Motionへの追従方針もホストがアセット固有のData Bindingへ渡す。
 
-## アプリへの導入と別リポジトリへの移設
+[Package.swift](Package.swift)はSwift tools 6.0、rive-iosとswift-app-macrosのexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンを使用し、利用アプリはPackage.resolvedを共有する。接続にはApple runtime APIのWorker、File、Rive、ViewModelInstanceとData Bindingを使う。
 
-このディレクトリのPackage.swiftとSourcesはnibble固有のパスや型に依存しない。利用先では次の接続を用意する。
+別のアプリやリポジトリへ導入するときは、次の接続を用意する。
 
-1. Packageのproductをアプリへ追加し、制作ソースと生成済み`.riv`を製品側で管理する。
-2. `.riv`を指定Bundleへ同梱し、契約、所有者、表示用Viewを実装する。
-3. RiveRuntimeのFramework同梱と探索経路を設定し、テストhostだけでなく通常アプリ起動を確認する。
-4. 依存lockとライセンスを管理し、実バイナリの契約、独立状態、停止・復帰、設定変更、失敗時の表示を検証する。
+1. Packageのproductを追加し、制作ソースと生成済み `.riv` を製品側で管理する。
+2. `.riv` を指定Bundleへ同梱し、契約、所有者、ホストViewを実装する。
+3. RiveRuntimeのFramework同梱と探索経路を設定し、通常のアプリ起動で確認する。
+4. 依存lockとライセンスを管理し、実バイナリの契約、独立状態、停止・復帰、設定変更、失敗回復を検証する。
 
-接続例は[AboutIllustration](../../Nibble/AboutIllustration.swift)、演出の入力仕様は[アセット契約](../../Animations/README.md#接続契約)にある。採用理由と依存更新の基準は[演出設計](../../../docs/decisions/0004-rive-presentation.md)、製品での確認範囲は[検証範囲](../../../docs/mvp-validation.md)を参照する。
+nibbleでの接続例は[AboutIllustration](../../Nibble/AboutIllustration.swift)、入力仕様は[アセット契約](../../Animations/README.md#接続契約)、製品の保持期間と再生方針は[演出設計](../../../docs/decisions/0004-rive-presentation.md)にある。

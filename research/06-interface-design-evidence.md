@@ -160,6 +160,6 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 
 出典：rive-ios 6.27.0の[RiveController](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveController.swift)、[RiveUIView](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveUIView.swift)、[DisplayLink](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/Utilities/DisplayLink.swift)。2026-09-20に共有lockとcheckoutのrevisionを照合し、advance、pause、寸法変更、離脱、run loop modeの実装を確認した。
 
-画面外の描画省略だけでは未収束のState Machineは進む。明示pauseはcontrollerとDisplayLinkへ伝播し、時間差をリセットする。DisplayLinkはcommon modeに登録されるため、ホストがドラッグを理由に止める必要はない。初回・寸法変更の単発描画と周期進行を分ける。
+画面外の描画省略だけでは未収束のState Machineは進む。明示pauseはcontrollerとDisplayLinkへ伝播し、時間差をリセットする。DisplayLinkはcommon modeに登録され、スクロール中もruntimeの時計を動かせる。初回・寸法変更の単発描画は、周期的なフレーム進行とは別に行われる。
 
 **適用限界**：固定revisionの実装上の根拠であり、hitch、表示完了時間、GPU・電力の実測値ではない。ホストの可視性・scene・タブ・sheetの接続と資源解放は実Canvasおよび製品導線で評価する。
