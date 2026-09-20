@@ -15,7 +15,10 @@ class BatchIdentityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             def git(*args):
-                return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null', *args], cwd=root, stderr=subprocess.DEVNULL)
+                # Detached maintenance must not outlive this temporary repository.
+                return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null',
+                                                '-c', 'maintenance.auto=false', *args],
+                                               cwd=root, stderr=subprocess.DEVNULL)
             git('init')
             payloads = {'space 日本語\nname': b'\x00\xff\nbody\x00', 'empty': b'', 'duplicate': b'\x00\xff\nbody\x00'}
             payloads.update({f'file-{i}': str(i).encode() for i in range(130)})

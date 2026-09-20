@@ -52,7 +52,10 @@ class SelectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             def git(*args):
-                return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null', *args], cwd=root, stderr=subprocess.DEVNULL)
+                # Detached maintenance must not outlive this temporary repository.
+                return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null',
+                                                '-c', 'maintenance.auto=false', *args],
+                                               cwd=root, stderr=subprocess.DEVNULL)
             git('init')
             (root / 'old.swift').write_text('before')
             (root / 'staged.swift').write_text('before')
