@@ -83,8 +83,8 @@ def main():
 
     def delete(snippet):
         tap_row("more." + snippet)
-        wait("delete-menu", lambda data: any(e.get("label") == "削除" for e in data["entries"]))
-        label("削除")
+        wait("delete-menu", lambda data: "delete." + snippet in ids(data))
+        run.tap("delete." + snippet)
 
     def undo():
         data = wait("undo", lambda data: "library.undo" in ids(data))
