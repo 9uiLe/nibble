@@ -22,6 +22,14 @@ class SelectionTests(unittest.TestCase):
     def test_static_tooling_changes_do_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})
 
+    def test_saved_observation_tool_does_not_start_ios(self):
+        self.assertEqual(self.selected(['scripts/ui_observation.py']), {'static'})
+        for path in ('scripts/inspect_ui.py', 'scripts/ui_preview.py', 'scripts/tests/macos/test_ui_preview_native.py'):
+            with self.subTest(path=path):
+                self.assertEqual(self.selected([path]), {'static', 'preview-native'})
+        self.assertEqual(self.selected([], 'inspection'), {'static', 'preview-native'})
+        self.assertNotIn('--device', verify.command_for('preview-native', None))
+
     def test_test_only_changes_select_whole_target_suite_without_ui(self):
         self.assertEqual(self.selected(['app/NibbleTests/NoticeTests.swift']), {'static', 'product-test'})
         self.assertEqual(self.selected(['validation/VerificationAppTests/Tests.swift']), {'static', 'fixture-test'})
@@ -29,7 +37,7 @@ class SelectionTests(unittest.TestCase):
     def test_shared_config_and_unknown_changes_broaden_scope(self):
         for path in ['scripts/ios.py', 'flake.lock', 'new/config.json']:
             with self.subTest(path=path):
-                self.assertEqual(len(self.selected([path])), 10)
+                self.assertEqual(len(self.selected([path])), 11)
         selected = verify.plan(['app/Shared/LibraryRequest.swift'])
         self.assertIn('product-test', self.selected(['app/Shared/LibraryRequest.swift']))
         self.assertTrue(selected['manual_review'])
@@ -84,6 +92,15 @@ class SelectionTests(unittest.TestCase):
 
 
 class ExecutionTests(unittest.TestCase):
+    def test_native_preview_step_completes_without_ios_run_or_device(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'):
+            root = Path(directory)
+            with patch.object(verify, 'ROOT', root), patch.object(verify, 'working_hashes', return_value={}), \
+                    patch.object(verify, 'execute', return_value=0):
+                result = verify.run_plan(verify.plan([], 'inspection'), root / 'result', None)
+            self.assertEqual(result['status'], 'passed')
+            self.assertEqual(result['steps'][1]['runs'], [])
+
     def test_failure_keeps_results_and_never_runs_later_steps(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'):
             root = Path(directory)

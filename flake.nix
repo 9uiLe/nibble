@@ -29,7 +29,7 @@
         "x86_64-linux"
       ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
-      # Keep the existing system declaration; hamio has no x86_64-darwin binary.
+      # Include hamio only on systems for which the locked input provides a package.
       hamioFor =
         pkgs:
         pkgs.lib.optional (builtins.hasAttr pkgs.stdenv.hostPlatform.system hamio.packages)

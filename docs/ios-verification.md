@@ -1,6 +1,6 @@
 # ローカルiOS検証の手順
 
-変更に必要な検査は`verify.py`で計画・実行する。個別のビルド、調査、画面操作には`ios.py`と対象別UI driverを使う。Apple CLIがビルド・実行管理・撮影、Nixのsim-useが画面読取・入力を担う。責務と採用理由は[検証基盤の設計](decisions/0001-local-ios-verification.md)に定義する。
+この手順は、専用Simulatorで検査を実行し、操作結果と画面の確認に必要な記録を取得するためのもの。`verify.py`で検査を計画・実行し、個別の調査には`ios.py`と対象別UI driverを使う。保存済みの画面情報は`inspect_ui.py`で要約できる。構成と保証範囲は[検証基盤の設計](decisions/0001-local-ios-verification.md)に定義する。
 
 一連の検証実行の結果は`result.json`、個別のiOSコマンドの記録であるrunは`manifest.json`へ保存する。自動工程の成功を確認した後、画像・録画を開いて観測を記録する。
 
@@ -72,13 +72,14 @@ python3 scripts/verify.py plan --base origin/main
 
 | 変更の区分 | 共通静的検査に加える工程 |
 | --- | --- |
-| Markdown・文書・エージェント指示、分類済みの静的検査・その回帰テスト | なし |
+| Markdown・文書・エージェント指示、分類済みの静的検査・画面要素の解析・その回帰テスト | なし |
+| 画面確認CLI・画像加工・macOSの画像試験 | ローカルMacの`preview-native`。Simulatorは不要 |
 | `app/NibbleTests/` | 製品targetの全テスト |
 | `validation/VerificationAppTests/` | fixtureの全テスト |
 | 製品の実装・アセット・Xcode設定 | 製品テスト、MVP・通知・固定表示・説明画面のUI |
 | 個別の製品UI driver | そのdriverのUI導線 |
 | その他の`validation/` | fixtureと研究targetのテスト・UI |
-| 共通基盤・依存設定・分類できない変更 | fixture・製品・研究targetの全工程 |
+| 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品・研究targetの全工程 |
 
 製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。MVPは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
 
@@ -94,7 +95,7 @@ xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
 python3 scripts/verify.py run --base origin/main --device "$NIBBLE_SIMULATOR"
 ```
 
-共通静的検査、対象targetの全テスト、UI操作を順に実行する。iOS工程はReleaseを使う。文書だけの計画では`--device`を省略でき、Simulatorを起動しない。実行中はソースを編集しない。
+共通静的検査、選択されたmacOSの画像試験、対象targetの全テスト、UI操作を順に実行する。iOS工程はReleaseを使う。文書だけの計画では`--device`を省略でき、Simulatorを起動しない。実行中はソースを編集しない。
 
 stdoutに成否と結果ファイルのパスを返す。既定の保存先は`artifacts/verify/<検証実行ID>/result.json`で、任意の新しいディレクトリを`--output`で指定できる。既存の結果は上書きしない。
 
@@ -119,7 +120,7 @@ python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
 
 `--since`は全工程が成功し、開始・終了ソースが一致する結果だけを受理する。共通静的検査は再計画にも含む。参照元の実行範囲が拡大するわけではなく、過去の媒体を現在のソースへ自動で認定するものでもない。runの再利用は[ソース照合](review-evidence.md#runのソースと結果)で確認する。
 
-対象を明示する場合は`--scope fixture`、`--scope product`、`--scope all`を使う。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
+対象を明示する場合は`--scope inspection`、`--scope fixture`、`--scope product`、`--scope all`を使う。`inspection`は共通検査とmacOSの画像試験を選び、`--device`を必要としない。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
 
 ## ビルド・テスト・動作確認
 
@@ -158,6 +159,10 @@ targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・
 
 ## 個別の画面読取と操作
 
+画面の要素や入力値はsim-useのaccessibility情報で確認する。外観は[画像の全体と細部の確認](review-evidence.md#画像の全体と細部の確認)、遷移や動きは録画で確認する。対象Simulatorを起動してウィンドウを表示し、同じUDIDへの操作を直列に実行する。
+
+### 画面を取得して操作する
+
 ```sh
 python3 scripts/ios.py ui --device "$NIBBLE_SIMULATOR"
 python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fixture.input
@@ -166,13 +171,36 @@ python3 scripts/ios.py paste --device "$NIBBLE_SIMULATOR" \
 python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fixture.apply
 ```
 
-この例は起動済みのVerificationAppを操作する。`tap`と`paste`は操作前後の画面情報を保存する。対象の期待結果は呼び出し側が確認する。
+この例は起動済みのVerificationAppを操作する。`ui`は画面情報を読み取り、`tap`と`paste`は操作前後の画面情報を保存する。操作先には直前の観測で確認した`uniqueId`を使う。コマンド成功後は、操作後の値や状態を期待結果と照合する。
 
-直接sim-useを使う場合もNixシェル内で実行する。`sim-use ui --json --no-raw`で観測した`uniqueId`を操作先に使う。原文の比較には`value`を使用し、空白や改行が表示用に整形される`label`やoutlineを代用しない。
+`paste --via-menu`はネイティブ編集メニューを通すため、Simulatorのハードウェアキーボード接続に依存しない。貼り付けによる日本語入力の確認範囲は貼り付けた値とその反映である。IMEの変換・未確定文字・候補選択は別の操作で確認する。許可ダイアログや想定外の画面が出た場合は、その状態を読み取って対応し、権限を一括許可しない。
 
-状態遷移を待つdriverは`Run.ui(allow_empty=True)`で要素0件の取得を中間状態として扱える。有限回の待機と最終状態の条件はdriverが所有する。通常の単発読取は空を失敗とし、ツールの失敗や対象processの終了は待機中も失敗させる。
+### 画面要素の要約と差分
 
-`paste --via-menu`は編集メニューを通すため、Simulatorのハードウェアキーボード接続に依存しない。貼り付けによる日本語入力は、IMEの変換・未確定文字・候補選択を検証しない。IMEは独立した操作で確認する。許可ダイアログや想定外の画面は読み取って対応し、権限を一括許可しない。
+画面情報をファイルに保存し、`inspect_ui.py tree`で必要な要素を読む。既存runの`ui.json`や操作前後のJSONも入力に使える。直接sim-useを使う場合は、観測ごとに異なる保存先を選ぶ。
+
+```sh
+export NIBBLE_OBSERVATION='artifacts/ui-observations/対象の観測ID'
+mkdir -p "$NIBBLE_OBSERVATION"
+sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw \
+  > "$NIBBLE_OBSERVATION/before.json"
+python3 scripts/inspect_ui.py tree "$NIBBLE_OBSERVATION/before.json"
+```
+
+対象の操作を実行した後、同じSimulatorから新しい画面情報を取得して比較する。
+
+```sh
+sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw \
+  > "$NIBBLE_OBSERVATION/after.json"
+python3 scripts/inspect_ui.py tree "$NIBBLE_OBSERVATION/after.json" \
+  --before "$NIBBLE_OBSERVATION/before.json"
+```
+
+結果は原本hash、選択条件、省略した件数・文字列長を含む。原文照合には対象IDと`--text-limit 0`を指定して完全な`value`を読む。コマンドの引数、結果JSON、判断の限界は[観測データの確認](simulator-inspection.md#画面要素の読取)を参照する。
+
+### 遷移中の画面取得
+
+状態遷移を待つdriverは`Run.ui(allow_empty=True)`で要素0件の取得を中間状態として扱える。有限回の待機と最終状態の条件はdriverが所有する。通常の単発読取は空を失敗とし、ツールの失敗や対象processの終了は待機中も失敗させる。保存済みJSONの要約は待機や期待結果の判定を行わない。
 
 ## スクリーンショットと画面録画
 
@@ -194,6 +222,8 @@ fixtureのsmokeでは、録画の確定後に操作後の静止画を撮影す�
 | `artifacts/verify/<検証実行ID>/` | 計画・工程結果・所要時間・工程ログ・runへの参照 |
 | `artifacts/ios/<UTC日時>-<コマンド>-<ID>/` | 個別runのmanifest・ネイティブログ・xcresult・画面情報・媒体 |
 | `artifacts/ios/DerivedData/<UDID>/<ビルド条件のhash>/` | 構成別のビルドキャッシュ |
+| `artifacts/ui-observations/<観測ID>/` | sim-useを直接使って保存した画面情報 |
+| `artifacts/ui-review/<確認ID>/` | 閲覧用画像と原本・変換条件を示す`preview.json` |
 
 すべてGit管理対象外で、新しいcheckoutには含まれない。失敗した記録も残す。キャッシュの存在だけではソースとの対応を保証できず、各build・test・launchでXcodeの増分検査を行う。
 

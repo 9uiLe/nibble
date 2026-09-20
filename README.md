@@ -24,6 +24,7 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | データ・状態・失敗回復を理解する | [製品設計](docs/decisions/0002-mvp-app.md)、[Swift規約](docs/library-policy.md) |
 | UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
 | 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
+| AIでSimulatorの動作・外観を確認する | [観測データの確認](docs/simulator-inspection.md)。原本を保存し、要素情報と必要な領域の画像を読む |
 | 比較実験・未確認条件を調べる | [研究資料](research/README.md)、[検証範囲](docs/mvp-validation.md) |
 | 本人向けに配布する | [TestFlight手順](docs/testflight.md) |
 
@@ -71,13 +72,13 @@ nix develop
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLIが入り、macOSではsim-use 0.14.0も使えます。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
+以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLI、hamioが入り、macOSではsim-use 0.14.0も使えます。画像加工はmacOS付属のsipsを使います。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
 
 | 共通検査 | 確認する内容 |
 | --- | --- |
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
-| `ios-tooling` | driver、証跡、PR、文書、Swift規約のPython回帰テスト |
+| `ios-tooling` | driver、証跡、画面要素の解析、画像加工の契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
 | `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、UI設計IDと照合記録 |
 | `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
@@ -132,7 +133,7 @@ xcodebuild -resolvePackageDependencies \
 
 ### 5. 証跡を確認してPRへ記載する
 
-[証跡とPRの手順](docs/review-evidence.md)で、実行ソース・結果・画像・録画を照合します。文書だけの変更は[共通検査](CONTRIBUTING.md#実行と検査)とPR本文の確認を行い、撮影が不要な理由を記載します。
+[観測データの確認](docs/simulator-inspection.md)で操作の状態を要素情報から読み、外観は全体画像と必要な細部を開いて確認します。[証跡とPRの手順](docs/review-evidence.md)で、実行ソース・原本媒体・観測記録を照合します。文書だけの変更は[共通検査](CONTRIBUTING.md#実行と検査)とPR本文の確認を行い、撮影が不要な理由を記載します。
 
 ## 他アプリで使うキーボード
 
