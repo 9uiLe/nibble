@@ -59,11 +59,28 @@ final class ShareViewController: UIViewController {
                 extensionContext?.cancelRequest(withError: CancellationError())
                 return
             }
-            let alert = UIAlertController(title: "取り込めませんでした", message: error.localizedDescription, preferredStyle: .alert)
+            let alert = UIAlertController(title: "取り込めませんでした", message: Self.failureMessage(error), preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "閉じる", style: .cancel) { [weak self] _ in
                 self?.extensionContext?.cancelRequest(withError: ShareError.unsupported)
             })
             present(alert, animated: true)
+        }
+    }
+
+    private static func failureMessage(_ error: Error) -> String {
+        switch error {
+        case ShareError.unsupported:
+            "文章またはURLを選んで共有してください。「閉じる」で共有元のアプリに戻れます。"
+        case StoreError.empty:
+            "共有する文章が空です。共有元のアプリで、空白や改行以外の文字を選んで共有してください。"
+        case StoreError.tooLarge:
+            "共有する文章が長すぎます。共有元のアプリで短くしてから、もう一度共有してください。本文の上限はUTF-8で1 MB（1,000,000バイト）です。"
+        case StoreError.newerVersion:
+            "nibbleを最新バージョンに更新してから、もう一度共有してください。"
+        case is StoreError:
+            "共有した内容を下書きに保存できませんでした。「閉じる」で共有元のアプリに戻り、もう一度共有してください。"
+        default:
+            "共有元のアプリから内容を読み込めませんでした。「閉じる」で戻り、もう一度共有してください。"
         }
     }
 
@@ -83,5 +100,5 @@ final class ShareViewController: UIViewController {
 
 private enum ShareError: Error, LocalizedError {
     case unsupported
-    var errorDescription: String? { "テキストまたはURLを選んで共有してください。" }
+    var errorDescription: String? { "文章またはURLを選んで共有してください。" }
 }

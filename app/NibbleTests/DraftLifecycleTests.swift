@@ -227,9 +227,43 @@ extension UIIntegrationTests {
             #expect(editor.phase == .editing)
             #expect(editor.body == draft.body)
             #expect(editor.failure?.canSaveAsNew == true)
+            #expect(editor.failure?.message.contains("閉じられませんでした") == true)
+            #expect(editor.failure?.message.contains("「新しい項目として保存」") == true)
+            #expect(editor.failure?.message.contains("一覧を更新") == false)
+            let db = try SQLiteDatabase(url: database.url)
+            try db.execute("CREATE TRIGGER reject_new_save BEFORE INSERT ON snippets BEGIN SELECT RAISE(ABORT,'fixture'); END")
+            #expect(!(await editor.finish(.saveAsNew)))
+            #expect(editor.phase == .editing && editor.body == draft.body)
+            #expect(editor.failure?.canSaveAsNew == true)
+            #expect(editor.failure?.message.contains("「新しい項目として保存」をもう一度") == true)
+            try db.execute("DROP TRIGGER reject_new_save")
             #expect(await editor.finish(.saveAsNew))
             let saved = try #require(try await database.store.search().first)
             #expect(try await database.store.snippet(saved.id).body == draft.body)
+        }
+
+        @Test(arguments: [EditorModel.FinishOperation.save, .keep, .discard])
+        func unavailableStorageKeepsInputAndNamesTheFailedExit(operation: EditorModel.FinishOperation) async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let draft = try await database.store.beginDraft(body: "保存前の本文")
+            let unavailable = SnippetStore(location: { throw StoreError.unavailable })
+            let editor = EditorModel(draft: draft, store: unavailable)
+            editor.body = "  保存できていない入力\nか\u{3099}  "
+            let input = editor.body
+            #expect(!(await editor.finish(operation)))
+            #expect(editor.phase == .editing && editor.failure?.canSaveAsNew == false)
+            #expect(editor.body.utf8.elementsEqual(input.utf8))
+            #expect(try await database.store.draft(draft.id).body == "保存前の本文")
+            let message = try #require(editor.failure?.message)
+            #expect(message.contains("入力はこの画面に残っています"))
+            switch operation {
+            case .save: #expect(message.contains("「保存」をもう一度"))
+            case .keep: #expect(message.contains("閉じられませんでした") && message.contains("「閉じる」をもう一度"))
+            case .discard: #expect(message.contains("破棄できませんでした") && message.contains("「下書きを破棄」をもう一度"))
+            case .saveAsNew: Issue.record("Not part of this fixture")
+            }
+            #expect(!message.contains("開き直して"))
         }
     }
 }

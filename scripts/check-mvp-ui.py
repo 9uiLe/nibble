@@ -297,7 +297,7 @@ def main():
                     raise VerificationError("Pinned filter contains an unpinned item")
                 run.screenshot("pinned-filter")
                 menu(row, "unpin-filter-menu")
-                label("ピン留めを外す")
+                label("ピン留めを解除")
                 wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
                 tab("検索")
                 wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))

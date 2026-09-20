@@ -9,7 +9,7 @@ final class EditorModel {
         var progressTitle: String {
             switch self {
             case .save, .saveAsNew: "保存中"
-            case .keep: "下書きを保持中"
+            case .keep: "下書きを保存中"
             case .discard: "下書きを破棄中"
             }
         }
@@ -50,7 +50,7 @@ final class EditorModel {
         catch {
             // A previous input's failure must not overwrite a newer input or a finish result.
             if phase == .editing && snapshot.sequence == draft.sequence {
-                failure = Failure(message: "下書きを保存できませんでした。\n" + error.localizedDescription,
+                failure = Failure(message: failureMessage(error, operation: nil),
                                   canSaveAsNew: false)
             }
         }
@@ -74,10 +74,41 @@ final class EditorModel {
         } catch {
             phase = .editing
             let storeError = error as? StoreError
-            failure = Failure(message: error.localizedDescription,
-                              canSaveAsNew: storeError == .conflict || storeError == .staleDraft || storeError == .missing)
+            failure = Failure(message: failureMessage(error, operation: operation),
+                              canSaveAsNew: operation == .saveAsNew || storeError == .conflict || storeError == .staleDraft || storeError == .missing)
             return false
         }
     }
-}
 
+    private func failureMessage(_ error: Error, operation: FinishOperation?) -> String {
+        let title: String
+        let retry: String
+        switch operation {
+        case .save, .saveAsNew:
+            title = "保存できませんでした。"
+            retry = operation == .saveAsNew ? "「新しい項目として保存」をもう一度押してください。" : "「保存」をもう一度押してください。"
+        case .keep:
+            title = "下書きを保存できなかったため、閉じられませんでした。"
+            retry = "「閉じる」をもう一度押してください。"
+        case .discard:
+            title = "下書きを破棄できませんでした。"
+            retry = "「その他」から「下書きを破棄」をもう一度選んでください。"
+        case nil:
+            title = "下書きを自動保存できませんでした。"
+            retry = "「保存」または「閉じる」を押して、もう一度保存してください。"
+        }
+        let reason = (error as? StoreError)?.localizedDescription ?? "保存データを読み書きできませんでした。"
+        let recovery: String
+        switch error as? StoreError {
+        case .conflict, .staleDraft, .missing:
+            recovery = operation == nil ? retry : "「新しい項目として保存」で、この画面の内容を別の項目に保存できます。"
+        case .empty, .tooLarge:
+            recovery = ""
+        case .newerVersion:
+            recovery = "入力をコピーして別の場所に控えてから、nibbleを更新してください。"
+        default:
+            recovery = retry
+        }
+        return title + "入力はこの画面に残っています。\n" + reason + recovery
+    }
+}

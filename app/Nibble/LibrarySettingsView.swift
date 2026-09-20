@@ -31,9 +31,9 @@ struct LibrarySettingsView: View {
                 } header: {
                     Text("操作ボタンの位置")
                 } footer: {
-                    Text("新規作成と各行のコピーボタンを、使いやすい側に配置します。")
+                    Text("新しく作るボタンと、各項目のコピーボタンの位置を変えます。")
                 }
-                Section("ライブラリ") {
+                Section("保存した項目") {
                     Button("削除した項目", systemImage: "trash", action: showTrash)
                         .accessibilityIdentifier("library.trash")
                 }

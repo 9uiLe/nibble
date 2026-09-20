@@ -100,7 +100,7 @@ struct KeyboardView: View {
                 .padding(.vertical, 6)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("スニペットの絞り込み")
+        .accessibilityLabel("保存した項目の絞り込み")
     }
 
     @ViewBuilder private var content: some View {
@@ -125,11 +125,11 @@ struct KeyboardView: View {
         } else {
             ScrollView {
                 VStack(spacing: 6) {
-                    Text(model.request.filter == .pinned ? "ピン留めはまだありません" : "スニペットはまだありません")
+                    Text(model.request.filter == .pinned ? "ピン留めした項目はありません" : "保存した項目はありません")
                         .font(.subheadline.weight(.semibold))
                     Text(model.request.filter == .pinned
-                        ? "「すべて」の「…」から、よく使うスニペットをピン留めできます。"
-                        : "nibbleでスニペットを保存すると、ここから入力できます。")
+                        ? "「すべて」で項目の「…」を開くと、ピン留めできます。"
+                        : "nibbleで文章やURLを保存すると、ここから入力できます。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .multilineTextAlignment(.center).padding(16).frame(maxWidth: .infinity)
@@ -147,7 +147,7 @@ struct KeyboardView: View {
             }
             .accessibilityLabel("\(item.displayTitle)を入力")
             .accessibilityValue(item.pinned ? "ピン留め済み" : "")
-            .accessibilityHint("保存済みの本文を入力先へ挿入します")
+            .accessibilityHint("保存した本文を入力中のアプリに挿入します")
             .accessibilityIdentifier("keyboard.insert.\(item.id)")
             Button {
                 detailOrigin = item.id
@@ -174,7 +174,7 @@ struct KeyboardView: View {
                 Button { startTask() } label: {
                     Image(systemName: detail.item.pinned ? "pin.fill" : "pin")
                 }
-                .accessibilityLabel(detail.item.pinned ? "ピン留めを解除" : "ピン留めする")
+                .accessibilityLabel(detail.item.pinned ? "ピン留めを解除" : "ピン留め")
                 .accessibilityValue(detail.item.pinned ? "ピン留め済み" : "")
                 .accessibilityHint(model.hasFullAccess ? "" : "フルアクセスの案内を表示します")
                 .accessibilityIdentifier("keyboard.pin")
@@ -210,6 +210,7 @@ struct KeyboardView: View {
                         .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 10))
                 }
                 .accessibilityIdentifier("keyboard.copy.\(detail.item.id)")
+                .accessibilityHint(model.hasFullAccess ? "本文をコピーします" : "フルアクセスの設定方法を表示します")
                 Button { startTask(detail.item, as: .insert) } label: {
                     Text("入力する").fontWeight(.semibold)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -227,10 +228,9 @@ struct KeyboardView: View {
     private var controls: some View {
         HStack(spacing: 0) {
             if model.needsSwitchKey { KeyboardInputModeButton(button: globe).frame(width: 44, height: 44) }
-            Text(model.message ?? "nibble")
+            statusMessage
                 .font(.caption)
                 .foregroundStyle(model.message == nil ? Color.secondary : Color.primary)
-                .lineLimit(2)
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("keyboard.status")
             if model.detail == nil, model.request.offset > 0 || model.page?.hasMore == true {
@@ -249,6 +249,19 @@ struct KeyboardView: View {
         .font(.body).foregroundStyle(.primary)
         .labelStyle(.iconOnly).buttonStyle(KeyboardControlStyle())
         .padding(.horizontal, 10)
+    }
+
+    @ViewBuilder private var statusMessage: some View {
+        if let notice = model.notice, !notice.expires {
+            ScrollView {
+                Text(notice.message)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: 72)
+        } else {
+            Text(model.message ?? "nibble").lineLimit(2)
+        }
     }
 
     private func startTask(_ item: SnippetSummary, as use: KeyboardModel.Use) {

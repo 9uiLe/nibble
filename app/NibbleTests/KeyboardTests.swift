@@ -251,6 +251,7 @@ struct KeyboardOperationTests {
         effects.canCopy = false
         await model.use(item, as: .copy)
         #expect(reader.bodies.count == 0 && model.message != nil)
+        #expect(model.message?.contains("nibbleの「設定」→「nibbleキーボード」") == true)
         let tasks = ViewTaskStore()
         let original = "  か\u{3099}\n👩🏽‍💻  "
         tasks.start(id: "insert", lifetime: .screenBound) { _ in await model.use(item, as: .insert) }
@@ -258,6 +259,7 @@ struct KeyboardOperationTests {
         reader.bodies.finish(0, .success(original))
         await tasks.waitForIdle()
         #expect(effects.events == [.insert(original)])
+        #expect(model.message == "本文を送りました")
         effects.canCopy = true
         tasks.start(id: "copy", lifetime: .screenBound) { _ in await model.use(item, as: .copy) }
         await reader.bodies.waitForRequests(2)
@@ -320,6 +322,7 @@ struct KeyboardOperationTests {
         reader.bodies.finish(0, .failure(KeyboardReadError.changed))
         await preview
         #expect(model.detail?.failure != nil && model.detail?.body == nil)
+        #expect(model.detail?.failure?.contains("「一覧に戻る」を押してから") == true)
         #expect(model.notice == nil && effects.events.isEmpty)
     }
 
@@ -351,6 +354,30 @@ struct KeyboardOperationTests {
         await pin
         #expect(model.detail?.item.pinned == !fails && model.detail?.body == "本文")
         #expect(model.notice?.expires == !fails && model.request.filter == .all && effects.events.isEmpty)
+    }
+
+    @Test func committedPinWithFailedReloadExplainsBothResults() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        model.openDetail(item)
+        async let preview: Void = model.loadDetail()
+        await reader.bodies.waitForRequests(1)
+        reader.bodies.finish(0, .success("本文"))
+        await preview
+        effects.canCopy = true
+        async let pin: Void = model.togglePin()
+        await reader.pins.waitForRequests(1)
+        let updated = SnippetSummary(id: item.id, title: item.title, preview: item.preview, pinned: true, revision: 2)
+        reader.pins.finish(0, .success(updated))
+        await reader.pages.waitForRequests(2)
+        reader.pages.finish(1, .failure(StoreError.database))
+        await pin
+        #expect(model.detail?.item.pinned == true && model.page?.items.first?.pinned == true)
+        #expect(model.message?.hasPrefix("ピン留めは変更しましたが、一覧を更新できませんでした。") == true)
+        #expect(model.notice?.expires == false && effects.events.isEmpty)
+        #expect(model.message?.contains("「一覧に戻る」を押してから") == true)
     }
 
     private func prepare(_ model: KeyboardModel, reader: KeyboardGateReader) async {

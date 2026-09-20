@@ -74,8 +74,8 @@ final class LibraryModel {
     var failure: Failure? {
         if let operationFailure { return operationFailure }
         if let pending = pendingUses.first(where: { usageErrors[$0.id] != nil }) {
-            return Failure(title: "コピーは完了しましたが、使用記録を保存できませんでした",
-                           message: "本文はコピー済みです。記録だけを再試行できます。\n" + (usageErrors[pending.id] ?? ""),
+            return Failure(title: "コピー済みですが、回数と日時を記録できませんでした",
+                           message: "本文は貼り付けて使えます。下のボタンで、コピー回数と最後にコピーした日時の記録だけをやり直せます。\n" + (usageErrors[pending.id] ?? ""),
                            recovery: .retryUsage)
         }
         if completedRead?.request == request, case .failed(let failure) = completedRead?.outcome { return failure }
@@ -171,7 +171,7 @@ final class LibraryModel {
             guard activeRefresh == token, request == requested else { return }
             let outcome: ReadOutcome = Task.isCancelled || error is CancellationError ? .cancelled
                 : .failed(Failure(title: "一覧を読み込めませんでした",
-                                  message: error.localizedDescription, recovery: .reload))
+                                  message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload))
             completedRead = (requested, outcome)
         }
     }
@@ -244,11 +244,11 @@ final class LibraryModel {
         } catch StoreError.missing {
             pendingUses.removeAll { $0.id == use.id }
             usageErrors[use.id] = nil
-            operationFailure = Failure(title: "コピーした項目の使用記録を保存できませんでした",
-                                       message: "本文はコピー済みですが、対象が完全に削除されています。",
+            operationFailure = Failure(title: "コピー済みですが、回数と日時を記録できませんでした",
+                                       message: "本文は貼り付けて使えます。項目が完全に削除されたため、コピー回数と日時は記録できません。「閉じる」でこの案内を閉じてください。",
                                        recovery: .dismiss)
         } catch {
-            usageErrors[use.id] = error.localizedDescription
+            usageErrors[use.id] = recoveryMessage(error, retry: "")
         }
     }
 
@@ -286,7 +286,9 @@ final class LibraryModel {
             announce("元に戻しました", subject: result.subject, context: context)
             await refresh()
         } catch {
-            operationFailure = Failure(title: "復元できませんでした", message: error.localizedDescription,
+            operationFailure = Failure(title: "復元できませんでした",
+                                       message: recoveryMessage(error, retry: error as? StoreError == .missing
+                                           ? "「一覧を再読み込み」を押してください。" : "「もう一度復元する」を押してください。"),
                                        recovery: error as? StoreError == .missing ? .reload : .retryRestore(id))
         }
     }
@@ -303,8 +305,16 @@ final class LibraryModel {
     }
 
     private func report(_ title: String, _ error: Error) {
-        operationFailure = Failure(title: title, message: error.localizedDescription,
+        operationFailure = Failure(title: title, message: recoveryMessage(error, retry: error as? StoreError == .missing
+                                       ? "「一覧を再読み込み」を押してください。" : "この案内を閉じて、もう一度操作してください。"),
                                    recovery: error as? StoreError == .missing ? .reload : .dismiss)
+    }
+
+    private func recoveryMessage(_ error: Error, retry: String) -> String {
+        if error as? StoreError == .newerVersion {
+            return "nibbleを最新バージョンに更新してから、もう一度操作してください。"
+        }
+        return ((error as? StoreError)?.localizedDescription ?? "保存データを読み書きできませんでした。") + retry
     }
 
     private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil, context: NoticeContext) {

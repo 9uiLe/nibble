@@ -30,12 +30,12 @@ struct SnippetEditor: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("タイトル").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                        TextField("任意・見つけやすい名前", text: $editor.title, axis: .vertical)
+                        Text("タイトル（任意）").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                        TextField("例：お礼のメール", text: $editor.title, axis: .vertical)
                             .font(.title2.weight(.semibold))
                             .focused($focus, equals: .title)
                             .accessibilityIdentifier("editor.title")
-                            .accessibilityLabel("タイトル")
+                            .accessibilityLabel("タイトル（任意）")
                     }
                     Divider()
                     VStack(alignment: .leading, spacing: 12) {
@@ -58,7 +58,7 @@ struct SnippetEditor: View {
                                 .accessibilityIdentifier("editor.bodyRequirement")
                         }
                         // A growing native multiline field lets the entire page scroll on small screens.
-                        TextField("繰り返し使う言葉を、ここに。", text: $editor.body, axis: .vertical)
+                        TextField("保存したい文章やURLを入力", text: $editor.body, axis: .vertical)
                             .font(.body)
                             .lineLimit(10...)
                             .textInputAutocapitalization(.never)
@@ -66,6 +66,11 @@ struct SnippetEditor: View {
                             .focused($focus, equals: .body)
                             .accessibilityIdentifier("editor.body")
                             .accessibilityLabel("本文")
+                        Text("空白や改行は、そのまま保存されます。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Text("長さの上限はタイトル512バイト、本文1 MB（1,000,000バイト）です。どちらもUTF-8で数えるため、文字によって使うバイト数が異なります。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("editor.lengthLimit")
                     }
                     if let failure = model.failure {
                         Label(failure.message, systemImage: "exclamationmark.circle")
@@ -76,7 +81,7 @@ struct SnippetEditor: View {
                                 .buttonStyle(.borderedProminent)
                         }
                     }
-                    Text("「閉じる」で編集内容を下書きに保持して戻ります。空白と改行も、そのまま保存します。")
+                    Text("「保存」を押すと、一覧やキーボードから使えます。「閉じる」を押すと、入力した内容が下書きに残ります。空の新規入力や、変更していない項目は下書きに残りません。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .padding(24)
@@ -84,7 +89,7 @@ struct SnippetEditor: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(Color.nibbleCanvas)
-            .navigationTitle(model.draft.snippetID == nil ? "新しいスニペット" : "スニペットを編集")
+            .navigationTitle(model.draft.snippetID == nil ? "新規作成" : "項目を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -122,7 +127,7 @@ struct SnippetEditor: View {
                     startTask(.discard)
                 }
                 .accessibilityIdentifier("editor.confirmDiscard")
-            } message: { Text("保存済みのスニペットは変わりません。") }
+            } message: { Text("この下書きの内容は元に戻せません。保存済みの項目は変わりません。") }
         }
         .tint(.nibbleAccent)
         .detectAnimationLeaks()

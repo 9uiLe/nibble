@@ -229,6 +229,8 @@ struct SnippetUsageTests {
         let model = LibraryModel(store: files.store, effects: effects, usageRecorder: recorder, now: { instant })
         await model.copy(id)
         #expect(model.notice?.message == "コピーしました" && model.failure?.recovery == .retryUsage)
+        #expect(model.failure?.title.contains("コピー済み") == true)
+        #expect(model.failure?.message.contains("コピー回数と最後にコピーした日時の記録だけ") == true)
         #expect(try await files.store.snippet(id).useCount == (committed ? 1 : 0))
         await model.retryUsageRecording()
         await model.retryUsageRecording()
