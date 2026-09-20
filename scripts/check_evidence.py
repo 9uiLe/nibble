@@ -39,7 +39,7 @@ def require(condition, message):
 
 def check_run(directory, reference_hashes):
     manifest = json.loads((directory / 'manifest.json').read_text())
-    require(manifest.get('evidence_version') == 1, 'Run needs start/end source and media hashes; legacy runs remain historical evidence')
+    require(manifest.get('evidence_version') == 1, 'Run requires evidence_version 1 with start/end source and media hashes')
     require(manifest.get('status') == 'passed', 'Run did not pass')
     project = manifest['project']
     start = inputs(manifest['files_sha256'], project)

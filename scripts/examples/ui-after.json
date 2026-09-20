@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "data": {
+    "appLabel": "VerificationApp",
+    "appPackage": "example.verification",
+    "orientation": "portrait",
+    "screen": {"x": 0, "y": 0, "width": 375, "height": 667},
+    "entries": [
+      {"uniqueId": "fixture.input", "role": "TextField", "label": "入力", "value": "  日本語 👩🏽‍💻\nHello, nibble!  ", "states": [], "frame": {"x": 16, "y": 120, "width": 343, "height": 44}},
+      {"uniqueId": "fixture.apply", "role": "Button", "label": "反映", "states": [], "frame": {"x": 16, "y": 180, "width": 80, "height": 44}}
+    ]
+  }
+}

@@ -18,8 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
     'scripts/check_docs.py', 'scripts/check_swift_policy.py', 'scripts/check_ui_design.py',
     'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py',
-    'scripts/swift_task_boundary.py', 'scripts/benchmark_docs.py',
+    'scripts/swift_task_boundary.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
 }
+OFFLINE_STEPS = {'static', 'preview-native'}
 
 
 def changed_files(root, base):
@@ -53,7 +54,9 @@ def plan(paths, scope='auto'):
             select('product-test', path + ': 製品テスト')
         elif path.startswith('validation/VerificationAppTests/'):
             select('fixture-test', path + ': fixtureテスト')
-        elif path in STATIC_SCRIPTS or path.startswith(('scripts/tests/', 'tools/ui-design/', '.github/')):
+        elif path in {'scripts/inspect_ui.py', 'scripts/ui_preview.py'} or path.startswith('scripts/tests/macos/'):
+            select('preview-native', path + ': macOSのPNGデコード・切出し・縮小')
+        elif path in STATIC_SCRIPTS or path.startswith(('scripts/tests/', 'scripts/examples/', 'tools/ui-design/', '.github/')):
             continue
         elif path.startswith('app/'):
             select('product-test', path)
@@ -75,11 +78,11 @@ def plan(paths, scope='auto'):
                 select(name, path + ': 検証targetへの変更')
             manual.append('ResearchProbeの比較導線: validation/RESEARCH.md（' + path + '）')
         else:
-            for name in ('fixture-test', 'fixture-smoke', 'product-test', 'mvp', 'notice', 'interface', 'about', 'research-test', 'research-ui'):
+            for name in ('preview-native', 'fixture-test', 'fixture-smoke', 'product-test', 'mvp', 'notice', 'interface', 'about', 'research-test', 'research-ui'):
                 select(name, path + ': 共通基盤・設定・未知の変更は保守的に検査')
-    groups = {'fixture': {'fixture-test', 'fixture-smoke'},
+    groups = {'inspection': {'preview-native'}, 'fixture': {'fixture-test', 'fixture-smoke'},
               'product': {'product-test', 'mvp', 'notice', 'interface', 'about'}}
-    all_steps = ['static', 'fixture-test', 'product-test', 'research-test', 'fixture-smoke', 'mvp', 'notice', 'interface', 'about', 'research-ui']
+    all_steps = ['static', 'preview-native', 'fixture-test', 'product-test', 'research-test', 'fixture-smoke', 'mvp', 'notice', 'interface', 'about', 'research-ui']
     if scope != 'auto':
         wanted = set(all_steps) if scope == 'all' else groups[scope] | {'static'}
         selected = {name: ['明示したscope: ' + scope] for name in wanted}
@@ -89,12 +92,14 @@ def plan(paths, scope='auto'):
             'steps': [{'id': name, 'reasons': selected[name]} for name in all_steps if name in selected],
             'excluded': omitted, 'manual_review': sorted(set(manual)),
             'preconditions': ['about実行時はSettings > Accessibility > Motionを開いておく'] if 'about' in selected else [],
-            'coverage': '選択したtargetの全テストと列挙したUI導線。手動確認・媒体の目視は別途必要'}
+            'coverage': '選択したローカル工程・targetの全テスト・UI導線。手動確認・媒体の目視は別途必要'}
 
 
 def command_for(name, device):
     if name == 'static':
         return ['nix', 'flake', 'check', '--no-update-lock-file', '--print-build-logs']
+    if name == 'preview-native':
+        return [sys.executable, '-m', 'unittest', 'discover', '-s', 'scripts/tests/macos', '-v']
     if not device:
         raise ValueError('iOSの計画には専用Simulatorの --device UDID が必要です')
     if name in {'fixture-test', 'fixture-smoke', 'product-test', 'research-test'}:
@@ -162,7 +167,7 @@ def run_plan(selected, directory, device, timeout=1800):
                 if step['status'] == 'running':
                     step['status'] = 'failed'
                 save()
-            if step['id'] != 'static':
+            if step['id'] not in OFFLINE_STEPS:
                 from check_evidence import check_run
                 if not step['runs']:
                     step['status'] = 'failed'
@@ -207,7 +212,7 @@ def main(argv=None):
     parser.add_argument('action', choices=('plan', 'run'))
     parser.add_argument('--base', default='origin/main', help='Compare this revision with the working tree, including untracked files')
     parser.add_argument('--since', type=Path, help='Only changes since this successful result; failed results cannot suppress work')
-    parser.add_argument('--scope', choices=('auto', 'fixture', 'product', 'all'), default='auto')
+    parser.add_argument('--scope', choices=('auto', 'inspection', 'fixture', 'product', 'all'), default='auto')
     parser.add_argument('--device')
     parser.add_argument('--output', type=Path, help='New directory; existing results are never overwritten')
     args = parser.parse_args(argv)

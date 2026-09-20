@@ -10,10 +10,12 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | 製品のデータ・処理・失敗回復 | [製品設計](docs/decisions/0002-mvp-app.md) |
 | Swiftの宣言・非同期・比較・アニメーション | [実装規約](docs/library-policy.md) |
 | 画面・部品と配置理由 | [UI設計](docs/design/README.md) |
-| 実行管理と保証範囲 | [検証基盤](docs/decisions/0001-local-ios-verification.md) |
-| 変更からの検証計画・実行・結果の確認 | [ローカルiOS検証](docs/ios-verification.md) |
+| 検証の実行管理、画面の観測、保証範囲 | [検証基盤](docs/decisions/0001-local-ios-verification.md) |
+| 検証計画・実行・画面情報の取得と要約 | [ローカルiOS検証](docs/ios-verification.md) |
+| 画面確認CLIの仕様・サンプル・開発 | [観測データの確認](docs/simulator-inspection.md) |
 | 検証実行方式の測定条件と観測値 | [検証時間の評価記録](docs/verification-performance.md) |
-| ソース・媒体・PRの照合 | [証跡手順](docs/review-evidence.md) |
+| 画像・録画の確認、ソース・媒体・PRの照合 | [証跡手順](docs/review-evidence.md) |
+| CLIの入出力とhamioによる表示 | [スクリプト設計](docs/script-tooling.md) |
 | 配布操作と秘密情報 | [TestFlight手順](docs/testflight.md) |
 | エージェントの作業選択 | [AGENTS](AGENTS.md)、[検証Skill](.agents/skills/nibble-verification/SKILL.md) |
 
@@ -69,6 +71,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | Swift・依存・ビルド設定 | 対象targetのビルドと影響する契約のテスト。実装規約に従いawait直後の結果・永続化、所有者、表示入力を確認 |
 | UI・操作・性能 | 内部変更も含め対象導線を実行。見た目は画像、操作・遷移・応答は録画、性能は同条件の測定 |
 | 検証基盤・CI | 変更した動作の回帰。iOS実行・撮影の成立へ影響する場合は対象targetでも確認 |
+| 保存済み画面の解析・加工 | [画面確認CLIの検証](docs/simulator-inspection.md#構成と開発)。画像加工とCLIはローカルMacの`preview-native`も実行 |
 
 ### スクリプトの表示とデータ
 
