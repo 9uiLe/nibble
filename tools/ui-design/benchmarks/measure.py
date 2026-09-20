@@ -84,8 +84,13 @@ def main():
                 'peak_python_bytes': peak, 'cli_milliseconds': cli_samples,
                 'cli_median_ms': statistics.median(cli_samples),
             }
+    # A 32 MiB non-document asset must not be retained as a whole in Python memory.
+    overhead = report['scenarios']['asset']['peak_python_bytes'] - report['scenarios']['small']['peak_python_bytes']
+    report['asset_memory_budget'] = {'extra_peak_bytes': overhead, 'limit_bytes': 8 * 1024 * 1024,
+                                     'passed': overhead <= 8 * 1024 * 1024}
     print(json.dumps(report, indent=2))
+    return 0 if report['asset_memory_budget']['passed'] else 1
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

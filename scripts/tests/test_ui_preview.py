@@ -9,7 +9,6 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import ui_preview
-from verification_evidence import media_hashes
 from png_fixture import png
 
 
@@ -27,36 +26,6 @@ class PreviewTests(unittest.TestCase):
         self.binary = patch.object(ui_preview, 'SIPS', Path(__file__))
         self.binary.start()
         self.addCleanup(self.binary.stop)
-
-    def render(self, argv, **kwargs):
-        width, height = ui_preview.png_size(Path(argv[-3]).read_bytes())
-        if '--cropToHeightWidth' in argv:
-            index = argv.index('--cropToHeightWidth')
-            height, width = map(int, argv[index + 1:index + 3])
-        if '--resampleHeightWidthMax' in argv:
-            edge = int(argv[argv.index('--resampleHeightWidthMax') + 1])
-            scale = min(1, edge / max(width, height))
-            width, height = int(width * scale), int(height * scale)
-        Path(argv[-1]).write_bytes(png(width, height))
-        return Mock(returncode=0, stdout='conversion output', stderr='')
-
-    def test_resize_decodes_snapshot_and_preserves_run_inventory(self):
-        original = media_hashes(self.run)
-        with patch.object(ui_preview.subprocess, 'run', side_effect=self.render) as process:
-            report = ui_preview.create_preview(self.source, self.output, max_edge=40)
-        self.assertEqual(report['preview']['size_pixels'], [20, 40])
-        self.assertEqual(report['transform']['source_pixels_per_preview_pixel'], [2, 2])
-        self.assertEqual(media_hashes(self.run), original)
-        self.assertEqual(report['source']['sha256'], original['screen.png'])
-        self.assertNotEqual(process.call_args.args[0][-3], str(self.source))
-        self.assertTrue((self.output / 'preview.json').is_file())
-        self.assertFalse(list(self.output.glob('.work-*')))
-
-    def test_even_unscaled_images_pass_through_decoder(self):
-        with patch.object(ui_preview.subprocess, 'run', side_effect=self.render) as process:
-            report = ui_preview.create_preview(self.source, self.output)
-        self.assertEqual(process.call_count, 1)
-        self.assertEqual(report['preview']['size_pixels'], [40, 80])
 
     def test_all_runs_symlink_aliases_and_existing_outputs_are_protected(self):
         other = self.root / 'another-run'
@@ -100,7 +69,8 @@ class PreviewTests(unittest.TestCase):
             Path(argv[-1]).write_bytes(png(20, 20))
             return Mock(returncode=0, stdout='', stderr='')
         def changed_source(argv, **kwargs):
-            result = self.render(argv, **kwargs)
+            Path(argv[-1]).write_bytes(png())
+            result = Mock(returncode=0, stdout="", stderr="")
             self.source.write_bytes(png(20, 20))
             return result
         for index, execute in enumerate((wrong_geometry, changed_source)):

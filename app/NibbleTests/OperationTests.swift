@@ -68,9 +68,11 @@ extension UIIntegrationTests {
             let all = try await store.library(LibraryRequest())
             #expect(Set(all.items.map(\.id)) == [pinned, other])
             #expect(all.drafts.map(\.id) == [draft.id])
-            let pins = try await store.library(LibraryRequest(filter: .pinned))
+            let pins = try await store.library(LibraryRequest(filter: .pinned, limit: 1))
             #expect(pins.items.map(\.id) == [pinned])
-            #expect(pins.drafts.isEmpty)
+            #expect(pins.drafts.isEmpty && !pins.hasMore)
+            let missing = try await store.library(LibraryRequest(query: "なし", limit: 1))
+            #expect(missing.items.isEmpty && !missing.hasMore)
             let drafts = try await store.library(LibraryRequest(filter: .drafts, limit: 1))
             #expect(drafts.items.isEmpty && !drafts.hasMore)
             #expect(drafts.drafts.map(\.id) == [draft.id])
@@ -93,9 +95,6 @@ extension UIIntegrationTests {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let saved = try await create(database.store, body: "検索対象")
-            let search = LibraryModel(store: database.store)
-            search.query = "検索対象"
-            await search.refresh()
             let reader = ControlledLibraryReader()
             let library = LibraryModel(store: database.store, libraryReader: reader)
             let owner = LibraryTaskOwner()
@@ -133,7 +132,6 @@ extension UIIntegrationTests {
             await owner.waitForIdle()
             #expect(library.items.map(\.id) == [saved] && library.contentRequest.query == "検索|対象")
             #expect(!library.loading && library.failure == nil)
-            #expect(search.items.map(\.id) == [saved] && search.query == "検索対象" && search.filter == .all)
         }
 
         @Test func changingFilterCannotPresentUnloadedDataAsEmpty() async throws {
@@ -275,7 +273,8 @@ extension UIIntegrationTests {
             #expect(try await store.draft(editor.draft.id).body == "最新")
         }
 
-        @Test func admittedAutosaveAndImmediateSaveCannotResurrectDraft() async throws {
+        @Test(arguments: [EditorModel.FinishOperation.save, .discard])
+        func finishingRejectsAdmittedAndLateAutosaves(operation: EditorModel.FinishOperation) async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let store = database.store
@@ -286,28 +285,19 @@ extension UIIntegrationTests {
             async let autosave: Void = editor.persist(snapshot)
             await storage.waitForUpdate()
             editor.body = "保存する最新値"
-            #expect(await editor.finish(.save))
+            #expect(await editor.finish(operation))
             storage.resumeUpdate()
             await autosave
             await editor.persist(snapshot)
             #expect(try await store.drafts().isEmpty)
-            let item = try #require(try await store.search().first)
-            #expect(try await store.snippet(item.id).body == "保存する最新値")
-        }
-
-        @Test func discardCompletesAndRejectsLateAutosave() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let editor = EditorModel(draft: try await store.beginDraft(), store: store)
-            editor.body = "破棄する入力"
-            let snapshot = editor.draft
-            async let autosave: Void = editor.persist(snapshot)
-            #expect(await editor.finish(.discard))
-            await autosave
-            await editor.persist(snapshot)
-            #expect(try await store.drafts().isEmpty)
-            #expect(try await store.search().isEmpty)
+            let items = try await store.search()
+            if operation == .save {
+                #expect(items.count == 1)
+                let item = try #require(items.first)
+                #expect(try await store.snippet(item.id).body == "保存する最新値")
+            } else {
+                #expect(items.isEmpty)
+            }
         }
 
         @Test(arguments: [false, true])
@@ -412,13 +402,15 @@ extension UIIntegrationTests {
             let directory = database.url.deletingLastPathComponent()
             let file = directory.appending(path: "not-a-directory")
             try Data([1]).write(to: file)
-            let library = LibraryModel(store: SnippetStore(location: file.appending(path: "db.sqlite")))
+            let effects = RecordingLibraryEffects()
+            let library = LibraryModel(store: SnippetStore(location: file.appending(path: "db.sqlite")), effects: effects)
             await library.refresh()
             #expect(library.failure?.title == "一覧を読み込めませんでした")
             #expect(library.failure?.recovery == .reload)
             await library.open()
             #expect(library.failure?.title == "編集を始められませんでした")
             #expect(library.editor == nil)
+            #expect(effects.events.isEmpty)
             library.dismissFailure()
             #expect(library.failure?.title == "一覧を読み込めませんでした")
             try FileManager.default.removeItem(at: file)
@@ -438,10 +430,13 @@ extension UIIntegrationTests {
                 #expect(editor.body.utf8.elementsEqual(body.utf8))
             }
             let original = "  原文\n👩🏽‍💻  "
+            editor.body = "途中の入力"
             editor.body = original
             #expect(editor.hasBody && editor.canSave)
             #expect(await editor.finish(.keep))
-            #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(original.utf8))
+            let reopened = SnippetStore(location: database.url)
+            #expect(try await reopened.draft(draft.id).body.utf8.elementsEqual(original.utf8))
+            #expect(try await reopened.search().isEmpty)
         }
 
     }

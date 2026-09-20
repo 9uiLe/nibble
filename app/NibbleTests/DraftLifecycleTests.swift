@@ -89,30 +89,20 @@ struct DraftLifecycleTests {
         #expect(try await first.drafts().map(\.id) == [left.id])
     }
 
-    @Test func libraryReturnsBoundedSummariesAndReopensTheFullBody() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let text = String(repeating: "文", count: 180) + "末"
-        var draft = try await store.beginDraft(body: text)
-        draft.title = String(repeating: "題", count: 181)
-        try await store.updateDraft(draft)
-        let page = try await store.library(LibraryRequest())
-        #expect(page.drafts.count == 1)
-        #expect(page.drafts.first?.title.count == 180)
-        #expect(page.drafts.first?.preview.count == 180)
-        #expect(try await store.draft(draft.id).body.utf8.elementsEqual(text.utf8))
-        #expect(try await store.draft(draft.id).title == draft.title)
-    }
-
     @Test func untitledDraftsRemainDistinctAndAllLibraryBoundsTheirRows() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }
         let store = database.store
         let saved = try await create(store, body: "保存済みの本文")
         var ids: [UUID] = []
+        var titled: Draft?
         for number in 0..<4 {
-            let draft = try await store.beginDraft(body: "未完了の本文 \(number)\n" + String(repeating: "長", count: 181))
+            var draft = try await store.beginDraft(body: "未完了の本文 \(number)\n" + String(repeating: "長", count: 181))
+            if number == 0 {
+                draft.title = String(repeating: "題", count: 181)
+                try await store.updateDraft(draft)
+                titled = draft
+            }
             ids.append(draft.id)
         }
         let all = try await store.library(LibraryRequest())
@@ -126,27 +116,14 @@ struct DraftLifecycleTests {
         #expect(Set(expanded.drafts.map(\.displayTitle)).count == 4)
         #expect(expanded.drafts.allSatisfy { $0.preview.count == 180 })
         #expect(Array(expanded.drafts.prefix(3)) == all.drafts)
-        let chosen = try #require(expanded.drafts.first)
-        #expect(try await store.draft(chosen.id).body.count > chosen.preview.count)
+        let full = try #require(titled)
+        let summary = try #require(expanded.drafts.first { $0.id == full.id })
+        #expect(summary.title.count == 180)
+        let reopened = try await store.draft(full.id)
+        #expect(reopened.title.utf8.elementsEqual(full.title.utf8))
+        #expect(reopened.body.utf8.elementsEqual(full.body.utf8))
     }
 
-    @Test func pageLookaheadAndFiltersStayConsistent() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let first = try await create(store, body: "first")
-        _ = try await create(store, body: "second")
-        let page = try await store.library(LibraryRequest(limit: 1))
-        #expect(page.items.count == 1)
-        #expect(page.hasMore)
-        try await store.setPinned(true, id: first)
-        let pinned = try await store.library(LibraryRequest(filter: .pinned, limit: 1))
-        #expect(pinned.items.map(\.id) == [first])
-        #expect(!pinned.hasMore)
-        let missing = try await store.library(LibraryRequest(query: "なし", limit: 1))
-        #expect(missing.items.isEmpty)
-        #expect(!missing.hasMore)
-    }
 }
 
 extension UIIntegrationTests {

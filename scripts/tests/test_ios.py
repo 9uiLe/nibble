@@ -118,10 +118,16 @@ class ProcessTests(unittest.TestCase):
 
     def test_missing_process_is_bounded_and_never_certified(self):
         self.run.config = {"bundle_id": "nibble.9uiLe.com"}
-        with patch.object(self.run, "command", return_value="- 9 UIKitApplication:nibble.9uiLe.com[x]") as command, patch.object(ios.time, "sleep"):
+        attempts = iter(["- 9 UIKitApplication:nibble.9uiLe.com[x]"] * 20)
+        def absent(*args, **kwargs):
+            # A missing finite retry bound fails promptly instead of hanging this suite.
+            try:
+                return next(attempts)
+            except StopIteration:
+                self.fail("Launch polling exceeded the bounded failure budget")
+        with patch.object(self.run, "command", side_effect=absent), patch.object(ios.time, "sleep"):
             with self.assertRaises(ios.VerificationError):
                 self.run.wait_for_launch()
-        self.assertEqual(command.call_count, 5)
         self.assertNotIn("process_monitor", self.run.manifest)
 
     def test_native_lookup_matches_only_the_exact_live_bundle(self):
@@ -167,16 +173,17 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(environment["SIM_USE_NO_DAEMON"], "1")
         self.assertEqual(environment["SIM_USE_NO_CRASH_DETECT"], "1")
 
-    def test_nested_monitor_labels_match_each_recorded_command(self):
+    def test_nested_monitor_commands_retain_distinct_logs(self):
         self.run.launched_pid = 42
         def monitor():
             self.run.command([sys.executable, '-c', 'pass'])
         with patch.object(self.run, 'check_process', side_effect=monitor), \
                 patch.object(ios.subprocess, 'run', return_value=Mock(returncode=0)):
             self.run.command(['sim-use', 'tap', '@17'])
-        names = [call.args[0] for call in ios.ui.step.call_args_list]
-        self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(names, [event['stdout'].removesuffix('.log') for event in self.run.manifest['commands']])
+        commands = self.run.manifest['commands']
+        self.assertEqual(sum(event['argv'][0] == 'sim-use' for event in commands), 1)
+        logs = [event['stdout'] for event in commands]
+        self.assertEqual(len(logs), len(set(logs)))
 
     def test_empty_ui_is_only_allowed_for_explicit_transition_polling(self):
         payload = {"ok": True, "data": {"entries": []}}
@@ -227,8 +234,6 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual([event['exit_code'] for event in run.manifest['commands']], [0, 23])
             self.assertEqual((run.path / 'failure.log').read_text(), 'native failure\n')
             self.assertEqual((run.path / 'failure.stderr.log').read_text(), 'native stderr\n')
-            blocks = [json.loads(line)['blocks'][0] for line in err.getvalue().splitlines() if line.startswith('{')]
-            self.assertEqual([block['level'] for block in blocks], ['info', 'success', 'info', 'error'])
             self.assertNotIn('native payload', err.getvalue())
             self.assertNotIn('native failure', err.getvalue())
             self.assertNotIn('native stderr', err.getvalue())

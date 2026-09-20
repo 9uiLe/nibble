@@ -65,9 +65,9 @@ def inputs(hashes, project):
     from the CLI to make an obsolete run pass.
     """
     project_path = Path(project['project'])
-    if project_path.is_absolute() or '..' in project_path.parts or project_path.parts[0] not in {'app', 'validation'}:
-        raise ValueError('Expected a project under app/ or validation/')
-    prefixes = (project_path.parts[0] + '/', 'scripts/')
+    if project_path.is_absolute() or '..' in project_path.parts or not (project_path.parts[0] in {'app', 'validation'} or project_path.parts[:2] == ('research', 'probe')):
+        raise ValueError('Expected a project under app/, validation/ or research/probe/')
+    prefixes = (('research/probe/' if project_path.parts[0] == 'research' else project_path.parts[0] + '/'), 'scripts/')
     return {name: value for name, value in hashes.items()
             if not name.endswith('.md') and (name.startswith(prefixes) or name in {'flake.nix', 'flake.lock'})}
 

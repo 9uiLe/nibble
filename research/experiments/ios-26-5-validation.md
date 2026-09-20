@@ -1,13 +1,13 @@
 # 保存・検索方式の比較根拠
 
-ResearchProbeは製品から独立した比較用アプリである。SQLite採用、日本語の短い検索、狭い画面の設計を判断するため、次の条件の観測を保持する。現在の製品の合格や性能値を表すものではない。[実行手順](../../validation/RESEARCH.md)で同条件を定義して再測定する。
+ResearchProbeは製品から独立した比較用アプリである。SQLite採用、日本語の短い検索、狭い画面の設計を判断するため、次の条件の観測を保持する。現在の製品の合格や性能値を表すものではない。[実行手順](../probe/README.md)で同条件を定義して再測定する。
 
 ## 実験条件
 
 | 項目 | 条件 |
 | --- | --- |
 | 実施日 | 2026-09-13 |
-| 対象 | `validation/ResearchProbe.xcodeproj` / shared scheme `ResearchProbe` |
+| 対象 | `research/probe/ResearchProbe.xcodeproj` / shared scheme `ResearchProbe` |
 | ソース | [85955db0c22c7403d82efcd34f1436b2bf32b802](https://github.com/9uiLe/nibble/commit/85955db0c22c7403d82efcd34f1436b2bf32b802)の研究用実装。画面比較の構成差は「適用範囲」に定義 |
 | Mac / Xcode | macOS 26.2 / Apple Silicon、Xcode 26.5 (17F42)、Apple Swift 6.3.2 |
 | コンパイラ | Swift language mode 6、strict concurrency complete、default isolation nonisolated、Release `-O`・testability有効 |

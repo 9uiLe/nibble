@@ -107,3 +107,22 @@ xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
 macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
 
 この環境でフレーム時間・hitch・CPU・メモリ・電力を取得済みとは扱わない。環境更新時は上記の短時間接続確認から再判定する。モデルとSQLiteの比較値は[保存・容量の測定](product-architecture-validation.md)、キーボードは[モデルの測定](keyboard-readability-validation.md)を参照し、描画指標へ換算しない。
+
+## Riveの補助指標
+
+`NibblePerformance` schemeは本体をホストし、`NibblePerformanceTests`だけを実行する。通常回帰の`Nibble` schemeには時間・メモリの閾値を含めない。共通のwindowとruntime loggerは`app/TestSupport/`、測定は[専用target](../app/NibblePerformanceTests/RivePlaybackMeasurements.swift)に置く。
+
+```sh
+python3 scripts/verify.py run --scope performance --device "$NIBBLE_SIMULATOR"
+```
+
+同じ専用Simulator、iOS 26.5、Release、375×667ptで各説明画面を準備1回・再訪5回測る。録画・Instrumentsとの同時実行を避ける。View配置から最初のruntime advanceまで準備回200ms・再訪100ms以内、可視復帰から最初のadvanceまで100ms以内、再訪時に画面を閉じた後のprocess footprintの最大−最小8MiB以内を補助予算にする。サンプルはxcresultの`rive-playback-measurements.json`へ記録する。advanceはruntimeのフレーム評価であり、画面への描画完了やhitchを証明しない。
+
+反復するスクロール境界と30秒の背景滞在を観測する場合は、[説明画面の事前条件](mvp.md#説明イラストの検証)を満たして次を実行する。
+
+```sh
+python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --stress
+python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --stress
+```
+
+設計ツールの性能は`python3 tools/ui-design/benchmarks/measure.py --toolkit tools/ui-design --samples 7`で測る。アセットの全量保持を防ぐメモリ予算と測定条件は[ツールの仕様](../tools/ui-design/README.md#テストと測定)に定義する。保存層は`scripts/benchmark-store.py`で扱う。

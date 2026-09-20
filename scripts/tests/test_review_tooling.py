@@ -74,7 +74,7 @@ class PRTests(unittest.TestCase):
 
     def test_ui_cannot_declare_out_of_scope_and_tests_can(self):
         for path in ['app/Shared/LibraryModel.swift', 'app/Nibble/View.swift', 'app/Nibble.xcodeproj/project.pbxproj',
-                     'validation/ResearchProbe/ContentView.swift']:
+                     'research/probe/ResearchProbe/ContentView.swift']:
             with self.subTest(path=path):
                 self.assertTrue(check_pr.check(self.snapshot(files=[path])))
         self.assertEqual(check_pr.check(self.snapshot(files=['app/NibbleTests/Tests.swift'])), [])
@@ -259,30 +259,15 @@ class DocumentationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / 'guide name.md').write_text('# 日本語とAPI\n# 日本語とAPI\n')
-            source = '[guide][g]\n\n[g]: <guide name.md#日本語とapi-1>\n\n```md\n[example](missing.md)\n```\n'
+            source = '[guide][g] [again][g]\n\n[g]: <guide name.md#日本語とapi-1>\n\n```md\n[example](missing.md)\n```\n'
             (root / 'README.md').write_text(source)
-            self.assertEqual(check_docs.check(root)['errors'], [])
+            result = check_docs.check(root)
+            self.assertEqual(result['errors'], [])
+            self.assertEqual(result['local_links'], 2)
             (root / 'README.md').write_text(source.replace('api-1', 'api-2'))
             self.assertTrue(check_docs.check(root)['errors'])
             (root / 'README.md').write_text('[bad](absent.md)')
             self.assertTrue(check_docs.check(root)['errors'])
-
-    def test_repeated_links_read_and_analyze_each_document_once(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            (root / 'target.md').write_text('# Target\n')
-            (root / 'README.md').write_text('[Target](target.md#target)\n' * 2)
-            original = Path.read_text
-            reads = []
-            def read(path, *args, **kwargs):
-                reads.append(path.name)
-                return original(path, *args, **kwargs)
-            with patch.object(Path, 'read_text', read), patch.object(check_docs, 'anchors', wraps=check_docs.anchors) as headings:
-                result = check_docs.check(root)
-            self.assertEqual(result['errors'], [])
-            self.assertEqual(result['local_links'], 2)
-            self.assertCountEqual(reads, ['README.md', 'target.md'])
-            self.assertEqual(headings.call_count, 2)
 
     def test_cached_source_keeps_each_paths_validation_rules(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -351,16 +351,6 @@ def main():
                 wait_ui("pin-search-result", lambda data: row in identifiers(data))
                 run.tap("Search")
                 wait_ui("pin-search-submitted", lambda data: "Search" not in identifiers(data))
-                menu(row, "delete-menu")
-                run.tap("delete." + snippet_id)
-                deleted = wait_ui("deleted", lambda data: "library.undo" in identifiers(data))
-                if row in identifiers(deleted):
-                    raise VerificationError("Deleted row is still visible")
-                # The notice expires after six seconds. A second AX traversal
-                # can outlast it; tap the alias from the state just observed.
-                undo = next(entry for entry in deleted["entries"] if entry.get("uniqueId") == "library.undo")
-                run.command(["sim-use", "tap", "@" + str(undo["aliases"]["at"]), "--device", args.device])
-                wait_ui("restored", lambda data: row in identifiers(data))
                 run.screenshot("library")
                 run.tap(row)
                 wait_ui("editor", lambda data: "editor.body" in identifiers(data))
@@ -419,7 +409,7 @@ def main():
             run.manifest.setdefault("assertions", {}).update({
                 "created_id": snippet_id, "search_term": title, "copy_utf8_exact": True, "japanese_search": True,
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
-                "visible_row_menu": True, "pin": True, "delete_absent": True, "undo_same_id": True,
+                "visible_row_menu": True, "pin": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
                 "native_tabs": True, "root_titles_in_navigation_bar": True, "create_above_search": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,

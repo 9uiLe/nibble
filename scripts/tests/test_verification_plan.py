@@ -37,11 +37,27 @@ class SelectionTests(unittest.TestCase):
     def test_shared_config_and_unknown_changes_broaden_scope(self):
         for path in ['scripts/ios.py', 'flake.lock', 'new/config.json']:
             with self.subTest(path=path):
-                self.assertEqual(len(self.selected([path])), 11)
+                selected = self.selected([path])
+                self.assertTrue({'static', 'preview-native', 'fixture-test', 'fixture-smoke',
+                                 'product-test', 'mvp', 'notice', 'interface', 'about'} <= selected)
+                self.assertFalse({'research-test', 'research-ui', 'performance-test'} & selected)
         selected = verify.plan(['app/Shared/LibraryRequest.swift'])
         self.assertIn('product-test', self.selected(['app/Shared/LibraryRequest.swift']))
         self.assertTrue(selected['manual_review'])
         self.assertTrue(selected['preconditions'])
+
+    def test_measurement_and_research_require_explicit_scopes(self):
+        for path in ('research/probe/ResearchProbe/Stores.swift', 'app/NibblePerformanceTests/Measurements.swift'):
+            with self.subTest(path=path):
+                result = verify.plan([path])
+                self.assertEqual({step['id'] for step in result['steps']}, {'static'})
+                self.assertTrue(result['manual_review'])
+        self.assertEqual(self.selected([], 'performance'), {'static', 'performance-test'})
+        self.assertEqual(self.selected([], 'research'), {'static', 'research-test', 'research-ui'})
+        self.assertFalse({'research-test', 'research-ui', 'performance-test'} & self.selected([], 'regression'))
+        self.assertEqual(self.selected(['app/TestSupport/RiveTestSupport.swift']), {'static', 'product-test'})
+        self.assertIn('app/performance-project.json', verify.command_for('performance-test', 'explicit'))
+        self.assertIn('research/probe/project.json', verify.command_for('research-test', 'explicit'))
 
     def test_ui_driver_changes_select_the_affected_flow(self):
         self.assertEqual(self.selected(['scripts/check-notice-ui.py']), {'static', 'notice'})
@@ -50,7 +66,7 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(all(row['reason'] for row in result['excluded']))
 
     def test_test_selection_flags_are_not_inferred(self):
-        for name in ['fixture-test', 'product-test', 'research-test']:
+        for name in ['fixture-test', 'product-test', 'performance-test', 'research-test']:
             argv = verify.command_for(name, 'explicit')
             self.assertEqual(argv[2], 'test')
             self.assertFalse(any('only-testing' in value or 'skip-testing' in value for value in argv))

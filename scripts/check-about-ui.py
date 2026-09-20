@@ -138,9 +138,10 @@ class AboutCheck:
     def playback(self):
         self.check_illustration("automatic")
         # Capture more than two periods. Actual motion and loop boundaries are reviewed in the video.
-        for index in range(7):
-            self.run.screenshot(f"loop-{index}")
-            time.sleep(2.9)
+        start = time.monotonic() - self.recording_started
+        time.sleep(20.3)
+        self.loop_times = [start + 2.9 * index for index in range(7)]
+        self.run.manifest["loop_recording_interval"] = {"start_seconds": start, "duration_seconds": 20.3}
         self.check_illustration("after-two-periods")
         self.option("appearance", "dark")
         self.run.screenshot("loop-dark")
@@ -166,7 +167,7 @@ class AboutCheck:
         time.sleep(2)
         self.run.screenshot("reduce-motion-off")
 
-    def interruptions(self):
+    def interruptions(self, stress=False):
         # Both tabs remain alive. Returning must use the same viewport/session;
         # the mounted tests assert identity, while this recording shows continuity.
         self.run.command(["sim-use", "tap", "--label", "一覧", "--element-type", "RadioButton",
@@ -176,8 +177,9 @@ class AboutCheck:
                           "--wait-timeout", "5", "--device", self.device])
         self.check_illustration("after-tab")
         self.run.screenshot("after-tab")
-        # Three visible drags with deceleration, then repeated offscreen/return crossings.
-        for _ in range(3):
+        # Deceleration, visibility boundaries and an offscreen background return.
+        repetitions = 3 if stress else 1
+        for _ in range(repetitions):
             data = self.run.ui()
             width, height = data["screen"]["width"], data["screen"]["height"]
             for start, end in ((.62, .54), (.54, .62)):
@@ -185,15 +187,15 @@ class AboutCheck:
                                   "--to", f"{width * .5},{height * end}", "--duration", "0.4",
                                   "--device", self.device])
                 time.sleep(.3)
-        for index in range(3):
+        for index in range(repetitions):
             data = self.run.ui()
             self.scroll(data)
             self.scroll(data)
             self.run.screenshot(f"offscreen-{index}")
-            if index == 2:
-                # Return to the app while still offscreen after a longer background stay.
+            if index == repetitions - 1:
+                # Return to the app while still offscreen after a background stay.
                 self.run.command([XCRUN, "simctl", "launch", self.device, "com.apple.Preferences"])
-                time.sleep(30)
+                time.sleep(30 if stress else 3)
                 self.run.command([XCRUN, "simctl", "launch", self.device, self.run.config["bundle_id"]])
                 self.run.screenshot("background-return-offscreen")
             self.scroll(data, up=True)
@@ -217,8 +219,13 @@ class AboutCheck:
             raise VerificationError("Final paragraph is not reachable")
         self.run.screenshot(name + "-bottom")
         self.observations[name] = {"final_paragraph_reachable": True, "swipes": index}
-        self.run.tap("BackButton")
-        time.sleep(0.4)
+        # Preserve the reading position while checking both palettes.
+        self.option("appearance", "dark")
+        self.run.screenshot("dark-bottom")
+        for _ in range(index):
+            self.scroll(data, up=True)
+        self.check_illustration("dark-top")
+        self.run.screenshot("dark-top")
 
 
 def main():
@@ -226,7 +233,8 @@ def main():
     parser.add_argument("--device", required=True)
     parser.add_argument("--reduce-motion", choices=("enabled", "disabled"), default="disabled")
     parser.add_argument("--story", choices=("about", "keyboard"), default="about")
-    parser.add_argument("--interruptions", action="store_true", help="Record tab, scroll and 30-second background returns")
+    parser.add_argument("--interruptions", action="store_true", help="Record representative tab, scroll and offscreen background returns")
+    parser.add_argument("--stress", action="store_true", help="Repeat visibility crossings and use a 30-second background interval")
     parser.add_argument("--fault-retry", action="store_true", help="Temporarily corrupt the installed asset, restore it and tap retry")
     args = parser.parse_args()
     reduced = args.reduce_motion == "enabled"
@@ -250,6 +258,7 @@ def main():
         flow.motion(reduced)
         run.launch()
         with run.recording():
+            flow.recording_started = time.monotonic()
             if args.fault_retry:
                 flow.failure_retry()
             else:
@@ -258,17 +267,11 @@ def main():
                 flow.check_illustration("reduce-motion-initial")
                 run.screenshot("reduce-motion-initial")
             flow.playback()
-            if args.interruptions:
-                flow.interruptions()
+            if args.interruptions or args.stress:
+                flow.interruptions(stress=args.stress)
             flow.read_page("light")
-            flow.option("appearance", "dark")
-            flow.open_about()
-            time.sleep(4.5)
-            flow.read_page("dark")
-            flow.option("appearance", "light")
-            flow.option("content_size", "accessibility-extra-extra-extra-large")
-            flow.open_about()
-            flow.read_page("largest")
+        run.command([XCRUN, "swift", ROOT / "scripts/video_frames.swift", run.path / "recording.mp4",
+                     run.path / "loop-frames", *map(str, flow.loop_times)], "loop-frames", timeout=120)
         run.manifest["reading_observations"] = flow.observations
         run.manifest["assertions"] = {"paragraphs_reachable": True, "illustration_loaded_without_playback_controls": True}
     except (Exception, KeyboardInterrupt) as caught:

@@ -11,4 +11,4 @@
 | UIの指針と製品判断の区別 | [R番号の一次資料台帳](06-interface-design-evidence.md) |
 | 保存方式・検索・OS機能の比較値 | [ResearchProbeの知見](experiments/ios-26-5-validation.md) |
 
-資料には確認日と適用限界を付ける。外部規約は提出時、APIは採用時に確認し、未確認を仕様へ変えない。比較実験の再実行は[研究手順](../validation/RESEARCH.md)、製品の確認は[MVP手順](../docs/mvp.md)と[検証範囲](../docs/mvp-validation.md)に従う。
+資料には確認日と適用限界を付ける。外部規約は提出時、APIは採用時に確認し、未確認を仕様へ変えない。比較実験の再実行は[研究手順](probe/README.md)、製品の確認は[MVP手順](../docs/mvp.md)と[検証範囲](../docs/mvp-validation.md)に従う。

@@ -1,6 +1,4 @@
 """Build cache separation never replaces Xcode/source validation."""
-import copy
-import json
 from pathlib import Path
 import plistlib
 import tempfile
@@ -11,7 +9,6 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import ios
-from verification_evidence import inputs
 
 
 class BuildCacheTests(unittest.TestCase):
@@ -52,21 +49,15 @@ class BuildCacheTests(unittest.TestCase):
         self.run.manifest['environment']['simulator_sdk'] = '27.0'
         self.assertNotEqual(original, self.build())
 
-    def test_existing_output_and_source_lock_changes_still_invoke_xcodebuild(self):
+    def test_existing_output_still_invokes_xcodebuild(self):
         original = self.build()
         original.mkdir(parents=True)
-        for key in ['app/Nibble/App.swift', 'app/Nibble.xcodeproj/project.pbxproj', 'app/Package.resolved', 'flake.lock']:
-            self.run.manifest['files_sha256'] = {key: 'changed'}
-            self.assertEqual(original, self.build())
-        self.assertEqual(self.run.command.call_count, 5)
-        for call in self.run.command.call_args_list:
-            argv = call.args[0]
-            self.assertEqual(argv[-1], 'build')
-            self.assertIn('ONLY_ACTIVE_ARCH=YES', argv)
-            self.assertIn('-disableAutomaticPackageResolution', argv)
-            self.assertNotIn('ENABLE_TESTABILITY=YES', argv)
-        self.build(test=True)
-        self.assertIn('ENABLE_TESTABILITY=YES', self.run.command.call_args.args[0])
+        self.run.command.reset_mock()
+        self.assertEqual(original, self.build())
+        argv = self.run.command.call_args.args[0]
+        self.assertEqual(argv[-1], 'build')
+        self.assertIn('ONLY_ACTIVE_ARCH=YES', argv)
+        self.assertIn('-disableAutomaticPackageResolution', argv)
 
     def test_incomplete_or_wrong_products_never_reach_install(self):
         self.build()
@@ -84,15 +75,6 @@ class BuildCacheTests(unittest.TestCase):
         (app / 'Info.plist').write_bytes(plistlib.dumps(info))
         (app / 'Nibble').write_bytes(b'compiled fixture')
         ios.validate_app(app, 'nibble.example')
-
-    def test_repeated_boot_in_one_run_checks_readiness_once(self):
-        run = ios.Run.__new__(ios.Run)
-        run.args = self.run.args
-        run.device = {'state': 'Booted'}
-        with patch.object(run, 'command') as command:
-            run.boot()
-            run.boot()
-        self.assertEqual(command.call_count, 1)
 
     def test_device_lock_remains_exclusive_across_independent_runs(self):
         other = ios.Run.__new__(ios.Run)

@@ -10,6 +10,7 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | 製品のデータ・処理・失敗回復 | [製品設計](docs/decisions/0002-mvp-app.md) |
 | Swiftの宣言・非同期・比較・アニメーション | [実装規約](docs/library-policy.md) |
 | 画面・部品と配置理由 | [UI設計](docs/design/README.md) |
+| テストの責務、削除・統合、回帰と測定の選択 | [テスト設計](docs/testing.md) |
 | 検証の実行管理、画面の観測、保証範囲 | [検証基盤](docs/decisions/0001-local-ios-verification.md) |
 | 検証計画・実行・画面情報の取得と要約 | [ローカルiOS検証](docs/ios-verification.md) |
 | 画面確認CLIの仕様・サンプル・開発 | [観測データの確認](docs/simulator-inspection.md) |
@@ -33,7 +34,8 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | --- | --- | --- |
 | Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | [製品検証](docs/mvp.md) |
 | VerificationApp | `validation/project.json` | [実行基盤のfixture](docs/ios-verification.md) |
-| ResearchProbe | `validation/research-project.json` | [比較実験](validation/RESEARCH.md) |
+| Rive性能 | `app/performance-project.json` | [性能手順](docs/performance-verification.md#riveの補助指標) |
+| ResearchProbe | `research/probe/project.json` | [比較実験](research/probe/README.md) |
 
 製品のSimulatorビルドはApp Groupのためad hoc署名を使い、Developer Teamを指定しない。製品MVPの受入に実機検証は含めない。配布担当者が行うTestFlightの実機確認は別の工程である。
 
@@ -72,6 +74,8 @@ nix flake check --no-update-lock-file --print-build-logs
 | UI・操作・性能 | 内部変更も含め対象導線を実行。見た目は画像、操作・遷移・応答は録画、性能は同条件の測定 |
 | 検証基盤・CI | 変更した動作の回帰。iOS実行・撮影の成立へ影響する場合は対象targetでも確認 |
 | 保存済み画面の解析・加工 | [画面確認CLIの検証](docs/simulator-inspection.md#構成と開発)。画像加工とCLIはローカルMacの`preview-native`も実行 |
+
+テストは[保証の置き場所と選択基準](docs/testing.md)に従い、削除すると見逃す現実的な不具合を根拠に置く。通常回帰、性能測定、研究実験をそれぞれ選択する。統合時は固有のassertionを残し、件数やカバレッジ率を維持目標にしない。
 
 ### スクリプトの表示とデータ
 

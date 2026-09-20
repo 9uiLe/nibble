@@ -10,7 +10,7 @@ import subprocess
 import time
 import uuid
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument("--device", required=True)
 args = parser.parse_args()
@@ -22,7 +22,7 @@ out.mkdir(parents=True)
 sdk = subprocess.check_output(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-path"], text=True).strip()
 binary = out / "SQLiteWorker"
 subprocess.run(["xcrun", "--sdk", "iphonesimulator", "swiftc", "-swift-version", "6", "-O", "-target", "arm64-apple-ios26.0-simulator", "-sdk", sdk,
-                str(ROOT / "validation/SQLiteWorker.swift"), "-o", str(binary)], check=True, env={**os.environ, "SDKROOT": sdk})
+                str(ROOT / "research/probe/SQLiteWorker.swift"), "-o", str(binary)], check=True, env={**os.environ, "SDKROOT": sdk})
 base = ["xcrun", "simctl", "spawn", args.device, str(binary), str(out / "store.sqlite")]
 events = []
 

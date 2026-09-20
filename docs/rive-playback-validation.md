@@ -40,19 +40,19 @@ advanceはruntimeによるフレーム評価を指す。評価後に画面へ描
 
 ## 再生状態と寿命の検証
 
-[RivePresentationTests](../app/NibbleTests/RivePresentationTests.swift)は実アセットを読み込み、実Canvasのフレーム評価をruntimeのloggerで観測する。再生用の時計をテスト側から与えず、Canvas自身の停止と復帰を確認する。
+現在の回帰契約を担う[RivePresentationTests](../app/NibbleTests/RivePresentationTests.swift)は実アセットを読み込み、実Canvasのフレーム評価をruntimeのloggerで観測する。再生用の時計をテスト側から与えず、Canvas自身の停止と復帰を確認する。
 
 | 対象 | 確認した条件 |
 | --- | --- |
 | 停止理由の合成 | ホストの停止要求とinactive・backgroundが重なった状態で、一つだけ解除しても周期進行しない。すべて解除した最初の時間差は0 |
-| 可視性 | 初回通知前と10%未満で停止する。safe areaを含めて9%／11%を3往復し、Sessionと表示用Viewを保持する |
+| 可視性 | 初回通知前と10%未満で停止する。safe areaを含めて9%／11%を往復し、Sessionと表示用Viewを保持する |
 | 配色と寸法 | 停止中の配色変更は同じSessionと一度の表示用View生成で反映する。寸法変更は同じ表示用Viewで反映する。単発描画の時間差は0で、周期再生は開始しない |
-| 表示の独立性と解放 | 同時CanvasのSessionとData Binding値が独立する。3回の開閉でSession・Rive・File・Worker・表示用Viewのweak参照が消失する |
+| 表示の独立性と解放 | 同時CanvasのSessionとData Binding値が独立する。画面を閉じるとSession・File・表示用Viewのweak参照が消失する |
 | 画面の寿命 | TabView・NavigationStack・fullScreenCoverを使い、タブとシートからの復帰では同じRive、戻る操作で閉じた後は解放、再訪では新規生成となる |
 | 読込と取消 | 読込失敗から操作APIで再試行できる。離脱による取消後に遅れて届く結果を採用しない |
 | 配色の適用時点 | 読込中に外観を変えた場合は完了時の配色を使う。配色変更後のタブ往復で色と表示用Viewを保持する |
 
-Workerの解放確認だけは、固定runtimeの内部保持をテスト内のMirrorで観測する。runtime更新時はこの観測方法も照合する。
+所有するSession・File・表示用Viewの解放を通常回帰で確認する。反復時の累積保持は[専用の性能target](../app/NibblePerformanceTests/RivePlaybackMeasurements.swift)でprocess footprintを測り、外部runtimeの私有フィールド名を回帰条件にしない。
 
 ## 製品画面の観測
 

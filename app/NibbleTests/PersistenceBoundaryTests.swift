@@ -96,12 +96,4 @@ struct PersistenceBoundaryTests {
         #expect(model.failure?.recovery == .reload)
     }
 
-    @Test @MainActor func unavailableContainerIsReportedAtOperationTime() async {
-        let store = SnippetStore(location: { throw StoreError.unavailable })
-        let effects = RecordingLibraryEffects()
-        let model = LibraryModel(store: store, effects: effects)
-        await model.open()
-        #expect(model.editor == nil && model.failure != nil)
-        #expect(effects.events.isEmpty)
-    }
 }

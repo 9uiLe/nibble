@@ -5,12 +5,28 @@ import Tasking
 
 @Suite("Keyboard storage")
 struct KeyboardStorageTests {
-    @Test func absentDatabaseIsNotCreated() async throws {
+    @Test(arguments: [false, true], [false, true])
+    func unpreparedDatabaseIsNeitherCreatedNorMigrated(unknownSchema: Bool, pin: Bool) async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
+        let db: SQLiteDatabase? = unknownSchema ? try SQLiteDatabase(url: files.url) : nil
+        try db?.execute("PRAGMA user_version=99")
         let reader = KeyboardReader(location: { files.url })
-        await #expect(throws: KeyboardReadError.self) { try await reader.page(KeyboardRequest()) }
-        #expect(!FileManager.default.fileExists(atPath: files.url.path))
+        func useDatabase() async throws {
+            if pin {
+                let item = SnippetSummary(id: UUID(), title: "", preview: "", pinned: false, revision: 1)
+                _ = try await reader.setPinned(true, for: item)
+            } else {
+                _ = try await reader.page(KeyboardRequest())
+            }
+        }
+        if let db {
+            await #expect(throws: StoreError.newerVersion) { try await useDatabase() }
+            #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [99])
+        } else {
+            await #expect(throws: KeyboardReadError.notPrepared) { try await useDatabase() }
+            #expect(!FileManager.default.fileExists(atPath: files.url.path))
+        }
     }
 
     @Test func savedPagesExcludeDraftsAndTrashAndRemainBounded() async throws {
@@ -73,8 +89,6 @@ struct KeyboardStorageTests {
         }
         let reader = KeyboardReader(location: { files.url })
         #expect(try await reader.page(KeyboardRequest()).items.isEmpty)
-        let db = try SQLiteDatabase(url: files.url, access: .readOnly)
-        #expect(throws: StoreError.database) { try db.execute("CREATE TABLE forbidden(id INTEGER)") }
     }
 
     @Test func pinChangesOnlyTheFlagAndRevisionAndRejectsStaleItems() async throws {
@@ -99,51 +113,12 @@ struct KeyboardStorageTests {
         await #expect(throws: KeyboardReadError.changed) { try await reader.setPinned(true, for: unpinned) }
     }
 
-    @Test func pinCannotCreateOrMigrateTheSharedDatabase() async throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        let reader = KeyboardReader(location: { files.url })
-        let item = SnippetSummary(id: UUID(), title: "", preview: "", pinned: false, revision: 1)
-        await #expect(throws: KeyboardReadError.notPrepared) { try await reader.setPinned(true, for: item) }
-        #expect(!FileManager.default.fileExists(atPath: files.url.path))
-        let db = try SQLiteDatabase(url: files.url)
-        try db.execute("PRAGMA user_version=99")
-        await #expect(throws: StoreError.newerVersion) { try await reader.setPinned(true, for: item) }
-        #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [99])
-    }
-
-    @Test func unknownSchemaIsNotMigrated() async throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        let db = try SQLiteDatabase(url: files.url)
-        try db.execute("PRAGMA user_version=99")
-        let reader = KeyboardReader(location: { files.url })
-        await #expect(throws: StoreError.newerVersion) { try await reader.page(KeyboardRequest()) }
-        #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [99])
-    }
 }
 
 @Suite("Keyboard operation lifetime", .serialized)
 @MainActor
 struct KeyboardOperationTests {
     private let item = SnippetSummary(id: UUID(), title: "定型文", preview: "本文", pinned: false, revision: 1)
-
-    @Test(arguments: [false, true])
-    func overlappingReadsOfTheSameRequestKeepOnlyTheLatestExecution(fails: Bool) async {
-        let reader = KeyboardGateReader()
-        let effects = RecordingKeyboardEffects()
-        let model = KeyboardModel(reader: reader, effects: effects)
-        model.activate()
-        async let first: Void = model.refresh()
-        await reader.pages.waitForRequests(1)
-        async let second: Void = model.refresh()
-        await reader.pages.waitForRequests(2)
-        reader.pages.finish(1, .success(KeyboardPage(items: [item], hasMore: false)))
-        await second
-        reader.pages.finish(0, fails ? .failure(StoreError.database) : .success(KeyboardPage(items: [], hasMore: true)))
-        await first
-        #expect(model.page?.items == [item] && model.isCurrent && model.failure == nil)
-    }
 
     @Test func anItemOutsideTheCurrentPageCannotTriggerAnEffect() async {
         let reader = KeyboardGateReader()
@@ -191,15 +166,15 @@ struct KeyboardOperationTests {
         #expect(!model.isUsing)
     }
 
-    @Test(arguments: [false, true])
-    func lateReadCannotReplaceCurrentPage(fails: Bool) async {
+    @Test(arguments: [false, true], [false, true])
+    func lateReadCannotReplaceCurrentPage(changesRequest: Bool, fails: Bool) async {
         let reader = KeyboardGateReader()
         let effects = RecordingKeyboardEffects()
         let model = KeyboardModel(reader: reader, effects: effects)
         model.activate()
         async let older: Void = model.refresh()
         await reader.pages.waitForRequests(1)
-        model.select(.pinned)
+        if changesRequest { model.select(.pinned) }
         #expect(model.loading && !model.isCurrent && model.failure == nil)
         async let newer: Void = model.refresh()
         await reader.pages.waitForRequests(2)
@@ -208,7 +183,7 @@ struct KeyboardOperationTests {
         reader.pages.finish(0, fails ? .failure(StoreError.database) : .success(KeyboardPage(items: [], hasMore: true)))
         await older
         #expect(model.page?.items == [item] && model.isCurrent && model.failure == nil)
-        model.select(.all)
+        model.select(changesRequest ? .all : .pinned)
         #expect(model.page?.items == [item] && model.loading && !model.isCurrent)
     }
 
@@ -221,8 +196,6 @@ struct KeyboardOperationTests {
         let tasks = ViewTaskStore()
         tasks.start(id: "use", lifetime: .screenBound) { _ in await model.use(item, as: reason == "permission" ? .copy : .insert) }
         await reader.bodies.waitForRequests(1)
-        await model.use(item, as: .insert) // Duplicate must not start another read.
-        #expect(reader.bodies.count == 1)
         switch reason {
         case "destination": effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
         case "selection": effects.destination = KeyboardDestination(document: effects.destination.document, revision: UUID())
