@@ -6,7 +6,7 @@
 
 [セットアップ](../README.md#セットアップ)を完了し、リポジトリルートでコマンドを実行する。補助ツールはNixのGit・GitHub CLI・Pythonを使う。iOSの操作には、対象projectの設定と明示したiOS 26.5のUDIDが必要になる。
 
-1回の実行をrunと呼ぶ。run IDは`<UTC日時>-<コマンド>-<ID>`で、結果はGit管理対象外の`artifacts/ios/<run ID>/`に保存する。
+個別のiOSコマンドの実行記録をrunと呼ぶ。run IDは`<UTC日時>-<コマンド>-<ID>`で、結果はGit管理対象外の`artifacts/ios/<run ID>/`に保存する。`verify.py`による一連の検証実行は、計画・工程結果と複数runへの参照を`result.json`に持つ。結果から対象runを選び、以下の手順でレビュー対象と照合する。
 
 | ファイル | 内容 | 記録する主体 |
 | --- | --- | --- |
@@ -22,7 +22,7 @@
 
 ### 1. ビルドと期待結果を含むrunを取得する
 
-製品は`app/project.json`、基盤用fixtureは`validation/project.json`、研究用アプリは`validation/research-project.json`を選び、[対象別手順](ios-verification.md#検証対象の切り替え)を実行する。画面の自動確認には、製品の`check-mvp-ui.py`、fixtureの`ios.py smoke`、研究用の`check-research-ui.py`を使う。
+[検証計画の実行結果](ios-verification.md#変更から検証を実行する)から、対象工程の`steps[].runs`を確認する。個別に実行する場合は、製品の`app/project.json`、fixtureの`validation/project.json`、研究用の`validation/research-project.json`を[対象別手順](ios-verification.md#検証対象の切り替え)で選ぶ。画面の期待結果は各対象のUI driverで判定する。
 
 ソース照合には、同じrun内で対象scheme・UDIDへのビルド成功が必要になる。単独の`screenshot`・`record`は、install済みアプリのソースとの対応を持たない補助的な撮影記録として扱う。
 

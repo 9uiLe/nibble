@@ -92,7 +92,7 @@ Simulatorでは、入力欄へフォーカスがあってもソフトウェア�
 | 補助ツール | `flake.nix`で宣言し、`flake.lock`で固定 |
 | Simulator署名 | `simulator_signing: "ad-hoc"`。App Groupのentitlementを渡すローカル署名。Developer Team・証明書は不要 |
 
-変更の確認には[検証計画と実行](ios-verification.md#変更から検証を実行する)を使う。以下は対象を指定して個別に実行する場合のコマンドで、計画で合格した工程を重複実行する必要はない。
+製品の変更は[検証計画と実行](ios-verification.md#変更から検証を実行する)から確認する。計画は共通検査・製品テスト・必要なUI導線を選び、対象と結果を保存する。この文書は各導線の操作と期待結果を定義する。個別コマンドは特定工程の調査や再検査に使い、追加変更や懸念のない合格工程は繰り返さない。
 
 すべてリポジトリルートで実行する。`NIBBLE_SIMULATOR`には[専用SimulatorのUDID](ios-verification.md#simulatorの作成と選択)を指定する。
 

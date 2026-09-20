@@ -126,9 +126,9 @@ xcodebuild -resolvePackageDependencies \
 
 ### 4. 専用Simulatorで製品を実行する
 
-[製品手順](docs/mvp.md#開発環境とビルド)でiOS 26.5の専用Simulatorを選び、Nibbleをビルド・実行します。製品の変更には製品driver、実行基盤の確認には[fixture](docs/ios-verification.md)、保存方式の比較には[ResearchProbe](validation/RESEARCH.md)を使います。
+[ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。変更の確認は`verify.py plan`で対象と事前条件を確認し、`verify.py run`で共通検査・対象テスト・UI操作を実行します。[検証計画の手順](docs/ios-verification.md#変更から検証を実行する)に、結果の読み方と再計画の方法を説明しています。
 
-変更後は[検証計画](docs/ios-verification.md#変更から検証を実行する)を確認し、選択した共通検査・テスト・UI導線を一度ずつ実行します。
+製品の操作と期待結果は[製品手順](docs/mvp.md)、実行基盤を試験するVerificationAppは[共通手順](docs/ios-verification.md)、保存方式やOS連携の比較は[ResearchProbe](validation/RESEARCH.md)を参照します。
 
 ### 5. 証跡を確認してPRへ記載する
 
