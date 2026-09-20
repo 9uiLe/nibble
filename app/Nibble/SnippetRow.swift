@@ -10,7 +10,6 @@ struct SnippetRow: View {
     enum Action { case edit, copy, pin, delete, restore, permanentlyDelete }
     let item: SnippetSummary
     let isTrash: Bool
-    let actionsAtLeading: Bool
     var unusedSince: Date?
     let perform: (Action) -> Void
 
@@ -74,9 +73,8 @@ struct SnippetRow: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            if actionsAtLeading { rowActions(item) }
             rowContent(item)
-            if !actionsAtLeading { rowActions(item) }
+            rowActions(item)
         }
         .padding(.vertical, 14)
         .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 16))

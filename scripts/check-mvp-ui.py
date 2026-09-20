@@ -37,24 +37,13 @@ def main():
                                    and 0 <= frame["y"] < 120 and frame["width"] >= 32 for frame in headings):
             raise VerificationError("Root title must be leading inside the navigation bar: " + title)
 
-    def choose_side(side):
-        data = wait_ui("position-picker", lambda data: "settings.actionButtonSide" in identifiers(data))
-        frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "settings.actionButtonSide")
-        # sim-use exposes this native segmented control as one TabGroup. Its two
-        # visible segments are left/right; resolve the live frame before tapping.
-        run.command(["sim-use", "tap", "-x", str(frame["x"] + frame["width"] * (0.25 if side == "left" else 0.75)),
-                     "-y", str(frame["y"] + frame["height"] / 2), "--device", args.device])
-
-    def check_side(data, side, snippet_id):
+    def check_actions(data, snippet_id):
         add = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
         row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
         copy = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "copy." + snippet_id)
-        if side == "left":
-            valid = copy["x"] < row["x"] and add["x"] < row["x"] + row["width"] / 2
-        else:
-            valid = copy["x"] >= row["x"] + row["width"] - 1 and add["x"] > row["x"] + row["width"] / 2
-        if not valid or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
-            raise VerificationError("Action position or minimum target size is incorrect: " + side)
+        trailing = copy["x"] >= row["x"] + row["width"] - 1 and add["x"] > row["x"] + row["width"] / 2
+        if not trailing or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
+            raise VerificationError("Actions must stay trailing with minimum 44pt targets")
 
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
@@ -319,32 +308,23 @@ def main():
                 settings = wait_ui("settings", lambda data: "settings.about" in identifiers(data))
                 check_navigation_title(settings, "設定")
                 run.screenshot("settings")
-                choose_side("left")
-                run.ui("left-setting")
                 tab("一覧")
-                left = wait_ui("left-library", lambda data: row in identifiers(data))
-                check_side(left, "left", snippet_id)
-                run.screenshot("left-library")
+                library = wait_ui("trailing-actions", lambda data: row in identifiers(data))
+                check_actions(library, snippet_id)
+                run.screenshot("trailing-actions")
                 run.tap("copy." + snippet_id)
-                if run.command([XCRUN, "simctl", "pbpaste", args.device], "left-copy") != edited_body:
-                    raise VerificationError("Left-side copy changed the text")
+                if run.command([XCRUN, "simctl", "pbpaste", args.device], "trailing-copy") != edited_body:
+                    raise VerificationError("Copy after settings navigation changed the text")
                 run.tap("library.add")
-                wait_ui("left-editor", lambda data: "editor.close" in identifiers(data))
+                wait_ui("trailing-editor", lambda data: "editor.close" in identifiers(data))
                 run.tap("editor.close")
-                wait_ui("left-editor-closed", lambda data: "library.add" in identifiers(data))
+                wait_ui("trailing-editor-closed", lambda data: "library.add" in identifiers(data))
                 run.command([XCRUN, "simctl", "launch", "--terminate-running-process", args.device,
-                             run.config["bundle_id"]], "restart-for-preference")
+                             run.config["bundle_id"]], "restart-for-actions")
                 run.wait_for_launch()
-                left = wait_ui("left-after-restart", lambda data: row in identifiers(data))
-                check_side(left, "left", snippet_id)
-                tab("設定")
-                wait_ui("settings-after-restart", lambda data: "settings.about" in identifiers(data))
-                choose_side("right")
-                run.ui("right-setting")
-                tab("一覧")
-                right = wait_ui("right-library", lambda data: row in identifiers(data))
-                check_side(right, "right", snippet_id)
-                run.screenshot("right-library")
+                restarted = wait_ui("actions-after-restart", lambda data: row in identifiers(data))
+                check_actions(restarted, snippet_id)
+                run.screenshot("actions-after-restart")
                 tab("検索")
                 wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
                 paste_search(title)
@@ -415,7 +395,7 @@ def main():
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
                 "empty_search_guidance": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,
-                "settings_navigation": True, "left_and_right_actions": True, "side_survives_restart": True,
+                "settings_navigation": True, "trailing_actions": True, "actions_after_restart": True,
                 "empty_search_does_not_filter_all": True,
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",

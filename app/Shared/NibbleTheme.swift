@@ -1,5 +1,10 @@
 import SwiftUI
 
+extension Font {
+    static let nibbleTitle = Font.subheadline.weight(.semibold)
+    static let nibbleBody = Font.footnote
+}
+
 extension Color {
     static let nibbleSelection = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark

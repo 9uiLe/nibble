@@ -4,7 +4,7 @@
 
 nibbleの性能検証は、入力・検索・保存・画面遷移の応答と、表示内容の整合性を評価する。最低対応OSはiOS 26.0、製品の実行評価はiOS 26.5 Simulatorとする。実機の性能を評価する場合は端末と手順を別に定義する。
 
-設計上の責務は[製品設計](decisions/0002-mvp-app.md)、ビルドと操作は[MVP手順](mvp.md)、実測・未確認事項は[検証結果](mvp-validation.md)を参照する。
+設計上の責務は[製品仕様・要件](product-specification.md)、ビルドと操作は[製品の検証手順](ios-verification.md)、測定の適用範囲と未確認事項は[検証範囲](testing.md#検証範囲と制約)を参照する。
 
 | 評価単位 | 調べること | 結果の意味 |
 | --- | --- | --- |
@@ -29,6 +29,16 @@ bodyの実行回数、画像の一致、自動操作の録画時間だけで応�
 
 Simulatorのホスト負荷と実機の条件は一致しない。モデル単体の時間、SwiftUIのフレーム時間、端末全体のメモリを混ぜて集計しない。容量は同じarchive条件で本体・拡張・runtime・アセットを比較し、dSYM・テスト・DerivedDataを除く。
 
+## 保存層の比較
+
+```sh
+nix develop --command python3 scripts/benchmark-store.py \
+  --device "$NIBBLE_SIMULATOR" --baseline-ref origin/main \
+  --output artifacts/store-benchmark-comparison
+```
+
+出力先は未作成のディレクトリを使う。両版を同じ`-Osize`、専用Simulator、seedで測定し、10,000件の検索・一覧・入力についてソースhashと各回の値を残す。通常回帰とは別の測定であり、合否閾値のない値を回帰テストの成功として扱わない。
+
 ## Instrumentsの構成と成立条件
 
 Instrumentsは計測結果を表示・分析するアプリ、`xctrace`は記録・exportを行うCLIである。`.trace`は記録ファイルのまとまりを指す。Time ProfilerはCPUのサンプルを取得する計測テンプレートである。
@@ -48,7 +58,7 @@ Instrumentsは計測結果を表示・分析するアプリ、`xctrace`は記録
 
 Nixの開発環境とローカルのApple CLIを使う。`xcode-select -p`、`xcodebuild -version`、`xcrun xctrace version`、`xcrun xctrace list templates`で使用環境を記録する。コマンドの仕様は導入版の`xcrun xctrace help record`と`help export`で確認する。
 
-専用Simulatorの起動とアプリのインストールは[MVP手順](mvp.md)に従う。`simctl launch`が返したPIDを`ps -p <PID> -o pid=,lstart=,comm=`で照合する。アプリを再起動した場合はPIDを取り直す。SimulatorのPIDをホストの計測対象として扱わない。
+専用Simulatorの起動とアプリのインストールは[製品の検証手順](ios-verification.md)に従う。`simctl launch`が返したPIDを`ps -p <PID> -o pid=,lstart=,comm=`で照合する。アプリを再起動した場合はPIDを取り直す。SimulatorのPIDをホストの計測対象として扱わない。
 
 次の変数へ確認済みの値を設定する。出力パスは毎回未使用のものを選ぶ。
 
@@ -102,7 +112,7 @@ xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
 
 ## Simulator計測の既知の制約
 
-説明イラストの操作条件は[MVP手順](mvp.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Rive再生の検証記録](rive-playback-validation.md)を参照する。runtimeのフレーム評価であるadvanceの観測は、以下のInstrumentsの描画指標を代替しない。
+説明イラストの操作条件は[製品の検証手順](ios-verification.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Rive再生の検証記録](rive-playback-validation.md)を参照する。runtimeのフレーム評価であるadvanceの観測は、以下のInstrumentsの描画指標を代替しない。
 
 macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
 
@@ -118,7 +128,7 @@ python3 scripts/verify.py run --scope performance --device "$NIBBLE_SIMULATOR"
 
 同じ専用Simulator、iOS 26.5、Release、375×667ptで各説明画面を準備1回・再訪5回測る。録画・Instrumentsとの同時実行を避ける。View配置から最初のruntime advanceまで準備回200ms・再訪100ms以内、可視復帰から最初のadvanceまで100ms以内、再訪時に画面を閉じた後のprocess footprintの最大−最小8MiB以内を補助予算にする。サンプルはxcresultの`rive-playback-measurements.json`へ記録する。advanceはruntimeのフレーム評価であり、画面への描画完了やhitchを証明しない。
 
-反復するスクロール境界と30秒の背景滞在を観測する場合は、[説明画面の事前条件](mvp.md#説明イラストの検証)を満たして次を実行する。
+反復するスクロール境界と30秒の背景滞在を観測する場合は、[説明画面の事前条件](ios-verification.md#説明イラストの検証)を満たして次を実行する。
 
 ```sh
 python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --stress

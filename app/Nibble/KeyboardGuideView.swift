@@ -16,6 +16,7 @@ struct KeyboardGuideView: View {
                 section("利用できる入力欄", text: "パスワード欄や電話番号用の入力欄、一部のアプリでは標準キーボードへ切り替わります。入力先によっては文字数や改行が制限されます。")
                     .accessibilityIdentifier("keyboard.guide.limits")
             }
+            .font(.nibbleBody)
             .padding(20).frame(maxWidth: 640, alignment: .leading).frame(maxWidth: .infinity)
         }
         .background(Color.nibbleCanvas)
@@ -25,7 +26,7 @@ struct KeyboardGuideView: View {
 
     private func section(_ title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline).accessibilityAddTraits(.isHeader)
+            Text(title).font(.nibbleTitle).accessibilityAddTraits(.isHeader)
             Text(text).fixedSize(horizontal: false, vertical: true)
         }
     }

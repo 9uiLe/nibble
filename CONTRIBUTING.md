@@ -7,7 +7,7 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | 知りたいこと | 正本 |
 | --- | --- |
 | 起動までの準備 | [README](README.md) |
-| 製品のデータ・処理・失敗回復 | [製品設計](docs/decisions/0002-mvp-app.md) |
+| 製品のデータ・処理・失敗回復 | [製品仕様・要件](docs/product-specification.md) |
 | Swiftの宣言・非同期・比較・アニメーション | [実装規約](docs/library-policy.md) |
 | 画面・部品と配置理由 | [UI設計](docs/design/README.md) |
 | テストの責務、削除・統合、回帰と測定の選択 | [テスト設計](docs/testing.md) |
@@ -32,12 +32,12 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 
 | 対象 | 設定 | 手順 |
 | --- | --- | --- |
-| Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | [製品検証](docs/mvp.md) |
+| Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | [製品検証](docs/ios-verification.md) |
 | VerificationApp | `validation/project.json` | [実行基盤のfixture](docs/ios-verification.md) |
 | Rive性能 | `app/performance-project.json` | [性能手順](docs/performance-verification.md#riveの補助指標) |
 | ResearchProbe | `research/probe/project.json` | [比較実験](research/probe/README.md) |
 
-製品のSimulatorビルドはApp Groupのためad hoc署名を使い、Developer Teamを指定しない。製品MVPの受入に実機検証は含めない。配布担当者が行うTestFlightの実機確認は別の工程である。
+製品のSimulatorビルドはApp Groupのためad hoc署名を使い、Developer Teamを指定しない。製品の受入に実機検証は含めない。配布担当者が行うTestFlightの実機確認は別の工程である。
 
 ## 開発ツールの管理
 

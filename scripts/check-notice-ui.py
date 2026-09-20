@@ -140,6 +140,19 @@ def main():
                 # Reveal the new row before establishing the notification-free baseline.
                 tap_row("copy." + snippet)
                 time.sleep(2.3)
+            # Copy before any sheet presentation in this process. Creating/editing first
+            # can hide a missing initial connection to the notification window.
+            # Initial appearance/disappearance ordering varied between launches.
+            # Exercise independent launches before any sheet can reactivate notices.
+            for attempt in range(3):
+                run.command([XCRUN, "simctl", "terminate", args.device, run.config["bundle_id"]])
+                run.command([XCRUN, "simctl", "launch", args.device, run.config["bundle_id"]])
+                run.wait_for_launch()
+                wait(f"cold-launch-{attempt}-library", lambda data: "library.add" in ids(data))
+                tap_row("copy." + snippet)
+                wait(f"cold-launch-{attempt}-notice", lambda data: "library.notice" in ids(data))
+                run.screenshot(f"cold-launch-{attempt}-copy")
+                time.sleep(2.3)
             data = assert_no_notice("initial-copy-expired")
             before_frames = navigation_frames(data)
             run.screenshot("notice-before")
@@ -164,7 +177,8 @@ def main():
                     if any(delta for phase in movements.values() for delta in phase.values()):
                         raise VerificationError("Navigation controls moved with the notice: " + str(movements))
                 if args.geometry_only:
-                    run.manifest["assertions"] = {"navigation_frames_stable": True, "copy_expired": True}
+                    run.manifest["assertions"] = {"cold_launch_copy_notice": True,
+                                                  "navigation_frames_stable": True, "copy_expired": True}
                     return
                 tap_row("copy." + snippet)
                 delete(snippet)
@@ -297,6 +311,7 @@ def main():
 
             run.manifest["assertions"] = {"baseline": args.baseline, "created_id": snippet,
                 "search_term": term, "appearance": args.appearance, "copy_expired": True,
+                "cold_launch_copy_notice": True,
                 "undo_same_id": True, "search_and_lifecycle": not args.baseline,
                 "navigation_frames_stable": not args.baseline}
     except (Exception, KeyboardInterrupt) as caught:

@@ -45,13 +45,13 @@ struct KeyboardIllustration: View {
             .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
 
             Text("切り替える → 項目をタップ → 本文を入力")
-                .font(.subheadline.weight(.medium))
+                .font(.nibbleBody)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel("入力先でnibbleキーボードに切り替え、項目をタップすると、保存した本文を挿入できます。保存した文章はそのまま残ります。入力先に反映されたか確認してください")
                 .accessibilityIdentifier("keyboard.story.caption")
 
             Text("保存した文章はそのまま残ります。")
-                .font(.subheadline)
+                .font(.nibbleBody)
                 .accessibilityHidden(true)
 
             if playback.failed {

@@ -55,4 +55,4 @@ E番号は再現条件を識別するための実験IDである。
 
 標準構成の対象コードは`85955db`。画面比較構成はeditor callbackの強参照と起動時のShortcuts登録更新なしという差を持ち、ソースhashは`artifacts/ios/20260913T052747Z-research-ui-109e07/manifest.json`で識別する。現在のcheckoutへ結果を使う場合は入力ファイルを照合する。raw値・失敗runはGit管理外で、新しいcheckoutには含まれない。
 
-本体内の複数接続、POSIXのread-only、SDKコンパイルは、それぞれ実extensionの権限、別プロセス、機能登録の試験とは異なる。製品Keyboardの契約は[Keyboard設計](../../docs/decisions/0005-snippet-keyboard.md)、現在の未確認条件は[製品の検証範囲](../../docs/mvp-validation.md)を参照する。
+本体内の複数接続、POSIXのread-only、SDKコンパイルは、それぞれ実extensionの権限、別プロセス、機能登録の試験とは異なる。製品Keyboardの契約は[Keyboard設計](../../docs/decisions/0005-snippet-keyboard.md)、現在の未確認条件は[製品の検証範囲](../../docs/testing.md#検証範囲と制約)を参照する。

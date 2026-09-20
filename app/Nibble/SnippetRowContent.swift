@@ -21,11 +21,11 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(Color.nibbleAccent) }
                 Text(Snippet.displayTitle(title: title, body: preview))
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(.primary).lineLimit(2)
+                    .font(.nibbleTitle).foregroundStyle(.primary).lineLimit(2)
             }
             if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(preview.split(whereSeparator: \.isWhitespace).joined(separator: " "))
-                    .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                    .font(.nibbleBody).foregroundStyle(.secondary).lineLimit(2)
             }
             if let unusedSince {
                 VStack(alignment: .leading, spacing: 2) {

@@ -31,7 +31,7 @@
       "references": true
     },
     {
-      "path": "docs/decisions/0002-mvp-app.md",
+      "path": "docs/product-specification.md",
       "kind": "file",
       "references": true
     },

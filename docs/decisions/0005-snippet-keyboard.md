@@ -25,7 +25,7 @@ OSのkeyboard背景とニュートラルな文字、主操作と挿入結果の�
 
 ## 構成と責務
 
-controllerは入力先・権限・OS作用、Viewは配置とUIタスク、modelは要求/操作ID・ページ・全文・通知、Reader actorは短命接続によるDB操作を所有する。UI/OSはMainActor、DBはactorで扱い、[共通保存層](0002-mvp-app.md#保存形式と接続)の原文とtransaction契約を使う。
+controllerは入力先・権限・OS作用、Viewは配置とUIタスク、modelは要求/操作ID・ページ・全文・通知、Reader actorは短命接続によるDB操作を所有する。UI/OSはMainActor、DBはactorで扱い、[共通保存層](../product-specification.md#保存形式と接続)の原文とtransaction契約を使う。
 
 ## 共有データと読み取りの契約
 
@@ -60,7 +60,7 @@ secure入力、phonePad・namePhonePad、他社キーボードを禁止するア
 
 Keyboardは共有保存コード・Tasking・AppMacrosを使い、編集用StoreとRiveをリンクしない。extension-safe API、最低iOS 26.0、Swift 6を要求する。
 
-1タップ1挿入、その他で0挿入、長文末尾、戻る位置、ピン変更/0件、権限不足、ページ・切替・終了を確認する。狭幅/縦横/ライト・ダーク、OS設定を変えても固定した表示、古い要求・入力先変更・書込競合を評価する。[操作手順](../mvp.md#キーボードの操作検証)と[条件付き測定](../keyboard-readability-validation.md)に従い、未実施を完了にしない。
+1タップ1挿入、その他で0挿入、長文末尾、戻る位置、ピン変更/0件、権限不足、ページ・切替・終了を確認する。狭幅/縦横/ライト・ダーク、OS設定を変えても固定した表示、古い要求・入力先変更・書込競合を評価する。[操作手順](../ios-verification.md#キーボードの操作検証)と[条件付き測定](../keyboard-readability-validation.md)に従い、未実施を完了にしない。
 
 ## 外部仕様
 

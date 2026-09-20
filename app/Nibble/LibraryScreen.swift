@@ -13,8 +13,6 @@ struct LibraryScreen: View {
     let showsFilters: Bool
     var showsSearchPrompt = false
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
-    var actionButtonSide: ActionButtonSide = .right
-    @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.scenePhase) private var scenePhase
     @State private var taskOwner = LibraryTaskOwner()
     @State private var permanentDeletion: SnippetSummary?
@@ -33,8 +31,8 @@ struct LibraryScreen: View {
         .navigationTitle(title)
         .toolbarTitleDisplayMode(.inline)
         .toolbar(model.filter == .trash ? .visible : .hidden, for: .navigationBar)
-        .safeAreaInset(edge: .bottom, alignment: actionsAtLeading ? .leading : .trailing, spacing: 0) {
-            VStack(alignment: actionsAtLeading ? .leading : .trailing, spacing: 12) {
+        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
+            VStack(alignment: .trailing, spacing: 12) {
                 if model.filter == .trash {
                     LibraryNotice(model: model, restore: { startTask(.undoNotice($0)) })
                 }
@@ -87,29 +85,21 @@ struct LibraryScreen: View {
     }
 
     private var libraryHeading: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text(title)
-                    .font(.largeTitle.weight(.bold))
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("navigation.title")
-                if showsFilters, let counts = model.snapshot?.page.counts {
-                    Text("保存した項目 \(counts.saved)件")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .accessibilityIdentifier("library.savedCount")
-                } else {
-                    Text(showsFilters ? "保存した文章やURL" : "タイトルや本文の言葉で探す")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.largeTitle.weight(.bold))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("navigation.title")
+            if showsFilters, let counts = model.snapshot?.page.counts {
+                Text("保存した項目 \(counts.saved)件")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("library.savedCount")
+            } else {
+                Text(showsFilters ? "保存した文章やURL" : "タイトルや本文の言葉で探す")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Spacer(minLength: 0)
-            Image(systemName: showsFilters ? "doc.text" : "magnifyingglass")
-                .font(.body)
-                .foregroundStyle(Color.nibbleAccent)
-                .frame(width: 34, height: 34)
-                .background(Color.nibbleSoft, in: .rect(cornerRadius: 11))
-                .accessibilityHidden(true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 23)
         .padding(.top, 12)
         .padding(.bottom, 18)
@@ -358,12 +348,8 @@ struct LibraryScreen: View {
         .listRowSeparator(.hidden)
     }
 
-    private var actionsAtLeading: Bool {
-        (actionButtonSide == .left) == (layoutDirection == .leftToRight)
-    }
-
     private func snippetRow(_ item: SnippetSummary) -> some View {
-        SnippetRow(item: item, isTrash: model.contentRequest.filter == .trash, actionsAtLeading: actionsAtLeading,
+        SnippetRow(item: item, isTrash: model.contentRequest.filter == .trash,
                    unusedSince: model.contentRequest.filter != .trash && item.isDeletionCandidate(at: model.evaluatedAt) ? item.lastUsedAt : nil,
                    perform: { action in
             switch action {

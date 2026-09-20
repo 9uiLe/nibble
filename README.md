@@ -8,24 +8,24 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | --- | --- |
 | 一覧 | 保存済みを使用回数順に表示し、編集・コピー・整理する。直近の下書きは別区分から再開する。ピン留め/下書きはフィルターで絞る |
 | 検索 | 保存済みのタイトル・本文を日本語1文字から探す |
-| 設定 | 作成・コピーの左右位置、削除一覧、キーボード案内、製品情報を開く |
+| 設定 | 削除一覧、キーボード案内、製品情報を開く |
 | 編集 | 任意タイトルと本文を入力する。「保存」は利用対象へ確定、「閉じる」は下書きを保持する |
 | 共有拡張 | 他アプリの共有シートからテキスト・URLを取り込む |
 | キーボード | 行タップで本文を挿入し、右端の「その他」から全文を読む。フルアクセスを許可するとコピー・ピン更新も使える |
 
-削除した項目は通知の「元に戻す」または設定の削除一覧から復元できます。全文、入力の保持、操作の失敗を区別して扱う契約は[製品設計](docs/decisions/0002-mvp-app.md)に定義します。
+削除した項目は通知の「元に戻す」または設定の削除一覧から復元できます。全文、入力の保持、操作の失敗を区別して扱う契約は[製品仕様・要件](docs/product-specification.md)に定義します。
 
 ## 開発を始めるときに読む資料
 
 | 目的 | 入口 |
 | --- | --- |
-| 環境を用意して起動する | この文書のセットアップ、[製品の実行手順](docs/mvp.md) |
+| 環境を用意して起動する | この文書のセットアップ、[製品の実行手順](docs/ios-verification.md) |
 | 変更に必要な規約・検査を知る | [開発ガイド](CONTRIBUTING.md)、[テストの設計と選択](docs/testing.md)、[エージェント向け入口](AGENTS.md) |
-| データ・状態・失敗回復を理解する | [製品設計](docs/decisions/0002-mvp-app.md)、[Swift規約](docs/library-policy.md) |
+| データ・状態・失敗回復を理解する | [製品仕様・要件](docs/product-specification.md)、[Swift規約](docs/library-policy.md) |
 | UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
 | 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
 | AIでSimulatorの動作・外観を確認する | [観測データの確認](docs/simulator-inspection.md)。原本を保存し、要素情報と必要な領域の画像を読む |
-| 比較実験・未確認条件を調べる | [研究資料](research/README.md)、[検証範囲](docs/mvp-validation.md) |
+| 比較実験・未確認条件を調べる | [研究資料](research/README.md)、[検証範囲](docs/testing.md#検証範囲と制約) |
 | 本人向けに配布する | [TestFlight手順](docs/testflight.md) |
 
 ## アプリの構成
@@ -56,7 +56,7 @@ Intel Macではtree-sitter-language-packが未対応のためNix環境全体の�
 | 対応OSと実行対象 | deployment target 26.0。ビルド・テスト・操作・性能の実行検証はiOS 26.5のみ |
 | 研究用driver | Apple Silicon Mac。SDK型検査とSQLite workerはarm64を指定 |
 
-MVPの受け入れはSimulator評価に限定し、実機検証は含めません。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認します。
+製品の受け入れはSimulator評価に限定し、実機検証は含めません。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認します。
 
 ### 1. GitとNixを準備する
 
@@ -141,7 +141,7 @@ xcodebuild -resolvePackageDependencies \
 
 通常回帰は`--scope regression`、Riveの時間・メモリ測定は`--scope performance`、比較実験は`--scope research`で選べます。測定と研究は目的・条件を決めて実行します。
 
-製品の操作と期待結果は[製品手順](docs/mvp.md)、実行基盤を試験するVerificationAppは[共通手順](docs/ios-verification.md)、保存方式やOS連携の比較は[ResearchProbe](research/probe/README.md)を参照します。
+製品の期待動作は[製品仕様・要件](docs/product-specification.md)、操作とVerificationAppの実行は[共通手順](docs/ios-verification.md)、保存方式やOS連携の比較は[ResearchProbe](research/probe/README.md)を参照します。
 
 ### 5. 証跡を確認してPRへ記載する
 
@@ -149,4 +149,4 @@ xcodebuild -resolvePackageDependencies \
 
 ## 他アプリで使うキーボード
 
-設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/decisions/0005-snippet-keyboard.md)と[検証方法](docs/mvp.md#キーボードの操作検証)を参照してください。
+設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/decisions/0005-snippet-keyboard.md)と[検証方法](docs/ios-verification.md#キーボードの操作検証)を参照してください。

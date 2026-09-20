@@ -17,7 +17,7 @@ class SelectionTests(unittest.TestCase):
         return {step['id'] for step in verify.plan(paths, scope)['steps']}
 
     def test_docs_do_not_start_simulators(self):
-        self.assertEqual(self.selected(['docs/mvp.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
+        self.assertEqual(self.selected(['docs/ios-verification.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
 
     def test_static_tooling_changes_do_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})

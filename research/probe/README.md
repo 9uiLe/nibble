@@ -1,6 +1,6 @@
 # ResearchProbeの設計と実行手順
 
-ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品の採用構成は[製品設計](../../docs/decisions/0002-mvp-app.md)、観測結果は[iOS 26.5の検証結果](../experiments/ios-26-5-validation.md)に定義する。
+ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品の採用構成は[製品仕様・要件](../../docs/product-specification.md)、観測結果は[iOS 26.5の検証結果](../experiments/ios-26-5-validation.md)に定義する。
 
 比較目的を決めて`python3 scripts/verify.py run --scope research --device "$NIBBLE_SIMULATOR"`からテストとUIを実行する。通常回帰はこの実験を含めない。採用していない保存方式やAPIの成功を製品の保証に使わない。SDK・別processの実験は、以下の個別手順で選ぶ。
 

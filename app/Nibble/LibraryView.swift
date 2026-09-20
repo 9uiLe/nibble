@@ -10,7 +10,6 @@ struct LibraryView: View {
     private enum TabID: Hashable { case library, settings, search }
 
     @State private var selectedTab = TabID.library
-    @AppStorage(ActionButtonSide.storageKey) private var actionButtonSide = ActionButtonSide.right
     @State private var all: LibraryModel
     @State private var search: LibraryModel
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
@@ -32,7 +31,12 @@ struct LibraryView: View {
     var body: some View {
         @Bindable var allLibrary = all
         @Bindable var searchableLibrary = search
+        // Observe the result in the scene root even when presentation is initially inactive.
+        let notice = currentLibrary.notice
+        let presentsNotice = noticeOrigin != nil && notice?.origin == noticeOrigin
         tabs
+        .background(LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
+                                       isPresented: presentsNotice))
         .tabViewSearchActivation(.searchTabSelection)
         .tabBarMinimizeBehavior(.never)
         .textInputAutocapitalization(.never)
@@ -57,10 +61,9 @@ struct LibraryView: View {
         .onChange(of: all.editor?.id) { updateNoticePresentation() }
         .onChange(of: search.editor?.id) { updateNoticePresentation() }
         .onAppear { updateNoticePresentation() }
-        .onDisappear {
-            all.setNoticePresentation(false)
-            search.setNoticePresentation(false)
-        }
+        // The scene root can be reconstructed while still active. Its old
+        // onDisappear must not end the current root's shared notice context.
+        // Scene phase, tab and sheet changes own presentation eligibility.
         .onOpenURL { url in
             guard let route = AppRoute(url: url), all.editor == nil,
                   search.editor == nil else { return }
@@ -99,7 +102,7 @@ struct LibraryView: View {
             }
             Tab("設定", systemImage: "gearshape", value: TabID.settings) {
                 NavigationStack {
-                    LibrarySettingsView(actionButtonSide: $actionButtonSide, showTrash: {
+                    LibrarySettingsView(showTrash: {
                         showsTrash = true
                         updateNoticePresentation()
                     })
@@ -115,16 +118,12 @@ struct LibraryView: View {
             }
         }
         .modifier(LibraryResultFeedback(all: all, search: search))
-        .background {
-            LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
-                                isPresented: noticeOrigin != nil && currentLibrary.notice?.origin == noticeOrigin)
-        }
     }
 
     private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
-                          showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused, actionButtonSide: actionButtonSide)
+                          showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused)
         }
     }
 

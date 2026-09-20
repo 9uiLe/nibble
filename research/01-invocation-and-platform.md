@@ -1,6 +1,6 @@
 # 呼び出し・共有・挿入のOS境界
 
-nibbleは本体のコピー、Share Extension、一覧・作成URL、Keyboard Extensionを提供する。採用仕様は[製品設計](../docs/decisions/0002-mvp-app.md)と[Keyboard設計](../docs/decisions/0005-snippet-keyboard.md)に定める。以下は2026-09-13に確認した公開APIの制約で、実機と各ホストでの動作保証ではない。
+nibbleは本体のコピー、Share Extension、一覧・作成URL、Keyboard Extensionを提供する。採用仕様は[製品仕様・要件](../docs/product-specification.md)と[Keyboard設計](../docs/decisions/0005-snippet-keyboard.md)に定める。以下は2026-09-13に確認した公開APIの制約で、実機と各ホストでの動作保証ではない。
 
 ## 入口ごとの能力
 
@@ -27,7 +27,7 @@ UIKitの公開契約では、Full Accessなしでも共有group containerを読�
 
 ## 確認方法
 
-共有は入力型とキャンセル、本体コピーは原文の全UTF-8、Keyboardは挿入回数と権限拒否を別々に確認する。[MVP手順](../docs/mvp.md)の実操作を使い、SDKコンパイル、AXの表示、実機・ホストでの受理を区別する。実機のHandoff・ロック・ホスト拒否は未確認。
+共有は入力型とキャンセル、本体コピーは原文の全UTF-8、Keyboardは挿入回数と権限拒否を別々に確認する。[製品の検証手順](../docs/ios-verification.md)の実操作を使い、SDKコンパイル、AXの表示、実機・ホストでの受理を区別する。実機のHandoff・ロック・ホスト拒否は未確認。
 
 ## 出典
 

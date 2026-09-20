@@ -1,6 +1,6 @@
 # 保存と日本語検索の選択根拠
 
-nibbleはApple同梱SQLiteをApp Groupで共有する。採用した状態・transaction・復旧の契約は[製品設計](../docs/decisions/0002-mvp-app.md)、実測は[方式比較](experiments/ios-26-5-validation.md)に定める。一次資料の確認日は2026-09-13。
+nibbleはApple同梱SQLiteをApp Groupで共有する。採用した状態・transaction・復旧の契約は[製品仕様・要件](../docs/product-specification.md)、実測は[方式比較](experiments/ios-26-5-validation.md)に定める。一次資料の確認日は2026-09-13。
 
 ## SQLiteを選ぶ理由
 

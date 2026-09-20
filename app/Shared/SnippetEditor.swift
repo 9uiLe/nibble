@@ -30,9 +30,9 @@ struct SnippetEditor: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("タイトル（任意）").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                        Text("タイトル（任意）").font(.nibbleTitle).foregroundStyle(.secondary)
                         TextField("例：お礼のメール", text: $editor.title, axis: .vertical)
-                            .font(.title2.weight(.semibold))
+                            .font(.nibbleTitle)
                             .focused($focus, equals: .title)
                             .accessibilityIdentifier("editor.title")
                             .accessibilityLabel("タイトル（任意）")
@@ -40,7 +40,7 @@ struct SnippetEditor: View {
                     Divider()
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("本文").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                            Text("本文").font(.nibbleTitle).foregroundStyle(.secondary)
                             Spacer()
                             VStack(alignment: .trailing, spacing: 4) {
                                 PasteButton(payloadType: String.self) { texts in
@@ -49,17 +49,17 @@ struct SnippetEditor: View {
                                 .labelStyle(.iconOnly)
                                 .controlSize(.large)
                                 .accessibilityLabel("本文の末尾にペースト")
-                                Text("末尾に追加").font(.caption).foregroundStyle(.secondary)
+                                Text("末尾に追加").font(.nibbleBody).foregroundStyle(.secondary)
                             }
                         }
                         if !model.hasBody {
                             Text("保存するには本文を入力してください。空白や改行だけでは保存できません。")
-                                .font(.footnote).foregroundStyle(.secondary)
+                                .font(.nibbleBody).foregroundStyle(.secondary)
                                 .accessibilityIdentifier("editor.bodyRequirement")
                         }
                         // A growing native multiline field lets the entire page scroll on small screens.
                         TextField("保存したい文章やURLを入力", text: $editor.body, axis: .vertical)
-                            .font(.body)
+                            .font(.nibbleBody)
                             .lineLimit(10...)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -67,14 +67,14 @@ struct SnippetEditor: View {
                             .accessibilityIdentifier("editor.body")
                             .accessibilityLabel("本文")
                         Text("空白や改行は、そのまま保存されます。")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(.nibbleBody).foregroundStyle(.secondary)
                         Text("長さの上限はタイトル512バイト、本文1 MB（1,000,000バイト）です。どちらもUTF-8で数えるため、文字によって使うバイト数が異なります。")
-                            .font(.footnote).foregroundStyle(.secondary)
+                            .font(.nibbleBody).foregroundStyle(.secondary)
                             .accessibilityIdentifier("editor.lengthLimit")
                     }
                     if let failure = model.failure {
                         Label(failure.message, systemImage: "exclamationmark.circle")
-                            .foregroundStyle(.red).font(.callout)
+                            .foregroundStyle(.red).font(.nibbleBody)
                             .accessibilityIdentifier("editor.error")
                         if failure.canSaveAsNew {
                             Button("新しい項目として保存") { startTask(.saveAsNew) }
@@ -82,7 +82,7 @@ struct SnippetEditor: View {
                         }
                     }
                     Text("「保存」を押すと、一覧やキーボードから使えます。「閉じる」を押すと、入力した内容が下書きに残ります。空の新規入力や、変更していない項目は下書きに残りません。")
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.nibbleBody).foregroundStyle(.secondary)
                 }
                 .padding(24)
                 .animationBarrier()

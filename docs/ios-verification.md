@@ -15,7 +15,7 @@
 | NibblePerformance | Riveの時間・メモリ測定 | `app/Nibble.xcodeproj` / `NibblePerformance` | [app/performance-project.json](../app/performance-project.json) |
 | ResearchProbe | 保存・検索・入力・コピー・復旧・OS連携の比較 | `research/probe/ResearchProbe.xcodeproj` / `ResearchProbe` | [research/probe/project.json](../research/probe/project.json) |
 
-最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の操作と期待結果は[MVP手順](mvp.md)、研究の比較条件は[ResearchProbe手順](../research/probe/README.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
+最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の期待動作は[製品仕様・要件](product-specification.md)、自動工程の責務は[テスト設計](testing.md)、研究の比較条件は[ResearchProbe手順](../research/probe/README.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
 
 以下のコマンドは、リポジトリルートで開いたNixシェル内で実行する。エージェントとCIはJSON形式を指定する。
 
@@ -77,14 +77,14 @@ python3 scripts/verify.py plan --base origin/main
 | 画面確認CLI・画像加工・macOSの画像試験 | ローカルMacの`preview-native`。Simulatorは不要 |
 | `app/NibbleTests/` | 製品targetの全テスト |
 | `validation/VerificationAppTests/` | fixtureの全テスト |
-| 製品の実装・アセット・Xcode設定 | 製品テスト、MVP・通知・固定表示・説明画面のUI |
+| 製品の実装・アセット・Xcode設定 | 製品テスト、基本操作・通知・固定表示・説明画面のUI |
 | 個別の製品UI driver | そのdriverのUI導線 |
 | その他の`validation/`（保存層の測定harnessを除く） | fixtureのテスト・smoke |
 | `app/NibblePerformanceTests/`、`research/probe/`、保存層の測定harness | 手動確認欄に測定・比較の実行先を表示。通常回帰へは追加しない |
 | `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
 | 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
 
-製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。MVPは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
+製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。基本操作のdriverは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
 
 ```sh
 xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
@@ -156,7 +156,56 @@ python3 scripts/ios.py test --project-config research/probe/project.json \
 python3 research/probe/check-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・固定表示・説明画面とOS連携は[MVP手順](mvp.md)、研究の保存方式・Safari・日本語入力・表示条件は[研究手順](../research/probe/README.md)を参照する。
+`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・説明画面・OS連携は次節、研究の保存方式・Safari・日本語入力・表示条件は[研究手順](../research/probe/README.md)を参照する。
+
+## 製品の操作検証
+
+通常は`verify.py run --scope product`で製品テストとUI工程を実行する。既存コマンドの`mvp`および`check-mvp-ui.py`は基本操作の回帰工程を指す識別子として維持している。要件を暫定扱いする名称ではない。作成・下書き・編集・検索・原文コピー・ピン・削除と復元を確認し、期待結果は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)へ対応させる。
+
+固定表示は`check-interface-ui.py --device "$NIBBLE_SIMULATOR"`で一覧・編集・設定・両説明画面を巡回する。標準と最大文字サイズ・高コントラストの配置を比較し、最小文字はhostedテストで確認する。OS所有の入力UIやVoiceOver音声を画像比較の合格に含めない。
+
+### 操作完了通知の検証
+
+```sh
+python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"
+```
+
+起動直後のコピー、連続操作による通知の置換、削除と取り消し、検索入力中のフォーカス、期限、タブ・シート・背景への離脱を確認する。表示前・表示中・消去後のタブと作成ボタンに1ptを超える変化があれば失敗する。`--geometry-only`は起動直後のコピーと配置に絞り、`--scroll`は8件を追加して末尾行の位置保持も確認する。`--appearance dark`でダークを選ぶ。表示・録画・読み上げ・実機の触覚は別々の検証範囲として記録する。
+
+### 説明イラストの検証
+
+設定アプリの「アクセシビリティ > 動作」でReduce Motionスイッチを読み取れる状態にして実行する。
+
+```sh
+python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story about --interruptions --fault-retry
+python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
+```
+
+実アセットの複数周期、本文末尾、ライト／ダーク、背景復帰、表示中のReduce Motion切替を録画する。`--interruptions`はタブ往復と可視境界のスクロール、`--stress`は反復と30秒の背景滞在、`--reduce-motion enabled`は初期から有効な条件を選ぶ。driverは設定を復元する。
+
+`--fault-retry`はインストール済みアセットのhashを照合し、一時的な破損・代替表示・元のバイト列の復元・実ボタンでの回復を確認する。制作ソースや配布物は変更しない。図の意味・動きは録画と時刻付き抽出画像を開いて確認し、全編再生と抽出確認を区別する。可視率、複合停止理由、全面シート、Session解放はhostedテスト、描画時間は[性能測定](performance-verification.md)が担当する。
+
+### 共有・ペースト・呼び出しの検証
+
+```sh
+python3 -m http.server 8766 --bind 127.0.0.1 --directory validation
+```
+
+専用SimulatorのSafariで`http://127.0.0.1:8766/MVPHost.html`を開く。テキスト共有→nibbleで保存→本体コピー→Safariの標準編集メニューからペーストし、「本文のUTF-8を表示」で全バイトを照合する。URL共有も保存・コピー後のURLと照合する。共有を閉じた下書きは本体で再開する。終了後はサーバーを停止する。
+
+ペースト結果の検証にクリップボードを上書きする`sim-use paste`を使わない。日本語のかな入力・変換確定はペーストと別に操作する。ショートカットの「URLを開く」から`nibble://library`と`nibble://new`を呼び出し、前者は一覧を初期化、後者は新規作成、編集中はいずれも既存入力を維持することを確認する。
+
+### キーボードの操作検証
+
+本体UI driverとは別に、入力先アプリ、本文、フルアクセス権限、端末・OS・ビルドを記録して確認する。
+
+1. 空白・改行・タブ・結合文字・絵文字を含む本文とピン留め項目を本体で保存する。OS設定でnibbleキーボードを追加する。
+2. フルアクセスなしで行のタイトル・本文領域をタップし、1回の挿入と原文のUTF-8を照合する。「…」は挿入せず全文へ進み、長文末尾と戻った位置を確認する。
+3. 未許可のコピー・ピン操作は案内だけを表示し、クリップボード・入力欄・ピン状態を変えないことを確認する。許可後はコピーとピン留め・解除が成立し、コピーが挿入を伴わないことを照合する。
+4. ピン留め0件、更新、51件以上のページ、変更・削除された項目の利用拒否、標準キーボードへの復帰を確認する。本文取得中の入力先変更・離脱・連打は遅延を制御する製品テストと実操作を組み合わせる。
+5. 狭幅・長いタイトル・縦横・ライト／ダークで操作への到達を確認し、権限・外観・向きを元へ戻す。未実施の入力先と表示条件を記録する。
+
+入力欄のフォーカスだけでソフトウェアキーボードの表示を判断しない。`sim-use keyboard-state --device "$NIBBLE_SIMULATOR"`と実画面を照合する。secure入力などOSが標準キーボードへ切り替える条件やホスト側の文字数制限は[Keyboard仕様](decisions/0005-snippet-keyboard.md)に従う。
 
 targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`を持つ設定を用意する。実行管理と撮影は共通driver、操作と期待結果は対象別driverへ置く。
 
@@ -258,4 +307,4 @@ runの`timing`は経過時間、外部コマンドの合計、manifest書込、�
 
 ## 検証範囲
 
-共通fixtureの合格は製品の操作・権限・表示の合格を意味しない。製品の受け入れ条件は[MVP手順](mvp.md)、未確認条件は[検証範囲](mvp-validation.md)に従う。Simulatorと実機の性能は異なる条件として扱う。製品MVPの受け入れに実機は含めず、配布後の確認は[TestFlight手順](testflight.md)の担当者が行う。
+共通fixtureの合格は製品の操作・権限・表示の合格を意味しない。製品の受け入れ条件は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)、未確認条件は[検証範囲](testing.md#検証範囲と制約)に従う。Simulatorと実機の性能は異なる条件として扱う。製品の受け入れに実機は含めず、配布後の確認は[TestFlight手順](testflight.md)の担当者が行う。

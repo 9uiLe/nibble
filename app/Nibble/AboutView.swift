@@ -8,7 +8,7 @@ struct AboutView: View {
             VStack(alignment: .leading, spacing: 32) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("よく使う文章を、すぐに。")
-                        .font(.title2.weight(.semibold))
+                        .font(.nibbleTitle)
                         .accessibilityAddTraits(.isHeader)
                     Text("nibbleは、よく使う文章やURLを保存できるアプリです。必要なときにコピーしたり、nibbleキーボードから入力したりできます。")
                 }
@@ -38,9 +38,8 @@ struct AboutView: View {
                         .accessibilityIdentifier("about.privacy")
                 }
             }
-            .font(.body)
+            .font(.nibbleBody)
             .foregroundStyle(.primary)
-            .lineSpacing(4)
             .frame(maxWidth: 600, alignment: .leading)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
@@ -68,7 +67,7 @@ private struct AboutSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(title)
-                .font(.headline)
+                .font(.nibbleTitle)
                 .accessibilityAddTraits(.isHeader)
             content
         }
@@ -83,9 +82,8 @@ private struct AboutURL: @MainActor EquatableBodyView {
     var equatableBody: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.subheadline)
+                .font(.nibbleBody)
             Text(value)
-                .monospaced()
                 .textSelection(.enabled)
         }
         .accessibilityElement(children: .combine)

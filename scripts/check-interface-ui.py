@@ -76,7 +76,7 @@ def main():
                 run.tap("editor.close")
                 time.sleep(0.5)
                 tab("設定")
-                capture(mode, "settings", ["navigation.title", "settings.actionButtonSide", "settings.about"])
+                capture(mode, "settings", ["navigation.title", "library.trash", "settings.keyboard", "settings.about"])
                 run.tap("settings.about")
                 time.sleep(0.8)
                 capture(mode, "about", ["about.story.caption"])

@@ -1,6 +1,6 @@
 # エージェント向け開発ルール
 
-nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼び出し、原文を保つ保存・利用、迷わない編集・削除、描画・応答性能を優先する。製品実装は[製品設計](docs/decisions/0002-mvp-app.md)、開発規約は[開発ガイド](CONTRIBUTING.md)を正本とする。
+nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼び出し、原文を保つ保存・利用、迷わない編集・削除、描画・応答性能を優先する。製品実装は[製品仕様・要件](docs/product-specification.md)、開発規約は[開発ガイド](CONTRIBUTING.md)を正本とする。
 
 ## 作業の入口
 
@@ -9,7 +9,7 @@ nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼
 | 作業 | 参照先 |
 | --- | --- |
 | 文書・指示 | 対象文書と参照元・参照先、[文書の責務](CONTRIBUTING.md#文書の責務) |
-| Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品設計](docs/decisions/0002-mvp-app.md) |
+| Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品仕様・要件](docs/product-specification.md) |
 | UI | [UI設計](docs/design/README.md)から対象の画面・部品・理由・評価条件 |
 | Rive制作・接続 | [演出設計](docs/decisions/0004-rive-presentation.md)、[アセット手順](app/Animations/README.md)。about配下は[局所規約](app/Animations/about/AGENTS.md)も適用 |
 | iOS実行・証跡・PR | [nibble-verification](.agents/skills/nibble-verification/SKILL.md)。静的検査だけなら不要 |
@@ -23,7 +23,7 @@ nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼
 
 PR作成はマージや権限変更を含まない。依頼にない公開・マージ・権限変更、手順で承認を要求する操作は承認後に実行する。承認済みの同じ範囲を再確認しない。確認が必要な場合も独立した編集・検証を済ませ、操作と承認根拠を示す。アップロードだけの依頼へPR・媒体公開を追加しない。
 
-iOS検証は専用Simulatorとダミーデータを使う。既存端末を消去・削除しない。最低対応OSは26.0、実行検証は26.5のみで、製品MVPの受入に実機を含めない。
+iOS検証は専用Simulatorとダミーデータを使う。既存端末を消去・削除しない。最低対応OSは26.0、実行検証は26.5のみで、製品の受入に実機を含めない。
 
 ## 実装と設計の境界
 

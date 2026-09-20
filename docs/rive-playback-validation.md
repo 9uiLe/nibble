@@ -1,6 +1,6 @@
 # 説明イラストの再生と資源利用の評価
 
-「nibbleについて」の説明イラスト（S05・C44）と、「nibbleキーボード」の説明イラスト（S10・C49）を対象に、停止・復帰、配色、読込と回復、画面を閉じた後の資源解放を評価する。採用仕様は[演出設計](decisions/0004-rive-presentation.md)、APIは[RivePresentation](../app/Packages/RivePresentation/README.md)、操作手順は[MVP手順](mvp.md#説明イラストの検証)にある。
+「nibbleについて」の説明イラスト（S05・C44）と、「nibbleキーボード」の説明イラスト（S10・C49）を対象に、停止・復帰、配色、読込と回復、画面を閉じた後の資源解放を評価する。採用仕様は[演出設計](decisions/0004-rive-presentation.md)、APIは[RivePresentation](../app/Packages/RivePresentation/README.md)、操作手順は[製品の検証手順](ios-verification.md#説明イラストの検証)にある。
 
 本記録の製品ソースは `4a467c3887405c9394440a25d50fe03aa9d2162b`、評価日は2026-09-20である。再生状態と寿命の契約、読込失敗からの回復、補助指標を確認している。画面への表示完了時間やスクロールの引っかかりを含む性能受入は未完了で、[G16](design/audit.md#g16-c--説明画面の再生とスクロールの性能)の評価対象である。
 
@@ -79,4 +79,4 @@ hitchは、画面更新が描画期限に間に合わず生じる引っかかり
 
 Time Profilerの状態は[Simulator計測の既知の制約](performance-verification.md#simulator計測の既知の制約)に該当する。Animation Hitchesが保存したtraceは失敗した記録であり、測定成功の証跡には使わない。これらの観測から製品実装が原因とは判定できない。
 
-環境や計測手段を変更した場合は、iOS 26.5 Simulatorで記録・exportが成立することを短時間の接続で確認する。実データを得てから描画性能の予算を定め、同条件で比較する。実機は製品MVPの受入範囲に含めず、Simulatorの値から実機のGPU性能や電力を推定しない。
+環境や計測手段を変更した場合は、iOS 26.5 Simulatorで記録・exportが成立することを短時間の接続で確認する。実データを得てから描画性能の予算を定め、同条件で比較する。実機は製品の受入範囲に含めず、Simulatorの値から実機のGPU性能や電力を推定しない。

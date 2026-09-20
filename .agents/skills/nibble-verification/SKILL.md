@@ -12,7 +12,7 @@ description: nibbleのiOS検証を実行する、検証結果と証跡を照合�
 | 依頼 | 手順 | 確認する成果物 |
 | --- | --- | --- |
 | 変更に必要な検証を計画・実行する | [検証計画と実行](../../../docs/ios-verification.md#変更から検証を実行する) | 選択・除外理由、事前条件、工程結果、対応するrun |
-| 製品の操作を確認する | [MVP手順](../../../docs/mvp.md) | 製品の期待結果に対応するrunと媒体 |
+| 製品の操作を確認する | [製品の検証手順](../../../docs/ios-verification.md) | 製品の期待結果に対応するrunと媒体 |
 | 実行基盤を確認する | [共通iOS手順](../../../docs/ios-verification.md) | VerificationAppのテストとfixture専用smoke |
 | 保存・OS連携の比較を行う | [ResearchProbe手順](../../../research/probe/README.md) | 比較条件・期待結果・観測を持つ研究run |
 | runをレビュー対象へ対応付ける | [ソース照合](../../../docs/review-evidence.md#runのソースと結果) | 指定revisionとソース・実行記録・媒体の一致 |

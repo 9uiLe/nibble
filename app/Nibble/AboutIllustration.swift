@@ -44,7 +44,7 @@ struct AboutIllustration: View {
             .onScrollVisibilityChange(threshold: 0.1) { visible = $0 }
 
             Text("選ぶ → コピー → nibbleに保存")
-                .font(.subheadline.weight(.medium))
+                .font(.nibbleBody)
                 .accessibilityLabel("ほかのアプリの文章を選んでコピーし、nibbleに保存します。元の文章はそのまま残ります")
                 .accessibilityIdentifier("about.story.caption")
 

@@ -75,7 +75,7 @@ def plan(paths, scope='auto'):
             for name in ('notice', 'interface', 'about'):
                 select(name, path + ': 製品の表示・操作へ影響')
             if path.startswith(('app/Shared/', 'app/NibbleShare/', 'app/NibbleKeyboard/', 'app/Nibble.xcodeproj/')):
-                manual.append('共有拡張・キーボードのOS導線: docs/mvp.md（' + path + '）')
+                manual.append('共有拡張・キーボードのOS導線: docs/ios-verification.md（' + path + '）')
         elif path == 'scripts/check-mvp-ui.py':
             select('mvp', path)
         elif path == 'scripts/check-notice-ui.py':
