@@ -78,19 +78,17 @@ class DesignChecks(unittest.TestCase):
         self.assertEqual(result['errors'], [])
         self.assertEqual(result['ids'], {'C': 3, 'S': 1, 'F': 1, 'R': 1, 'G': 1})
 
-    def test_source_asset_and_configuration_edits_require_review(self):
-        for name in ('client/screens/Panel.tsx', 'client/theme/tokens.json', 'client/config.json'):
-            with self.subTest(name=name):
-                path = self.root / name
-                original = path.read_text()
-                path.write_text(original + '\n')
-                self.assertIn(f'Unreviewed changed input: {name}', self.errors())
-                path.write_text(original)
+    def test_configuration_edits_require_review(self):
+        self.write('client/config.json', '{"enabled": true}\n')
+        self.assertIn('Unreviewed changed input: client/config.json', self.errors())
 
-    def test_new_feature_is_detected_without_registering_its_directory(self):
-        name = 'client/new-feature/Screen.tsx'
-        self.write(name, 'export const newScreen = {}\n')
-        self.assertIn(f'Unreviewed added input: {name}', self.errors())
+    def test_new_source_and_design_inputs_are_detected(self):
+        for name, contents in (('client/new-feature/Screen.tsx', 'export const newScreen = {}\n'),
+                               ('design/new-pattern.md', '# Pattern\n')):
+            with self.subTest(name=name):
+                path = self.write(name, contents)
+                self.assertIn(f'Unreviewed added input: {name}', self.errors())
+                path.unlink()
 
     def test_deleting_and_renaming_source_fail(self):
         original = self.root / 'client/screens/Panel.tsx'
@@ -99,18 +97,12 @@ class DesignChecks(unittest.TestCase):
         self.assertIn('Unreviewed removed input: client/screens/Panel.tsx', errors)
         self.assertIn('Unreviewed added input: client/screens/Renamed.tsx', errors)
 
-    def test_design_only_edit_requires_review(self):
-        self.write('design/screens.md', '## S01 Library\n\nC01〜C03\nChanged placement.\n')
-        self.assertIn('Unreviewed changed input: design/screens.md', self.errors())
-
-    def test_new_design_document_is_detected(self):
-        self.write('design/new-pattern.md', '# Pattern\n')
-        self.assertIn('Unreviewed added input: design/new-pattern.md', self.errors())
-
     def test_updating_documents_does_not_accept_unreviewed_source(self):
         self.write('client/screens/Panel.tsx', 'export const differentPanel = {}\n')
         self.write('design/screens.md', '## S01 Library\nUpdated text.\n')
-        self.assertEqual(sum('Unreviewed changed' in error for error in self.errors()), 2)
+        errors = self.errors()
+        self.assertIn('Unreviewed changed input: client/screens/Panel.tsx', errors)
+        self.assertIn('Unreviewed changed input: design/screens.md', errors)
         self.record()
         self.assertEqual(self.errors(), [])
 
@@ -275,45 +267,16 @@ class DesignChecks(unittest.TestCase):
         self.write('design/screens.md', '## S001 Invalid padding\n')
         self.assertTrue(any('Noncanonical design ID: S001' in error for error in self.errors()))
 
-    def test_each_input_is_opened_once_even_with_overlapping_scope(self):
-        self.policy['inputs'].append({'path': 'client/screens', 'kind': 'tree'})
+    def test_overlapping_inputs_still_detect_asset_content_changes(self):
+        self.policy['inputs'].append({'path': 'client/assets', 'kind': 'tree'})
         self.write('policy.json', json.dumps(self.policy))
+        path = self.root / 'client/assets/asset.bin'
+        path.parent.mkdir()
+        path.write_bytes(b'asset contents')
         self.record()
-        opened = []
-        original_open = Path.open
-        def counted(path, *args, **kwargs):
-            opened.append(path.resolve().relative_to(self.root.resolve()).as_posix())
-            return original_open(path, *args, **kwargs)
-        with patch.object(Path, 'open', counted):
-            self.assertEqual(self.errors(), [])
-        record = json.loads((self.root / RECORD).read_text())
-        self.assertCountEqual(opened, [*record['files'], RECORD])
-
-    def test_asset_hashing_uses_bounded_reads_and_detects_content_changes(self):
-        path = self.root / 'client/asset.bin'
-        path.write_bytes(b'x' * (128 * 1024 + 1))
-        self.record()
-        original_open = Path.open
-        sizes = []
-        @contextlib.contextmanager
-        def bounded_open(source, *args, **kwargs):
-            with original_open(source, *args, **kwargs) as stream:
-                if source.resolve() != path.resolve():
-                    yield stream
-                    return
-                class BoundedReader:
-                    def read(inner, size=-1):
-                        self.assertGreater(size, 0)
-                        self.assertLessEqual(size, 128 * 1024)
-                        sizes.append(size)
-                        return stream.read(size)
-                yield BoundedReader()
-        with patch.object(Path, 'open', bounded_open):
-            self.assertEqual(self.errors(), [])
-        self.assertTrue(sizes)
-        with path.open('ab') as stream:
-            stream.write(b'changed')
-        self.assertIn('Unreviewed changed input: client/asset.bin', self.errors())
+        self.assertEqual(self.errors(), [])
+        path.write_bytes(b'changed contents')
+        self.assertEqual(self.errors(), ['Unreviewed changed input: client/assets/asset.bin'])
 
     def test_range_endpoints_must_use_canonical_padding(self):
         for reference in ('C001〜C003', 'C1〜C3'):

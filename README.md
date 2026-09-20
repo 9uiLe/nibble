@@ -20,7 +20,7 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | 目的 | 入口 |
 | --- | --- |
 | 環境を用意して起動する | この文書のセットアップ、[製品の実行手順](docs/mvp.md) |
-| 変更に必要な規約・検査を知る | [開発ガイド](CONTRIBUTING.md)、[エージェント向け入口](AGENTS.md) |
+| 変更に必要な規約・検査を知る | [開発ガイド](CONTRIBUTING.md)、[テストの設計と選択](docs/testing.md)、[エージェント向け入口](AGENTS.md) |
 | データ・状態・失敗回復を理解する | [製品設計](docs/decisions/0002-mvp-app.md)、[Swift規約](docs/library-policy.md) |
 | UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
 | 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
@@ -31,6 +31,16 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 ## アプリの構成
 
 本体と共有拡張はApp GroupのSQLiteへ読み書きします。キーボードは既存DBを読み、許可されたピン更新だけを書き込みます。UIがタスクの寿命、モデルが操作と表示状態、保存層が原文と更新の整合性を所有します。画面はSwiftUI、説明イラストはRivePresentationとRMLで構成します。
+
+| 配置 | 内容 |
+| --- | --- |
+| `app/` | 本体、共有拡張、キーボード、共有モデル・保存層、Rive、製品回帰と性能target |
+| `scripts/` | ビルド・検証・証跡・配布のCLIと回帰テスト |
+| `validation/` | 実行基盤のVerificationApp、保存層の測定harness、OS連携用の入力ページ |
+| `research/probe/` | 明示して実行する比較実験とResearchProbe |
+| `tools/ui-design/` | 製品に依存しない設計照合ツール |
+| `docs/` | 仕様、設計理由、開発・検証手順と対象ソース付きの評価記録 |
+| `artifacts/` | Git管理外の実行結果・ログ・媒体 |
 
 ## セットアップ
 
@@ -78,7 +88,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
-| `ios-tooling` | driver、証跡、画面要素の解析、画像加工の契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
+| `ios-tooling` | driver、証跡、画面要素の解析、画像加工の拒否・失敗契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
 | `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、UI設計IDと照合記録 |
 | `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
@@ -129,7 +139,9 @@ xcodebuild -resolvePackageDependencies \
 
 [ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。変更の確認は`verify.py plan`で対象と事前条件を確認し、`verify.py run`で共通検査・対象テスト・UI操作を実行します。[検証計画の手順](docs/ios-verification.md#変更から検証を実行する)に、結果の読み方と再計画の方法を説明しています。
 
-製品の操作と期待結果は[製品手順](docs/mvp.md)、実行基盤を試験するVerificationAppは[共通手順](docs/ios-verification.md)、保存方式やOS連携の比較は[ResearchProbe](validation/RESEARCH.md)を参照します。
+通常回帰は`--scope regression`、Riveの時間・メモリ測定は`--scope performance`、比較実験は`--scope research`で選べます。測定と研究は目的・条件を決めて実行します。
+
+製品の操作と期待結果は[製品手順](docs/mvp.md)、実行基盤を試験するVerificationAppは[共通手順](docs/ios-verification.md)、保存方式やOS連携の比較は[ResearchProbe](research/probe/README.md)を参照します。
 
 ### 5. 証跡を確認してPRへ記載する
 

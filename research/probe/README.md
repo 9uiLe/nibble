@@ -1,10 +1,12 @@
 # ResearchProbeの設計と実行手順
 
-ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品の採用構成は[製品設計](../docs/decisions/0002-mvp-app.md)、観測結果は[iOS 26.5の検証結果](../research/experiments/ios-26-5-validation.md)に定義する。
+ResearchProbeは、nibbleの保存・検索・入力・コピー・復旧方式を評価する研究用アプリである。同じダミーデータを複数の保存方式で扱い、APIの利用可否、データの正しさ、画面操作をそれぞれ検証する。製品の採用構成は[製品設計](../../docs/decisions/0002-mvp-app.md)、観測結果は[iOS 26.5の検証結果](../experiments/ios-26-5-validation.md)に定義する。
+
+比較目的を決めて`python3 scripts/verify.py run --scope research --device "$NIBBLE_SIMULATOR"`からテストとUIを実行する。通常回帰はこの実験を含めない。採用していない保存方式やAPIの成功を製品の保証に使わない。SDK・別processの実験は、以下の個別手順で選ぶ。
 
 ## 対象
 
-設定は[research-project.json](research-project.json)、schemeはResearchProbe、bundle IDは`dev.nibble.ResearchProbe`。基盤fixtureと別の保存領域で、使い捨てのダミーデータだけを使う。保存方式は[Stores.swift](ResearchProbe/Stores.swift)、UIは[App.swift](ResearchProbe/App.swift)、期待値は[HostedTests.swift](ResearchProbeTests/HostedTests.swift)が定義する。
+設定は[research-project.json](project.json)、schemeはResearchProbe、bundle IDは`dev.nibble.ResearchProbe`。基盤fixtureと別の保存領域で、使い捨てのダミーデータだけを使う。保存方式は[Stores.swift](ResearchProbe/Stores.swift)、UIは[App.swift](ResearchProbe/App.swift)、期待値は[HostedTests.swift](ResearchProbeTests/HostedTests.swift)が定義する。
 
 ## データと操作の契約
 
@@ -38,17 +40,17 @@ scene非アクティブ時の画面coverと、下書き・snapshotの`.completeF
 
 ## 実行環境
 
-[READMEのセットアップ](../README.md#セットアップ)に従ってNix、Xcode 26.5、iOS 26.5 Simulatorを用意する。実行OSは**26.5のみ**、deployment targetは**26.0**、Swift language modeは6、strict concurrencyはcomplete、default isolationはnonisolatedとする。
+[READMEのセットアップ](../../README.md#セットアップ)に従ってNix、Xcode 26.5、iOS 26.5 Simulatorを用意する。実行OSは**26.5のみ**、deployment targetは**26.0**、Swift language modeは6、strict concurrencyはcomplete、default isolationはnonisolatedとする。
 
 研究用driverはarm64のSimulatorを前提とするため、Apple Silicon Macで実行する。Releaseは`-O`を使い、Swift Testingから内部実装を呼べるよう`ENABLE_TESTABILITY=YES`とする。Simulator検証とunsigned archiveにはDeveloper Teamを必要としない。実機、App Group、CloudKit、配布には対象に合う署名・権限設定を用意する。
 
-すべてのコマンドはリポジトリルートで実行する。[専用Simulatorの作成・選択](../docs/ios-verification.md#simulatorの作成と選択)で得たUDIDを指定する。
+すべてのコマンドはリポジトリルートで実行する。[専用Simulatorの作成・選択](../../docs/ios-verification.md#simulatorの作成と選択)で得たUDIDを指定する。
 
 ```sh
 export NIBBLE_SIMULATOR='対象SimulatorのUDID'
 nix develop --command python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
 nix develop --command python3 scripts/ios.py doctor \
-  --project-config validation/research-project.json
+  --project-config research/probe/project.json
 ```
 
 同じ端末で検証を同時に実行しない。テストとUI driverは共通driverのUDID単位のロックを使う。SDK検査・SQLite別プロセス検査・手動操作にはこのロックがない。
@@ -58,18 +60,18 @@ nix develop --command python3 scripts/ios.py doctor \
 ```sh
 # 保存・検索・移行・復旧のSwift Testing
 nix develop --command python3 scripts/ios.py test \
-  --project-config validation/research-project.json \
+  --project-config research/probe/project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
 
 # Simulator / device SDK × app / extensionの4条件の型検査
-nix develop --command python3 validation/check-research-sdk.py
+nix develop --command python3 research/probe/check-sdk.py
 
 # 起動済み26.5 Simulator内のSQLite別プロセス検査
-nix develop --command python3 validation/check-research-processes.py \
+nix develop --command python3 research/probe/check-processes.py \
   --device "$NIBBLE_SIMULATOR"
 
 # 作成→検索→再読込→コピー→削除→復元、録画と静止画の取得
-nix develop --command python3 validation/check-research-ui.py \
+nix develop --command python3 research/probe/check-ui.py \
   --device "$NIBBLE_SIMULATOR"
 ```
 
@@ -85,7 +87,7 @@ SQLite別プロセス検査は自分で起動したworkerのPIDだけを停止�
 
 ```sh
 nix develop --command python3 -m http.server 8765 \
-  --bind 127.0.0.1 --directory validation
+  --bind 127.0.0.1 --directory research/probe
 ```
 
 別のターミナルでSafariを開く。
@@ -112,12 +114,12 @@ xcrun simctl ui "$NIBBLE_SIMULATOR" content_size large
 
 iPhone SE第3世代の26.5 Simulatorでは、最大文字サイズとキーボードの併用時に本文の表示領域・文字の切れ・ボタンへの到達を確認する。Shortcutsでは「nibble Research」欄の「研究用一覧」を実行し、一覧への登録と前景アクションの実行を別々に判定する。
 
-操作前に[共通の録画コマンド](../docs/ios-verification.md#スクリーンショットと画面録画)を開始し、操作終了後に録画を確定して静止画を取得する。ファイルの復号確認と、表示・遷移・応答のレビューをそれぞれ記録する。
+操作前に[共通の録画コマンド](../../docs/ios-verification.md#スクリーンショットと画面録画)を開始し、操作終了後に録画を確定して静止画を取得する。ファイルの復号確認と、表示・遷移・応答のレビューをそれぞれ記録する。
 
 ## archiveの点検
 
 ```sh
-xcodebuild -project validation/ResearchProbe.xcodeproj \
+xcodebuild -project research/probe/ResearchProbe.xcodeproj \
   -scheme ResearchProbe -configuration Release \
   -destination 'generic/platform=iOS' \
   -derivedDataPath artifacts/research/ArchiveDerivedData \
@@ -134,7 +136,7 @@ unsigned archiveで確認する対象はビルドとmanifestの配置・構文�
 | 保存先 | 内容 |
 | --- | --- |
 | `artifacts/ios/<実行ID>/` | 共通driverのmanifest・ログ・xcresult・UI JSON・画像・動画・レビュー記録 |
-| `artifacts/research/sdk/` | 4構成の型検査ログと結果。再実行で更新される |
+| `artifacts/research/sdk/<UUID>/` | 4構成の型検査ログと結果。各実行を独立して保持する |
 | `artifacts/research/processes/<UUID>/` | SQLite workerと操作ごとの終了コード・結果 |
 | テストアプリの`Documents/results/` | 文字列、移行、履歴、snapshot、SQLite環境、計測値のJSON。再実行で同名ファイルが更新される |
 
@@ -144,6 +146,6 @@ unsigned archiveで確認する対象はビルドとmanifestの配置・構文�
 xcrun simctl get_app_container "$NIBBLE_SIMULATOR" dev.nibble.ResearchProbe data
 ```
 
-生成物は`artifacts/`に置き、Gitへ追加しない。共通driverのrunは[証跡とPRの検査](../docs/review-evidence.md)に従い、開始・終了・対象コミットの入力と媒体を照合する。画像・動画の観測、確認範囲、添付先と閲覧条件は`review.json`へ記載し、検査後に`REVIEW.md`を生成する。
+生成物は`artifacts/`に置き、Gitへ追加しない。SDK型検査は実行ごとの`artifacts/research/sdk/<UUID>/`へログと`results.json`を保存し、stdoutに結果のパスと成否を返す。失敗した実験の記録を再実行で上書きしない。共通driverのrunは[証跡とPRの検査](../../docs/review-evidence.md)に従い、開始・終了・対象コミットの入力と媒体を照合する。画像・動画の観測、確認範囲、添付先と閲覧条件は`review.json`へ記載し、検査後に`REVIEW.md`を生成する。
 
-検証結果は期待条件ごとに成功・失敗・未実施を判定し、対象ソース・端末・OS・操作とともに[実行結果](../research/experiments/ios-26-5-validation.md)へ対応付ける。共通driverを使わない測定やSDK検査も、固有の結果ファイルとログを残す。公開APIや原著の根拠は[研究資料](../research/README.md)を参照する。
+検証結果は期待条件ごとに成功・失敗・未実施を判定し、対象ソース・端末・OS・操作とともに[実行結果](../experiments/ios-26-5-validation.md)へ対応付ける。共通driverを使わない測定やSDK検査も、固有の結果ファイルとログを残す。公開APIや原著の根拠は[研究資料](../README.md)を参照する。

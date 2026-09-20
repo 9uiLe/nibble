@@ -9,6 +9,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 sys.path.insert(0, str(Path(__file__).parents[1]))
+from verification_evidence import media_hashes
 from ui_preview import create_preview
 from png_fixture import png
 
@@ -22,11 +23,19 @@ class NativePreviewTests(unittest.TestCase):
     def test_real_resize_crop_orientation_no_upscale_and_original_hash(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            source = root / 'source.png'
+            run = root / 'run'
+            run.mkdir()
+            (run / 'manifest.json').write_text('{}')
+            source = run / 'source.png'
             original = png()
             source.write_bytes(original)
+            inventory = media_hashes(run)
             small = create_preview(source, root / 'small', max_edge=40)
             self.assertEqual(small['preview']['size_pixels'], [20, 40])
+            self.assertEqual(small['transform']['source_pixels_per_preview_pixel'], [2, 2])
+            self.assertEqual(small['source']['sha256'], inventory['source.png'])
+            self.assertTrue((root / 'small/preview.json').is_file())
+            self.assertFalse(list((root / 'small').glob('.work-*')))
             same = create_preview(source, root / 'same')
             self.assertEqual(same['preview']['size_pixels'], [40, 80])
             for name, crop, color in (('top-left', (2, 3, 8, 10), b'\x00\xff\xff'),
@@ -42,6 +51,7 @@ class NativePreviewTests(unittest.TestCase):
             scaled = create_preview(source, root / 'scaled', crop=(2, 3, 8, 10), max_edge=5)
             self.assertEqual(scaled['preview']['size_pixels'], [4, 5])
             self.assertEqual(source.read_bytes(), original)
+            self.assertEqual(media_hashes(run), inventory)
 
     def test_structurally_valid_png_with_broken_compressed_data_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

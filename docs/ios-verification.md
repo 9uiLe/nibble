@@ -12,9 +12,10 @@
 | --- | --- | --- | --- |
 | Nibble・NibbleShare・NibbleKeyboard | 製品の保存・画面・共有・キーボード | `app/Nibble.xcodeproj` / `Nibble` | [app/project.json](../app/project.json) |
 | VerificationApp | 共通コマンド・文字列照合・撮影を試験するfixture | `validation/VerificationApp.xcodeproj` / `VerificationApp` | [validation/project.json](../validation/project.json) |
-| ResearchProbe | 保存・検索・入力・コピー・復旧・OS連携の比較 | `validation/ResearchProbe.xcodeproj` / `ResearchProbe` | [validation/research-project.json](../validation/research-project.json) |
+| NibblePerformance | Riveの時間・メモリ測定 | `app/Nibble.xcodeproj` / `NibblePerformance` | [app/performance-project.json](../app/performance-project.json) |
+| ResearchProbe | 保存・検索・入力・コピー・復旧・OS連携の比較 | `research/probe/ResearchProbe.xcodeproj` / `ResearchProbe` | [research/probe/project.json](../research/probe/project.json) |
 
-最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の操作と期待結果は[MVP手順](mvp.md)、研究の比較条件は[ResearchProbe手順](../validation/RESEARCH.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
+最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の操作と期待結果は[MVP手順](mvp.md)、研究の比較条件は[ResearchProbe手順](../research/probe/README.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
 
 以下のコマンドは、リポジトリルートで開いたNixシェル内で実行する。エージェントとCIはJSON形式を指定する。
 
@@ -78,8 +79,10 @@ python3 scripts/verify.py plan --base origin/main
 | `validation/VerificationAppTests/` | fixtureの全テスト |
 | 製品の実装・アセット・Xcode設定 | 製品テスト、MVP・通知・固定表示・説明画面のUI |
 | 個別の製品UI driver | そのdriverのUI導線 |
-| その他の`validation/` | fixtureと研究targetのテスト・UI |
-| 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品・研究targetの全工程 |
+| その他の`validation/`（保存層の測定harnessを除く） | fixtureのテスト・smoke |
+| `app/NibblePerformanceTests/`、`research/probe/`、保存層の測定harness | 手動確認欄に測定・比較の実行先を表示。通常回帰へは追加しない |
+| `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
+| 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
 
 製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。MVPは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
 
@@ -120,7 +123,7 @@ python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
 
 `--since`は全工程が成功し、開始・終了ソースが一致する結果だけを受理する。共通静的検査は再計画にも含む。参照元の実行範囲が拡大するわけではなく、過去の媒体を現在のソースへ自動で認定するものでもない。runの再利用は[ソース照合](review-evidence.md#runのソースと結果)で確認する。
 
-対象を明示する場合は`--scope inspection`、`--scope fixture`、`--scope product`、`--scope all`を使う。`inspection`は共通検査とmacOSの画像試験を選び、`--device`を必要としない。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
+対象を明示する場合は`--scope inspection`、`--scope fixture`、`--scope product`、`--scope regression`、`--scope performance`、`--scope research`を使う。`regression`は通常回帰全体、`performance`はRiveの測定target、`research`はResearchProbeのテストとUIを選ぶ。`inspection`は共通検査とmacOSの画像試験を選び、`--device`を必要としない。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
 
 ## ビルド・テスト・動作確認
 
@@ -141,19 +144,19 @@ python3 scripts/ios.py smoke --configuration Release --device "$NIBBLE_SIMULATOR
 
 ## 検証対象の切り替え
 
-製品には`app/project.json`、ResearchProbeには`validation/research-project.json`を指定する。
+製品には`app/project.json`、ResearchProbeには`research/probe/project.json`を指定する。
 
 ```sh
 python3 scripts/ios.py test --project-config app/project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
 python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
 
-python3 scripts/ios.py test --project-config validation/research-project.json \
+python3 scripts/ios.py test --project-config research/probe/project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 validation/check-research-ui.py --device "$NIBBLE_SIMULATOR"
+python3 research/probe/check-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・固定表示・説明画面とOS連携は[MVP手順](mvp.md)、研究の保存方式・Safari・日本語入力・表示条件は[研究手順](../validation/RESEARCH.md)を参照する。
+`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・固定表示・説明画面とOS連携は[MVP手順](mvp.md)、研究の保存方式・Safari・日本語入力・表示条件は[研究手順](../research/probe/README.md)を参照する。
 
 targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`を持つ設定を用意する。実行管理と撮影は共通driver、操作と期待結果は対象別driverへ置く。
 

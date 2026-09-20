@@ -82,8 +82,13 @@ def main():
                 capture(mode, "about", ["about.story.caption"])
                 run.tap("BackButton")
                 time.sleep(0.5)
+                run.tap("settings.keyboard")
+                time.sleep(0.8)
+                capture(mode, "keyboard-guide", ["keyboard.story.caption"])
+                run.tap("BackButton")
+                time.sleep(0.5)
         run.manifest["layout_frames"] = frames
-        run.manifest["assertions"] = {"library_editor_settings_about_frames_unchanged": True}
+        run.manifest["assertions"] = {"library_editor_settings_guides_frames_unchanged": True}
     except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
         raise

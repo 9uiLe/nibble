@@ -5,7 +5,7 @@ import pathlib
 import sys
 from types import SimpleNamespace
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from ios import Run, XCRUN, expect_text
 
@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--device", required=True)
 args = parser.parse_args()
 run = Run(SimpleNamespace(command="research-ui", device=args.device, configuration="Release",
-                          project_config="validation/research-project.json"))
+                          project_config="research/probe/project.json"))
 text = "  日本語 か\u3099\n\t👩🏽‍💻 <code>  "
 error = None
 try:

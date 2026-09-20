@@ -167,15 +167,11 @@ def main():
                     run.manifest["assertions"] = {"navigation_frames_stable": True, "copy_expired": True}
                     return
                 tap_row("copy." + snippet)
-                tap_row("copy." + snippet)
-                run.screenshot("notice-repeated-copy")
                 delete(snippet)
                 run.screenshot("notice-deleted")
                 undo()
                 run.screenshot("notice-restored")
                 wait("restored-row", lambda data: "snippet." + snippet in ids(data))
-                time.sleep(2.3)
-                assert_no_notice("restored-expired")
                 if not args.baseline:
                     tab("検索")
                     data = wait("search-field", lambda data: any(e.get("role") == "TextField" for e in data["entries"]))

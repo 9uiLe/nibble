@@ -15,7 +15,7 @@
 | 共有・呼び出し・IME | [MVP手順](mvp.md)の実操作 | 原文と対象UUID、入力先への受け渡し。貼付はIMEの代替にならない |
 | Keyboard | [操作手順](mvp.md#キーボードの操作検証) | 行挿入、全文、コピー・ピンの権限、復帰、ページ。ホストごとの受理は別 |
 | 基盤fixture | [共通手順](ios-verification.md) | 実行・入力・撮影の成立。製品の機能や品質は別 |
-| 比較実験 | [ResearchProbe](../validation/RESEARCH.md) | 明示した条件の方式比較。製品targetの合格には使わない |
+| 比較実験 | [ResearchProbe](../research/probe/README.md) | 明示した条件の方式比較。製品targetの合格には使わない |
 
 ## 判断に使う測定
 

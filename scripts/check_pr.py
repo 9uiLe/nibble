@@ -34,11 +34,11 @@ def sections(body):
 def changes_ui(files):
     for name in files:
         path = Path(name)
-        if path.suffix == '.md' or any(part.endswith('Tests') for part in path.parts):
+        if path.suffix == '.md' or any(part.endswith('Tests') or part == 'TestSupport' for part in path.parts):
             continue
-        if name.startswith(('app/', 'validation/VerificationApp/', 'validation/ResearchProbe/')):
+        if name.startswith(('app/', 'validation/VerificationApp/', 'research/probe/ResearchProbe/')):
             return True
-        if name.startswith(('validation/VerificationApp.xcodeproj/', 'validation/ResearchProbe.xcodeproj/')):
+        if name.startswith(('validation/VerificationApp.xcodeproj/', 'research/probe/ResearchProbe.xcodeproj/')):
             return True
     return False
 

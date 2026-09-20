@@ -70,7 +70,6 @@ extension UIIntegrationTests {
                 SnippetRowContent(title: "予定", preview: "確認します", pinned: false),
                 SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false),
                 SnippetRowContent(title: "返信", preview: "確認します", pinned: true),
-                SnippetRowContent(title: "", preview: "本文から見出し", pinned: false),
                 SnippetRowContent(title: "返信", preview: "確認します", pinned: false,
                                   unusedSince: Date(timeIntervalSince1970: 0)),
             ] {

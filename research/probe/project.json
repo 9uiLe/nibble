@@ -1,5 +1,5 @@
 {
-  "project": "validation/ResearchProbe.xcodeproj",
+  "project": "research/probe/ResearchProbe.xcodeproj",
   "scheme": "ResearchProbe",
   "bundle_id": "dev.nibble.ResearchProbe",
   "app_name": "ResearchProbe",

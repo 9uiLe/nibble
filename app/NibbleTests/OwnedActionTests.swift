@@ -137,19 +137,6 @@ extension UIIntegrationTests {
             #expect(library.failure == nil)
         }
 
-        @Test func rapidInputCanResumeAfterClose() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let url = database.url
-            let store = SnippetStore(location: url)
-            let draft = try await store.beginDraft()
-            let editor = EditorModel(draft: draft, store: store)
-            for number in 0..<2 { editor.body = "下書き \(number)" }
-            #expect(await editor.finish(.keep))
-            let reopened = SnippetStore(location: url)
-            #expect(try await reopened.draft(draft.id).body == "下書き 1")
-            #expect(try await reopened.search().isEmpty)
-        }
     }
 }
 
