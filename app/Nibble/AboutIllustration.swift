@@ -6,11 +6,16 @@ import SwiftUI
 @Equatable
 struct AboutIllustration: View {
     @Environment(\.colorScheme) private var colorScheme
-    @State private var session: RiveSession?
-    @State private var visible = true
-    @State private var failed = false
+    @Environment(\.illustrationPlaybackAllowed) private var playbackAllowed
+    @State private var playback: IllustrationPlayback
+    @State private var visible = false
     @State private var attempt = 0
     @State private var paletteRevision = 0
+    @State private var appliedColorScheme: ColorScheme?
+
+    init(playback: IllustrationPlayback = IllustrationPlayback()) {
+        _playback = State(initialValue: playback)
+    }
 
     static let contract = RiveContract(
         artboard: "About", stateMachine: "Presentation", viewModel: "AboutStory",
@@ -21,8 +26,8 @@ struct AboutIllustration: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
-                if let session {
-                    RiveCanvas(session: session, paused: !visible, renderingRevision: paletteRevision)
+                if let session = playback.session, appliedColorScheme != nil {
+                    RiveCanvas(session: session, paused: !visible || !playbackAllowed, renderingRevision: paletteRevision)
                         .allowsHitTesting(false)
                 } else {
                     HStack(spacing: 24) {
@@ -43,46 +48,30 @@ struct AboutIllustration: View {
                 .accessibilityLabel("ほかのアプリの文章を選んでコピーし、nibbleに保存します。元の文章はそのまま残ります")
                 .accessibilityIdentifier("about.story.caption")
 
-            if failed {
+            if playback.failed {
                 Button {
                     attempt += 1
                 } label: {
                     Label("説明アニメーションを再読み込み", systemImage: "arrow.clockwise")
-                        .frame(minHeight: 34)
+                        .frame(minHeight: 44)
                 }
                 .accessibilityIdentifier("about.story.retry")
             }
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .task(id: attempt) { await load() }
+        .task(id: attempt) {
+            await playback.load(named: "about-story", contract: Self.contract)
+        }
+        // Task closures can retain an earlier appearance across loading or tab returns.
+        // Resolve the current palette before mounting the first viewport.
+        .onChange(of: playback.session != nil, initial: true) { updatePalette() }
         .onChange(of: colorScheme) { updatePalette() }
     }
 
     @MainActor
-    private func load() async {
-        failed = false
-        do {
-            if session == nil {
-                let resource = try await RiveResource.load(named: "about-story", in: .main)
-                let loaded = try await resource.makeSession(Self.contract)
-                loaded.data.setValue(of: BoolProperty(path: "motionAllowed"), to: true)
-                try Task.checkCancellation()
-                session = loaded
-                updatePalette()
-            }
-        } catch is CancellationError {
-            // The view owns the session; cancelled loads never replace it.
-        } catch {
-            guard !Task.isCancelled else { return }
-            session = nil
-            failed = true
-        }
-    }
-
-    @MainActor
     private func updatePalette() {
-        guard let data = session?.data else { return }
+        guard let data = playback.session?.data, appliedColorScheme != colorScheme else { return }
         let dark = colorScheme == .dark
         let colors: [(String, UInt32)] = [
             ("paper", dark ? 0xFF25282C : 0xFFFFFDFC),
@@ -95,5 +84,6 @@ struct AboutIllustration: View {
         }
         // Rive 6.27 needs a viewport refresh for binding changes while offscreen.
         paletteRevision += 1
+        appliedColorScheme = colorScheme
     }
 }

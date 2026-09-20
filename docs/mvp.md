@@ -135,7 +135,28 @@ nix develop --command python3 scripts/benchmark-store.py \
 nix develop --command python3 scripts/check-interface-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-Reduce Motionは`check-about-ui.py`で初期有効と表示中の切替を別々に確認する。アプリが所有しないシステム素材、キーボード、画面全体の支援機能を固定できたとは報告しない。
+Reduce Motionは[説明イラストの検証](#説明イラストの検証)で初期有効と表示中の切替を別々に確認する。最小文字設定への固定はhostedテストが担当する。アプリが所有しないシステム素材、キーボード、画面全体の支援機能を固定できたとは報告しない。
+
+## 説明イラストの検証
+
+S05「nibbleについて」のC44と、S10「nibbleキーボード」のC49を、専用Simulatorで確認する。製品の再生方針は[演出設計](decisions/0004-rive-presentation.md)に従う。設定アプリの「アクセシビリティ」→「動作」を開き、Reduce Motionのスイッチを読み取れる状態にしてから、対象画面ごとのdriverを実行する。
+
+```sh
+nix develop --command python3 scripts/check-about-ui.py \
+  --device "$NIBBLE_SIMULATOR" --story about --interruptions --fault-retry
+nix develop --command python3 scripts/check-about-ui.py \
+  --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
+```
+
+driverは設定から説明画面を開き、自動再生、ライト／ダーク、背景復帰、表示中のReduce Motion切替を画像と録画に記録する。キャプション、再生ボタンがないこと、末尾段落と標準の戻るへの到達を自動判定し、図の描画と動きは媒体を開いて確認する。`--interruptions`はタブ往復、図が見えている間のドラッグと減速、画面外と表示内の3往復、画面外のまま30秒背景に滞在した後の復帰を加える。Reduce Motionが初期から有効な条件は、各コマンドに`--reduce-motion enabled`を加えて別に実行する。
+
+`--fault-retry`はインストール済みアセットのコピーを一時的に不正なバイト列へ置き換える。製品ソースとのhash一致を確認してから注入し、失敗画面を開いたまま元のバイト列へ復元して「説明アニメーションを再読み込み」を押す。代替表示・説明文・戻るを使えることと、実ボタンから図へ回復することを確認する。元・注入・復元のhashと操作順はmanifestに残し、異常終了時も復元する。製品の制作ソースや配布物へ障害を残さない。
+
+録画を開き、操作中の再生の連続性、停止時の位置からの復帰、停止中の配色変更、開き直したときの先頭からの再生を確認する。10%可視境界の正確な判定、停止理由の合成、全面シートによる遮蔽、Sessionの独立性と解放は、実Canvasをマウントする`RivePresentationTests`で照合する。描画時間や引っかかりは[性能手順](performance-verification.md)で別に測る。画像やdriverの成功だけでこれらの合否を判定しない。
+
+キーボード利用案内S10のC49は、設定の「nibbleキーボード」から別に確認する。導入文の次に図と説明があり、地球儀からの切替、行タップ、入力先への本文挿入を順に示すこと、保存済み行が残ることを確認する。8.4秒の周期を3周以上録画し、切替前、行タップ、挿入、結果保持、フェードと次周期を開いて確認する。図へのタップで実際の入力・コピー・保存が起きないこと、全段落と標準戻るへ到達できることも確認する。
+
+小画面で実行し、説明文のアクセシビリティ情報と、VoiceOverの音声・フォーカス順を別に確認する。自動操作、画像、録画の抽出確認、全編再生の実施範囲をそれぞれ記録する。再生状態と資源利用の観測は[再生の検証記録](rive-playback-validation.md)、キーボードの構図・時間構成・容量の観測は[入力説明の検証記録](keyboard-guide-animation-validation.md)を参照する。
 
 ## 基本操作の自動検証
 
@@ -144,12 +165,6 @@ Reduce Motionは`check-about-ui.py`で初期有効と表示中の切替を別々
 ```sh
 nix develop --command python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
 ```
-
-説明画面の導線・演出はMVPのCRUDシナリオから分け、`scripts/check-about-ui.py`で確認する。全画面の固定表示設定は`check-interface-ui.py`の通常設定と最大文字・高コントラスト設定で確認し、最小文字設定への固定はhostedテストが担当する。説明画面・表示入口の変更時はこれらの専用検査を選ぶ。
-
-キーボード利用案内S10のC49は、設定の「nibbleキーボード」から別に確認する。導入文の次に図と説明があり、地球儀からの切替、行タップ、入力先への本文挿入を順に示すこと、保存済み行が残ることを確認する。8.4秒の周期を3周以上録画し、切替前、行タップ、挿入、結果保持、フェードと次周期を開いて確認する。図へのタップで実際の入力・コピー・保存が起きないこと、全段落と標準戻るへ到達できることも確認する。
-
-小画面、ライト/ダーク、画面外へのスクロールと復帰、停止中の配色変更、開き直し、背景復帰、Reduce Motionを初期から有効にした場合と表示中の変更を含める。説明文のアクセシビリティ情報と、VoiceOverの音声・フォーカス順の確認は区別する。読込失敗は専用Simulatorへ同梱したkeyboard-story.rivを一時的に退避するなど、明示した障害条件で確認し、復元して「説明アニメーションを再読み込み」から回復する。製品の制作ソースや配布物へ障害を残さない。キーボード説明の観測・媒体・容量と負荷は[検証記録](keyboard-guide-animation-validation.md)を参照する。
 
 driverはダミーデータを使い、次の契約を実際の画面操作で確認する。
 

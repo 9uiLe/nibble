@@ -6,11 +6,16 @@ import SwiftUI
 @Equatable
 struct KeyboardIllustration: View {
     @Environment(\.colorScheme) private var colorScheme
-    @State private var session: RiveSession?
+    @Environment(\.illustrationPlaybackAllowed) private var playbackAllowed
+    @State private var playback: IllustrationPlayback
     @State private var visible = false
-    @State private var failed = false
     @State private var attempt = 0
     @State private var paletteRevision = 0
+    @State private var appliedColorScheme: ColorScheme?
+
+    init(playback: IllustrationPlayback = IllustrationPlayback()) {
+        _playback = State(initialValue: playback)
+    }
 
     static let contract = RiveContract(
         artboard: "Keyboard", stateMachine: "Presentation", viewModel: "KeyboardStory",
@@ -22,8 +27,8 @@ struct KeyboardIllustration: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
-                if let session {
-                    RiveCanvas(session: session, paused: !visible, renderingRevision: paletteRevision)
+                if let session = playback.session, appliedColorScheme != nil {
+                    RiveCanvas(session: session, paused: !visible || !playbackAllowed, renderingRevision: paletteRevision)
                         .allowsHitTesting(false)
                 } else {
                     VStack(spacing: 16) {
@@ -49,7 +54,7 @@ struct KeyboardIllustration: View {
                 .font(.subheadline)
                 .accessibilityHidden(true)
 
-            if failed {
+            if playback.failed {
                 Button {
                     attempt += 1
                 } label: {
@@ -61,33 +66,17 @@ struct KeyboardIllustration: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .task(id: attempt) { await load() }
+        .task(id: attempt) {
+            await playback.load(named: "keyboard-story", contract: Self.contract)
+        }
+        // Use the current appearance, including changes while loading or offscreen.
+        .onChange(of: playback.session != nil, initial: true) { updatePalette() }
         .onChange(of: colorScheme) { updatePalette() }
     }
 
     @MainActor
-    private func load() async {
-        failed = false
-        do {
-            if session == nil {
-                let resource = try await RiveResource.load(named: "keyboard-story", in: .main)
-                let loaded = try await resource.makeSession(Self.contract)
-                loaded.data.setValue(of: BoolProperty(path: "motionAllowed"), to: true)
-                try Task.checkCancellation()
-                session = loaded
-                updatePalette()
-            }
-        } catch is CancellationError {
-            // The view owns loading; leaving it must not publish a cancelled session.
-        } catch {
-            guard !Task.isCancelled else { return }
-            failed = true
-        }
-    }
-
-    @MainActor
     private func updatePalette() {
-        guard let data = session?.data else { return }
+        guard let data = playback.session?.data, appliedColorScheme != colorScheme else { return }
         let dark = colorScheme == .dark
         let colors: [(String, UInt32)] = [
             ("paper", dark ? 0xFF25282C : 0xFFFFFDFC),
@@ -101,5 +90,6 @@ struct KeyboardIllustration: View {
         }
         // Refresh a paused viewport without resetting the session's timeline.
         paletteRevision += 1
+        appliedColorScheme = colorScheme
     }
 }
