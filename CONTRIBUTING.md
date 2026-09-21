@@ -77,6 +77,28 @@ nix flake check --no-update-lock-file --print-build-logs
 
 テストは[保証の置き場所と選択基準](docs/testing.md)に従い、削除すると見逃す現実的な不具合を根拠に置く。通常回帰と性能測定を目的に応じて選択する。統合時は固有のassertionを残し、件数やカバレッジ率を維持目標にしない。
 
+## 作業の分離と継続
+
+Apple Silicon MacのNix環境には[wts](https://github.com/9uiLe/wts)が入る。[設定](.wts.json)は`main`を基準に、メインチェックアウトと同じ親の`nibble-worktrees/`へセッションを作る。命名にAIや外部スクリプトを使わず、作業ごとにブランチとディレクトリを明示する。
+
+```sh
+nix develop
+export NIBBLE_UI_FORMAT=json
+wts --format json config check
+wts --format json start --branch feature/example --worktree example
+wts --format json list
+```
+
+結果の`Path`を各端末・エージェントの作業ディレクトリにし、そのルートで`nix develop`を実行する。別の作業には別名で`start`する。wtsはGitのworktreeとブランチを管理し、エージェント起動、Orcaのタブ登録、検証の実行は行わない。CLIのNDJSONは各行の`blocks`全体を解析する。オプションは`wts --format json start --help`、全手順は`wts --format json skills get wts-cli`から取得する。
+
+`artifacts/`、DerivedData、端末のデータは共有・コピーせず、各worktreeで生成する。管理外ファイルの自動コピー設定は置かない。並列iOS実行には別々の専用UDIDを明示し、同じ端末への直接操作を重ねない。既存のdriverがworktreeをまたぐUDIDの排他を担う。性能比較は負荷条件をそろえて直列に行う。
+
+検証中はそのworktreeのソースを固定する。編集を継続する場合は先にコミットし、別名の`start`へ`--base-branch`でそのローカルブランチを指定する。これにより文書編集でも実行中のソース照合を壊さず、結果を特定コミットへ対応付けられる。成果物が異なるソースで使えるかは既存の証跡検査で確認する。`cleanup`・`discard`は無視対象の成果物も削除し得るため、保存すべき内容を確認し、依頼された削除範囲だけを扱う。
+
+コンテキストを引き継ぐときは`artifacts/handoff.md`に目的・ブランチ・次の操作・未解決条件、読んだ資料とそのGit revisionまたはhash、検証の`result.json`とrunのパスを短く残す。会話・ログ・規約全文を複製しない。次の担当は`git status`と差分、[検証状態の要約](docs/ios-verification.md#検証状態を確認する)を確認し、変わった入力に対応する資料と検査だけを開く。handoffの記載を検証成功の根拠には使わない。
+
+リポジトリの指示は[AGENTS](AGENTS.md)を作業別の入口とし、宣言・構文・検査契約は各正本に集約する。CodexやOrcaが注入するシステム指示・スキル一覧、トークン計測の提供範囲は実行環境側の責務であり、このリポジトリで置き換えない。
+
 ### スクリプトの表示とデータ
 
 stdoutは結果データ、stderrは工程と診断に使う。[表示Adapter](docs/script-tooling.md)の障害で業務処理を再試行しない。秘密情報と生ログを表示APIへ渡さない。

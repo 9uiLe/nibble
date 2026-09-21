@@ -1,14 +1,15 @@
 # エージェント向け開発ルール
 
-nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼び出し、原文を保つ保存・利用、迷わない編集・削除、描画・応答性能を優先する。製品実装は[製品仕様・要件](docs/product-specification.md)、開発規約は[開発ガイド](CONTRIBUTING.md)を正本とする。
+nibbleはiOS 26.0以上向けのスニペットツール。素早い利用、原文保持、迷わない編集・削除、描画・応答性能を優先する。製品の正本は[製品仕様・要件](docs/product-specification.md)、開発の正本は[CONTRIBUTING](CONTRIBUTING.md)。
 
 ## 作業の入口
 
-依頼と影響範囲に対応する資料を読む。確認済みで変更のない資料は再利用できる。
+下表から対象の資料・節を読む。全資料の通読は不要。確認済みの内容はファイルの変更時、作業範囲の拡大時に再確認する。
 
 | 作業 | 参照先 |
 | --- | --- |
 | 文書・指示 | 対象文書と参照元・参照先、[文書の責務](CONTRIBUTING.md#文書の責務) |
+| 並列開発・引き継ぎ | [作業の分離と継続](CONTRIBUTING.md#作業の分離と継続)。wtsはNix環境内で`--format json`を指定 |
 | Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品仕様・要件](docs/product-specification.md) |
 | UI | [UI設計](docs/design/README.md)から対象の画面・部品・理由・評価条件 |
 | Rive制作・接続 | [演出設計](docs/architecture/presentation.md)、[アセット手順](app/Animations/README.md)。about配下は[局所規約](app/Animations/about/AGENTS.md)も適用 |
@@ -19,31 +20,21 @@ nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼
 
 ## 作業範囲と権限
 
-依頼の範囲内の調査・編集・ローカル検査・その変更に起因する失敗の修正と再検査は、工程ごとの確認を挟まず完了まで進める。1 PRは単一の目的とし、無関係な変更を混ぜない。
+依頼内の調査・編集・ローカル検査・失敗の修正は工程ごとに確認せず完了まで進める。1 PRは単一目的とする。
 
-PR作成はマージや権限変更を含まない。依頼にない公開・マージ・権限変更、手順で承認を要求する操作は承認後に実行する。承認済みの同じ範囲を再確認しない。確認が必要な場合も独立した編集・検証を済ませ、操作と承認根拠を示す。アップロードだけの依頼へPR・媒体公開を追加しない。
+PR作成にマージ・権限変更は含まない。依頼外の公開・マージ・権限変更と、手順が承認を要求する操作は承認後に行う。同じ承認を再確認しない。確認前に独立した作業を済ませ、対象操作と承認根拠を示す。アップロードだけの依頼へPR・媒体公開を追加しない。
 
 iOS検証は専用Simulatorとダミーデータを使う。既存端末を消去・削除しない。最低対応OSは26.0、実行検証は26.5のみで、製品の受入に実機を含めない。
 
-## 実装と設計の境界
-
-- モデルの操作は処理と結果反映を待つasync APIとする。UIの開始はTaskingの所有者と`startTask`に限定し、所有・寿命・重複を定義する。
-- SwiftUIの独自アニメーションはScopedAnimation、説明イラスト内の時間と状態はRMLへ置く。
-- 自作Viewは`@Equatable`を宣言し、値表示と親入力の比較方式を[比較規約](docs/library-policy.md#viewの比較境界)で選ぶ。生Task・別scheduler・直接アニメーション・直接比較・手書き`==`・抑制コメントは禁止する。
-- UI変更はF・S・C・R・GのIDで仕様・理由・根拠・課題を対応させる。[表示固定方針](docs/design/rationale/fixed-interface.md)を適用し、画面ごとにOS設定追従を追加しない。
-- 採用仕様は設計台帳、具体的な不足は監査、観測と未実施は対象ソース付きの検証記録へ置く。`docs/design/review.json`は意味の照合後に更新し、検査を通す目的だけで再生成しない。
-
-具体的な宣言・許可する構文・契約の検査は実装規約、UIの更新手順はUI設計を参照する。
-
 ## 検査と完了
 
-コマンドはリポジトリルートのNix環境で実行する。補助ツールはflakeとlockで固定し、Homebrew・pip等の別管理を前提にしない。エージェントは`NIBBLE_UI_FORMAT=json`を指定する。stdoutの結果とstderrの表示を分け、表示障害を業務の再試行理由にしない。
+各worktreeのルートのNix環境で`NIBBLE_UI_FORMAT=json`を指定する。補助ツールはflakeとlockで固定し、Homebrew・pip等を前提にしない。stdoutの結果とstderrの表示を分け、表示障害で業務を再試行しない。
 
-仕上げに`nix flake check --no-update-lock-file --print-build-logs`を実行する。変更種別ごとの追加検証は[開発ガイド](CONTRIBUTING.md#実行と検査)に従う。合格後の再検査は追加変更・失敗・未解決の懸念の範囲へ絞る。規約の追加時は、判定可能な不変条件を既存検査と違反例の回帰テストへ組み込む。
+仕上げに`nix flake check --no-update-lock-file --print-build-logs`と[変更種別の追加検証](CONTRIBUTING.md#実行と検査)を行う。合格後は追加変更・失敗・未解決の懸念へ検査を絞る。規約の追加時は判定可能な不変条件を既存検査と違反例の回帰テストへ組み込む。
 
-GitHub Actionsは全jobに`runs-on: ubuntu-24.04`を直接指定する。macOS runnerは間接起動も禁止。iOSのビルド・操作・性能はローカルMacの責務で、静的検査では代替できない。
+GitHub Actionsは全jobに`runs-on: ubuntu-24.04`を直接指定する。macOS runnerは間接起動も禁止。iOSのビルド・操作・性能はローカルMacで検証する。
 
-runは1回のiOS実行のソース・端末・コマンド・成否・媒体をまとめた記録である。Apple CLIで実行・撮影、Nixのsim-useで画面を読み取り操作する。生成物はGit管理外の`artifacts/`へ保存する。失敗runを残し、未実施を完了へ変えない。PRは全コミット・最終headのCI・証跡を[証跡手順](docs/review-evidence.md)で照合する。
+生成物はGit管理外の`artifacts/`へ保存する。失敗runを残し、未実施を完了へ変えない。PRの全コミット・最終headのCI・証跡は[証跡手順](docs/review-evidence.md)で照合する。
 
 完了時は変更理由、実施した検証、結果、未実施・未解決条件を報告する。
 

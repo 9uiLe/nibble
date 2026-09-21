@@ -20,7 +20,7 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(['docs/ios-verification.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
 
     def test_static_tooling_changes_do_not_start_ios(self):
-        self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})
+        self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml', '.wts.json']), {'static'})
 
     def test_controls_driver_selects_its_matching_evidence_stage(self):
         self.assertEqual(self.selected(['scripts/check_controls_ui.py']), {'static', 'controls-ui'})
@@ -115,6 +115,75 @@ class SelectionTests(unittest.TestCase):
 
 
 class ExecutionTests(unittest.TestCase):
+    def test_status_preserves_failed_and_pending_work_without_reusing_success(self):
+        report = {'status': 'failed', 'source_start': {'a': 'old'},
+                  'source_end': {'a': 'new'}, 'error': 'Sources changed during verification',
+                  'steps': [{'id': 'static', 'status': 'passed', 'seconds': 2, 'log': 'static.log'},
+                            {'id': 'product-test', 'status': 'pending'}],
+                  'manual_review': ['録画を確認する']}
+        result = verify.summarize_report(report, Path('artifacts/run/result.json'), {'a': 'new', 'b': 'added'})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['steps'], report['steps'])
+        self.assertEqual(result['error'], report['error'])
+        self.assertEqual(result['manual_review'], report['manual_review'])
+        self.assertFalse(result['source_stable'])
+        self.assertFalse(result['source_matches_current'])
+        self.assertEqual(result['changed_since_start'], ['a', 'b'])
+        self.assertNotIn('source_start', result)
+
+    def test_running_status_does_not_claim_completion_or_process_liveness(self):
+        report = {'status': 'running', 'source_start': {'a': 'hash'},
+                  'steps': [{'id': 'static', 'status': 'running'}]}
+        result = verify.summarize_report(report, Path('result.json'), {'a': 'hash'})
+        self.assertEqual(result['status'], 'running')
+        self.assertIsNone(result['source_stable'])
+        self.assertIsNone(result['source_matches_current'])
+        for malformed in [[], {}, {**report, 'steps': []}, {**report, 'steps': [None]},
+                          {**report, 'source_end': None}]:
+            with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                verify.summarize_report(malformed, Path('result.json'), {})
+
+    def test_report_publication_keeps_old_snapshot_when_replace_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'result.json'
+            verify.save_report(path, {'status': 'running'})
+            with patch.object(Path, 'replace', side_effect=OSError('interrupted')), self.assertRaises(OSError):
+                verify.save_report(path, {'status': 'passed'})
+            self.assertEqual(json.loads(path.read_text()), {'status': 'running'})
+            verify.save_report(path, {'status': 'failed'})
+            self.assertEqual(json.loads(path.read_text()), {'status': 'failed'})
+            self.assertFalse(path.with_suffix('.json.tmp').exists())
+
+    def test_plan_output_saves_complete_reasons_and_refuses_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'), \
+                patch.object(verify, 'working_hashes', return_value={'a': 'hash'}), \
+                patch.object(verify, 'changed_files', return_value=('commit', ['README.md'])), \
+                patch('builtins.print') as emit, patch.object(verify, 'execute') as execute:
+            output = Path(directory) / 'plan'
+            self.assertEqual(verify.main(['plan', '--output', str(output)]), 0)
+            saved = json.loads((output / 'plan.json').read_text())
+            self.assertEqual(saved['planning_source'], {'a': 'hash'})
+            self.assertTrue(saved['excluded'])
+            self.assertTrue(saved['steps'][0]['reasons'])
+            self.assertEqual(json.loads(emit.call_args.args[0])['steps'], ['static'])
+            self.assertEqual(verify.main(['plan', '--output', str(output)]), 1)
+            execute.assert_not_called()
+
+    def test_status_is_read_only_and_does_not_resolve_base_or_run_stages(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'), \
+                patch.object(verify, 'working_hashes', return_value={'a': 'hash'}), \
+                patch.object(verify, 'changed_files') as changed, \
+                patch.object(verify, 'run_plan') as run, patch('builtins.print'):
+            path = Path(directory) / 'result.json'
+            data = {'status': 'passed', 'source_start': {'a': 'hash'}, 'source_end': {'a': 'hash'},
+                    'steps': [{'id': 'static', 'status': 'passed'}]}
+            path.write_text(json.dumps(data))
+            original = path.read_bytes()
+            self.assertEqual(verify.main(['status', '--result', str(path)]), 0)
+            self.assertEqual(path.read_bytes(), original)
+            changed.assert_not_called()
+            run.assert_not_called()
+
     def test_native_preview_step_completes_without_ios_run_or_device(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'):
             root = Path(directory)

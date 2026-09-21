@@ -3,6 +3,10 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   inputs.hamio.url = "github:9uiLe/hamio";
+  inputs.wts = {
+    url = "github:9uiLe/wts/f1cb5dda3a52a757cba841e40ae806647c5b09b2";
+    flake = false;
+  };
   inputs.sim-use = {
     url = "file+https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz";
     flake = false;
@@ -19,6 +23,7 @@
       sim-use,
       rive-cli,
       hamio,
+      wts,
       ...
     }:
     let
@@ -34,6 +39,47 @@
         pkgs:
         pkgs.lib.optional (builtins.hasAttr pkgs.stdenv.hostPlatform.system hamio.packages)
           hamio.packages.${pkgs.stdenv.hostPlatform.system}.hamio;
+      # Upstream currently exports a development shell, but no consumable package.
+      # Run its unchanged source with locked Bun and its sole runtime dependency.
+      wtsFor =
+        pkgs:
+        let
+          manifest = builtins.fromJSON (builtins.readFile "${wts}/package.json");
+          commander = pkgs.fetchurl {
+            url = "https://registry.npmjs.org/commander/-/commander-15.0.0.tgz";
+            hash = "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==";
+          };
+        in
+        assert manifest.dependencies == { commander = "15.0.0"; };
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = "wts";
+          version = "${manifest.version}-${builtins.substring 0 7 wts.rev}";
+          src = wts;
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+          dontBuild = true;
+          installPhase = ''
+            mkdir -p "$out/lib/wts/node_modules/commander" "$out/bin"
+            cp -R src skills package.json "$out/lib/wts/"
+            tar -xzf ${commander} -C "$out/lib/wts/node_modules/commander" --strip-components=1
+            makeWrapper ${pkgs.bun}/bin/bun "$out/bin/wts" \
+              --add-flags "$out/lib/wts/src/cli.ts" \
+              --prefix PATH : ${
+                pkgs.lib.makeBinPath (
+                  [
+                    pkgs.git
+                    pkgs.gh
+                  ]
+                  ++ hamioFor pkgs
+                )
+              }
+          '';
+          meta = {
+            description = "Git Worktree Session";
+            homepage = "https://github.com/9uiLe/wts";
+            license = pkgs.lib.licenses.mit;
+            platforms = [ "aarch64-darwin" ];
+          };
+        };
       simUseFor =
         pkgs:
         pkgs.stdenvNoCC.mkDerivation {
@@ -93,7 +139,10 @@
         ]
         ++ hamioFor pkgs
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ]
-        ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-darwin") [ (riveCLIFor pkgs) ];
+        ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-darwin") [
+          (riveCLIFor pkgs)
+          (wtsFor pkgs)
+        ];
     in
     {
       devShells = forAllSystems (pkgs: {
@@ -144,12 +193,16 @@
                 pkgs.git
                 pkgs.shellcheck
               ]
-              ++ hamioFor pkgs;
+              ++ hamioFor pkgs
+              ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "aarch64-darwin") [
+                (wtsFor pkgs)
+              ];
               NIBBLE_UI_FORMAT = "json";
               NIBBLE_REQUIRE_HAMIO = if hamioFor pkgs == [ ] then "0" else "1";
             }
             ''
               cp -R ${./scripts} scripts
+              cp ${./.wts.json} .wts.json
               mkdir -p tools
               cp -R ${./tools/ui-design} tools/ui-design
               chmod -R u+w scripts tools

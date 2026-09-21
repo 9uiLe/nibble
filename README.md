@@ -83,7 +83,7 @@ export NIBBLE_UI_FORMAT=json
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLI、hamioが入り、macOSではsim-use 0.14.0も使えます。画像加工はmacOS付属のsipsを使います。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
+以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLI、hamioが入り、macOSではsim-use 0.14.0、Apple Siliconではwtsも使えます。[並列開発と引き継ぎ](CONTRIBUTING.md#作業の分離と継続)に従い、作業ごとにworktreeを分けられます。画像加工はmacOS付属のsipsを使います。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
 
 | 共通検査 | 確認する内容 |
 | --- | --- |

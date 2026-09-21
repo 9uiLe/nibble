@@ -65,10 +65,12 @@ open -a Simulator
 比較元を指定して計画を確認する。差分には比較元からのコミット済み変更、ステージ済み・未ステージの変更、未追跡ファイル、削除を含む。
 
 ```sh
-python3 scripts/verify.py plan --base origin/main
+python3 scripts/verify.py plan --base origin/main --output artifacts/verification-plan
 ```
 
-計画の`steps`は選択した工程、`excluded`は対象外の工程と理由、`preconditions`は実行前の準備、`manual_review`は自動工程とは別に判断する確認事項を示す。主な選択規則は次のとおりで、複数の変更に該当すると必要な工程を合わせて選ぶ。
+`--output`は新しいディレクトリへ完全な`plan.json`を保存し、stdoutには工程ID・変更件数・手動確認と参照先を返す。再計画には別の保存先を使う。選択理由の確認には保存した計画を開く。`--output`を省略すると従来どおり詳細をstdoutへ返す。
+
+完全な計画の`steps`は選択した工程と理由、`excluded`は対象外の工程と理由、`preconditions`は実行前の準備、`manual_review`は自動工程とは別に判断する確認事項を示す。主な選択規則は次のとおりで、複数の変更に該当すると必要な工程を合わせて選ぶ。
 
 | 変更の区分 | 共通静的検査に加える工程 |
 | --- | --- |
@@ -109,6 +111,18 @@ stdoutに成否と結果ファイルのパスを返す。既定の保存先は`a
 | `manual_review` | 自動成功に含まれない確認事項 |
 
 失敗・中断・ソース変更では後続を開始せず、失敗と未開始工程を残す。該当する工程ログとrunを調べ、原因を修正して新しい保存先で実行する。媒体の目視と未解決事項の確認は、自動工程の`passed`とは別に完了させる。
+
+### 検証状態を確認する
+
+実行中・中断後の状態は、ソースsnapshot全体やログ全文を読む前に要約する。
+
+```sh
+python3 scripts/verify.py status --result artifacts/verify/対象ID/result.json
+```
+
+記録された成否・失敗理由、工程ごとの時間・ログ・run、開始時からの変更ファイル、手動確認事項を返す。ログは`result.json`の親ディレクトリ基準。`source_stable`は記録内の開始・終了ソースの一致、`source_matches_current`は終了ソースと現在のworktreeの一致で、終了記録がなければ両方`null`となる。結果は完全なJSONを一時ファイルから置換して保存するため、実行中も読み取れる。
+
+`status`の終了コード0は読み取り成功を意味する。`status: failed`を成功へ変えず、`running`はプロセスの生存を保証しない。媒体hashや観測の真実性は検査しない。引き継ぎ先や別worktreeではソース不一致を確認し、必要なログ・runだけを開く。待機には起動元のプロセス待機を使い、状態の短周期ポーリングを繰り返さない。
 
 ### 成功結果からの再計画
 

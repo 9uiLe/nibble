@@ -18,6 +18,7 @@ from verification_catalog import (STAGES, REGRESSION_STEPS, PERFORMANCE_STEPS,
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
+    '.wts.json',
     'scripts/check_docs.py', 'scripts/check_swift_policy.py', 'scripts/check_ui_design.py',
     'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py',
     'scripts/swift_task_boundary.py', 'scripts/swift_view_structure.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
@@ -135,6 +136,38 @@ def execute(argv, log, timeout, session=None):
             raise
 
 
+def save_report(path, report):
+    """Publish one complete snapshot so readers never observe a partial JSON file."""
+    temporary = path.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+    temporary.replace(path)
+
+
+def summarize_report(report, path, current):
+    """Inspect recorded progress; this neither validates media nor authorizes reuse."""
+    if (not isinstance(report, dict) or report.get('status') not in {'running', 'passed', 'failed'}
+            or not isinstance(report.get('source_start'), dict)
+            or not isinstance(report.get('steps'), list) or not report['steps']
+            or any(not isinstance(step, dict) or not isinstance(step.get('id'), str)
+                   or step.get('status') not in {'pending', 'running', 'passed', 'failed'}
+                   for step in report['steps'])
+            or ('source_end' in report and not isinstance(report['source_end'], dict))):
+        raise ValueError('Expected a verification result.json')
+    end = report.get('source_end')
+    return {
+        'result': str(path), 'status': report['status'],
+        'elapsed_seconds': report.get('elapsed_seconds'), 'error': report.get('error'),
+        'steps': [{key: step[key] for key in ('id', 'status', 'seconds', 'log', 'runs', 'integrity')
+                   if key in step} for step in report['steps']],
+        'source_stable': end == report['source_start'] if end is not None else None,
+        'source_matches_current': end == current if end is not None else None,
+        'changed_since_start': differences(report['source_start'], current),
+        'manual_review': report.get('manual_review', []),
+        'coverage': report.get('coverage'),
+        'notice': '記録の要約。runningの生存確認、媒体照合、成功工程の再利用判定は行わない。logはresultの親ディレクトリ基準。',
+    }
+
+
 def run_plan(selected, directory, device, timeout=1800):
     # All commands are materialized first: missing device must not leave partial work.
     steps = [{**step, 'argv': command_for(step['id'], device), 'status': 'pending'} for step in selected['steps']]
@@ -143,7 +176,7 @@ def run_plan(selected, directory, device, timeout=1800):
     report = {**selected, 'steps': steps, 'status': 'running',
               'started_at': datetime.now(timezone.utc).isoformat(), 'source_start': working_hashes(ROOT)}
     def save():
-        (directory / 'result.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+        save_report(directory / 'result.json', report)
     save()
     try:
         if selected.get('planning_source', report['source_start']) != report['source_start']:
@@ -206,15 +239,22 @@ def run_plan(selected, directory, device, timeout=1800):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('plan', 'run'))
+    parser.add_argument('action', choices=('plan', 'run', 'status'))
+    parser.add_argument('--result', type=Path, help='status: inspect this result without executing any stage')
     parser.add_argument('--base', default='origin/main', help='Compare this revision with the working tree, including untracked files')
     parser.add_argument('--since', type=Path, help='Only changes since this successful result; failed results cannot suppress work')
     parser.add_argument('--scope', choices=('auto', *SCOPES), default='auto')
     parser.add_argument('--device')
     parser.add_argument('--output', type=Path, help='New directory; existing results are never overwritten')
     args = parser.parse_args(argv)
+    if (args.action == 'status') != (args.result is not None):
+        parser.error('--result is required for status and only valid with status')
     try:
         before = working_hashes(ROOT)
+        if args.action == 'status':
+            report = json.loads(args.result.read_text())
+            print(json.dumps(summarize_report(report, args.result, before), ensure_ascii=False))
+            return 0
         revision, paths = changed_files(ROOT, args.base)
         if args.since:
             paths = changes_since(args.since, before)
@@ -223,6 +263,16 @@ def main(argv=None):
         selected = {'base': revision, 'since': str(args.since) if args.since else None,
                     'planning_source': before, **plan(paths, args.scope)}
         if args.action == 'plan':
+            if args.output:
+                args.output.mkdir(parents=True, exist_ok=False)
+                path = args.output / 'plan.json'
+                save_report(path, selected)
+                print(json.dumps({'plan': str(path), 'base': revision, 'scope': args.scope,
+                                  'changed_file_count': len(paths),
+                                  'steps': [step['id'] for step in selected['steps']],
+                                  'manual_review': selected['manual_review'],
+                                  'details': '選択・除外理由とソースsnapshotはplanを参照。runは実行時に再計画する。'}, ensure_ascii=False))
+                return 0
             print(json.dumps({key: value for key, value in selected.items() if key != 'planning_source'}, ensure_ascii=False, indent=2))
             return 0
         directory = args.output or ROOT / 'artifacts/verify' / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:6])
