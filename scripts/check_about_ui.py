@@ -80,8 +80,7 @@ class AboutCheck:
 
     def open_about(self):
         self.run.ui()
-        self.run.command(["sim-use", "tap", "--label", "設定", "--element-type", "RadioButton",
-                          "--wait-timeout", "5", "--device", self.device])
+        self.run.tap("navigation.tab.settings")
         for _ in range(5):
             data = self.run.ui()
             if element(data, "settings." + self.story):
@@ -185,11 +184,9 @@ class AboutCheck:
     def interruptions(self, stress=False):
         # Both tabs remain alive. Returning must use the same viewport/session;
         # the mounted tests assert identity, while this recording shows continuity.
-        self.run.command(["sim-use", "tap", "--label", "一覧", "--element-type", "RadioButton",
-                          "--wait-timeout", "5", "--device", self.device])
+        self.run.tap("navigation.tab.library")
         time.sleep(1)
-        self.run.command(["sim-use", "tap", "--label", "設定", "--element-type", "RadioButton",
-                          "--wait-timeout", "5", "--device", self.device])
+        self.run.tap("navigation.tab.settings")
         self.check_illustration("after-tab")
         self.run.screenshot("after-tab")
         # Deceleration, visibility boundaries and an offscreen background return.
@@ -226,7 +223,10 @@ class AboutCheck:
             paragraph = element(data, "about.privacy" if self.story == "about" else "keyboard.guide.limits")
             if paragraph:
                 frame = paragraph["frame"]
-                if 75 <= frame["y"] and frame["y"] + frame["height"] <= data["screen"]["height"] - 70:
+                bar_top = min((entry["frame"]["y"] for entry in data["entries"]
+                               if entry.get("uniqueId", "").startswith("navigation.tab.")),
+                              default=data["screen"]["height"] - 62)
+                if 75 <= frame["y"] and frame["y"] + frame["height"] <= bar_top - 8:
                     break
             self.scroll(data)
             data = self.run.ui(f"{name}-scroll-{index}")

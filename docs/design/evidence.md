@@ -32,7 +32,7 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 出典：[Instagram — 日本のApp Store](https://apps.apple.com/jp/app/instagram/id389801252)。2026-09-21にInstagram, Inc.が公開するiPhone用スクリーンショットを確認した。フィードとリールの画面では検索を含む複数の移動先をアイコンのみの同一タブ列に置いている。
 
-参照範囲は公開静止画の情報構造であり、最新のアプリ実機操作・段階配信中の外観・スクロール時の時間変化を確認したものではない。C01の縮小動作は利用者の希望とR01の標準APIをもとに採用し、Instagramの内部実装を根拠にしない。
+同日に利用者が提示した通常・縮小の二枚の画面では、縮小後も全アイコンが同じ順序で残り、バーの幅・高さと記号が小さくなる。C01はこちらの構成を正とする。参照は静止画の比較であり、遷移時間、最新アプリの実操作、内部実装の確認を意味しない。標準の一項目だけを残す縮小APIは採用しない。寸法の変化には[ScrollGeometry](https://developer.apple.com/documentation/swiftui/view/onscrollgeometrychange(for:of:action:))の観測、素材には[glassEffect](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:))を用いる。
 
 ### R02 検索
 
@@ -40,7 +40,7 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 検索対象をplaceholderで伝え、可能なら入力とともに結果を更新する。すぐ検索を始める入口と、候補を探索する検索ページを使い分ける。対象を絞る場合は広い範囲から始める。
 
-下部の標準検索欄は[DefaultToolbarItem](https://developer.apple.com/documentation/swiftui/defaulttoolbaritem/init(kind:placement:))で配置する。[WWDC25の標準デザイン解説](https://developer.apple.com/videos/play/wwdc2025/323/)が示す、iPhoneで届きやすい下部に検索を置く考え方をC12へ適用する。
+[WWDC25の標準デザイン解説](https://developer.apple.com/videos/play/wwdc2025/323/)は下部検索も説明しているが、C12は利用者の指定により上部固定の検索欄を採用する。標準TextFieldの入力・編集メニューを使い、配置と検索終了後の欄の保持はアプリが所有する。
 
 ### R03 レイアウト
 

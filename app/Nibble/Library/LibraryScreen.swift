@@ -21,6 +21,7 @@ struct LibraryScreen: View {
         @Bindable var library = model
         VStack(spacing: 0) {
             if model.filter != .trash { libraryHeading }
+            if showsSearchPrompt { searchBar }
             if showsFilters {
                 LibraryFilterBar(selection: $library.filter, counts: model.snapshot?.page.counts)
                     .fixedSize(horizontal: false, vertical: true)
@@ -31,29 +32,12 @@ struct LibraryScreen: View {
         .navigationTitle(title)
         .toolbarTitleDisplayMode(.inline)
         .toolbar(model.filter == .trash ? .visible : .hidden, for: .navigationBar)
-        .safeAreaInset(edge: .bottom, alignment: .trailing, spacing: 0) {
-            VStack(alignment: .trailing, spacing: 12) {
-                if model.filter == .trash {
-                    LibraryNotice(model: model, restore: { startTask(.undoNotice($0)) })
-                }
-                if model.filter != .trash && !searchFocused.wrappedValue && !showsCreationCTA {
-                    Button { startTask(.open(.new)) } label: {
-                        Image(systemName: "plus")
-                            .font(.title3.weight(.medium))
-                            .frame(width: 50, height: 50)
-                            .contentShape(.circle)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.nibbleCanvas)
-                    .background(Color.nibbleAccent, in: .circle)
-                    .shadow(color: Color.nibbleAccent.opacity(0.15), radius: 7, y: 4)
-                    .accessibilityLabel("新しく作る")
-                    .accessibilityIdentifier("library.add")
-                    .keyboardShortcut("n", modifiers: .command)
-                }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if model.filter == .trash {
+                LibraryNotice(model: model, restore: { startTask(.undoNotice($0)) })
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 8)
             }
-            .padding(.horizontal, 22)
-            .padding(.bottom, 8)
         }
         .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
             if let item = permanentDeletion {
@@ -69,7 +53,9 @@ struct LibraryScreen: View {
         .detectAnimationLeaks()
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
-        .onAppear { startTask(.refresh) }
+        .onAppear {
+            startTask(.refresh)
+        }
         .onChange(of: model.request) { startTask(.refresh) }
         .onChange(of: scenePhase) {
             if scenePhase == .active { startTask(.refresh) }
@@ -78,6 +64,43 @@ struct LibraryScreen: View {
         .onDisappear {
             taskOwner.endScreen()
         }
+    }
+
+    private var searchBar: some View {
+        @Bindable var library = model
+        return HStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+                TextField("タイトルや本文を検索", text: $library.query)
+                    .focused(searchFocused)
+                    .submitLabel(.search)
+                    .frame(minHeight: 48)
+                    .accessibilityLabel("タイトルや本文を検索")
+                    .accessibilityIdentifier("search.field")
+                if !model.query.isEmpty {
+                    Button("検索語を消去", systemImage: "xmark.circle.fill") { model.query = "" }
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("search.clear")
+                }
+            }
+            .font(.body)
+            .padding(.leading, 16)
+            .padding(.trailing, model.query.isEmpty ? 16 : 4)
+            .frame(minHeight: 48)
+            .background(Color.primary.opacity(0.06), in: .capsule)
+            .contentShape(.capsule)
+            .onTapGesture { searchFocused.wrappedValue = true }
+            if searchFocused.wrappedValue {
+                Button("完了") { searchFocused.wrappedValue = false }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("search.done")
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.bottom, 12)
+        .animationBarrier()
     }
 
     private var searchPrompt: Bool {
@@ -151,6 +174,7 @@ struct LibraryScreen: View {
         .scrollContentBackground(.hidden)
         .background(Color.nibbleCanvas)
         .scrollDismissesKeyboard(.interactively)
+        .modifier(TabBarScrollTracking(enabled: model.filter != .trash))
     }
 
     @ViewBuilder private var libraryContent: some View {

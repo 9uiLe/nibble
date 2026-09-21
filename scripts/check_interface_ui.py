@@ -27,8 +27,7 @@ def main():
 
     def tab(label):
         run.ui()
-        run.command(["sim-use", "tap", "--label", label, "--element-type", "RadioButton",
-                     "--wait-timeout", "5", "--device", args.device])
+        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[label])
         time.sleep(0.5)
 
     def capture(mode, screen, identifiers):
@@ -54,25 +53,34 @@ def main():
 
     def check_tab_scrolling(mode):
         def tabs(data):
-            return {e["label"]: e["frame"] for e in data["entries"] if e.get("role") == "RadioButton"}
+            return {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.") or e.get("uniqueId") == "library.add"}
 
         data = run.ui(f"{mode}-tabs-expanded")
         expanded = tabs(data)
         width, height = data["screen"]["width"], data["screen"]["height"]
         high, low = f"{width * 0.45:.0f},{height * 0.32:.0f}", f"{width * 0.45:.0f},{height * 0.78:.0f}"
-        if set(expanded) != {"一覧", "設定", "検索"}:
+        if set(expanded) != {"一覧", "設定", "検索", "新規作成"}:
             raise VerificationError("Expanded tabs must retain their accessible names")
         run.command(["sim-use", "swipe", "--from", low, "--to", high,
                      "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
         minimized = tabs(run.ui(f"{mode}-tabs-minimized"))
-        if minimized == expanded:
-            raise VerificationError("Scrolling down must minimize the native tab bar")
+        if set(minimized) != set(expanded):
+            raise VerificationError("Compact navigation must retain all four controls")
+        for name, frame in minimized.items():
+            if min(frame["height"], frame["width"]) < 44:
+                raise VerificationError("Compact navigation must keep 44pt targets")
+            if frame["height"] >= expanded[name]["height"] or frame["width"] >= expanded[name]["width"]:
+                raise VerificationError("Scrolling down must shrink every tab while preserving all destinations")
+        # Waiting beyond deceleration catches bottom-edge bounce incorrectly re-expanding the bar.
+        time.sleep(0.5)
+        if tabs(run.ui(f"{mode}-tabs-compact-settled")) != minimized:
+            raise VerificationError("Rubber-band settling must not re-expand the bar")
         run.screenshot(f"{mode}-tabs-minimized")
         run.command(["sim-use", "swipe", "--from", high, "--to", low,
                      "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
         restored = tabs(run.ui(f"{mode}-tabs-restored"))
         if restored != expanded:
-            raise VerificationError("Scrolling up must restore all native tabs")
+            raise VerificationError("Scrolling up must restore all floating tabs")
         run.screenshot(f"{mode}-tabs-restored")
         run.manifest.setdefault("tab_scroll_frames", {})[mode] = {
             "expanded": expanded, "minimized": minimized, "restored": restored,
@@ -116,7 +124,7 @@ def main():
                 time.sleep(0.5)
         run.manifest["layout_frames"] = frames
         run.manifest["assertions"] = {"library_editor_settings_guides_frames_unchanged": True,
-                                      "native_tabs_minimize_down_restore_up": True}
+                                      "all_four_tabs_shrink_and_restore": True}
     except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
         raise

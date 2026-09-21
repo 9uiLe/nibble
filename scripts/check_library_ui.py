@@ -25,8 +25,7 @@ def main():
                      "--wait-timeout", "5", "--device", args.device])
 
     def tab(text):
-        run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
-                     "--wait-timeout", "5", "--device", args.device])
+        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[text])
 
     def check_navigation_title(data, title):
         headings = [e["frame"] for e in data["entries"]
@@ -42,17 +41,19 @@ def main():
         add = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
         row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
         copy = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "copy." + snippet_id)
-        trailing = copy["x"] >= row["x"] + row["width"] - 1 and add["x"] > row["x"] + row["width"] / 2
+        trailing = copy["x"] >= row["x"] + row["width"] - 1
         if not trailing or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
-            raise VerificationError("Actions must stay trailing with minimum 44pt targets")
+            raise VerificationError("Copy must stay trailing; copy and creation need minimum 44pt targets")
 
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
 
     def paste_search(text):
         data = wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
-        # The system search field has no app-owned identifier. Resolve its live
-        # AX frame immediately before the native edit-menu gesture.
+        if "search.clear" in identifiers(data):
+            run.tap("search.clear")
+            data = wait_ui("query-cleared-for-paste", lambda d: "search.clear" not in identifiers(d))
+        # Resolve the live AX frame for both app search and the trash sheet's native field.
         frame = search_fields(data)[0]["frame"]
         run.command(["sim-use", "paste", "--via-menu",
                      "--target-x", str(frame["x"] + frame["width"] / 2),
@@ -60,13 +61,19 @@ def main():
                      "--device", args.device, text])
 
     def clear_search():
-        label("テキストを消去")
-        wait_ui("search-cleared", lambda data: not any(
-            e.get("label") == "テキストを消去" for e in data["entries"]))
+        data = run.ui("before-clear-search")
+        if "search.clear" in identifiers(data):
+            run.tap("search.clear")
+            wait_ui("search-cleared", lambda d: "search.clear" not in identifiers(d))
+        else:
+            label("テキストを消去")
+            wait_ui("search-cleared", lambda d: not any(e.get("label") == "テキストを消去" for e in d["entries"]))
 
     def close_search():
-        label("閉じる")
-        wait_ui("search-closed", lambda data: not search_fields(data))
+        data = run.ui("before-search-done")
+        if "search.done" in identifiers(data):
+            run.tap("search.done")
+        wait_ui("search-closed", lambda d: "navigation.tab.search" in identifiers(d) and "Search" not in identifiers(d))
 
     def paste(identifier, text, replace=False):
         def reflected(data):
@@ -185,20 +192,19 @@ def main():
             if filters != {"library.filter.all", "library.filter.pinned", "library.filter.drafts"}:
                 raise VerificationError("Expected All, Pinned and Drafts filters above the library")
             run.screenshot("before")
-            tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
+            tabs = {e.get("label"): e for e in before["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
             if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
                 raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
             create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"
             if create_id == "library.add":
                 add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
                 search_tab = tabs["検索"]["frame"]
-                if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
-                    raise VerificationError("Create control must remain compact and tappable")
-                trailing_inset = before["screen"]["width"] - add["x"] - add["width"]
-                if add["y"] + add["height"] > search_tab["y"] or not 16 <= trailing_inset <= 28:
-                    raise VerificationError("Create must sit above the tabs at the trailing content margin")
-            elif create_id not in identifiers(before):
-                raise VerificationError("Empty library must expose one labelled creation action")
+                if min(add["width"], add["height"]) < 44:
+                    raise VerificationError("Create must retain a 44pt target")
+                if abs(add["y"] - search_tab["y"]) > 1 or abs(add["height"] - search_tab["height"]) > 1:
+                    raise VerificationError("Create must occupy the same bar as the navigation tabs")
+            else:
+                raise VerificationError("Creation must always remain in the four-item bar")
             with run.recording():
                 run.tap(create_id)
                 wait_ui("new-editor", lambda data: "editor.body" in identifiers(data)
@@ -253,6 +259,9 @@ def main():
                 if "search.prompt" not in identifiers(focused) or any(
                         e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
                     raise VerificationError("Empty search must show guidance instead of saved rows")
+                field = search_fields(focused)[0]["frame"]
+                if field["y"] + field["height"] > focused["screen"]["height"] * 0.3:
+                    raise VerificationError("Search field must remain at the top of the screen")
                 if "library.add" in identifiers(focused):
                     raise VerificationError("Create obscures the active search input")
                 # Identify this run's item through a unique Japanese search term.
@@ -314,8 +323,7 @@ def main():
                 wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
                 tab("検索")
                 wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
-                # Native search cancellation clears its query. Search this item
-                # again while the library remains scoped to pinned snippets.
+                # The query remains independent from the library's pinned filter.
                 paste_search(title)
                 wait_ui("independent-search", lambda data: row in identifiers(data))
                 run.tap("Search")
@@ -420,8 +428,8 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "visible_row_menu": True, "pin": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
-                "native_tabs": True, "search_tab_reselect_focus": True, "shared_root_heading_typography": True,
-                "optional_heading_subtitle": True, "create_above_search": True,
+                "four_item_navigation_bar": True, "search_tab_reselect_focus": True, "shared_root_heading_typography": True,
+                "optional_heading_subtitle": True, "create_in_tab_bar": True, "search_field_at_top": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
                 "empty_search_guidance": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,

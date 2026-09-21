@@ -45,6 +45,7 @@ struct AboutView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 24)
         }
+        .modifier(TabBarScrollTracking())
         .navigationTitle("nibbleについて")
         .navigationBarTitleDisplayMode(.inline)
         .background(Color.nibbleCanvas)

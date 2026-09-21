@@ -48,6 +48,7 @@ struct SettingsView: View {
             .font(.nibbleTitle)
             .listRowBackground(Color.clear)
         }
+        .modifier(TabBarScrollTracking())
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)

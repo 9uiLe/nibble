@@ -19,6 +19,7 @@ struct KeyboardGuideView: View {
             .font(.nibbleBody)
             .padding(20).frame(maxWidth: 640, alignment: .leading).frame(maxWidth: .infinity)
         }
+        .modifier(TabBarScrollTracking())
         .background(Color.nibbleCanvas)
         .navigationTitle("nibbleキーボード")
         .toolbarTitleDisplayMode(.inline)
