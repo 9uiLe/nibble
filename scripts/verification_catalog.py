@@ -21,6 +21,7 @@ REGRESSION = (
     Stage('fixture-smoke', project=FIXTURE_CONFIG, scheme='VerificationApp', command='fixture-smoke'),
     Stage('library-ui', 'check_library_ui.py', scheme='Nibble', command='library-ui'),
     Stage('notice-ui', 'check_notice_ui.py', scheme='Nibble', command='notice-ui'),
+    Stage('controls-ui', 'check_controls_ui.py', scheme='Nibble', command='controls-ui'),
     Stage('interface-ui', 'check_interface_ui.py', scheme='Nibble', command='fixed-interface'),
     Stage('about-ui', 'check_about_ui.py', scheme='Nibble', command='rive-about'),
     Stage('keyboard-guide-ui', 'check_about_ui.py', scheme='Nibble', command='rive-keyboard',

@@ -8,11 +8,11 @@ struct IconControlStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .labelStyle(.iconOnly)
-            .font(.system(size: 18, weight: .medium))
-            .frame(width: 36, height: 36)
+            .font(.system(size: InterfaceMetrics.controlSymbolSize, weight: .medium))
+            .frame(width: InterfaceMetrics.controlSize, height: InterfaceMetrics.controlSize)
             .foregroundStyle(foreground)
             .background(background, in: .circle)
-            .frame(width: 44, height: 44)
+            .frame(width: InterfaceMetrics.touchSize, height: InterfaceMetrics.touchSize)
             .contentShape(.rect)
     }
 }

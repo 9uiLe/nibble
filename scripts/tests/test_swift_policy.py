@@ -10,7 +10,7 @@ from check_swift_policy import SwiftLexer, check, violations
 
 
 class SwiftPolicyTests(unittest.TestCase):
-    def test_rive_uses_only_new_apple_entry_points(self):
+    def test_rive_uses_resource_session_entry_points(self):
         for symbol in ("RiveViewModel", "RiveView", "RiveModel", "RiveFile", "RiveStateMachineInstance", "RiveSMIInput"):
             self.assertTrue(violations(f"typealias Old = RiveRuntime.{symbol}"))
         self.assertFalse(violations("let view = RiveUIViewRepresentable(rive: rive).paused(true)"))

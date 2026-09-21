@@ -22,6 +22,12 @@ class SelectionTests(unittest.TestCase):
     def test_static_tooling_changes_do_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})
 
+    def test_controls_driver_selects_its_matching_evidence_stage(self):
+        self.assertEqual(self.selected(['scripts/check_controls_ui.py']), {'static', 'controls-ui'})
+        self.assertEqual(verify.command_for('controls-ui', 'device-id'),
+                         [sys.executable, 'scripts/check_controls_ui.py', '--device', 'device-id'])
+        self.assertIn('controls-ui', self.selected(['app/Shared/Editing/EditorToolbar.swift']))
+
     def test_saved_observation_tool_does_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/ui_observation.py']), {'static'})
         for path in ('scripts/inspect_ui.py', 'scripts/ui_preview.py', 'scripts/tests/macos/test_ui_preview_native.py'):

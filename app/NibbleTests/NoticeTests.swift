@@ -4,7 +4,7 @@ import Tasking
 @testable import Nibble
 
 extension UIIntegrationTests {
-    @Suite("Tab accessory notifications", .serialized)
+    @Suite("Operation result notifications", .serialized)
     @MainActor
     struct NoticeTests {
         @Test func latestResultKeepsMessageSubjectTargetAndOriginTogether() async throws {

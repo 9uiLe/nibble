@@ -7,7 +7,6 @@ struct LibraryNoticeContent: View {
     let notice: LibraryModel.Notice
     let isRestoring: Bool
     let restore: (UUID) -> Void
-    let inWindow: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -19,7 +18,7 @@ struct LibraryNoticeContent: View {
                 if let subject = notice.subject {
                     Text(subject).font(.footnote)
                         .foregroundStyle(Color.nibbleOnSelection.opacity(0.85))
-                        .lineLimit(inWindow ? 1 : 2)
+                        .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,7 +37,7 @@ struct LibraryNoticeContent: View {
                 .accessibilityIdentifier("library.undo")
             }
         }
-        .padding(.horizontal, inWindow ? 16 : 20)
+        .padding(.horizontal, InterfaceMetrics.noticeMargin)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, minHeight: 56)
         .foregroundStyle(Color.nibbleOnSelection)

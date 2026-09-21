@@ -2,16 +2,16 @@ import AppMacros
 import SwiftUI
 
 @Equatable
-struct LibraryHeading: View {
+struct RootScreenHeading: View {
     private let inputRevision = UUID()
     let title: String
-    var subTitle: String? = nil
+    var subtitle: String? = nil
     @SkipEquatable let model: LibraryModel
     var showsCreation = true
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ScreenHeading(title: title, subTitle: subTitle)
+            ScreenHeading(title: title, subtitle: subtitle)
             if showsCreation { CreateSnippetButton(model: model) }
         }
         .padding(.horizontal, 22)

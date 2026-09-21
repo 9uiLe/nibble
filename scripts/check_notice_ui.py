@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify tab result notifications on an explicitly selected iOS 26.5 Simulator."""
+"""Verify operation result notifications on an explicitly selected iOS 26.5 Simulator."""
 
 import argparse
 import time
@@ -222,9 +222,17 @@ def main():
                 assert_no_notice("returned-tab")
                 tab("設定")
                 run.tap("library.trash")
-                wait("trash", lambda data: "more." + snippet in ids(data))
+                data = wait("trash", lambda data: "more." + snippet in ids(data))
+                close_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
                 run.tap("more." + snippet)
                 label("復元")
+                data = wait("trash-notice", lambda d: "library.notice" in ids(d))
+                close_during = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
+                notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
+                if close_before != close_during or notice["width"] < data["screen"]["width"] - 70:
+                    raise VerificationError("Deleted-item notice changed navigation or lost its full width")
+                if notice["y"] < data["screen"]["height"] * .6 or notice["y"] + notice["height"] > data["screen"]["height"] - 8:
+                    raise VerificationError("Deleted-item notice is outside its bottom presentation area")
                 run.screenshot("trash-restored")
                 run.tap("library.trash.close")
                 assert_no_notice("sheet-dismissed")

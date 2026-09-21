@@ -8,7 +8,7 @@ struct LibraryWindowNotice: View {
     @SkipEquatable let taskOwner: LibraryTaskOwner
 
     var body: some View {
-        LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) }, inWindow: true)
+        LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) })
             .id(model.noticeContext.id)
             .tint(.nibbleAccent)
             .modifier(NibbleInterface())

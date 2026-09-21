@@ -28,13 +28,13 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 2026-09-21に[SwiftUI tabBarMinimizeBehavior](https://developer.apple.com/documentation/swiftui/view/tabbarminimizebehavior(_:))と[UIKit onScrollDown](https://developer.apple.com/documentation/uikit/uitabbarcontroller/minimizebehavior/onscrolldown)の公開仕様を確認した。iOS 26.0以上のiPhoneでは、下方向のスクロールで縮小し、上方向で展開する標準動作を指定できる。個別アプリの操作到達性は実行で確認する。
 
-### R21 Instagramのアイコンナビゲーション
+### R21 スクロールに連動するナビゲーション
 
-出典：[Instagram — 日本のApp Store](https://apps.apple.com/jp/app/instagram/id389801252)。2026-09-21にInstagram, Inc.が公開するiPhone用スクリーンショットを確認した。フィードとリールの画面では検索を含む複数の移動先をアイコンのみの同一タブ列に置いている。
+参照するAPI：[ScrollGeometry](https://developer.apple.com/documentation/swiftui/view/onscrollgeometrychange(for:of:action:))、[scaleEffect](https://developer.apple.com/documentation/swiftui/view/scaleeffect(_:anchor:))、[glassEffect](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:))。
 
-同日に利用者が提示した通常・縮小の二枚の画面では、縮小後も全アイコンが同じ順序で残り、バーの幅・高さと記号が小さくなる。C01はこちらの構成を正とする。参照は静止画の比較であり、遷移時間、最新アプリの実操作、内部実装の確認を意味しない。標準の一項目だけを残す縮小APIは採用しない。寸法の変化には[ScrollGeometry](https://developer.apple.com/documentation/swiftui/view/onscrollgeometrychange(for:of:action:))の観測、素材には[glassEffect](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:))を用いる。
+C01は、閲覧中の占有面積を小さくしながら一覧・検索・設定の入口をすべて残す製品判断である。TabViewが各領域の状態を保持し、アプリがスクロール方向と移動量からバーの表示寸法を決める。固定した確保領域内で素材・選択背景・操作領域を一緒に拡縮し、検索や通知による内容の再配置を利用者のスクロールと取り違えない。
 
-利用者の修正指定により、新規作成は右上へ分離し、タブの記号は通常24pt・縮小16ptとする。検索への移動だけではキーボードを開かない。縮小は固定レイアウトへの[scaleEffect](https://developer.apple.com/documentation/swiftui/view/scaleeffect(_:anchor:))で連続補間し、素材・選択背景・操作領域を一緒に変形する。これはnibbleの採用仕様であり、Instagram内部の再現を主張するものではない。
+通常24pt・縮小16ptの記号、縮小中も44pt以上の操作領域、方向反転時の連続性を受入条件とする。APIの存在は見た目や応答品質の証明にはならない。C01と[操作・識別・回復](rationale/library-actions.md)に従って実画面を確認する。
 
 ### R02 検索
 
@@ -42,7 +42,7 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 検索対象をplaceholderで伝え、可能なら入力とともに結果を更新する。すぐ検索を始める入口と、候補を探索する検索ページを使い分ける。対象を絞る場合は広い範囲から始める。
 
-[WWDC25の標準デザイン解説](https://developer.apple.com/videos/play/wwdc2025/323/)は下部検索も説明しているが、C12は利用者の指定により上部固定の検索欄を採用する。標準TextFieldの入力・編集メニューを使い、配置と検索終了後の欄の保持はアプリが所有する。
+C12は検索対象・入力・結果を上から読む構成とし、上部に検索欄を固定する。標準TextFieldの入力・編集メニューを使い、配置と検索終了後の欄の保持はアプリが所有する。
 
 ### R03 レイアウト
 

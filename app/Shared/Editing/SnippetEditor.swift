@@ -32,7 +32,10 @@ struct SnippetEditor: View {
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if focus == nil {
-                    EditorExitGuidance(isShared: complete != nil)
+                    VStack(spacing: 0) {
+                        EditorExitGuidance(isShared: complete != nil)
+                        EditorBottomBar(model: model, confirmsDiscard: $confirmsDiscard, showHelp: showHelp)
+                    }
                 } else {
                     EditorKeyboardAccessory(focus: $focus, showHelp: showHelp)
                 }
@@ -40,10 +43,8 @@ struct SnippetEditor: View {
             .background { Color.nibbleCanvas.ignoresSafeArea() }
             .navigationTitle(complete != nil ? "共有から保存" : model.draft.snippetID == nil ? "新規作成" : "項目を編集")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(focus == nil ? .visible : .hidden, for: .bottomBar)
             .toolbar {
-                EditorToolbar(model: model, taskOwner: taskOwner, focus: $focus,
-                              confirmsDiscard: $confirmsDiscard, showHelp: showHelp)
+                EditorToolbar(model: model, taskOwner: taskOwner)
             }
             .disabled(model.phase != .editing)
             .confirmationDialog("この下書きを破棄しますか？", isPresented: $confirmsDiscard, titleVisibility: .visible) {

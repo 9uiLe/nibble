@@ -1,6 +1,5 @@
 import AppMacros
 import SwiftUI
-import Tasking
 import ScopedAnimation
 
 @Equatable
@@ -9,9 +8,7 @@ struct LibraryScreen: View {
     private let inputRevision = UUID()
 
     @SkipEquatable let model: LibraryModel
-    let title: String
-    let showsFilters: Bool
-    var showsSearchPrompt = false
+    let surface: LibrarySurface
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     @Environment(\.scenePhase) private var scenePhase
     @State private var taskOwner = LibraryTaskOwner()
@@ -20,30 +17,22 @@ struct LibraryScreen: View {
     var body: some View {
         @Bindable var library = model
         VStack(spacing: 0) {
-            if model.filter != .trash {
-                LibraryHeading(title: title, subTitle: subTitle, model: model,
+            if surface.isRoot {
+                RootScreenHeading(title: surface.title, subtitle: subtitle, model: model,
                                showsCreation: !searchFocused.wrappedValue)
             }
-            if showsSearchPrompt { LibrarySearchBar(model: model, searchFocused: searchFocused) }
-            if showsFilters {
+            if surface.showsSearchPrompt { LibrarySearchBar(model: model, searchFocused: searchFocused) }
+            if surface.showsFilters {
                 LibraryFilterBar(selection: $library.filter, counts: model.snapshot?.page.counts)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            LibraryList(model: model, taskOwner: taskOwner, showsFilters: showsFilters,
-                        showsSearchPrompt: showsSearchPrompt, searchFocused: searchFocused,
+            LibraryList(model: model, taskOwner: taskOwner, surface: surface, searchFocused: searchFocused,
                         permanentDeletion: $permanentDeletion)
         }
         .background(Color.nibbleCanvas)
-        .navigationTitle(title)
+        .navigationTitle(surface.title)
         .toolbarTitleDisplayMode(.inline)
-        .toolbar(model.filter == .trash ? .visible : .hidden, for: .navigationBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if model.filter == .trash {
-                LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) })
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 8)
-            }
-        }
+        .toolbar(surface.isRoot ? .hidden : .visible, for: .navigationBar)
         .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
             if let item = permanentDeletion {
                 Button("完全に削除", role: .destructive) { taskOwner.startTask(.permanentlyDelete(item.id), on: model); permanentDeletion = nil }
@@ -71,10 +60,10 @@ struct LibraryScreen: View {
         }
     }
 
-    private var subTitle: String {
-        if showsFilters, let counts = model.snapshot?.page.counts {
+    private var subtitle: String {
+        if surface.showsFilters, let counts = model.snapshot?.page.counts {
             return "保存した項目 \(counts.saved)件"
         }
-        return showsFilters ? "保存した文章やURL" : "タイトルや本文の言葉で探す"
+        return surface.showsFilters ? "保存した文章やURL" : "タイトルや本文の言葉で探す"
     }
 }

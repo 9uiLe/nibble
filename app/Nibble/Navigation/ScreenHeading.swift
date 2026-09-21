@@ -5,11 +5,11 @@ import SwiftUI
 @Equatable
 struct ScreenHeading: @MainActor EquatableBodyView {
     let title: String
-    let subTitle: String?
+    let subtitle: String?
 
-    init(title: String, subTitle: String? = nil) {
+    init(title: String, subtitle: String? = nil) {
         self.title = title
-        self.subTitle = subTitle
+        self.subtitle = subtitle
     }
 
     var equatableBody: some View {
@@ -18,8 +18,8 @@ struct ScreenHeading: @MainActor EquatableBodyView {
                 .font(.nibbleScreenTitle)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("navigation.title")
-            if let subTitle {
-                Text(subTitle)
+            if let subtitle {
+                Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("navigation.subtitle")

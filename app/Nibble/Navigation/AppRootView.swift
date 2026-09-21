@@ -1,7 +1,6 @@
 import AppMacros
 import SwiftUI
 import Observation
-import ScopedAnimation
 
 @Equatable
 struct AppRootView: View {
@@ -34,13 +33,13 @@ struct AppRootView: View {
         TabView(selection: $selectedTab) {
             Tab("一覧", systemImage: "house", value: AppTab.library) {
                 NavigationStack {
-                    LibraryScreen(model: all, title: "一覧", showsFilters: true, searchFocused: $searchFocused)
+                    LibraryScreen(model: all, surface: .library, searchFocused: $searchFocused)
                 }
                 .toolbar(.hidden, for: .tabBar)
             }
             Tab("検索", systemImage: "magnifyingglass", value: AppTab.search) {
                 NavigationStack {
-                    LibraryScreen(model: search, title: "検索", showsFilters: false, showsSearchPrompt: true,
+                    LibraryScreen(model: search, surface: .search,
                                   searchFocused: $searchFocused)
                 }
                 .toolbar(.hidden, for: .tabBar)
@@ -58,13 +57,8 @@ struct AppRootView: View {
             }
         }
         .modifier(LibraryResultFeedback(all: all, search: search))
-        .background {
-            GeometryReader { geometry in
-                LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
-                                    isPresented: noticeOrigin != nil,
-                                    bottomBoundary: geometry.frame(in: .global).maxY - 8)
-            }
-        }
+        .modifier(LibraryNoticeOverlay(model: currentLibrary, taskOwner: routeOwner,
+                                       isPresented: noticeOrigin != nil))
         .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !searchFocused { FloatingTabBar(selection: $selectedTab) }

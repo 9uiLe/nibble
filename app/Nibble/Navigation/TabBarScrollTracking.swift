@@ -13,7 +13,7 @@ struct TabBarScrollTracking: ViewModifier {
         content
             // TabView hosts do not pass the root's custom bar inset into every scroll view.
             // Keep the final row/paragraph reachable above the bar at either size.
-            .contentMargins(.bottom, enabled ? 76 : 0, for: .scrollContent)
+            .contentMargins(.bottom, enabled ? TabBarMetrics.reservedHeight : 0, for: .scrollContent)
             .onScrollPhaseChange { _, next in
                 phase = next
                 if next == .interacting { tabScroll?.beginGesture() }

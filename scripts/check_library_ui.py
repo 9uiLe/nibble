@@ -439,6 +439,12 @@ def main():
                 run.screenshot("trash-search")
                 run.tap("restore." + snippet_id)
                 wait_ui("trash-restored", lambda data: row not in identifiers(data))
+                data = wait_ui("trash-restored-notice", lambda data: "library.notice" in identifiers(data))
+                notice_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
+                search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
+                if notice_frame["y"] + notice_frame["height"] > search_frame["y"] - 8:
+                    raise VerificationError("Restoration notice overlaps the native search controls")
+                run.screenshot("trash-restored-notice")
                 label("閉じる")
                 wait_ui("trash-search-closed", lambda data: "library.trash.close" in identifiers(data))
                 run.tap("library.trash.close")

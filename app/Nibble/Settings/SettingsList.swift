@@ -31,6 +31,7 @@ struct SettingsList: View {
                         Label("nibbleについて", systemImage: "info.circle")
                     }
                     .accessibilityIdentifier("settings.about")
+                    .listRowSeparator(.hidden, edges: .bottom)
                 } footer: {
                     Text("バージョン \(version.display)")
                         .font(.footnote)

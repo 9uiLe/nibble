@@ -66,9 +66,9 @@ struct LibraryNoticeWindow: UIViewRepresentable {
             let bottom = host.view.bottomAnchor.constraint(
                 equalTo: controller.view.topAnchor, constant: bottomBoundary)
             NSLayoutConstraint.activate([
-                host.view.topAnchor.constraint(greaterThanOrEqualTo: controller.view.safeAreaLayoutGuide.topAnchor, constant: 8),
-                host.view.leadingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-                host.view.trailingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+                host.view.topAnchor.constraint(greaterThanOrEqualTo: controller.view.safeAreaLayoutGuide.topAnchor, constant: InterfaceMetrics.noticeSpacing),
+                host.view.leadingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.leadingAnchor, constant: InterfaceMetrics.noticeMargin),
+                host.view.trailingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -InterfaceMetrics.noticeMargin),
                 bottom,
             ])
             host.didMove(toParent: controller)

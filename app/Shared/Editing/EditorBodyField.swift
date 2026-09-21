@@ -21,8 +21,8 @@ struct EditorBodyField: View {
                     .labelStyle(.iconOnly)
                     .controlSize(.small)
                     .buttonBorderShape(.circle)
-                    .frame(width: 36, height: 36)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(width: InterfaceMetrics.controlSize, height: InterfaceMetrics.controlSize)
+                    .frame(minWidth: InterfaceMetrics.touchSize, minHeight: InterfaceMetrics.touchSize)
                     .accessibilityLabel("本文の末尾にペースト")
                     .accessibilityIdentifier("editor.paste")
                 }

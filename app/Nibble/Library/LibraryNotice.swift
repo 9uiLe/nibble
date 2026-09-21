@@ -10,7 +10,6 @@ struct LibraryNotice: View {
 
     @SkipEquatable let model: LibraryModel
     let restore: (UUID) -> Void
-    var inWindow = false
     // Keep the last card laid out while fading out; expiry must not tear down its host.
     @State private var lastNotice: LibraryModel.Notice?
 
@@ -21,14 +20,13 @@ struct LibraryNotice: View {
                 if let notice = model.notice ?? lastNotice {
                     LibraryNoticeContent(notice: notice,
                                          isRestoring: notice.undoID.map { model.restoringIDs.contains($0) } ?? false,
-                                         restore: restore, inWindow: inWindow)
+                                         restore: restore)
                 }
             }
             .opacity(model.notice == nil ? 0 : 1)
             .offset(y: model.notice == nil ? 8 : 0)
             .allowsHitTesting(model.notice != nil)
             .accessibilityHidden(model.notice == nil)
-            .frame(height: !inWindow && model.notice == nil ? 0 : nil)
         }
         .onChange(of: model.notice, initial: true) {
             if let notice = model.notice { lastNotice = notice }

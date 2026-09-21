@@ -14,7 +14,7 @@ KeyboardはOSの背景とニュートラルな文字を使い、青を主操作�
 
 ## F03 文字と図記号
 
-画面タイトル、項目名、本文、補足の順に強さを付ける。一覧・検索・設定は共通のScreenHeadingを使い、Font.nibbleScreenTitleの26pt boldを適用する。subTitleは任意で、補足のない画面には補足行と行間を作らない。一覧・編集・説明画面の本文は共通のFont.nibbleBody、項目名・入力タイトル・説明内の見出しはFont.nibbleTitleを使う。書体・サイズ・太さ・標準行間を揃え、文字色は各画面の意味を維持する。定義は[Theme](../../app/Shared/Interface/NibbleTheme.swift)を正本とする。システムの文字スタイルをlargeで固定し、本文の高さと折返しは内容に合わせる。長い名前や同じ先頭の項目を省略表示だけで取り違えないよう、全文への入口を持つ。
+画面タイトル、項目名、本文、補足の順に強さを付ける。一覧・検索・設定は共通のScreenHeadingを使い、Font.nibbleScreenTitleの26pt boldを適用する。subtitleは任意で、補足のない画面には補足行と行間を作らない。一覧・編集・説明画面の本文は共通のFont.nibbleBody、項目名・入力タイトル・説明内の見出しはFont.nibbleTitleを使う。書体・サイズ・太さ・標準行間を揃え、文字色は各画面の意味を維持する。定義は[Theme](../../app/Shared/Interface/NibbleTheme.swift)を正本とする。システムの文字スタイルをlargeで固定し、本文の高さと折返しは内容に合わせる。長い名前や同じ先頭の項目を省略表示だけで取り違えないよう、全文への入口を持つ。
 
 設定の行名、検索前・空状態の見出し、内容面の作成・追加取得・再開・回復ボタンにはFont.nibbleTitleを指定する。検索前・空状態の説明、読み込み・編集終了の進行文、Keyboardの読込失敗文にはFont.nibbleBodyを指定し、状態の案内から操作へ読み進められるようにする。区分見出しは設定でfootnote semibold、保存済みの区分でcaption2 semiboldを使う。下書き一覧の再開案内と保存後の利用案内はFont.nibbleBodyに揃える。画面見出し・件数・通知は用途に応じた文字階層を持つ。
 

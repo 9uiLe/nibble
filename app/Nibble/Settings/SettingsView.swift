@@ -11,7 +11,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LibraryHeading(title: "設定", model: library)
+            RootScreenHeading(title: "設定", model: library)
             SettingsList(version: .current, showTrash: showTrash)
         }
         .background(Color.nibbleCanvas)

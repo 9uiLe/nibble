@@ -28,7 +28,7 @@ struct EditorKeyboardAccessory: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editor.keyboard.accessory")
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, InterfaceMetrics.keyboardSpacing)
         .frame(maxWidth: .infinity)
     }
 }
