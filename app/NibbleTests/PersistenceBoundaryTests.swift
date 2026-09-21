@@ -67,10 +67,10 @@ struct PersistenceBoundaryTests {
         try await second.setPinned(true, id: id)
         #expect(try await first.search("%_\\", filter: .pinned).map(\.id) == [id])
         #expect(try await first.search("missing", filter: .pinned).isEmpty)
-        try await second.setDeleted(true, id: id)
+        try await second.mutate(.delete, id: id)
         #expect(try await first.search().isEmpty)
         #expect(try await first.search("が", filter: .trash).map(\.id) == [id])
-        try await second.setDeleted(false, id: id)
+        try await second.mutate(.restore, id: id)
         #expect(try await first.search("が").map(\.id) == [id])
     }
 
@@ -89,7 +89,7 @@ struct PersistenceBoundaryTests {
         }
         #expect(copied.utf8.elementsEqual(text.utf8))
         #expect(model.feedback == 1 && model.notice?.message == "コピーしました")
-        try await files.store.setDeleted(true, id: id)
+        try await files.store.mutate(.delete, id: id)
         await model.copy(id)
         await model.copy(UUID())
         #expect(effects.events.count == 2 && model.feedback == 1)

@@ -1,6 +1,6 @@
 # テストの設計と選択
 
-テストは、利用者の入力や保存済みデータを失う、違う対象へ作用する、失敗を成功として扱う、といった現実的な不具合を検出するために置く。件数とカバレッジ率は維持目標にしない。製品の期待動作は[製品仕様・要件](product-specification.md)、検証の実行契約は[検証基盤](decisions/0001-local-ios-verification.md)が定義する。
+テストは、利用者の入力や保存済みデータを失う、違う対象へ作用する、失敗を成功として扱う、といった現実的な不具合を検出するために置く。件数とカバレッジ率は維持目標にしない。製品の期待動作は[製品仕様・要件](product-specification.md)、検証の実行契約は[検証基盤](architecture/verification.md)が定義する。
 
 ## 保証の置き場所
 
@@ -12,11 +12,10 @@
 | `tools/ui-design/tests/` | 設計入力の変更見逃し、壊れた台帳の受理、製品間の状態混入 | Nix共通検査 |
 | `scripts/tests/macos/` | 実デコーダーの失敗、縮小・切出し位置の誤り、原本・runの破壊 | `preview-native`。ローカルMacのsipsを使用 |
 | `validation/VerificationApp*` | 共通コマンドでのビルド・テスト・入力・コピー・撮影の不成立 | `fixture-test` / `fixture-smoke` |
-| `scripts/check-*-ui.py` | 製品の実操作、ナビゲーション、フォーカス、表示設定との接続不良 | 対象のUI工程 |
+| `scripts/check_*_ui.py` | 製品の実操作、ナビゲーション、フォーカス、表示設定との接続不良 | 対象のUI工程 |
 | `app/NibblePerformanceTests/`、benchmarkスクリプト | 時間・メモリ・反復時の保持量。条件と予算をそろえて評価 | 明示的な性能測定 |
-| `research/probe/` | 未採用技術・API・保存方式の比較。製品の実装を通らない実験を含む | 明示的な研究実験 |
 
-通常回帰は製品・実行基盤・開発ツールを対象にする。`verify.py`の`auto`は差分から選び、`regression`は通常回帰全体を選ぶ。性能は`performance`、研究は`research`を明示する。共通設定の変更でも、研究や測定を自動で追加しない。測定・研究のソース変更は計画の`manual_review`に実行先を示す。コマンドと事前条件は[実行手順](ios-verification.md#変更から検証を実行する)を参照する。
+通常回帰は製品・実行基盤・開発ツールを対象にする。`verify.py`の`auto`は差分から選び、`regression`は通常回帰全体を選ぶ。性能は`performance`を明示する。共通設定の変更でも測定を自動で追加しない。測定のソース変更は計画の`manual_review`に実行先を示す。コマンドと事前条件は[実行手順](ios-verification.md#変更から検証を実行する)を参照する。
 
 ## 残す・統合する・削除する基準
 
@@ -32,10 +31,10 @@
 
 | 工程 | 主な確認 |
 | --- | --- |
-| `mvp` | 入力、下書き再開、検索、編集、原文コピー、ピン、破棄、削除一覧からの復元、再起動後の右側操作 |
-| `notice` | 起動直後のコピー通知、コピーから削除への通知置換、同じ項目の取り消し、検索入力・フォーカスの維持、期限、スクロール、離脱時の消去 |
-| `interface` | 一覧・編集・設定・両説明画面の標準／最大文字サイズ・コントラストに対する表示固定 |
-| `about` | 実アセットの再生、ライト／ダーク、背景復帰、Reduce Motion切替、本文末尾への到達。Keyboardは`--story keyboard`で選ぶ |
+| `library-ui` | 入力、下書き再開、検索、編集、原文コピー、ピン、破棄、削除一覧からの復元、再起動後の右側操作 |
+| `notice-ui` | 起動直後のコピー通知、コピーから削除への通知置換、同じ項目の取り消し、検索入力・フォーカスの維持、期限、スクロール、離脱時の消去 |
+| `interface-ui` | 一覧・編集・設定・両説明画面の標準／最大文字サイズ・コントラストに対する表示固定 |
+| `about-ui` / `keyboard-guide-ui` | 実アセットの再生、ライト／ダーク、背景復帰、Reduce Motion切替、本文末尾への到達。Keyboardは`--story keyboard`で選ぶ |
 
 Riveの通常回帰は、可視境界の両側、停止理由の合成、停止中の配色・寸法変更、Sessionの独立性と所有資源の解放を確認する。各アセットの同じ境界を反復するだけのケースは増やさない。時間・メモリの予算は[性能手順](performance-verification.md#riveの補助指標)に置く。
 
@@ -43,10 +42,10 @@ Riveの通常回帰は、可視境界の両側、停止理由の合成、停止�
 
 ## 検証範囲と制約
 
-検査の存在は対象ビルドでの合格を意味しない。現在のcheckoutへ適用できる結果は、[証跡手順](review-evidence.md)で対象ソースとrunを照合する。保存層・モデルのテストは永続化、競合、await直後の結果を保証し、hostedテストは入力差し替え・環境更新・Viewの寿命を確認する。共有拡張・Keyboard・日本語IMEのOS連携は[実操作](ios-verification.md#製品の操作検証)で別に確認する。共通fixtureと研究用targetの合格を製品targetの合格へ読み替えない。
+検査の存在は対象ビルドでの合格を意味しない。現在のcheckoutへ適用できる結果は、[証跡手順](review-evidence.md)で対象ソースとrunを照合する。保存層・モデルのテストは永続化、競合、await直後の結果を保証し、hostedテストは入力差し替え・環境更新・Viewの寿命を確認する。共有拡張・Keyboard・日本語IMEのOS連携は[実操作](ios-verification.md#製品の操作検証)で別に確認する。共通fixtureの合格を製品targetの合格へ読み替えない。
 
 製品の実行評価はiOS 26.5 Simulatorとする。実機の触覚・熱・電力・ロック時保護・Handoff・ホストごとのKeyboard受理はこの範囲に含まれない。署名・アップロードとApple側の配信・実機での受け入れは[TestFlight手順](testflight.md)に分けて記録する。
 
 VoiceOver音声と通知順、Voice Control、Switch Control、全画面の横向き、複数scene、長時間利用、1 MB本文の入力追従は未確認条件として維持する。AXのラベル・座標だけではこれらの成立を証明しない。説明イラストは製品方針でReduce Motionへ追従しない。発見性・片手操作・誤操作・復旧の理解は[UI評価課題](design/audit.md)で評価する。
 
-性能判断には[保存層と配布容量](product-architecture-validation.md)、[Keyboard](keyboard-readability-validation.md)、[測定手順](performance-verification.md)の対象版・条件・限界を使う。過去の値で新しいcheckoutの性能を保証しない。
+性能判断には[測定手順](performance-verification.md)の条件・予算・適用限界を使い、対象ソースの測定値を`artifacts/`へ記録する。測定していない描画・電力・実機の性能を推定しない。

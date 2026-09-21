@@ -95,4 +95,4 @@ Canvasの停止状態は次のORで決まる。
 3. RiveRuntimeのFramework同梱と探索経路を設定し、通常のアプリ起動で確認する。
 4. 依存lockとライセンスを管理し、実バイナリの契約、独立状態、停止・復帰、設定変更、失敗回復を検証する。
 
-nibbleでの接続例は[AboutIllustration](../../Nibble/AboutIllustration.swift)、入力仕様は[アセット契約](../../Animations/README.md#接続契約)、製品の保持期間と再生方針は[演出設計](../../../docs/decisions/0004-rive-presentation.md)にある。
+nibbleでの接続例は[AboutIllustration](../../Nibble/Presentation/AboutIllustration.swift)、入力仕様は[アセット契約](../../Animations/README.md#接続契約)、製品の保持期間と再生方針は[演出設計](../../../docs/architecture/presentation.md)にある。

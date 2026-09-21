@@ -37,7 +37,7 @@ struct KeyboardStorageTests {
         let pinned = try #require(ids.first)
         try await files.store.setPinned(true, id: pinned)
         let deleted = try await create(files.store, body: "削除済み")
-        try await files.store.setDeleted(true, id: deleted)
+        try await files.store.mutate(.delete, id: deleted)
         _ = try await files.store.beginDraft(body: "下書き")
         let reader = KeyboardReader(location: { files.url })
         let first = try await reader.page(KeyboardRequest())
@@ -64,7 +64,7 @@ struct KeyboardStorageTests {
         await #expect(throws: KeyboardReadError.self) { try await reader.body(for: item) }
         let updated = try #require(try await reader.page(KeyboardRequest()).items.first)
         #expect(try await reader.body(for: updated) == "更新後")
-        try await writer.setDeleted(true, id: id)
+        try await writer.mutate(.delete, id: id)
         await #expect(throws: StoreError.missing) { try await reader.body(for: updated) }
     }
 
@@ -109,7 +109,7 @@ struct KeyboardStorageTests {
         let unpinned = try await reader.setPinned(false, for: pinned)
         #expect(!unpinned.pinned)
         #expect(try await reader.page(KeyboardRequest(filter: .pinned)).items.isEmpty)
-        try await files.store.setDeleted(true, id: id)
+        try await files.store.mutate(.delete, id: id)
         await #expect(throws: KeyboardReadError.changed) { try await reader.setPinned(true, for: unpinned) }
     }
 

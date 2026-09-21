@@ -32,12 +32,12 @@ Simulatorのホスト負荷と実機の条件は一致しない。モデル単�
 ## 保存層の比較
 
 ```sh
-nix develop --command python3 scripts/benchmark-store.py \
-  --device "$NIBBLE_SIMULATOR" --baseline-ref origin/main \
+nix develop --command python3 scripts/benchmark_store.py \
+  --device "$NIBBLE_SIMULATOR" --baseline-ref HEAD \
   --output artifacts/store-benchmark-comparison
 ```
 
-出力先は未作成のディレクトリを使う。両版を同じ`-Osize`、専用Simulator、seedで測定し、10,000件の検索・一覧・入力についてソースhashと各回の値を残す。通常回帰とは別の測定であり、合否閾値のない値を回帰テストの成功として扱わない。
+出力先は未作成のディレクトリを使う。比較元にも[共有コードの配置](architecture/README.md#コードの配置)と同じ保存APIが必要で、入力ファイルが欠ける版は拒否する。HEADを比較元にすると、コミット済みソースと作業ツリーの差を測れる。両版を同じ`-Osize`、専用Simulator、seedで測定し、10,000件の検索・一覧・入力についてソースhashと各回の値を残す。通常回帰とは別の測定であり、合否閾値のない値を回帰テストの成功として扱わない。
 
 ## Instrumentsの構成と成立条件
 
@@ -112,11 +112,11 @@ xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
 
 ## Simulator計測の既知の制約
 
-説明イラストの操作条件は[製品の検証手順](ios-verification.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Rive再生の検証記録](rive-playback-validation.md)を参照する。runtimeのフレーム評価であるadvanceの観測は、以下のInstrumentsの描画指標を代替しない。
+説明イラストの操作条件は[製品の検証手順](ios-verification.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Riveの補助指標](#riveの補助指標)を参照する。runtimeのフレーム評価であるadvanceの観測は、以下のInstrumentsの描画指標を代替しない。
 
 macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
 
-この環境でフレーム時間・hitch・CPU・メモリ・電力を取得済みとは扱わない。環境更新時は上記の短時間接続確認から再判定する。モデルとSQLiteの比較値は[保存・容量の測定](product-architecture-validation.md)、キーボードは[モデルの測定](keyboard-readability-validation.md)を参照し、描画指標へ換算しない。
+この環境でフレーム時間・hitch・CPU・メモリ・電力を取得済みとは扱わない。環境更新時は上記の短時間接続確認から再判定する。モデルとSQLiteの測定値は、OSの入力欄への反映時間や描画指標へ換算しない。
 
 ## Riveの補助指標
 
@@ -131,8 +131,8 @@ python3 scripts/verify.py run --scope performance --device "$NIBBLE_SIMULATOR"
 反復するスクロール境界と30秒の背景滞在を観測する場合は、[説明画面の事前条件](ios-verification.md#説明イラストの検証)を満たして次を実行する。
 
 ```sh
-python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --stress
-python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --stress
+python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --stress
+python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --stress
 ```
 
-設計ツールの性能は`python3 tools/ui-design/benchmarks/measure.py --toolkit tools/ui-design --samples 7`で測る。アセットの全量保持を防ぐメモリ予算と測定条件は[ツールの仕様](../tools/ui-design/README.md#テストと測定)に定義する。保存層は`scripts/benchmark-store.py`で扱う。
+設計ツールの性能は`python3 tools/ui-design/benchmarks/measure.py --toolkit tools/ui-design --samples 7`で測る。アセットの全量保持を防ぐメモリ予算と測定条件は[ツールの仕様](../tools/ui-design/README.md#テストと測定)に定義する。保存層は`scripts/benchmark_store.py`で扱う。

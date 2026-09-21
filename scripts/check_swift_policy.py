@@ -161,7 +161,7 @@ def violations(source):
         elif token.text in UNMANAGED_TYPES:
             message = "Use Tasking for unstructured work; raw scheduling types are prohibited."
         elif token.text in RIVE_LEGACY_SYMBOLS:
-            message = "Use the new Rive Apple API and Data Binding; Legacy entry points are prohibited."
+            message = "Use Rive Apple Resource/Session APIs and Data Binding; callback entry points are prohibited."
         elif token.text in ANIMATION_SYMBOLS:
             message = "Use ScopedAnimation AnimationScope / animationBarrier instead of raw animation transactions."
         elif previous == "." and token.text in ANIMATION_MEMBERS:

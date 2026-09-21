@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-SPEC = importlib.util.spec_from_file_location("about_ui", Path(__file__).parents[1] / "check-about-ui.py")
+SPEC = importlib.util.spec_from_file_location("about_ui", Path(__file__).parents[1] / "check_about_ui.py")
 about_ui = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(about_ui)
 

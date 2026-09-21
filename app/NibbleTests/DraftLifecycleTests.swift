@@ -172,7 +172,7 @@ extension UIIntegrationTests {
             _ = try await store.beginDraft(snippetID: id)
             let library = LibraryModel(store: store)
             await library.refresh()
-            try await store.setDeleted(true, id: id)
+            try await store.mutate(.delete, id: id)
             await library.open(.snippet(id))
             #expect(library.editor == nil)
             #expect(library.failure != nil)

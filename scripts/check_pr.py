@@ -36,9 +36,9 @@ def changes_ui(files):
         path = Path(name)
         if path.suffix == '.md' or any(part.endswith('Tests') or part == 'TestSupport' for part in path.parts):
             continue
-        if name.startswith(('app/', 'validation/VerificationApp/', 'research/probe/ResearchProbe/')):
+        if name.startswith(('app/', 'validation/VerificationApp/')):
             return True
-        if name.startswith(('validation/VerificationApp.xcodeproj/', 'research/probe/ResearchProbe.xcodeproj/')):
+        if name.startswith(('validation/VerificationApp.xcodeproj/')):
             return True
     return False
 

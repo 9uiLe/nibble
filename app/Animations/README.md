@@ -2,7 +2,7 @@
 
 nibbleは、文章のコピーと保存を説明する`about-story`と、保存済み本文の入力を説明する`keyboard-story`を本体アプリへ同梱する。図形・時間・演出状態はRML、説明文・外観・表示中の寿命はSwiftUIのホストが管理する。
 
-本書は制作ファイル、接続契約、再生成、検証の手順を定める。構図と時間の採用理由は[演出設計](../../docs/decisions/0004-rive-presentation.md)、iOSの汎用APIは[RivePresentation](../Packages/RivePresentation/README.md)を参照する。
+本書は制作ファイル、接続契約、再生成、検証の手順を定める。構図と時間の採用理由は[演出設計](../../docs/architecture/presentation.md)、iOSの汎用APIは[RivePresentation](../Packages/RivePresentation/README.md)を参照する。
 
 ## アセットと制作環境
 
@@ -47,7 +47,7 @@ Artboardは描画面、State Machineは演出の状態と遷移、View Modelは�
 
 `CopyAndSave`は文章選択→コピー→複製の移動→保存→完了表示、`SwitchAndInsert`は地球儀長押し→nibble選択→行タップ→本文挿入→結果保持を繰り返す。各アセットの図形値と時間はRMLで管理する。
 
-nibbleで適用する再生方針は[演出設計](../../docs/decisions/0004-rive-presentation.md)を正本とする。[読込と画面の寿命](../../docs/decisions/0004-rive-presentation.md#読込と画面の寿命)、[停止と復帰](../../docs/decisions/0004-rive-presentation.md#停止と復帰)、[配色と寸法](../../docs/decisions/0004-rive-presentation.md#配色と寸法)に従ってホストへ接続する。汎用APIの停止と再描画は[Canvasの契約](../Packages/RivePresentation/README.md#比較と停止再描画)で定義する。
+nibbleで適用する再生方針は[演出設計](../../docs/architecture/presentation.md)を正本とする。[読込と画面の寿命](../../docs/architecture/presentation.md#読込と画面の寿命)、[停止と復帰](../../docs/architecture/presentation.md#停止と復帰)、[配色と寸法](../../docs/architecture/presentation.md#配色と寸法)に従ってホストへ接続する。汎用APIの停止と再描画は[Canvasの契約](../Packages/RivePresentation/README.md#比較と停止再描画)で定義する。
 
 ## 編集と再生成
 
@@ -69,7 +69,7 @@ nix develop --command python3 scripts/rive_assets.py check
 | 入力・出力のハッシュ | 保存したソースと生成物の対応 |
 | Artboardからの参照 | State Machine、View Model、exportしたdefault instanceの接続 |
 | プロパティ | 必須の名前・型・初期値定義の存在 |
-| 制作要素 | ID重複、旧inputs、スクリプト、シェーダーの混入がないこと |
+| 制作要素 | ID重複、State Machine inputs、スクリプト、シェーダーの混入がないこと |
 
 制作ソース、生成物、manifestを一組でレビューする。ハッシュの更新だけで再生成を代用しない。静的検査に加え、初期値の意味、状態遷移、実際の描画を次の手順で確認する。
 
@@ -91,4 +91,4 @@ CLIの画像出力はviewportとfitを指定し、実際の寸法と内容で適
 4. buildとcheck、影響範囲の表現・実行検証を行う。
 5. アセット、ホスト、設計資料、検証記録を一組でレビューする。
 
-機能や依存を変更するときは、[演出設計の保守条件](../../docs/decisions/0004-rive-presentation.md#保守と受け入れ)を適用する。
+機能や依存を変更するときは、[演出設計の保守条件](../../docs/architecture/presentation.md#保守と受け入れ)を適用する。

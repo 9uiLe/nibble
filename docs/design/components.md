@@ -1,15 +1,15 @@
 # UI部品台帳
 
-C番号は操作・表示の責務を識別する。構成と理由、代替案の負担、評価条件を部品単位で定める。画面の導線は[S台帳](screens.md)、共通表示は[F原則](foundations.md)、R番号は[根拠](../../research/06-interface-design-evidence.md)を参照する。各条件は受入基準であり、実行済みの申告ではない。
+C番号は操作・表示の責務を識別する。構成と理由、制約、評価条件を部品単位で定める。画面の導線は[S台帳](screens.md)、共通表示は[F原則](foundations.md)、R番号は[根拠](evidence.md)を参照する。各条件は受入基準であり、実行済みの申告ではない。
 
 ## ナビゲーションと一覧
 
-実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/LibraryFilterBar.swift)。
+実装：[LibraryRootView](../../app/Nibble/Navigation/LibraryRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/Library/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/Library/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/Library/LibraryFilterBar.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
-| C01 標準タブ | iOS標準TabViewのLiquid Glassで一覧・設定・検索を切り替える。検索roleと領域ごとの状態を保持し、タブの縮小はしない | 下部の一定した入口で作業を切り替える。設定をメニューへ収める案は面積を減らせるが、管理・復元の入口が隠れる | R01、F06。空の領域でも入口を保持し、検索と一覧の状態が独立している |
-| C02 画面タイトル | 現在地を示す。一覧・検索は固定した左見出しと補足だけを置き、右上に装飾アイコンを置かない。一覧には保存済み総数を添える。設定は左見出し、階層内とシートは標準inlineタイトルを使う | 内容の前で位置を伝える。一覧・検索は一定の高さで文字の階層を付け、スクロールで見出しを伸縮させない。左見出しには狭幅での識別性が必要 | R03・R05、F03。狭幅・固定した標準文字で識別でき、見出しを重複して読み上げない |
+| C01 標準タブ | iOS標準TabViewのLiquid Glassで一覧・設定・検索を切り替える。TabIconの20ptテンプレート画像を使い、検索roleと領域ごとの状態を保持する。タブの縮小はしない | 下部の一定した入口で作業を切り替える。画像の表示寸法とOSの操作領域を分け、選択状態と検索の動作をネイティブに任せる | R01、F05・F06。各タブへ到達でき、検索と一覧の状態が独立し、ライト／ダークで記号を識別できる |
+| C02 画面タイトル | 一覧・検索・設定に共通のScreenHeadingを使う。titleと任意のsubTitleを受け取り、F03の画面タイトルを左揃えで固定する。設定は補足なし、一覧は保存済み総数、検索は対象案内を添える。階層内とシートは標準inlineタイトルとする | 同じ階層の現在地を同じ文字の強さで伝える。補足の有無だけを入力で表し、文字・余白・読み上げ属性を部品に集約する | R03・R05、F03。狭幅でも識別でき、補足なしの空行や見出しの重複読み上げがない |
 | C03 背景と区切り | 共通背景のListに文字を並べ、区切り線で項目を分ける | 連続した文字を読み比べやすくする。カードは独立性を示せるが境界と余白が増える | R04・R15、F01・F02。行・見出し周囲・余白を統一し、文字と境界を識別できる |
 | C04 フィルター | すべて・ピン留め・下書きから一つの集合を選ぶ。選択項目だけを濃淡反転した角丸の塗りで示し、読み上げの選択状態を付ける。集合の総数を添え、幅を保って選択位置へスクロールする | タイトル直下に固定し、表示対象を見失わないようにする。横スクロールは文字幅を保てるが、端の項目と選択状態の発見性が必要 | R03・R06・R16。全選択肢へ到達でき、見た目と選択状態の読み上げが一致する |
 | C05 区分見出し | 直近1件の下書き再開帯と保存済み一覧を区分する。残りの下書きは「ほかN件」から専用フィルターへ案内する。保存済み・ピン留め・検索結果には集合名と「使用回数順」、削除一覧には重複した見出しを置かない | 未完了の再開と保存済みの利用を区別する。保存済みをピンで分割すると使用回数の全体順を失うため、単一集合にする | R03・R04。空区分を省き、多数の下書きが利用対象への到達を妨げないか評価する |
@@ -22,9 +22,9 @@ C番号は操作・表示の責務を識別する。構成と理由、代替案�
 
 ## 検索と状態表示
 
-実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/LibraryNotice.swift)。
+実装：[LibraryRootView](../../app/Nibble/Navigation/LibraryRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/Library/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/Library/LibraryNotice.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
 | C12 標準検索欄 | 検索タブから入力し、語句の消去・確定・検索終了を行う | 覚えている言葉をすぐ入力できる。上部常設の検索は内容との関係を示しやすいが、到達性と面積に負担がある | R02・R19。タイトル・本文が対象と分かり、日本語変換と検索確定を区別できる |
 | C13 検索前案内 | 語句が空白のみのとき、検索対象と入力方法を示す。見出しと説明にはF03の文字役割を指定する | 未検索と0件を区別する。履歴や候補の表示にはデータ保持と探索の設計が必要 | R02・R13。入力開始を妨げず、失敗や必要な進行表示を隠さない |
@@ -32,14 +32,14 @@ C番号は操作・表示の責務を識別する。構成と理由、代替案�
 | C15 空状態 | 一覧の集合ごとに空の意味と次の操作を示し、作成・対象変更には標準の大きいボタンを使う。見出し・説明・操作名はF03に従い、記号と操作領域の大きさを保つ | 初回作成、対象変更、下書き再開、復元は異なる文脈を持つ | R13、F07。読込中と失敗を空状態と取り違えず、作成・対象変更・閉じるへ進める |
 | C16 読込表示 | List内で初期・更新・追加取得の進行を伝える。集合変更中は旧一覧を操作不可で保持し、先頭に取得中の集合を示す。中断時は進行表示を終え、44 pt以上の「読み込みを再開」を先頭に置く | 内容の文脈を保つ。全面の進行表示は更新ごとに内容を隠す負担がある。中断をエラーや0件と扱わず、同じ要求を再実行できる | R12。選択直後から完了までの中間状態を検査し、古い結果・取消・失敗で空表示を確定しない。測定できない進捗割合を示さない |
 | C17 失敗と再試行 | 失敗した処理・理由・回復方法を検索前案内より先に示す。読込の再取得、コピーの失敗、コピー済みの使用記録失敗を分け、回復操作は枠付き・最小44 ptの独立したボタンにする | 探索や入力を保持したまま回復する。短時間通知だけでは必要な行動を読み逃しやすい | R10・R13。失敗した対象が分かり、「一覧を再読み込み」は再取得のみを行い、コピー・削除の再実行と誤認させない。「回数と日時を記録し直す」は本文をコピーせず、同じ操作IDの記録だけを再試行する |
-| C18 完了通知 | 一覧・検索の専用UIWindowの上部と読み上げ・触覚で完了を伝える。削除・復元の対象名は1行で省略し、結果文を優先する。表示資格・入力透過・削除シートの扱いは[通知設計](decisions/0004-result-notices.md)に従う | 一覧を維持して入力先への復帰を支える。毎回の確認ダイアログは操作を中断する | R11、F07・F08。起動直後のコピーを含め、成功後に2秒（削除は6秒）表示し、連続操作・期限交差・画面終了で古い状態を残さない。[通知の設計](decisions/0004-result-notices.md)に従う |
+| C18 完了通知 | 一覧・検索の専用UIWindowの上部と読み上げ・触覚で完了を伝える。削除・復元の対象名は1行で省略し、結果文を優先する。表示資格・入力透過・削除シートの扱いは[通知設計](rationale/result-notices.md)に従う | 一覧を維持して入力先への復帰を支える。毎回の確認ダイアログは操作を中断する | R11、F07・F08。起動直後のコピーを含め、成功後に2秒（削除は6秒）表示し、連続操作・期限交差・画面終了で古い状態を残さない。[通知の設計](rationale/result-notices.md)に従う |
 | C19 削除取り消し | 対象名付き削除通知と最小44 ptの「元に戻す」を同じ横並びのまとまりに置く。処理中は操作を無効にする | 直前の誤操作から短い手順で回復する。期限後の復元は削除一覧が担当する | R10・R11。通知IDと対象UUIDが一致し、連打を重複実行せず、失敗には再試行を示す。連続削除と通知消去後も復元できる |
 
 ## 編集
 
-実装：[SnippetEditor](../../app/Shared/SnippetEditor.swift)、[EditorModel](../../app/Shared/EditorModel.swift)。
+実装：[SnippetEditor](../../app/Shared/Editing/SnippetEditor.swift)、[EditorModel](../../app/Shared/Editing/EditorModel.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
 | C20 編集シート | 一つの作成・編集に集中し、終了時に呼出元へ戻る | 一時的な作業と利用の一覧を分ける。シート内で入力と終了条件を統一する | R09。新規・保存済みの編集・再開・共有で入力を保持する |
 | C21 タイトル入力 | 本文の前に任意の識別名を入力する。常設ラベルで任意と伝え、プレースホルダーは入力例にする | F03の共通文字スタイルで一覧と同じ階層に揃える。内容の名前を先に読み取れる。必須にすると短い定型文にも命名の負担が加わる | R13・R14。空でも本文を保存でき、長い名前は折り返す |
@@ -57,9 +57,9 @@ C番号は操作・表示の責務を識別する。構成と理由、代替案�
 
 ## 設定・復旧・製品情報
 
-実装：[LibrarySettingsView](../../app/Nibble/LibrarySettingsView.swift)、[AboutView](../../app/Nibble/AboutView.swift)、[DeletedSnippetsView](../../app/Nibble/LibraryView.swift)、[LibraryScreen](../../app/Nibble/LibraryScreen.swift)。
+実装：[SettingsView](../../app/Nibble/Settings/SettingsView.swift)、[AboutView](../../app/Nibble/Settings/AboutView.swift)、[DeletedSnippetsView](../../app/Nibble/Library/DeletedSnippetsView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
 | C34 削除一覧の入口 | 設定の「保存した項目」区分から削除一覧へ進む | 日常の再利用対象と管理を分ける。一覧フィルターに置く案は復旧への到達が短い一方、集合の選択肢が増える | R06、F09。復元場所を初見で発見できるか評価する |
 | C35 製品情報の入口 | NavigationLinkで「nibbleについて」へ進む | 説明を設定の下位階層として扱う。シートは独立作業の意味を持つ | R05。内容を予想でき、標準戻るで設定へ戻れる |
@@ -70,9 +70,9 @@ C番号は操作・表示の責務を識別する。構成と理由、代替案�
 
 ## システムと共有拡張
 
-実装：[LibraryView](../../app/Nibble/LibraryView.swift)、[SnippetEditor](../../app/Shared/SnippetEditor.swift)、[ShareViewController](../../app/NibbleShare/ShareViewController.swift)。
+実装：[LibraryRootView](../../app/Nibble/Navigation/LibraryRootView.swift)、[SnippetEditor](../../app/Shared/Editing/SnippetEditor.swift)、[ShareViewController](../../app/NibbleShare/ShareViewController.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
 | C40 非アクティブ表示 | アプリ切替時に本文を内容のない面と製品名で覆う | 切替画面への本文の露出を抑えるため、内容より前面へ置く | 製品の保護方針。シート、OSの画面取得時点、共有拡張での適用条件を評価する |
 | C41 共有取込 | テキストまたはURLを1件受け取り、下書きを作って共通編集へ渡す | 内容を確認してから保存し、本体と同じ編集契約を使う | C20〜C32。遅延・取消・取得失敗で状態と終了方法を理解できる |
@@ -81,22 +81,22 @@ C番号は操作・表示の責務を識別する。構成と理由、代替案�
 
 ## 説明の動き
 
-実装：[AboutIllustration](../../app/Nibble/AboutIllustration.swift)、[KeyboardIllustration](../../app/Nibble/KeyboardIllustration.swift)、[RiveCanvas](../../app/Packages/RivePresentation/Sources/RivePresentation/RiveCanvas.swift)。
+実装：[AboutIllustration](../../app/Nibble/Presentation/AboutIllustration.swift)、[KeyboardIllustration](../../app/Nibble/Presentation/KeyboardIllustration.swift)、[RiveCanvas](../../app/Packages/RivePresentation/Sources/RivePresentation/RiveCanvas.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
-| C44 利用の説明イラスト | メモ画面の文章を選び、複製をnibbleへ保存する図と説明。本文幅で自動ループを表示する。周期と再生方針は演出設計に従う | 導入文の後に置き、元の文章・複製・保存先の関係を伝える。自動ループは途中からの閲覧に対応し、再生操作を不要にする。隣接するTextが説明と読み上げを担う | [演出設計](../decisions/0004-rive-presentation.md)、S05・F08、R20・G16。複数周期、再生ボタンなし、不可視時の停止、復帰、Reduce Motion、配色、読込失敗時の説明と再試行を確認する。理解度と読書への影響は利用者評価の対象 |
+| C44 利用の説明イラスト | メモ画面の文章を選び、複製をnibbleへ保存する図と説明。本文幅で自動ループを表示する。周期と再生方針は演出設計に従う | 導入文の後に置き、元の文章・複製・保存先の関係を伝える。自動ループは途中からの閲覧に対応し、再生操作を不要にする。隣接するTextが説明と読み上げを担う | [演出設計](../architecture/presentation.md)、S05・F08、R20・G16。複数周期、再生ボタンなし、不可視時の停止、復帰、Reduce Motion、配色、読込失敗時の説明と再試行を確認する。理解度と読書への影響は利用者評価の対象 |
 
 ## スニペットキーボード
 
-実装：[KeyboardView](../../app/NibbleKeyboard/KeyboardView.swift)、[KeyboardViewController](../../app/NibbleKeyboard/KeyboardViewController.swift)、[KeyboardGuideView](../../app/Nibble/KeyboardGuideView.swift)。
+実装：[KeyboardView](../../app/NibbleKeyboard/KeyboardView.swift)、[KeyboardViewController](../../app/NibbleKeyboard/KeyboardViewController.swift)、[KeyboardGuideView](../../app/Nibble/Settings/KeyboardGuideView.swift)。
 
-| ID・部品 | 責務と構成 | 配置理由と代替案の評価 | 根拠・確認条件 |
+| ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
 | C45 キーボードの対象選択 | 上部にコンパクトな「すべて／ピン留め」と更新を配置する。各タップ領域は44×44pt以上 | 排他的な集合をまとめ、一覧に使う高さを確保する。全幅Pickerに比べて更新と同じ段へ収めやすい | S09、技術仕様0005。選択状態、狭幅、OS文字設定変更時の固定表示、集合切替後の先頭ページと読込状態を確認 |
 | C46 キーボードの項目と全文 | 一つの角丸リストと区切り線、タイトルと1行プレビュー、小さいピン。行の主領域は入力、独立した「…」は全文・戻る・ピン・コピー・強調した入力を持つ詳細を開く | タイトルの横幅と一覧の密度を優先する。個別カードやタイルは行間・列分割に面積を使う。詳細は入力先との位置関係を保つためキーボード内に置く | S09。1タップ1挿入、「…」で0挿入、長文末尾、戻る位置、ピンと空状態、原文・権限・連打を確認 |
 | C47 キーボードの下部操作 | nibble表示と結果文を同じ領域で切り替え、成功表示と挿入行背景を2秒で消す。必要なページ操作、閉じる、OS要求時の地球儀を置く | 一覧の面積を保ち、ダイアログによる操作中断を避ける。失敗・権限案内には自動消去の期限を設けず、結果文を読み上げる。失敗・権限案内は行数で切らず、長文はスクロールして読める | S09。操作完了後の表示、通知IDごとの期限、ページ境界、地球儀、狭幅・横向き、文字設定変更時の固定表示、権限変更を確認 |
 | C48 キーボード利用案内 | 本体の設定内の入口と、追加手順・全文操作・権限・入力先の制約を説明する文章 | 設定作業と入力作業を分け、長い説明を読む領域を本体に確保する | S10。全段落の可読性、標準の戻る、コピーとピン更新にだけフルアクセスが必要なこと、入力先の反映確認、実際のiOS設定名の理解 |
-| C49 キーボード入力の説明イラスト | 入力欄とキーボードを上下に置き、切替・行の選択・本文挿入を自動ループで示す。図は操作を受けず、隣接Textが原文保持を含む意味と読み上げを担う | 導入文と追加手順の間に置き、設定操作の前に用途を示す。構図・比率・周期・結果保持の理由は[演出設計](../decisions/0004-rive-presentation.md#表現と配置の理由)に定める | S10、F03・F08・F10、R18・R19・R20、G15・G16。小画面、ライト/ダーク、複数周期、不可視・離脱・非active時の停止と復帰、配色変更、固定演出、失敗時の説明と再読み込みを確認する |
+| C49 キーボード入力の説明イラスト | 入力欄とキーボードを上下に置き、切替・行の選択・本文挿入を自動ループで示す。図は操作を受けず、隣接Textが原文保持を含む意味と読み上げを担う | 導入文と追加手順の間に置き、設定操作の前に用途を示す。構図・比率・周期・結果保持の理由は[演出設計](../architecture/presentation.md#表現と配置の理由)に定める | S10、F03・F08・F10、R18・R19・R20、G15・G16。小画面、ライト/ダーク、複数周期、不可視・離脱・非active時の停止と復帰、配色変更、固定演出、失敗時の説明と再読み込みを確認する |
 
-Keyboardの権限と操作契約は[設計](../decisions/0005-snippet-keyboard.md)に従う。表示値は実装を正本とし、上記の理由と評価条件に照合する。
+Keyboardの権限と操作契約は[設計](../architecture/keyboard.md)に従う。表示値は実装を正本とし、上記の理由と評価条件に照合する。

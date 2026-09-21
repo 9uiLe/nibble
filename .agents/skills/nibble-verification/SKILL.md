@@ -5,7 +5,7 @@ description: nibbleのiOS検証を実行する、検証結果と証跡を照合�
 
 # nibbleの検証とレビュー
 
-変更に必要な検証を選び、実行ソース・結果・媒体・レビュー対象を対応付けるための入口である。[開発ガイド](../../../CONTRIBUTING.md#実行と検査)が受け入れ条件、[基盤設計](../../../docs/decisions/0001-local-ios-verification.md)が実行の契約を定義する。
+変更に必要な検証を選び、実行ソース・結果・媒体・レビュー対象を対応付けるための入口である。[開発ガイド](../../../CONTRIBUTING.md#実行と検査)が受け入れ条件、[基盤設計](../../../docs/architecture/verification.md)が実行の契約を定義する。
 
 ## 工程の選択
 
@@ -14,7 +14,7 @@ description: nibbleのiOS検証を実行する、検証結果と証跡を照合�
 | 変更に必要な検証を計画・実行する | [検証計画と実行](../../../docs/ios-verification.md#変更から検証を実行する) | 選択・除外理由、事前条件、工程結果、対応するrun |
 | 製品の操作を確認する | [製品の検証手順](../../../docs/ios-verification.md) | 製品の期待結果に対応するrunと媒体 |
 | 実行基盤を確認する | [共通iOS手順](../../../docs/ios-verification.md) | VerificationAppのテストとfixture専用smoke |
-| 保存・OS連携の比較を行う | [ResearchProbe手順](../../../research/probe/README.md) | 比較条件・期待結果・観測を持つ研究run |
+| 保存・描画の性能を測る | [性能手順](../../../docs/performance-verification.md) | 対象ソース、条件、個別測定値、適用限界 |
 | runをレビュー対象へ対応付ける | [ソース照合](../../../docs/review-evidence.md#runのソースと結果) | 指定revisionとソース・実行記録・媒体の一致 |
 | 画像・録画を確認する | [レビュー記録](../../../docs/review-evidence.md#画像動画のレビュー記録) | 実際の観測・確認方法・未実施条件・閲覧条件 |
 | PRを作成・更新する | [PR照合](../../../docs/review-evidence.md#pr本文の作成と照合)、[テンプレート](../../../.github/pull_request_template.md) | 全コミット・本文・証跡・最終headのCIの対応 |

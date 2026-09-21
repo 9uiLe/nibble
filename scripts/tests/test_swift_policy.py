@@ -223,7 +223,7 @@ class SwiftPolicyTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     SwiftLexer(source).scan()
 
-    def test_scan_includes_tests_research_and_new_source_directories(self):
+    def test_scan_includes_tests_validation_and_new_source_directories(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ['app/Main.swift', 'app/Tests/Case.swift', 'validation/Probe.swift', 'NewFeature/Foo.swift']:

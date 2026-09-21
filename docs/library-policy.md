@@ -15,7 +15,7 @@
 
 製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#3-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 
-Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/ThirdPartyNotices.txt)と各依存の条件を維持する。
+Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/Resources/ThirdPartyNotices.txt)と各依存の条件を維持する。
 
 ## 操作APIと開始API
 
@@ -129,7 +129,7 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 独自の表示変化は名前付きAnimationScopeへ限定し、valueまたはproxyのscope.animateを使う。複数triggerのfactoryはAnimationTrigger.animationと型名を明記する。入力等にはanimationBarrierを置く。
 
-OSのsheet transactionとアプリ内部の変化は境界を分ける。Debug診断はmodifierへ届くtransactionを扱い、子孫の全表示やUIKitを保証しない。入力・スクロール・画面遷移は実行確認する。製品の表示設定は[固定方針](design/decisions/0002-fixed-interface.md)に従う。
+OSのsheet transactionとアプリ内部の変化は境界を分ける。Debug診断はmodifierへ届くtransactionを扱い、子孫の全表示やUIKitを保証しない。入力・スクロール・画面遷移は実行確認する。製品の表示設定は[固定方針](design/rationale/fixed-interface.md)に従う。
 
 ## Riveの表示境界
 

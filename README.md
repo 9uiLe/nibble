@@ -25,21 +25,20 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
 | 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
 | AIでSimulatorの動作・外観を確認する | [観測データの確認](docs/simulator-inspection.md)。原本を保存し、要素情報と必要な領域の画像を読む |
-| 比較実験・未確認条件を調べる | [研究資料](research/README.md)、[検証範囲](docs/testing.md#検証範囲と制約) |
+| 外部の制約・未確認条件を調べる | [参照資料](docs/reference/README.md)、[検証範囲](docs/testing.md#検証範囲と制約) |
 | 本人向けに配布する | [TestFlight手順](docs/testflight.md) |
 
 ## アプリの構成
 
-本体と共有拡張はApp GroupのSQLiteへ読み書きします。キーボードは既存DBを読み、許可されたピン更新だけを書き込みます。UIがタスクの寿命、モデルが操作と表示状態、保存層が原文と更新の整合性を所有します。画面はSwiftUI、説明イラストはRivePresentationとRMLで構成します。
+本体と共有拡張はApp GroupのSQLiteへ読み書きします。キーボードは既存DBを読み、許可されたピン更新だけを書き込みます。UIがタスクの寿命、モデルが操作と表示状態、保存層が原文と更新の整合性を所有します。画面はSwiftUI、説明イラストはRivePresentationとRMLで構成します。コードの配置と依存関係は[アーキテクチャ](docs/architecture/README.md)、資料の責務は[文書一覧](docs/README.md)を参照してください。
 
 | 配置 | 内容 |
 | --- | --- |
 | `app/` | 本体、共有拡張、キーボード、共有モデル・保存層、Rive、製品回帰と性能target |
 | `scripts/` | ビルド・検証・証跡・配布のCLIと回帰テスト |
 | `validation/` | 実行基盤のVerificationApp、保存層の測定harness、OS連携用の入力ページ |
-| `research/probe/` | 明示して実行する比較実験とResearchProbe |
 | `tools/ui-design/` | 製品に依存しない設計照合ツール |
-| `docs/` | 仕様、設計理由、開発・検証手順と対象ソース付きの評価記録 |
+| `docs/` | 仕様、構成、UI設計、開発・検証手順、外部仕様の参照 |
 | `artifacts/` | Git管理外の実行結果・ログ・媒体 |
 
 ## セットアップ
@@ -54,7 +53,6 @@ Intel Macではtree-sitter-language-packが未対応のためNix環境全体の�
 | Linux x86_64 | Ubuntu CIでNix共通検査。ARM64は構成評価のみで実行は未確認 |
 | iOSの確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
 | 対応OSと実行対象 | deployment target 26.0。ビルド・テスト・操作・性能の実行検証はiOS 26.5のみ |
-| 研究用driver | Apple Silicon Mac。SDK型検査とSQLite workerはarm64を指定 |
 
 製品の受け入れはSimulator評価に限定し、実機検証は含めません。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認します。
 
@@ -90,7 +88,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | driver、証跡、画面要素の解析、画像加工の拒否・失敗契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
-| `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、UI設計IDと照合記録 |
+| `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、shell例のコマンド・設定パス、UI設計IDと照合記録 |
 | `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
 | `rive-assets` | RML・生成物のhash、Data Bindingの名前・型・参照 |
 
@@ -139,9 +137,16 @@ xcodebuild -resolvePackageDependencies \
 
 [ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。変更の確認は`verify.py plan`で対象と事前条件を確認し、`verify.py run`で共通検査・対象テスト・UI操作を実行します。[検証計画の手順](docs/ios-verification.md#変更から検証を実行する)に、結果の読み方と再計画の方法を説明しています。
 
-通常回帰は`--scope regression`、Riveの時間・メモリ測定は`--scope performance`、比較実験は`--scope research`で選べます。測定と研究は目的・条件を決めて実行します。
+通常回帰は`--scope regression`、製品は`--scope product`、Riveの時間・メモリ測定は`--scope performance`で選べます。測定は目的と条件を決めて実行します。
 
-製品の期待動作は[製品仕様・要件](docs/product-specification.md)、操作とVerificationAppの実行は[共通手順](docs/ios-verification.md)、保存方式やOS連携の比較は[ResearchProbe](research/probe/README.md)を参照します。
+製品の期待動作は[製品仕様・要件](docs/product-specification.md)、操作とVerificationAppの実行は[共通手順](docs/ios-verification.md)を参照します。
+
+専用端末のUDIDを`NIBBLE_SIMULATOR`に設定した後、製品を起動できます。
+
+```sh
+python3 scripts/ios.py run --project-config app/project.json \
+  --configuration Release --device "$NIBBLE_SIMULATOR"
+```
 
 ### 5. 証跡を確認してPRへ記載する
 
@@ -149,4 +154,4 @@ xcodebuild -resolvePackageDependencies \
 
 ## 他アプリで使うキーボード
 
-設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/decisions/0005-snippet-keyboard.md)と[検証方法](docs/ios-verification.md#キーボードの操作検証)を参照してください。
+設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/architecture/keyboard.md)と[検証方法](docs/ios-verification.md#キーボードの操作検証)を参照してください。

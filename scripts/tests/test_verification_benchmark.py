@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-spec = importlib.util.spec_from_file_location('benchmark_verification', Path(__file__).parents[1] / 'benchmark-verification.py')
+spec = importlib.util.spec_from_file_location('benchmark_verification', Path(__file__).parents[1] / 'benchmark_verification.py')
 benchmark = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(benchmark)
 

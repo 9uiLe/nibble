@@ -268,13 +268,13 @@ if __name__ == "__main__":
 
 class ProductDriverFailureTests(unittest.TestCase):
     def test_empty_exception_message_cannot_report_a_passed_run(self):
-        spec = importlib.util.spec_from_file_location("mvp_ui", Path(__file__).parents[1] / "check-mvp-ui.py")
+        spec = importlib.util.spec_from_file_location("library_ui", Path(__file__).parents[1] / "check_library_ui.py")
         driver = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(driver)
         run = Mock()
         run.setup.side_effect = StopIteration()
         with patch.object(driver, "Run", return_value=run), patch.object(
-                sys, "argv", ["check-mvp-ui.py", "--device", "selected"]):
+                sys, "argv", ["check_library_ui.py", "--device", "selected"]):
             with self.assertRaises(SystemExit) as stopped:
                 driver.main()
         self.assertTrue(str(stopped.exception))
@@ -284,7 +284,7 @@ class ProductDriverFailureTests(unittest.TestCase):
 
 class DriverCancellationTests(unittest.TestCase):
     def test_interrupt_is_recorded_as_failure_in_every_product_driver(self):
-        for filename in ['check-mvp-ui.py', 'check-notice-ui.py', 'check-interface-ui.py', 'check-about-ui.py']:
+        for filename in ['check_library_ui.py', 'check_notice_ui.py', 'check_interface_ui.py', 'check_about_ui.py']:
             with self.subTest(filename=filename):
                 spec = importlib.util.spec_from_file_location('cancel_driver', Path(__file__).parents[1] / filename)
                 driver = importlib.util.module_from_spec(spec)

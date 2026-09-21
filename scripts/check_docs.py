@@ -55,12 +55,13 @@ class Document:
     links: tuple[str, ...]
     swift_examples: tuple[tuple[int, str], ...]
     frontmatter: str | None
+    command_paths: tuple[str, ...]
 
 
 def inspect_document(source):
     """Parse one source into compact facts. No filesystem or shared parser state."""
     tokens = MarkdownIt('commonmark').parse(source)
-    links, examples = [], []
+    links, examples, command_paths = [], [], []
     for token in tokens:
         for child in token.children or []:
             target = child.attrGet('href') if child.type == 'link_open' else child.attrGet('src') if child.type == 'image' else None
@@ -70,8 +71,13 @@ def inspect_document(source):
                     links.append(target)
         if token.type == 'fence' and token.info == 'swift':
             examples.append((token.map[0] + 1, token.content))
+        if token.type == 'fence' and token.info in {'sh', 'bash', 'shell', 'zsh'}:
+            command_paths.extend(re.findall(
+                r'(?<![\w./-])((?:scripts|app|validation|tools)/[A-Za-z0-9_./-]+\.(?:py|sh|json|swift|xcodeproj))(?![\w./-])',
+                token.content))
     front = re.match(r'\A---\n(.*?)\n---(?:\n|$)', source, flags=re.S)
-    return Document(frozenset(anchors(tokens)), tuple(links), tuple(examples), front[1] if front else None)
+    return Document(frozenset(anchors(tokens)), tuple(links), tuple(examples), front[1] if front else None,
+                    tuple(command_paths))
 
 
 def document_errors(document, relative):
@@ -102,11 +108,16 @@ def check(root):
         if key not in documents:
             documents[key] = inspect_document(key.read_text(encoding='utf-8'))
         return documents[key]
-    errors, links, examples = [], 0, 0
+    errors, links, examples, commands = [], 0, 0, 0
     for path in files:
         relative = path.relative_to(root).as_posix()
         document = load(path)
         errors.extend(document_errors(document, relative))
+        for name in document.command_paths:
+            commands += 1
+            target = (root / name).resolve()
+            if not target.is_relative_to(root) or not target.exists():
+                errors.append(f'{relative}: missing/outside command input: {name}')
         if relative == 'docs/library-policy.md':
             examples += len(document.swift_examples)
         for target in document.links:
@@ -119,7 +130,8 @@ def check(root):
                 errors.append(f'{relative}: missing heading: {target}')
     if not files:
         errors.append('No Markdown files found')
-    return {'markdown_files': len(files), 'local_links': links, 'swift_examples': examples, 'errors': errors}
+    return {'markdown_files': len(files), 'local_links': links, 'swift_examples': examples,
+            'command_paths': commands, 'errors': errors}
 
 
 def main():

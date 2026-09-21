@@ -1,6 +1,6 @@
 # ローカルiOS検証の手順
 
-この手順は、専用Simulatorで検査を実行し、操作結果と画面の確認に必要な記録を取得するためのもの。`verify.py`で検査を計画・実行し、個別の調査には`ios.py`と対象別UI driverを使う。保存済みの画面情報は`inspect_ui.py`で要約できる。構成と保証範囲は[検証基盤の設計](decisions/0001-local-ios-verification.md)に定義する。
+この手順は、専用Simulatorで検査を実行し、操作結果と画面の確認に必要な記録を取得するためのもの。`verify.py`で検査を計画・実行し、個別の調査には`ios.py`と対象別UI driverを使う。保存済みの画面情報は`inspect_ui.py`で要約できる。構成と保証範囲は[検証基盤の設計](architecture/verification.md)に定義する。
 
 一連の検証実行の結果は`result.json`、個別のiOSコマンドの記録であるrunは`manifest.json`へ保存する。自動工程の成功を確認した後、画像・録画を開いて観測を記録する。
 
@@ -13,9 +13,8 @@
 | Nibble・NibbleShare・NibbleKeyboard | 製品の保存・画面・共有・キーボード | `app/Nibble.xcodeproj` / `Nibble` | [app/project.json](../app/project.json) |
 | VerificationApp | 共通コマンド・文字列照合・撮影を試験するfixture | `validation/VerificationApp.xcodeproj` / `VerificationApp` | [validation/project.json](../validation/project.json) |
 | NibblePerformance | Riveの時間・メモリ測定 | `app/Nibble.xcodeproj` / `NibblePerformance` | [app/performance-project.json](../app/performance-project.json) |
-| ResearchProbe | 保存・検索・入力・コピー・復旧・OS連携の比較 | `research/probe/ResearchProbe.xcodeproj` / `ResearchProbe` | [research/probe/project.json](../research/probe/project.json) |
 
-最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の期待動作は[製品仕様・要件](product-specification.md)、自動工程の責務は[テスト設計](testing.md)、研究の比較条件は[ResearchProbe手順](../research/probe/README.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
+最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の期待動作は[製品仕様・要件](product-specification.md)、自動工程の責務は[テスト設計](testing.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
 
 以下のコマンドは、リポジトリルートで開いたNixシェル内で実行する。エージェントとCIはJSON形式を指定する。
 
@@ -80,7 +79,7 @@ python3 scripts/verify.py plan --base origin/main
 | 製品の実装・アセット・Xcode設定 | 製品テスト、基本操作・通知・固定表示・説明画面のUI |
 | 個別の製品UI driver | そのdriverのUI導線 |
 | その他の`validation/`（保存層の測定harnessを除く） | fixtureのテスト・smoke |
-| `app/NibblePerformanceTests/`、`research/probe/`、保存層の測定harness | 手動確認欄に測定・比較の実行先を表示。通常回帰へは追加しない |
+| `app/NibblePerformanceTests/`、保存層の測定harness | 手動確認欄に測定・比較の実行先を表示。通常回帰へは追加しない |
 | `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
 | 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
 
@@ -90,7 +89,7 @@ python3 scripts/verify.py plan --base origin/main
 xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
 ```
 
-計画に`about`が含まれる場合は、専用Simulatorの「設定 > アクセシビリティ > 動作」を開いておく。英語表示ではSettings > Accessibility > Motionに当たる。driverは「視差効果を減らす」を観測・操作し、終了時に元へ戻す。共有拡張・キーボードのOS導線や研究の比較実験は、変更した責務と製品・研究手順に照らして確認する。
+計画に`about-ui`または`keyboard-guide-ui`が含まれる場合は、専用Simulatorの「設定 > アクセシビリティ > 動作」を開いておく。英語表示ではSettings > Accessibility > Motionに当たる。driverは「視差効果を減らす」を観測・操作し、終了時に元へ戻す。共有拡張・キーボードのOS導線は、変更した責務と本書の操作手順に照らして確認する。
 
 準備ができたら実行する。`run`は実行時のソースから計画を作るので、先に表示した`plan`の結果を固定して実行するコマンドではない。
 
@@ -123,7 +122,7 @@ python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
 
 `--since`は全工程が成功し、開始・終了ソースが一致する結果だけを受理する。共通静的検査は再計画にも含む。参照元の実行範囲が拡大するわけではなく、過去の媒体を現在のソースへ自動で認定するものでもない。runの再利用は[ソース照合](review-evidence.md#runのソースと結果)で確認する。
 
-対象を明示する場合は`--scope inspection`、`--scope fixture`、`--scope product`、`--scope regression`、`--scope performance`、`--scope research`を使う。`regression`は通常回帰全体、`performance`はRiveの測定target、`research`はResearchProbeのテストとUIを選ぶ。`inspection`は共通検査とmacOSの画像試験を選び、`--device`を必要としない。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
+対象を明示する場合は`--scope inspection`、`--scope fixture`、`--scope product`、`--scope regression`、`--scope performance`を使う。`regression`は通常回帰全体、`performance`はRiveの測定targetを選ぶ。`inspection`は共通検査とmacOSの画像試験を選び、`--device`を必要としない。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
 
 ## ビルド・テスト・動作確認
 
@@ -140,34 +139,31 @@ python3 scripts/ios.py smoke --configuration Release --device "$NIBBLE_SIMULATOR
 
 `smoke`はfixtureの画面読取、リセット、入力欄選択、ダミーテキスト貼り付け、反映、出力値の完全一致を検査し、画像と録画を生成する。既定の入力は`日本語 👩🏽‍💻`、改行、`Hello, nibble!`で、`--text`で変更できる。専用端末のクリップボードとfixtureの入力状態を書き換える。
 
-ビルドは実行Mac向けのarchitectureを使い、テスト用とUI用でキャッシュを分ける。製品はApp Groupのentitlementを渡すためad hoc署名を使い、Developer Teamや証明書を必要としない。署名設定を省略したfixture・研究用targetは未署名でビルドする。
+ビルドは実行Mac向けのarchitectureを使い、テスト用とUI用でキャッシュを分ける。製品はApp Groupのentitlementを渡すためad hoc署名を使い、Developer Teamや証明書を必要としない。署名設定を省略したfixtureは未署名でビルドする。
 
 ## 検証対象の切り替え
 
-製品には`app/project.json`、ResearchProbeには`research/probe/project.json`を指定する。
+製品には`app/project.json`、基盤fixtureには`validation/project.json`、Rive測定には`app/performance-project.json`を指定する。
 
 ```sh
 python3 scripts/ios.py test --project-config app/project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 scripts/check-mvp-ui.py --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_library_ui.py --device "$NIBBLE_SIMULATOR"
 
-python3 scripts/ios.py test --project-config research/probe/project.json \
-  --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 research/probe/check-ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・説明画面・OS連携は次節、研究の保存方式・Safari・日本語入力・表示条件は[研究手順](../research/probe/README.md)を参照する。
+`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・説明画面・OS連携は次節を参照する。
 
 ## 製品の操作検証
 
-通常は`verify.py run --scope product`で製品テストとUI工程を実行する。既存コマンドの`mvp`および`check-mvp-ui.py`は基本操作の回帰工程を指す識別子として維持している。要件を暫定扱いする名称ではない。作成・下書き・編集・検索・原文コピー・ピン・削除と復元を確認し、期待結果は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)へ対応させる。
+通常は`verify.py run --scope product`で製品テストとUI工程を実行する。`library-ui`工程は`check_library_ui.py`で基本操作を検査する。作成・下書き・編集・検索・原文コピー・ピン・削除と復元を確認し、期待結果は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)へ対応させる。
 
-固定表示は`check-interface-ui.py --device "$NIBBLE_SIMULATOR"`で一覧・編集・設定・両説明画面を巡回する。標準と最大文字サイズ・高コントラストの配置を比較し、最小文字はhostedテストで確認する。OS所有の入力UIやVoiceOver音声を画像比較の合格に含めない。
+固定表示は`check_interface_ui.py --device "$NIBBLE_SIMULATOR"`で一覧・編集・設定・両説明画面を巡回する。標準と最大文字サイズ・高コントラストの配置を比較し、最小文字はhostedテストで確認する。OS所有の入力UIやVoiceOver音声を画像比較の合格に含めない。
 
 ### 操作完了通知の検証
 
 ```sh
-python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_notice_ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
 起動直後のコピー、連続操作による通知の置換、削除と取り消し、検索入力中のフォーカス、期限、タブ・シート・背景への離脱を確認する。表示前・表示中・消去後のタブと作成ボタンに1ptを超える変化があれば失敗する。`--geometry-only`は起動直後のコピーと配置に絞り、`--scroll`は8件を追加して末尾行の位置保持も確認する。`--appearance dark`でダークを選ぶ。表示・録画・読み上げ・実機の触覚は別々の検証範囲として記録する。
@@ -177,8 +173,8 @@ python3 scripts/check-notice-ui.py --device "$NIBBLE_SIMULATOR"
 設定アプリの「アクセシビリティ > 動作」でReduce Motionスイッチを読み取れる状態にして実行する。
 
 ```sh
-python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story about --interruptions --fault-retry
-python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
+python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story about --interruptions --fault-retry
+python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
 ```
 
 実アセットの複数周期、本文末尾、ライト／ダーク、背景復帰、表示中のReduce Motion切替を録画する。`--interruptions`はタブ往復と可視境界のスクロール、`--stress`は反復と30秒の背景滞在、`--reduce-motion enabled`は初期から有効な条件を選ぶ。driverは設定を復元する。
@@ -191,7 +187,7 @@ python3 scripts/check-about-ui.py --device "$NIBBLE_SIMULATOR" --story keyboard 
 python3 -m http.server 8766 --bind 127.0.0.1 --directory validation
 ```
 
-専用SimulatorのSafariで`http://127.0.0.1:8766/MVPHost.html`を開く。テキスト共有→nibbleで保存→本体コピー→Safariの標準編集メニューからペーストし、「本文のUTF-8を表示」で全バイトを照合する。URL共有も保存・コピー後のURLと照合する。共有を閉じた下書きは本体で再開する。終了後はサーバーを停止する。
+専用SimulatorのSafariで`http://127.0.0.1:8766/ShareHost.html`を開く。テキスト共有→nibbleで保存→本体コピー→Safariの標準編集メニューからペーストし、「本文のUTF-8を表示」で全バイトを照合する。URL共有も保存・コピー後のURLと照合する。共有を閉じた下書きは本体で再開する。終了後はサーバーを停止する。
 
 ペースト結果の検証にクリップボードを上書きする`sim-use paste`を使わない。日本語のかな入力・変換確定はペーストと別に操作する。ショートカットの「URLを開く」から`nibble://library`と`nibble://new`を呼び出し、前者は一覧を初期化、後者は新規作成、編集中はいずれも既存入力を維持することを確認する。
 
@@ -205,7 +201,7 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory validation
 4. ピン留め0件、更新、51件以上のページ、変更・削除された項目の利用拒否、標準キーボードへの復帰を確認する。本文取得中の入力先変更・離脱・連打は遅延を制御する製品テストと実操作を組み合わせる。
 5. 狭幅・長いタイトル・縦横・ライト／ダークで操作への到達を確認し、権限・外観・向きを元へ戻す。未実施の入力先と表示条件を記録する。
 
-入力欄のフォーカスだけでソフトウェアキーボードの表示を判断しない。`sim-use keyboard-state --device "$NIBBLE_SIMULATOR"`と実画面を照合する。secure入力などOSが標準キーボードへ切り替える条件やホスト側の文字数制限は[Keyboard仕様](decisions/0005-snippet-keyboard.md)に従う。
+入力欄のフォーカスだけでソフトウェアキーボードの表示を判断しない。`sim-use keyboard-state --device "$NIBBLE_SIMULATOR"`と実画面を照合する。secure入力などOSが標準キーボードへ切り替える条件やホスト側の文字数制限は[Keyboard仕様](architecture/keyboard.md)に従う。
 
 targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`を持つ設定を用意する。実行管理と撮影は共通driver、操作と期待結果は対象別driverへ置く。
 
@@ -283,7 +279,7 @@ fixtureのsmokeでは、録画の確定後に操作後の静止画を撮影す�
 
 ## 検証時間を比較する
 
-[benchmark-verification.py](../scripts/benchmark-verification.py)は、JSONで指定したコマンド列を一巡の検証サイクルとして連続実行する。各工程とサイクルの時間、成功回の中央値・最小・最大・ばらつき、測定時間窓内の完了数を`results.json`へ保存する。失敗は記録して停止し、自動再試行しない。
+[benchmark_verification.py](../scripts/benchmark_verification.py)は、JSONで指定したコマンド列を一巡の検証サイクルとして連続実行する。各工程とサイクルの時間、成功回の中央値・最小・最大・ばらつき、測定時間窓内の完了数を`results.json`へ保存する。失敗は記録して停止し、自動再試行しない。
 
 次は起動済みの専用端末でfixtureのtestとsmokeを測る例。測定するキャッシュ条件に合わせて準備実行を済ませ、`--condition`へ実際の条件を記載する。
 
@@ -295,13 +291,13 @@ cat > artifacts/verification-commands.json <<JSON
   ["python3", "scripts/ios.py", "smoke", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"]
 ]
 JSON
-python3 scripts/benchmark-verification.py \
+python3 scripts/benchmark_verification.py \
   --commands artifacts/verification-commands.json \
   --output artifacts/verification-benchmark --samples 3 \
   --condition 'Release、起動済み専用Simulator、依存取得済み、準備実行済みのキャッシュ、ソース変更なし'
 ```
 
-出力先には新しいディレクトリを使い、測定中はソースを固定する。初回、ソース変更なし、代表編集、失敗と修正後は別条件にする。対象ソース・依存lock・端末・構成・キャッシュ状態・データ・負荷・試行数を記録し、初回の依存取得や人による修正・媒体レビューを通常反復の時間と混ぜない。実行方式の比較条件と適用限界は[評価記録](verification-performance.md)を参照する。
+出力先には新しいディレクトリを使い、測定中はソースを固定する。初回、ソース変更なし、代表編集、失敗と修正後は別条件にする。対象ソース・依存lock・端末・構成・キャッシュ状態・データ・負荷・試行数を記録し、初回の依存取得や人による修正・媒体レビューを通常反復の時間と混ぜない。各コマンドの個別時間と一巡の合計を記録する。アプリ自身の性能は[性能手順](performance-verification.md)で別に測定する。
 
 runの`timing`は経過時間、外部コマンドの合計、manifest書込、終了処理の内訳を持つ。入れ子の工程があるため単純に合算しない。`xcodebuild`ログの`-showBuildTimingSummary`も工程分析に使える。benchmarkはコマンドの成否とソースの安定を集計するもので、媒体の整合性や目視は[証跡手順](review-evidence.md)で確認する。
 

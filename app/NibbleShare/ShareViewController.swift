@@ -5,7 +5,7 @@ import Tasking
 
 @MainActor
 final class ShareViewController: UIViewController {
-    private let store = SnippetStorage.sharedContainer()
+    private let store = SnippetStore(location: SnippetLocation.database)
     private let tasks = ViewTaskStore()
     private static let load: ActionID = "share.load"
 

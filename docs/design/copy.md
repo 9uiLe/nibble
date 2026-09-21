@@ -10,7 +10,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 各表は画面に表示する文言、読み上げ用のラベル、エラー文を組み立てる句を含む。同じ節で重複する文言は一度掲載する。`／`は同じ場面で使う複数の文言の区切り、`\n`は改行、`{項目名}`などの波括弧は実行時の値を表す。波括弧自体は画面に表示しない。正確な文字列と分岐は各節の実装リンクで確認する。
 
-設計理由は採用する表現の根拠であり、理解度の測定結果ではない。表示と操作の観測、未確認の条件は[文言の検証記録](../copy-validation.md)、利用者が意味を理解できるかという問いは[評価課題（G11）](audit.md#g11-c--操作と文言)に置く。
+設計理由は採用する表現の根拠であり、理解度の測定結果ではない。表示と操作の観測、未確認の条件は[証跡手順](../review-evidence.md)に従うrun、利用者が意味を理解できるかという問いは[評価課題（G11）](audit.md#g11-c--操作と文言)に置く。
 
 ## 本体で項目を探して使う
 
@@ -20,7 +20,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 タブと画面名は現在地、検索欄は調べる対象を伝える。削除した項目の検索は、通常の保存済み項目の検索から独立している。
 
-実装：[LibraryView.swift](../../app/Nibble/LibraryView.swift)。S01・S02・S06・C01・C12・C39。
+実装：[LibraryRootView.swift](../../app/Nibble/Navigation/LibraryRootView.swift)。S01・S02・S06・C01・C12・C39。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -36,7 +36,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 一覧は保存状態と取得状態を別々に示す。空状態の説明、再試行ボタン、完全削除の確認は、それぞれ対象と操作結果を持つ。
 
-実装：[LibraryScreen.swift](../../app/Nibble/LibraryScreen.swift)。S01〜S03・S06・C05・C07〜C09・C13〜C17・C38。
+実装：[LibraryScreen.swift](../../app/Nibble/Library/LibraryScreen.swift)。S01〜S03・S06・C05・C07〜C09・C13〜C17・C38。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -75,7 +75,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 コピー、編集、整理はそれぞれ独立した操作である。可視メニュー・スワイプ・読み上げで同じ操作名を使う。
 
-実装：[SnippetRow.swift](../../app/Nibble/SnippetRow.swift)。S01・S02・S06・C06・C10・C11・C37。
+実装：[SnippetRow.swift](../../app/Nibble/Library/SnippetRow.swift)。S01・S02・S06・C06・C10・C11・C37。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -95,7 +95,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 表示対象は、本体で記録した最終コピーから720時間以上経過した項目である。閲覧・編集・キーボードの入力回数を測った表現にはしない。
 
-実装：[SnippetRowContent.swift](../../app/Nibble/SnippetRowContent.swift)。S01・S02・C06。
+実装：[SnippetRowContent.swift](../../app/Nibble/Library/SnippetRowContent.swift)。S01・S02・C06。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -106,7 +106,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 下書き名はタイトル、本文先頭の順に求める。どちらも表示名に使えないときにも、編集途中の内容だと識別できる名前を用意する。
 
-実装：[Draft.swift](../../app/Shared/Draft.swift)。S01・C07。
+実装：[Draft.swift](../../app/Shared/Domain/Draft.swift)。S01・C07。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -120,7 +120,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 失敗の見出しには処理名を含める。本文は利用者が使える内容と次の行動を示し、再試行は画面にあるボタンへ対応させる。
 
-実装：[LibraryModel.swift](../../app/Nibble/LibraryModel.swift)。S01・S02・S06・C17〜C19。
+実装：[LibraryModel.swift](../../app/Nibble/Library/LibraryModel.swift)。S01・S02・S06・C17〜C19。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -149,7 +149,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 削除の通知は対象名と復元操作を同じ領域に置く。通知の期限後は、設定の削除一覧から復元する。
 
-実装：[LibraryNotice.swift](../../app/Nibble/LibraryNotice.swift)。S01・S02・S06・C18・C19。
+実装：[LibraryNotice.swift](../../app/Nibble/Library/LibraryNotice.swift)。S01・S02・S06・C18・C19。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -164,7 +164,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 任意・必須や長さの条件は入力中も参照できるラベルと補足で伝える。保存と中断の違い、下書きが残らない条件は終了操作の補足として説明する。
 
-実装：[SnippetEditor.swift](../../app/Shared/SnippetEditor.swift)。S03・S07・C20〜C32。
+実装：[SnippetEditor.swift](../../app/Shared/Editing/SnippetEditor.swift)。S03・S07・C20〜C32。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -193,7 +193,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 エラー文は「失敗した操作＋入力の所在＋理由＋回復方法」で組み立てる。「この画面に残る」は現在の入力状態を示し、永続化の成功を意味しない。競合時の別項目保存とアプリ更新時の退避も、利用者が選ぶ操作として提示する。
 
-実装：[EditorModel.swift](../../app/Shared/EditorModel.swift)。S03・S07・C29・C30。
+実装：[EditorModel.swift](../../app/Shared/Editing/EditorModel.swift)。S03・S07・C29・C30。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -217,7 +217,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 保存層は対象の状態と入力制約を返し、画面側が操作に合う回復方法を添える。同じ保存エラーでも、編集画面と共有開始前では利用できる操作が異なる。
 
-実装：[Snippet.swift](../../app/Shared/Snippet.swift)。S01〜S03・S07・S09・C04・C17・C30・C42・C47。
+実装：[Snippet.swift](../../app/Shared/Domain/Snippet.swift)。S01〜S03・S07・S09・C04・C17・C30・C42・C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -260,7 +260,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 保存済み項目の主領域は本文の入力、右端の「…」は全文確認の入口にする。全文確認と入力はフルアクセスなしで利用できる。コピーとピン留めの変更には許可が必要であり、許可前の操作では設定方法を案内する。
 
-入力先のアプリは文字数や改行を制限できるため、結果文は本文の受け渡しを表す。入力先での反映や保存を保証する表現にはしない。権限とOS作用の完了条件は[キーボード設計](../decisions/0005-snippet-keyboard.md)に従う。
+入力先のアプリは文字数や改行を制限できるため、結果文は本文の受け渡しを表す。入力先での反映や保存を保証する表現にはしない。権限とOS作用の完了条件は[キーボード設計](../architecture/keyboard.md)に従う。
 
 ### 対象選択と全文の操作
 
@@ -296,7 +296,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 本体が共有保存領域を準備する。キーボードは準備されていない保存領域を作らず、本体での保存と一覧の更新へ案内する。
 
-実装：[KeyboardReader.swift](../../app/Shared/KeyboardReader.swift)。S09・C45〜C47。
+実装：[KeyboardReader.swift](../../app/Shared/Keyboard/KeyboardReader.swift)。S09・C45〜C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -308,7 +308,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 短い成功通知には期限を設ける。失敗と権限案内は自動で消さず、長文もスクロールして読める。ピン留めの保存後に一覧の取得だけが失敗した場合も、完了した書き込みを正しく伝える。
 
-実装：[KeyboardModel.swift](../../app/Shared/KeyboardModel.swift)。S09・C46・C47。
+実装：[KeyboardModel.swift](../../app/Shared/Keyboard/KeyboardModel.swift)。S09・C46・C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -345,7 +345,7 @@ OSがキーボード切替キーを要求する場合に地球儀を表示する
 
 リンクは移動先の内容を予測できる名称にする。
 
-実装：[LibrarySettingsView.swift](../../app/Nibble/LibrarySettingsView.swift)。S04・C34・C35・C48。
+実装：[SettingsView.swift](../../app/Nibble/Settings/SettingsView.swift)。S04・C34・C35・C48。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -359,7 +359,7 @@ OSがキーボード切替キーを要求する場合に地球儀を表示する
 
 導入は利用場面を短く示し、本文で保存・コピー・入力を説明する。操作手順は画面にある入口から始め、データの説明には端末内保存と削除の範囲を含める。
 
-実装：[AboutView.swift](../../app/Nibble/AboutView.swift)。S05・C36。
+実装：[AboutView.swift](../../app/Nibble/Settings/AboutView.swift)。S05・C36。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -385,7 +385,7 @@ OSがキーボード切替キーを要求する場合に地球儀を表示する
 
 見出しごとに一つの判断を扱う。操作、許可が必要な理由、データの扱い、入力先の制約を分け、必要な段落へ戻って読めるようにする。
 
-実装：[KeyboardGuideView.swift](../../app/Nibble/KeyboardGuideView.swift)。S10・C48。
+実装：[KeyboardGuideView.swift](../../app/Nibble/Settings/KeyboardGuideView.swift)。S10・C48。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -402,7 +402,7 @@ OSがキーボード切替キーを要求する場合に地球儀を表示する
 
 図は、元の文章を残したまま複製を保存する関係を説明する。隣接する文章と読み上げだけでも同じ意味が伝わるようにする。
 
-実装：[AboutIllustration.swift](../../app/Nibble/AboutIllustration.swift)。S05・C44。
+実装：[AboutIllustration.swift](../../app/Nibble/Presentation/AboutIllustration.swift)。S05・C44。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -412,7 +412,7 @@ OSがキーボード切替キーを要求する場合に地球儀を表示する
 
 ### 保存した本文を入力する流れの図解
 
-実装：[KeyboardIllustration.swift](../../app/Nibble/KeyboardIllustration.swift)。S10・C49。
+実装：[KeyboardIllustration.swift](../../app/Nibble/Presentation/KeyboardIllustration.swift)。S10・C49。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
