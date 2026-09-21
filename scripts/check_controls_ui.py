@@ -35,7 +35,10 @@ def main():
         for entry in data['entries']:
             if entry.get('uniqueId') in expected:
                 frame = entry['frame']
-                if frame['width'] < 44 or frame['height'] < 44:
+                if entry['uniqueId'].startswith('navigation.tab.'):
+                    if abs(frame['width'] - 56) > 1 or abs(frame['height'] - 36) > 1:
+                        raise VerificationError('Expanded tab target must be 56×36pt: ' + str(entry))
+                elif frame['width'] < 44 or frame['height'] < 44:
                     raise VerificationError('Control is smaller than its touch target: ' + str(entry))
 
     try:
@@ -88,7 +91,8 @@ def main():
                     'search_does_not_focus_on_entry': True,
                     'settings_version_matches_bundle': expected,
                     'settings_deleted_returns': True,
-                    'action_targets_at_least_44pt': True,
+                    'expanded_tab_targets_56_by_36pt': True,
+                    'non_tab_action_targets_at_least_44pt': True,
                     'keyboard_and_screen_actions_exclusive': True,
                     'help_restores_focus': True,
                     'empty_editor_returns_to_caller': True,

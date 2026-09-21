@@ -8,6 +8,7 @@ struct TabNavigationButton: View {
     @Binding var selection: AppTab
     let isCompact: Bool
     @Environment(\.tabBarScrollState) private var tabScroll
+    private var iconSize: CGFloat { isCompact ? TabBarMetrics.compactIconSize : TabBarMetrics.iconSize }
 
     var body: some View {
         Button {
@@ -15,10 +16,10 @@ struct TabNavigationButton: View {
             tabScroll?.expand()
         } label: {
             TabIcon(symbol: tab.symbol(isSelected: selection == tab), size: TabBarMetrics.iconSize)
-                // Compensate for the outer transform to preserve the specified compact icon size.
                 .scaleEffect(isCompact ? TabBarMetrics.compactIconScale : 1)
-                .frame(maxWidth: .infinity)
-                .frame(height: TabBarMetrics.buttonHeight)
+                .frame(width: iconSize, height: iconSize)
+                .padding(.horizontal, TabBarMetrics.iconHorizontalPadding)
+                .frame(height: isCompact ? TabBarMetrics.compactButtonHeight : TabBarMetrics.buttonHeight)
                 .background(selection == tab ? Color.primary.opacity(0.09) : .clear, in: .capsule)
                 .contentShape(.capsule)
         }

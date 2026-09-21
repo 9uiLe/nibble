@@ -61,14 +61,16 @@ def main():
         high, low = f"{width * 0.45:.0f},{height * 0.32:.0f}", f"{width * 0.45:.0f},{height * 0.78:.0f}"
         if set(expanded) != {"一覧", "設定", "検索"}:
             raise VerificationError("Expanded tabs must retain their accessible names")
+        if any(abs(frame["width"] - 56) > 1 or abs(frame["height"] - 36) > 1 for frame in expanded.values()):
+            raise VerificationError("Expanded tabs must fit 24pt icons with 16pt padding on each side and 36pt height")
         run.command(["sim-use", "swipe", "--from", low, "--to", high,
                      "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
         minimized = tabs(run.ui(f"{mode}-tabs-minimized"))
         if set(minimized) != set(expanded):
             raise VerificationError("Compact navigation must retain all three destinations")
         for name, frame in minimized.items():
-            if min(frame["height"], frame["width"]) < 44:
-                raise VerificationError("Compact navigation must keep 44pt targets")
+            if abs(frame["width"] - 52) > 1 or abs(frame["height"] - 32) > 1:
+                raise VerificationError("Compact tabs must fit 20pt icons with 16pt padding on each side and 32pt height")
             if frame["height"] >= expanded[name]["height"] or frame["width"] >= expanded[name]["width"]:
                 raise VerificationError("Scrolling down must shrink every tab while preserving all destinations")
         # Waiting beyond deceleration catches bottom-edge bounce incorrectly re-expanding the bar.

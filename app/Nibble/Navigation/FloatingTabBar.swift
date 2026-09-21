@@ -20,12 +20,7 @@ struct FloatingTabBar: View {
             .foregroundStyle(.primary)
             .padding(4)
             .glassEffect(.regular, in: .capsule)
-            // One transform keeps the material, selection and hit regions together.
-            // buttonHeight * compactScale = 44.2pt, preserving the minimum compact hit height.
-            .scaleEffect(isCompact ? TabBarMetrics.compactScale : 1, anchor: .bottom)
         }
-        .padding(.horizontal, 22)
-        .frame(maxWidth: 560)
         .frame(maxWidth: .infinity)
         .frame(height: TabBarMetrics.reservedHeight - TabBarMetrics.bottomSpacing, alignment: .bottom)
         .padding(.bottom, TabBarMetrics.bottomSpacing)
