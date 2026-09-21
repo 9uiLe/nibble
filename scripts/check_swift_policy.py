@@ -11,6 +11,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from swift_task_boundary import boundary_violations
+from swift_view_structure import structure_violations
 import re
 
 
@@ -133,7 +134,7 @@ ANIMATION_SYMBOLS = {
     "UIViewImplicitlyAnimating", "CAAnimation", "CABasicAnimation",
     "CAKeyframeAnimation", "CAAnimationGroup", "CATransaction", "NSAnimationContext",
 }
-RIVE_LEGACY_SYMBOLS = {"RiveViewModel", "RiveView", "RiveModel", "RiveFile", "RiveStateMachineInstance", "RiveSMIInput"}
+RIVE_UNSUPPORTED_SYMBOLS = {"RiveViewModel", "RiveView", "RiveModel", "RiveFile", "RiveStateMachineInstance", "RiveSMIInput"}
 ANIMATION_MEMBERS = {"animation", "transaction", "phaseAnimator", "keyframeAnimator"}
 UIKIT_ANIMATION_MEMBERS = {"animate", "animateKeyframes", "transition", "performWithoutAnimation", "setAnimationsEnabled", "beginAnimations", "commitAnimations"}
 GENERATED = {".git", ".build", ".direnv", "DerivedData", "artifacts", "build"}
@@ -160,7 +161,7 @@ def violations(source):
             message = "Use Tasking ViewTaskStore / TaskingCore TaskSlot instead of raw Task creation, handles, or aliases."
         elif token.text in UNMANAGED_TYPES:
             message = "Use Tasking for unstructured work; raw scheduling types are prohibited."
-        elif token.text in RIVE_LEGACY_SYMBOLS:
+        elif token.text in RIVE_UNSUPPORTED_SYMBOLS:
             message = "Use Rive Apple Resource/Session APIs and Data Binding; callback entry points are prohibited."
         elif token.text in ANIMATION_SYMBOLS:
             message = "Use ScopedAnimation AnimationScope / animationBarrier instead of raw animation transactions."
@@ -204,7 +205,10 @@ def check(root):
     for path in swift_files(root):
         count += 1
         try:
-            errors.extend(f"{path.relative_to(root)}:{line}:{column}: error: {message}" for line, column, message in violations(path.read_text()))
+            source = path.read_text()
+            relative = path.relative_to(root)
+            findings = violations(source) + structure_violations(source, relative)
+            errors.extend(f"{relative}:{line}:{column}: error: {message}" for line, column, message in findings)
         except (ValueError, UnicodeError) as error:
             errors.append(f"{path.relative_to(root)}: error: Cannot lint Swift source: {error}")
     if count == 0:

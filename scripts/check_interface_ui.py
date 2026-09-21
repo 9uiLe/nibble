@@ -27,8 +27,7 @@ def main():
 
     def tab(label):
         run.ui()
-        run.command(["sim-use", "tap", "--label", label, "--element-type", "RadioButton",
-                     "--wait-timeout", "5", "--device", args.device])
+        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[label])
         time.sleep(0.5)
 
     def capture(mode, screen, identifiers):
@@ -51,6 +50,43 @@ def main():
         if mode != "default" and found != frames["default"][screen]:
             raise VerificationError(f"Accessibility settings changed {screen} layout: {found}")
         run.screenshot(f"{mode}-{screen}")
+
+    def check_tab_scrolling(mode):
+        def tabs(data):
+            return {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
+
+        data = run.ui(f"{mode}-tabs-expanded")
+        expanded = tabs(data)
+        width, height = data["screen"]["width"], data["screen"]["height"]
+        high, low = f"{width * 0.45:.0f},{height * 0.32:.0f}", f"{width * 0.45:.0f},{height * 0.78:.0f}"
+        if set(expanded) != {"一覧", "設定", "検索"}:
+            raise VerificationError("Expanded tabs must retain their accessible names")
+        if any(abs(frame["width"] - 56) > 1 or abs(frame["height"] - 36) > 1 for frame in expanded.values()):
+            raise VerificationError("Expanded tabs must fit 24pt icons with 16pt padding on each side and 36pt height")
+        run.command(["sim-use", "swipe", "--from", low, "--to", high,
+                     "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
+        minimized = tabs(run.ui(f"{mode}-tabs-minimized"))
+        if set(minimized) != set(expanded):
+            raise VerificationError("Compact navigation must retain all three destinations")
+        for name, frame in minimized.items():
+            if abs(frame["width"] - 52) > 1 or abs(frame["height"] - 32) > 1:
+                raise VerificationError("Compact tabs must fit 20pt icons with 16pt padding on each side and 32pt height")
+            if frame["height"] >= expanded[name]["height"] or frame["width"] >= expanded[name]["width"]:
+                raise VerificationError("Scrolling down must shrink every tab while preserving all destinations")
+        # Waiting beyond deceleration catches bottom-edge bounce incorrectly re-expanding the bar.
+        time.sleep(0.5)
+        if tabs(run.ui(f"{mode}-tabs-compact-settled")) != minimized:
+            raise VerificationError("Rubber-band settling must not re-expand the bar")
+        run.screenshot(f"{mode}-tabs-minimized")
+        run.command(["sim-use", "swipe", "--from", high, "--to", low,
+                     "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
+        restored = tabs(run.ui(f"{mode}-tabs-restored"))
+        if restored != expanded:
+            raise VerificationError("Scrolling up must restore all floating tabs")
+        run.screenshot(f"{mode}-tabs-restored")
+        run.manifest.setdefault("tab_scroll_frames", {})[mode] = {
+            "expanded": expanded, "minimized": minimized, "restored": restored,
+        }
 
     try:
         run.setup()
@@ -80,6 +116,7 @@ def main():
                 run.tap("settings.about")
                 time.sleep(0.8)
                 capture(mode, "about", ["about.story.caption"])
+                check_tab_scrolling(mode)
                 run.tap("BackButton")
                 time.sleep(0.5)
                 run.tap("settings.keyboard")
@@ -88,7 +125,8 @@ def main():
                 run.tap("BackButton")
                 time.sleep(0.5)
         run.manifest["layout_frames"] = frames
-        run.manifest["assertions"] = {"library_editor_settings_guides_frames_unchanged": True}
+        run.manifest["assertions"] = {"library_editor_settings_guides_frames_unchanged": True,
+                                      "all_three_tabs_shrink_and_restore": True}
     except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
         raise

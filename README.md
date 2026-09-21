@@ -7,11 +7,13 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | 場所 | できること |
 | --- | --- |
 | 一覧 | 保存済みを使用回数順に表示し、編集・コピー・整理する。直近の下書きは別区分から再開する。ピン留め/下書きはフィルターで絞る |
-| 検索 | 保存済みのタイトル・本文を日本語1文字から探す |
-| 設定 | 削除一覧、キーボード案内、製品情報を開く |
+| 検索 | 保存済みのタイトル・本文を日本語1文字から探す。上部の検索欄をタップして入力を始める |
+| 設定 | 削除一覧、キーボード案内、製品情報を開き、バージョンを確認する |
 | 編集 | 任意タイトルと本文を入力する。「保存」は利用対象へ確定、「閉じる」は下書きを保持する |
 | 共有拡張 | 他アプリの共有シートからテキスト・URLを取り込む |
 | キーボード | 行タップで本文を挿入し、右端の「その他」から全文を読む。フルアクセスを許可するとコピー・ピン更新も使える |
+
+一覧・検索・設定は下部のアイコンタブで切り替えます。下方向のスクロールで三つのアイコンを残して小さくなり、上方向で戻ります。新規作成は各ルート画面右上の＋から開きます。編集画面の×は閉じる、チェックは保存で、すべてのアイコンに読み上げ名と操作領域を設けます。
 
 削除した項目は通知の「元に戻す」または設定の削除一覧から復元できます。全文、入力の保持、操作の失敗を区別して扱う契約は[製品仕様・要件](docs/product-specification.md)に定義します。
 
@@ -77,6 +79,7 @@ experimental-features = nix-command flakes
 git clone https://github.com/9uiLe/nibble.git
 cd nibble
 nix develop
+export NIBBLE_UI_FORMAT=json
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
@@ -87,7 +90,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | driver、証跡、画面要素の解析、画像加工の拒否・失敗契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
-| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較の構文境界 |
+| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、タスク開始・View比較・型とファイルによるView構成の構文境界 |
 | `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、shell例のコマンド・設定パス、UI設計IDと照合記録 |
 | `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
 | `rive-assets` | RML・生成物のhash、Data Bindingの名前・型・参照 |

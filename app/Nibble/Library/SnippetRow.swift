@@ -13,73 +13,15 @@ struct SnippetRow: View {
     var unusedSince: Date?
     let perform: (Action) -> Void
 
-    private func copyButton(_ item: SnippetSummary) -> some View {
-        Button { perform(.copy) } label: {
-            Image(systemName: "doc.on.doc")
-                .font(.callout)
-                .frame(width: 36, height: 36)
-                .background(Color.nibbleSoft, in: .rect(cornerRadius: 10))
-                .frame(width: 44, height: 44)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel("\(item.displayTitle)をコピー")
-        .accessibilityIdentifier("copy.\(item.id)")
-    }
-
-    private func rowActions(_ item: SnippetSummary) -> some View {
-        HStack(spacing: 0) {
-            if isTrash {
-                Button { perform(.restore) } label: {
-                    Image(systemName: "arrow.uturn.backward").font(.body)
-                        .frame(minWidth: 44, minHeight: 44).contentShape(.rect)
-                }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("\(item.displayTitle)を復元")
-                    .accessibilityIdentifier("restore.\(item.id)")
-            } else { copyButton(item) }
-            Menu { rowMenu(item) } label: {
-                Image(systemName: "ellipsis").font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44).contentShape(.rect)
-            }
-            .menuStyle(.borderlessButton)
-            .accessibilityLabel("\(item.displayTitle)のその他の操作")
-            .accessibilityIdentifier("more.\(item.id)")
-        }
-    }
-
-    private func rowLabel(_ item: SnippetSummary) -> some View {
-        SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned, unusedSince: unusedSince)
-    }
-
-    @ViewBuilder private func rowContent(_ item: SnippetSummary) -> some View {
-        if isTrash {
-            rowLabel(item)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(item.displayTitle)
-                .accessibilityIdentifier("snippet.\(item.id)")
-        } else {
-            Button { perform(.edit) } label: { rowLabel(item) }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("snippet.\(item.id)")
-                .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
-                .accessibilityValue(unusedSince.map {
-                    "30日以上コピーしていません、最後にコピーした日 " + $0.formatted(date: .numeric, time: .omitted)
-                } ?? "")
-                .accessibilityHint("編集します")
-        }
-    }
-
     var body: some View {
         HStack(spacing: 4) {
-            rowContent(item)
-            rowActions(item)
+            SnippetRowMainContent(item: item, isTrash: isTrash, unusedSince: unusedSince, perform: perform)
+            SnippetRowActions(item: item, isTrash: isTrash, perform: perform)
         }
         .padding(.vertical, 14)
         .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 16))
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-        .contextMenu { rowMenu(item) }
+        .contextMenu { SnippetRowMenu(item: item, isTrash: isTrash, perform: perform) }
         .swipeActions(edge: .trailing, allowsFullSwipe: !isTrash) {
             if isTrash {
                 Button("完全に削除", role: .destructive) { perform(.permanentlyDelete) }
@@ -96,19 +38,6 @@ struct SnippetRow: View {
                 .tint(.nibbleAccent)
                 .accessibilityIdentifier("swipe.pin.\(item.id)")
             }
-        }
-    }
-
-    @ViewBuilder private func rowMenu(_ item: SnippetSummary) -> some View {
-        if isTrash {
-            Button("復元", systemImage: "arrow.uturn.backward") { perform(.restore) }
-            Button("完全に削除", systemImage: "trash", role: .destructive) { perform(.permanentlyDelete) }
-                .accessibilityIdentifier("permanentlyDelete.\(item.id)")
-        } else {
-            Button("編集", systemImage: "square.and.pencil") { perform(.edit) }
-            Button(item.pinned ? "ピン留めを解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { perform(.pin) }
-            Button("削除", systemImage: "trash", role: .destructive) { perform(.delete) }
-                .accessibilityIdentifier("delete.\(item.id)")
         }
     }
 }

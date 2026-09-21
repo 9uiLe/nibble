@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Verify settings, search entry and editor controls on an explicit iOS Simulator."""
+import argparse
+import plistlib
+import time
+from types import SimpleNamespace
+
+from ios import Run, VerificationError
+
+
+def identifiers(data):
+    return {entry.get('uniqueId') for entry in data['entries']}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--device', required=True)
+    args = parser.parse_args()
+    run = Run(SimpleNamespace(command='controls-ui', device=args.device,
+                              configuration='Release', project_config='app/project.json'))
+    error = None
+
+    def wait(name, predicate):
+        for attempt in range(20):
+            data = run.ui(f'{name}-{attempt}', allow_empty=True)
+            if predicate(data):
+                return data
+            time.sleep(.2)
+        raise VerificationError('UI did not reach expected state: ' + name)
+
+    def controls(data, expected, absent=()):
+        present = identifiers(data)
+        if not set(expected) <= present or set(absent) & present:
+            raise VerificationError('Unexpected controls: ' + str(present))
+        for entry in data['entries']:
+            if entry.get('uniqueId') in expected:
+                frame = entry['frame']
+                if entry['uniqueId'].startswith('navigation.tab.'):
+                    if abs(frame['width'] - 56) > 1 or abs(frame['height'] - 36) > 1:
+                        raise VerificationError('Expanded tab target must be 56×36pt: ' + str(entry))
+                elif frame['width'] < 44 or frame['height'] < 44:
+                    raise VerificationError('Control is smaller than its touch target: ' + str(entry))
+
+    try:
+        run.setup()
+        with run.device_lock():
+            run.launch()
+            wait('root', lambda d: 'navigation.tab.search' in identifiers(d))
+            with run.recording():
+                run.tap('navigation.tab.search')
+                wait('search', lambda d: any(e.get('uniqueId') == 'navigation.title' and e.get('label') == '検索'
+                                             for e in d['entries']))
+                # Observe beyond presentation completion to catch delayed auto-focus.
+                time.sleep(.5)
+                data = run.ui('search-idle')
+                controls(data, ('navigation.tab.library', 'navigation.tab.search', 'navigation.tab.settings', 'library.add'),
+                         ('search.done', 'Search'))
+                run.screenshot('search-without-keyboard')
+                run.tap('navigation.tab.settings')
+                data = wait('settings', lambda d: 'settings.version' in identifiers(d))
+                info = plistlib.loads((run.derived / 'Build/Products/Release-iphonesimulator/Nibble.app/Info.plist').read_bytes())
+                expected = f"バージョン {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})"
+                version = next(e for e in data['entries'] if e.get('uniqueId') == 'settings.version')
+                if version['label'] != expected:
+                    raise VerificationError('Settings version differs from the installed bundle')
+                run.screenshot('settings-version-disclosures')
+                run.tap('library.trash')
+                data = wait('deleted', lambda d: 'library.trash.close' in identifiers(d))
+                controls(data, ('library.trash.close',))
+                run.screenshot('deleted-close')
+                run.tap('library.trash.close')
+                wait('settings-returned', lambda d: 'settings.version' in identifiers(d) and 'library.trash.close' not in identifiers(d))
+                run.tap('library.add')
+                data = wait('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
+                controls(data, ('editor.close', 'editor.save', 'editor.keyboard.help', 'editor.keyboard.dismiss'),
+                         ('editor.help', 'editor.more'))
+                run.screenshot('editor-keyboard-controls')
+                run.tap('editor.keyboard.help')
+                wait('help', lambda d: 'editor.lengthLimit' in identifiers(d))
+                run.screenshot('editor-help')
+                run.tap('editor.help.close')
+                wait('focus-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d) and 'editor.lengthLimit' not in identifiers(d))
+                run.tap('editor.keyboard.dismiss')
+                data = wait('editor-unfocused', lambda d: 'editor.help' in identifiers(d) and 'editor.keyboard.dismiss' not in identifiers(d))
+                controls(data, ('editor.close', 'editor.save', 'editor.help', 'editor.more'),
+                         ('editor.keyboard.help', 'editor.keyboard.dismiss'))
+                run.screenshot('editor-guidance')
+                run.tap('editor.close')
+                wait('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
+                run.manifest['assertions'] = {
+                    'search_does_not_focus_on_entry': True,
+                    'settings_version_matches_bundle': expected,
+                    'settings_deleted_returns': True,
+                    'expanded_tab_targets_56_by_36pt': True,
+                    'non_tab_action_targets_at_least_44pt': True,
+                    'keyboard_and_screen_actions_exclusive': True,
+                    'help_restores_focus': True,
+                    'empty_editor_returns_to_caller': True,
+                }
+    except BaseException as exc:
+        error = str(exc)
+        raise
+    finally:
+        run.finish(error)
+
+
+if __name__ == '__main__':
+    main()

@@ -26,11 +26,23 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 タブはアプリ内の領域へ移動するための部品であり、実行操作の入口として扱わない。領域の状態を保ち、短いラベルを付け、空の領域でも入口を消さないことを勧めている。
 
+2026-09-21に[SwiftUI tabBarMinimizeBehavior](https://developer.apple.com/documentation/swiftui/view/tabbarminimizebehavior(_:))と[UIKit onScrollDown](https://developer.apple.com/documentation/uikit/uitabbarcontroller/minimizebehavior/onscrolldown)の公開仕様を確認した。iOS 26.0以上のiPhoneでは、下方向のスクロールで縮小し、上方向で展開する標準動作を指定できる。個別アプリの操作到達性は実行で確認する。
+
+### R21 スクロールに連動するナビゲーション
+
+参照するAPI：[ScrollGeometry](https://developer.apple.com/documentation/swiftui/view/onscrollgeometrychange(for:of:action:))、[scaleEffect](https://developer.apple.com/documentation/swiftui/view/scaleeffect(_:anchor:))、[glassEffect](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:))。
+
+C01は、閲覧中の占有面積を小さくしながら一覧・検索・設定の入口をすべて残す製品判断である。TabViewが各領域の状態を保持し、アプリがスクロール方向と移動量からバーの表示寸法を決める。固定した確保領域内で素材・選択背景・操作領域を一緒に拡縮し、検索や通知による内容の再配置を利用者のスクロールと取り違えない。
+
+通常24pt・縮小20ptの記号、通常36pt・縮小32ptの操作領域の高さ、記号の左右各16ptの余白、方向反転時の連続性を受入条件とする。APIの存在は見た目や応答品質の証明にはならない。C01と[操作・識別・回復](rationale/library-actions.md)に従って実画面を確認する。
+
 ### R02 検索
 
 出典：[Apple HIG — Search fields](https://developer.apple.com/design/human-interface-guidelines/search-fields)。閲読範囲：Best practices、scope、iOS/iPadOSの配置と起動。
 
 検索対象をplaceholderで伝え、可能なら入力とともに結果を更新する。すぐ検索を始める入口と、候補を探索する検索ページを使い分ける。対象を絞る場合は広い範囲から始める。
+
+C12は検索対象・入力・結果を上から読む構成とし、上部に検索欄を固定する。標準TextFieldの入力・編集メニューを使い、配置と検索終了後の欄の保持はアプリが所有する。
 
 ### R03 レイアウト
 
@@ -130,7 +142,7 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 
 色以外の手掛かり、文字拡大、VoiceOver、単純な操作とジェスチャーの代替を提供する。Reduce Motion等のシステム設定へ対応し、支援技術で確認する。
 
-**数値の注意**：確認日のiOS/iPadOS control size表にはdefault 44×44 pt、minimum 28×28 ptがある。R07の一般則と併記し、nibbleでは独自の反復操作の基準を44×44 pt以上とする。44 ptを全OS・全状況の絶対最小値とは説明しない。
+**数値の注意**：確認日のiOS/iPadOS control size表にはdefault 44×44 pt、minimum 28×28 ptがある。R07の一般則と併記し、nibbleの操作領域はF05を基準とする。タブにはC01の寸法契約を適用する。44 ptを全OS・全状況の絶対最小値とは説明しない。
 
 ### R17 コントラストと色依存
 

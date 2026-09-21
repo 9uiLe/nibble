@@ -25,8 +25,7 @@ def main():
                      "--wait-timeout", "5", "--device", args.device])
 
     def tab(text):
-        run.command(["sim-use", "tap", "--label", text, "--element-type", "RadioButton",
-                     "--wait-timeout", "5", "--device", args.device])
+        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[text])
 
     def check_navigation_title(data, title):
         headings = [e["frame"] for e in data["entries"]
@@ -42,17 +41,19 @@ def main():
         add = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
         row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
         copy = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "copy." + snippet_id)
-        trailing = copy["x"] >= row["x"] + row["width"] - 1 and add["x"] > row["x"] + row["width"] / 2
+        trailing = copy["x"] >= row["x"] + row["width"] - 1
         if not trailing or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
-            raise VerificationError("Actions must stay trailing with minimum 44pt targets")
+            raise VerificationError("Copy must stay trailing; copy and creation need minimum 44pt targets")
 
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
 
     def paste_search(text):
         data = wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
-        # The system search field has no app-owned identifier. Resolve its live
-        # AX frame immediately before the native edit-menu gesture.
+        if "search.clear" in identifiers(data):
+            run.tap("search.clear")
+            data = wait_ui("query-cleared-for-paste", lambda d: "search.clear" not in identifiers(d))
+        # Resolve the live AX frame for both app search and the trash sheet's native field.
         frame = search_fields(data)[0]["frame"]
         run.command(["sim-use", "paste", "--via-menu",
                      "--target-x", str(frame["x"] + frame["width"] / 2),
@@ -60,13 +61,19 @@ def main():
                      "--device", args.device, text])
 
     def clear_search():
-        label("テキストを消去")
-        wait_ui("search-cleared", lambda data: not any(
-            e.get("label") == "テキストを消去" for e in data["entries"]))
+        data = run.ui("before-clear-search")
+        if "search.clear" in identifiers(data):
+            run.tap("search.clear")
+            wait_ui("search-cleared", lambda d: "search.clear" not in identifiers(d))
+        else:
+            label("テキストを消去")
+            wait_ui("search-cleared", lambda d: not any(e.get("label") == "テキストを消去" for e in d["entries"]))
 
     def close_search():
-        label("閉じる")
-        wait_ui("search-closed", lambda data: not search_fields(data))
+        data = run.ui("before-search-done")
+        if "search.done" in identifiers(data):
+            run.tap("search.done")
+        wait_ui("search-closed", lambda d: "navigation.tab.search" in identifiers(d) and "Search" not in identifiers(d))
 
     def paste(identifier, text, replace=False):
         def reflected(data):
@@ -185,25 +192,56 @@ def main():
             if filters != {"library.filter.all", "library.filter.pinned", "library.filter.drafts"}:
                 raise VerificationError("Expected All, Pinned and Drafts filters above the library")
             run.screenshot("before")
-            tabs = {e.get("label"): e for e in before["entries"] if e.get("role") == "RadioButton"}
+            tabs = {e.get("label"): e for e in before["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
             if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
                 raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
             create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"
             if create_id == "library.add":
                 add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
-                search_tab = tabs["検索"]["frame"]
-                if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
-                    raise VerificationError("Create control must remain compact and tappable")
-                if (add["y"] + add["height"] > search_tab["y"] or
-                        abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
-                    raise VerificationError("Create must sit above the trailing search button")
-            elif create_id not in identifiers(before):
-                raise VerificationError("Empty library must expose one labelled creation action")
+                if min(add["width"], add["height"]) < 44:
+                    raise VerificationError("Create must retain a 44pt target")
+                if add["x"] < before["screen"]["width"] * 0.7 or add["y"] >= 150:
+                    raise VerificationError("Create must remain at the top trailing corner")
+            else:
+                raise VerificationError("Creation must remain visible in the heading")
             with run.recording():
                 run.tap(create_id)
-                run.ui("new-editor")
+                wait_ui("new-editor", lambda data: "editor.body" in identifiers(data)
+                        and "editor.keyboard.dismiss" in identifiers(data))
                 paste("editor.title", title)
                 paste("editor.body", body)
+                # Opening supplementary help must not end the editing session
+                # or replace its input. The later save/copy checks exact bytes.
+                before_help = run.ui("before-editor-help")
+                if "editor.help" in identifiers(before_help) or "editor.more" in identifiers(before_help):
+                    raise VerificationError("Keyboard and screen toolbars must be mutually exclusive")
+                input_values = {e["uniqueId"]: e.get("value") for e in before_help["entries"]
+                                if e.get("uniqueId") in ("editor.title", "editor.body")}
+                run.tap("editor.keyboard.help")
+                wait_ui("editor-help", lambda data: "editor.lengthLimit" in identifiers(data))
+                run.screenshot("editor-help")
+                run.tap("editor.help.close")
+                after_help = wait_ui("editor-help-returned", lambda data: "editor.body" in identifiers(data)
+                                     and "editor.keyboard.dismiss" in identifiers(data))
+                restored_values = {e["uniqueId"]: e.get("value") for e in after_help["entries"]
+                                   if e.get("uniqueId") in input_values}
+                if restored_values != input_values:
+                    raise VerificationError("Editor input changed after closing supplementary help")
+                run.screenshot("editor-keyboard-spacing")
+                run.tap("editor.keyboard.dismiss")
+                unfocused = wait_ui("editor-keyboard-dismissed", lambda data: "editor.help" in identifiers(data)
+                                    and "editor.exitGuidance" in identifiers(data)
+                                    and "editor.keyboard.dismiss" not in identifiers(data))
+                if "editor.keyboard.help" in identifiers(unfocused):
+                    raise VerificationError("Keyboard help must disappear with the keyboard controls")
+                if not any(e.get("label") == "空白や改行は、そのまま保存されます。"
+                           for e in unfocused["entries"]):
+                    raise VerificationError("Preservation guidance must be visible beside the save/close explanation")
+                run.screenshot("editor-exit-guidance")
+                run.tap("editor.body")
+                wait_ui("editor-refocused", lambda data: "editor.keyboard.dismiss" in identifiers(data)
+                        and "editor.help" not in identifiers(data)
+                        and "editor.exitGuidance" not in identifiers(data))
                 background_editor("library-editor-background")
                 run.tap("editor.close")
                 pending = wait_ui("draft-kept", lambda data: any(
@@ -230,6 +268,12 @@ def main():
                 run.tap("library.filter.all")
                 wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 tab("検索")
+                opened = wait_ui("search-opened", lambda data: "search.field" in identifiers(data))
+                time.sleep(0.5)
+                opened = run.ui("search-no-autofocus")
+                if "search.done" in identifiers(opened) or "Search" in identifiers(opened):
+                    raise VerificationError("Entering Search must not activate the keyboard")
+                run.tap("search.field")
                 focused = wait_ui("search-focused", lambda data: "Search" in identifiers(data))
                 search_heading = check_navigation_title(focused, "検索")
                 if abs(search_heading["height"] - library_heading["height"]) > 1:
@@ -237,6 +281,9 @@ def main():
                 if "search.prompt" not in identifiers(focused) or any(
                         e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
                     raise VerificationError("Empty search must show guidance instead of saved rows")
+                field = search_fields(focused)[0]["frame"]
+                if field["y"] + field["height"] > focused["screen"]["height"] * 0.3:
+                    raise VerificationError("Search field must remain at the top of the screen")
                 if "library.add" in identifiers(focused):
                     raise VerificationError("Create obscures the active search input")
                 # Identify this run's item through a unique Japanese search term.
@@ -279,6 +326,11 @@ def main():
                 label("ピン留め")
                 wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
+                tab("検索")
+                reselected = wait_ui("search-reselected", lambda data: "search.field" in identifiers(data))
+                if "Search" in identifiers(reselected) or "search.done" in identifiers(reselected):
+                    raise VerificationError("Reselecting Search must not activate the keyboard")
+                close_search()
                 tab("一覧")
                 library = wait_ui("returned-library", lambda data: row in identifiers(data))
                 if search_fields(library):
@@ -294,9 +346,10 @@ def main():
                 label("ピン留めを解除")
                 wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
                 tab("検索")
+                wait_ui("independent-search-opened", lambda data: "search.field" in identifiers(data))
+                run.tap("search.field")
                 wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
-                # Native search cancellation clears its query. Search this item
-                # again while the library remains scoped to pinned snippets.
+                # The query remains independent from the library's pinned filter.
                 paste_search(title)
                 wait_ui("independent-search", lambda data: row in identifiers(data))
                 run.tap("Search")
@@ -335,6 +388,8 @@ def main():
                 check_actions(restarted, snippet_id)
                 run.screenshot("actions-after-restart")
                 tab("検索")
+                wait_ui("search-opened-again", lambda data: "search.field" in identifiers(data))
+                run.tap("search.field")
                 wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
                 paste_search(title)
                 wait_ui("pin-search-result", lambda data: row in identifiers(data))
@@ -360,6 +415,7 @@ def main():
                     e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 run.screenshot("search-empty")
                 close_search()
+                tab("一覧")
                 finished = wait_ui("finished", lambda data: row in identifiers(data)
                                    and not search_fields(data))
                 if any(entry.get("uniqueId", "").startswith("draft.")
@@ -383,6 +439,12 @@ def main():
                 run.screenshot("trash-search")
                 run.tap("restore." + snippet_id)
                 wait_ui("trash-restored", lambda data: row not in identifiers(data))
+                data = wait_ui("trash-restored-notice", lambda data: "library.notice" in identifiers(data))
+                notice_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
+                search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
+                if notice_frame["y"] + notice_frame["height"] > search_frame["y"] - 8:
+                    raise VerificationError("Restoration notice overlaps the native search controls")
+                run.screenshot("trash-restored-notice")
                 label("閉じる")
                 wait_ui("trash-search-closed", lambda data: "library.trash.close" in identifiers(data))
                 run.tap("library.trash.close")
@@ -400,8 +462,8 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "visible_row_menu": True, "pin": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
-                "native_tabs": True, "shared_root_heading_typography": True,
-                "optional_heading_subtitle": True, "create_above_search": True,
+                "three_destination_navigation_bar": True, "search_tab_does_not_autofocus": True, "shared_root_heading_typography": True,
+                "optional_heading_subtitle": True, "create_at_top_trailing": True, "search_field_at_top": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
                 "empty_search_guidance": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,

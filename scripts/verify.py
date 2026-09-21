@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
     'scripts/check_docs.py', 'scripts/check_swift_policy.py', 'scripts/check_ui_design.py',
     'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py',
-    'scripts/swift_task_boundary.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
+    'scripts/swift_task_boundary.py', 'scripts/swift_view_structure.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
 }
 
 
@@ -73,6 +73,8 @@ def plan(paths, scope='auto'):
             select('library-ui', path)
         elif path == 'scripts/check_notice_ui.py':
             select('notice-ui', path)
+        elif path == 'scripts/check_controls_ui.py':
+            select('controls-ui', path)
         elif path == 'scripts/check_interface_ui.py':
             select('interface-ui', path)
         elif path == 'scripts/check_about_ui.py':

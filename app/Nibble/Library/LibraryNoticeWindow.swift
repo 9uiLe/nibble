@@ -9,12 +9,14 @@ struct LibraryNoticeWindow: UIViewRepresentable {
     @SkipEquatable let model: LibraryModel
     @SkipEquatable let taskOwner: LibraryTaskOwner
     let isPresented: Bool
+    let bottomBoundary: CGFloat
 
     func makeUIView(context: Context) -> AnchorView { AnchorView() }
 
     func updateUIView(_ view: AnchorView, context: Context) {
         view.content = LibraryWindowNotice(model: model, taskOwner: taskOwner)
         view.isPresented = isPresented
+        view.bottomBoundary = bottomBoundary
         view.synchronize()
     }
 
@@ -27,8 +29,10 @@ struct LibraryNoticeWindow: UIViewRepresentable {
     final class AnchorView: UIView {
         var content: LibraryWindowNotice?
         var isPresented = false
+        var bottomBoundary: CGFloat = 0
         private(set) var noticeWindow: NoticeOverlayWindow?
         private var host: UIHostingController<LibraryWindowNotice>?
+        private var bottomConstraint: NSLayoutConstraint?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
@@ -36,12 +40,14 @@ struct LibraryNoticeWindow: UIViewRepresentable {
         }
 
         func synchronize() {
-            guard isPresented, let content, let scene = window?.windowScene else {
+            guard isPresented, bottomBoundary > 0, let content, let scene = window?.windowScene else {
                 dismiss()
                 return
             }
             if let noticeWindow, noticeWindow.windowScene === scene {
+                bottomConstraint?.constant = bottomBoundary
                 host?.rootView = content
+                noticeWindow.hasNotice = { [weak model = content.model] in model?.notice != nil }
                 return
             }
             dismiss()
@@ -55,13 +61,15 @@ struct LibraryNoticeWindow: UIViewRepresentable {
             controller.addChild(host)
             controller.view.addSubview(host.view)
             host.view.translatesAutoresizingMaskIntoConstraints = false
-            let width = host.view.widthAnchor.constraint(equalTo: controller.view.widthAnchor, constant: -32)
-            width.priority = .defaultHigh
+            // SwiftUI supplies its usable bottom edge, including tabs and keyboard.
+            // Keep keyboard tracking in the content window, never in this auxiliary window.
+            let bottom = host.view.bottomAnchor.constraint(
+                equalTo: controller.view.topAnchor, constant: bottomBoundary)
             NSLayoutConstraint.activate([
-                host.view.topAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.topAnchor, constant: 8),
-                host.view.centerXAnchor.constraint(equalTo: controller.view.centerXAnchor),
-                host.view.widthAnchor.constraint(lessThanOrEqualToConstant: 520),
-                width,
+                host.view.topAnchor.constraint(greaterThanOrEqualTo: controller.view.safeAreaLayoutGuide.topAnchor, constant: InterfaceMetrics.noticeSpacing),
+                host.view.leadingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.leadingAnchor, constant: InterfaceMetrics.noticeMargin),
+                host.view.trailingAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -InterfaceMetrics.noticeMargin),
+                bottom,
             ])
             host.didMove(toParent: controller)
             overlay.frame = scene.effectiveGeometry.coordinateSpace.bounds
@@ -69,18 +77,23 @@ struct LibraryNoticeWindow: UIViewRepresentable {
             overlay.backgroundColor = .clear
             overlay.rootViewController = controller
             overlay.noticeView = host.view
+            overlay.hasNotice = { [weak model = content.model] in model?.notice != nil }
             NibbleInterface.apply(to: &overlay.traitOverrides)
             self.host = host
+            bottomConstraint = bottom
             noticeWindow = overlay
             // Showing an auxiliary window must not move text input out of the app window.
             overlay.isHidden = false
         }
 
         func dismiss() {
+            noticeWindow?.rootViewController?.view.removeFromSuperview()
             noticeWindow?.isHidden = true
             noticeWindow?.rootViewController = nil
+            noticeWindow?.windowScene = nil
             noticeWindow = nil
             host = nil
+            bottomConstraint = nil
         }
     }
 }
@@ -88,26 +101,13 @@ struct LibraryNoticeWindow: UIViewRepresentable {
 /// Restrict hit testing to the hosted banner, leaving the list and keyboard operable.
 final class NoticeOverlayWindow: UIWindow {
     weak var noticeView: UIView?
+    var hasNotice: () -> Bool = { false }
 
     override var canBecomeKey: Bool { false }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard let noticeView, !isHidden, alpha > 0,
+        guard hasNotice(), let noticeView, !isHidden, alpha > 0,
               noticeView.bounds.contains(noticeView.convert(point, from: self)) else { return nil }
         return super.hitTest(point, with: event)
-    }
-}
-
-@Equatable
-struct LibraryWindowNotice: View {
-    private let inputRevision = UUID()
-    @SkipEquatable let model: LibraryModel
-    @SkipEquatable let taskOwner: LibraryTaskOwner
-
-    var body: some View {
-        LibraryNotice(model: model, restore: { taskOwner.startTask(.undoNotice($0), on: model) }, inWindow: true)
-            .tint(.nibbleAccent)
-            .modifier(NibbleInterface())
-            .privacySensitive()
     }
 }

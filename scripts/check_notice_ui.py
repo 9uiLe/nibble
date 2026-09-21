@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify tab result notifications on an explicitly selected iOS 26.5 Simulator."""
+"""Verify operation result notifications on an explicitly selected iOS 26.5 Simulator."""
 
 import argparse
 import time
@@ -48,13 +48,13 @@ def main():
                      "--wait-timeout", "5", "--device", args.device])
 
     def tab(text):
-        label(text, "RadioButton")
+        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[text])
 
     def assert_no_notice(name):
         return wait(name, lambda data: "library.notice" not in ids(data) and "library.undo" not in ids(data))
 
     def navigation_frames(data):
-        frames = {e["label"]: e["frame"] for e in data["entries"] if e.get("role") == "RadioButton"}
+        frames = {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
         frames.update({"library.add": e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add"})
         frames.update({e["uniqueId"]: e["frame"] for e in data["entries"]
                        if e.get("uniqueId", "").startswith("library.filter.")})
@@ -66,9 +66,9 @@ def main():
         for attempt in range(12):
             data = run.ui(f"reveal-{attempt}")
             bottom = min((e["frame"]["y"] for e in data["entries"]
-                          if e.get("uniqueId") == "library.add" or e.get("role") == "TextField"), default=490)
+                          if e.get("uniqueId", "").startswith("navigation.tab.") or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
             top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
-                       if e.get("role") == "Heading" and e["frame"]["y"] < 200), default=126) + 8
+                       if e.get("role") in ("Heading", "TextField") and e["frame"]["y"] < 250), default=126) + 8
             entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
             if entry and entry["frame"]["y"] >= top and entry["frame"]["y"] + entry["frame"]["height"] <= bottom:
                 run.tap(identifier)
@@ -211,7 +211,8 @@ def main():
                             and any(e.get("role") == "TextField" and e.get("value") == term
                                     for e in data["entries"]))
                 run.screenshot("search-restored-keyboard")
-                label("閉じる")
+                run.tap("search.done")
+                wait("search-input-ended", lambda d: "navigation.tab.library" in ids(d))
                 tab("一覧")
                 wait("library-restored", lambda data: "snippet." + snippet in ids(data))
                 delete(snippet)
@@ -221,9 +222,17 @@ def main():
                 assert_no_notice("returned-tab")
                 tab("設定")
                 run.tap("library.trash")
-                wait("trash", lambda data: "more." + snippet in ids(data))
+                data = wait("trash", lambda data: "more." + snippet in ids(data))
+                close_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
                 run.tap("more." + snippet)
                 label("復元")
+                data = wait("trash-notice", lambda d: "library.notice" in ids(d))
+                close_during = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
+                notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
+                if close_before != close_during or notice["width"] < data["screen"]["width"] - 70:
+                    raise VerificationError("Deleted-item notice changed navigation or lost its full width")
+                if notice["y"] < data["screen"]["height"] * .6 or notice["y"] + notice["height"] > data["screen"]["height"] - 8:
+                    raise VerificationError("Deleted-item notice is outside its bottom presentation area")
                 run.screenshot("trash-restored")
                 run.tap("library.trash.close")
                 assert_no_notice("sheet-dismissed")
@@ -243,8 +252,8 @@ def main():
                 def library_is_active(data):
                     return (data.get("appPackage") == run.config["bundle_id"]
                             and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "一覧" for e in data["entries"])
-                            and any(e.get("role") == "RadioButton" and e.get("label") == "一覧"
-                                    and "selected" in e.get("states", []) for e in data["entries"])
+                            and any(e.get("uniqueId") == "navigation.tab.library"
+                                    and e.get("value") == "選択中" for e in data["entries"])
                             and ("library.add" in ids(data) or "library.createFirst" in ids(data)))
                 wait("foreground-root", library_is_active)
                 time.sleep(0.3)
@@ -261,9 +270,10 @@ def main():
                     previous = None
                     for attempt in range(12):
                         data = run.ui(f"scroll-{attempt}")
-                        add_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
+                        tab_top = min(e["frame"]["y"] for e in data["entries"]
+                                      if e.get("uniqueId", "").startswith("navigation.tab."))
                         controls = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")
-                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= add_frame["y"]]
+                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= tab_top]
                         signature = [(e["uniqueId"], round(e["frame"]["y"])) for e in controls]
                         if signature and signature == previous:
                             break

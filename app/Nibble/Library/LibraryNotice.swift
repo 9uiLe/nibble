@@ -10,60 +10,29 @@ struct LibraryNotice: View {
 
     @SkipEquatable let model: LibraryModel
     let restore: (UUID) -> Void
-    var inWindow = false
+    // Keep the last card laid out while fading out; expiry must not tear down its host.
+    @State private var lastNotice: LibraryModel.Notice?
 
     var body: some View {
-        Group {
-            if inWindow {
-                noticeContent
-            } else {
-                AnimationScope(.easeOut(duration: 0.16), value: model.notice != nil, name: "Library.Notice") {
-                    noticeContent
+        AnimationScope(.smooth(duration: 0.3), value: model.notice != nil, name: "Library.Notice") {
+            // Animate a persistent container, including the first card's insertion.
+            ZStack {
+                if let notice = model.notice ?? lastNotice {
+                    LibraryNoticeContent(notice: notice,
+                                         isRestoring: notice.undoID.map { model.restoringIDs.contains($0) } ?? false,
+                                         restore: restore)
                 }
             }
+            .opacity(model.notice == nil ? 0 : 1)
+            .offset(y: model.notice == nil ? 8 : 0)
+            .allowsHitTesting(model.notice != nil)
+            .accessibilityHidden(model.notice == nil)
+        }
+        .onChange(of: model.notice, initial: true) {
+            if let notice = model.notice { lastNotice = notice }
         }
         .task(id: model.notice?.id) {
             if let id = model.notice?.id { await model.expireNotice(id: id) }
-        }
-    }
-
-    @ViewBuilder private var noticeContent: some View {
-        if let notice = model.notice {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Label(notice.message, systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let subject = notice.subject {
-                        Text(subject).font(inWindow ? .caption : .subheadline)
-                            .lineLimit(inWindow ? 1 : 2)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(notice.announcement)
-                .accessibilityIdentifier("library.notice")
-                if let id = notice.undoID {
-                    Button { restore(notice.id) } label: {
-                        Text("元に戻す")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(minHeight: 44).contentShape(.rect)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .buttonStyle(.borderless)
-                        .disabled(model.restoringIDs.contains(id))
-                        .accessibilityHint("\(notice.subject ?? "項目")を復元します")
-                        .accessibilityIdentifier("library.undo")
-                }
-            }
-            .padding(.horizontal, inWindow ? 16 : 20)
-            .padding(.vertical, inWindow ? 4 : 8)
-            .frame(minHeight: inWindow ? 52 : nil)
-            .background {
-                RoundedRectangle(cornerRadius: 20).fill(.regularMaterial)
-            }
-            .transition(inWindow ? .identity : .opacity)
         }
     }
 }

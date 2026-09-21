@@ -45,47 +45,6 @@ struct AboutView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 24)
         }
-        .navigationTitle("nibbleについて")
-        .navigationBarTitleDisplayMode(.inline)
-        .background(Color.nibbleCanvas)
-    }
-}
-
-@Equatable
-private struct AboutSection<Content: View>: View {
-    // Refresh parent-owned inputs even when the macro excludes their values.
-    private let inputRevision = UUID()
-
-    let title: LocalizedStringKey
-    @SkipEquatable @ViewBuilder let content: Content
-
-    init(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(title)
-                .font(.nibbleTitle)
-                .accessibilityAddTraits(.isHeader)
-            content
-        }
-    }
-}
-
-@Equatable
-private struct AboutURL: @MainActor EquatableBodyView {
-    let title: LocalizedStringKey
-    let value: String
-
-    var equatableBody: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.nibbleBody)
-            Text(value)
-                .textSelection(.enabled)
-        }
-        .accessibilityElement(children: .combine)
+        .modifier(GuidePageStyle(title: "nibbleについて"))
     }
 }

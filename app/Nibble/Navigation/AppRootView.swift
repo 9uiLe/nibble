@@ -1,21 +1,20 @@
 import AppMacros
 import SwiftUI
-import ScopedAnimation
+import Observation
 
 @Equatable
 struct AppRootView: View {
     // Refresh parent-owned inputs even when the macro excludes their values.
     private let inputRevision = UUID()
 
-    private enum TabID: Hashable { case library, settings, search }
-
-    @State private var selectedTab = TabID.library
+    @State private var selectedTab = AppTab.library
     @State private var all: LibraryModel
     @State private var search: LibraryModel
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
+    @State private var tabScroll = TabBarScrollState()
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -31,14 +30,40 @@ struct AppRootView: View {
     var body: some View {
         @Bindable var allLibrary = all
         @Bindable var searchableLibrary = search
-        // Observe the result in the scene root even when presentation is initially inactive.
-        let notice = currentLibrary.notice
-        let presentsNotice = noticeOrigin != nil && notice?.origin == noticeOrigin
-        tabs
-        .background(LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
-                                       isPresented: presentsNotice))
-        .tabViewSearchActivation(.searchTabSelection)
-        .tabBarMinimizeBehavior(.never)
+        TabView(selection: $selectedTab) {
+            Tab("一覧", systemImage: "house", value: AppTab.library) {
+                NavigationStack {
+                    LibraryScreen(model: all, surface: .library, searchFocused: $searchFocused)
+                }
+                .toolbar(.hidden, for: .tabBar)
+            }
+            Tab("検索", systemImage: "magnifyingglass", value: AppTab.search) {
+                NavigationStack {
+                    LibraryScreen(model: search, surface: .search,
+                                  searchFocused: $searchFocused)
+                }
+                .toolbar(.hidden, for: .tabBar)
+            }
+            Tab("設定", systemImage: "gearshape", value: AppTab.settings) {
+                NavigationStack {
+                    SettingsView(library: all, showTrash: {
+                        showsTrash = true
+                        updateNoticePresentation()
+                    })
+                }
+                .toolbar(.hidden, for: .tabBar)
+                .environment(\.illustrationPlaybackAllowed,
+                             selectedTab == .settings && !showsTrash && all.editor == nil && search.editor == nil)
+            }
+        }
+        .modifier(LibraryResultFeedback(all: all, search: search))
+        .modifier(LibraryNoticeOverlay(model: currentLibrary, taskOwner: routeOwner,
+                                       isPresented: noticeOrigin != nil))
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !searchFocused { FloatingTabBar(selection: $selectedTab) }
+        }
+        .environment(\.tabBarScrollState, tabScroll)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .onSubmit(of: .search) { searchFocused = false }
@@ -55,6 +80,7 @@ struct AppRootView: View {
         .tint(.nibbleAccent)
         .onChange(of: selectedTab) {
             updateNoticePresentation()
+            tabScroll.expand()
             if selectedTab != .search { searchFocused = false }
         }
         .onChange(of: showsTrash) { updateNoticePresentation() }
@@ -90,48 +116,6 @@ struct AppRootView: View {
         }
     }
 
-    private var tabs: some View {
-        @Bindable var searchableLibrary = search
-        return TabView(selection: Binding(get: { selectedTab }, set: {
-            selectedTab = $0
-            updateNoticePresentation()
-        })) {
-            Tab(value: TabID.library) {
-                library(all, title: "一覧", showsFilters: true)
-            } label: {
-                Label { Text("一覧") } icon: { TabIcon.library }
-            }
-            Tab(value: TabID.settings) {
-                NavigationStack {
-                    SettingsView(showTrash: {
-                        showsTrash = true
-                        updateNoticePresentation()
-                    })
-                }
-                .environment(\.illustrationPlaybackAllowed,
-                             selectedTab == .settings && !showsTrash && all.editor == nil && search.editor == nil)
-            } label: {
-                Label { Text("設定") } icon: { TabIcon.settings }
-            }
-            Tab(value: TabID.search, role: .search) {
-                library(search, title: "検索", showsSearchPrompt: true)
-                    .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
-                    .searchFocused($searchFocused)
-                    .searchPresentationToolbarBehavior(.avoidHidingContent)
-            } label: {
-                Label { Text("検索") } icon: { TabIcon.search }
-            }
-        }
-        .modifier(LibraryResultFeedback(all: all, search: search))
-    }
-
-    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
-        NavigationStack {
-            LibraryScreen(model: model, title: title, showsFilters: showsFilters,
-                          showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused)
-        }
-    }
-
     private var currentLibrary: LibraryModel {
         switch selectedTab {
         case .library, .settings: all
@@ -151,17 +135,5 @@ struct AppRootView: View {
     private func updateNoticePresentation() {
         all.setNoticePresentation(noticeOrigin == .library)
         search.setNoticePresentation(noticeOrigin == .search)
-    }
-}
-
-/// Keeps success feedback tied to completed operations rather than notice appearances.
-private struct LibraryResultFeedback: ViewModifier {
-    let all: LibraryModel
-    let search: LibraryModel
-
-    func body(content: Content) -> some View {
-        content
-            .sensoryFeedback(.success, trigger: all.feedback)
-            .sensoryFeedback(.success, trigger: search.feedback)
     }
 }
