@@ -15,6 +15,22 @@ SPEC.loader.exec_module(about_ui)
 
 
 class MotionNavigationTests(unittest.TestCase):
+    def test_transition_prefers_motion_and_does_not_repeat_the_departing_row(self):
+        def screen(*identifiers):
+            return {'appPackage': 'com.apple.Preferences',
+                    'entries': [{'uniqueId': value} for value in identifiers]}
+        root = screen('com.apple.settings.accessibility')
+        mixed = screen('com.apple.settings.accessibility', 'MOTION_TITLE', 'BackButton')
+        destination = {'appPackage': 'com.apple.Preferences',
+                       'entries': [{'uniqueId': 'REDUCE_MOTION', 'value': '0'}]}
+        run = SimpleNamespace(args=SimpleNamespace(device='dedicated'), manifest={},
+                              ui=Mock(side_effect=[root, root, mixed, mixed, destination]),
+                              tap=Mock(), command=Mock(), save=Mock())
+        with patch.object(about_ui.time, 'sleep'):
+            self.assertFalse(about_ui.AboutCheck(run).motion())
+        self.assertEqual([call.args[0] for call in run.tap.call_args_list],
+                         ['com.apple.settings.accessibility', 'MOTION_TITLE'])
+
     def test_navigates_observed_settings_controls_without_changing_motion(self):
         screens = [
             {'entries': [{'uniqueId': identifier}], 'appPackage': 'com.apple.Preferences'}

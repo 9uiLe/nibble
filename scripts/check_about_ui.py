@@ -30,6 +30,7 @@ class AboutCheck:
 
     def motion(self, requested=None):
         def wait_switch(expected=None):
+            previous_navigation = None
             for index in range(24):
                 data = self.run.ui(f"motion-{index}", allow_empty=True)
                 switch = element(data, "REDUCE_MOTION")
@@ -38,12 +39,17 @@ class AboutCheck:
                         and (expected is None or switch["value"] == str(int(expected)))):
                     return switch
                 if data.get("appPackage") == "com.apple.Preferences" and switch is None:
+                    identifiers = frozenset(entry.get("uniqueId") for entry in data["entries"])
                     target = next((identifier for identifier in
-                                   ("com.apple.settings.accessibility", "MOTION_TITLE", "BackButton")
+                                   ("MOTION_TITLE", "com.apple.settings.accessibility", "BackButton")
                                    if element(data, identifier)), None)
-                    if target:
+                    navigation = (target, identifiers)
+                    if target and navigation != previous_navigation:
+                        # A transition can expose both outgoing and incoming controls.
+                        # Prefer the destination and do not repeat an unchanged observation.
                         self.run.tap(target)
-                    elif data.get("entries") and data.get("screen"):
+                        previous_navigation = navigation
+                    elif target is None and data.get("entries") and data.get("screen"):
                         # Reveal the root's Accessibility row when Settings retained a scroll position.
                         self.scroll(data, up=True)
                 time.sleep(0.3)
