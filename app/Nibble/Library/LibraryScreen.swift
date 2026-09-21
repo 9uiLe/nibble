@@ -162,18 +162,29 @@ struct LibraryScreen: View {
             Section {
                 ForEach(model.drafts) { draft in
                     Button { startTask(.open(.draft(draft.id))) } label: {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(draft.displayTitle).font(.headline)
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.body).foregroundStyle(Color.nibbleAccent)
+                                .frame(width: 36, height: 36)
+                                .background(Color.nibbleSoft, in: .rect(cornerRadius: 10))
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(draft.displayTitle).font(.nibbleTitle)
                                     .foregroundStyle(.primary).lineLimit(2)
                                 if !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Text(draft.preview).font(.subheadline).foregroundStyle(.secondary)
+                                    Text(draft.preview).font(.nibbleBody).foregroundStyle(.secondary)
                                         .lineLimit(2)
                                 }
                                 Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
                                     .font(.caption).foregroundStyle(.secondary)
                             }
-                        } icon: { Image(systemName: "square.and.pencil").font(.body) }
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.caption).foregroundStyle(.tertiary)
+                                .frame(minHeight: 36)
+                                .accessibilityHidden(true)
+                        }
+                        .padding(.vertical, 12)
                         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
                         .contentShape(.rect)
                     }
@@ -186,7 +197,11 @@ struct LibraryScreen: View {
                     .accessibilityIdentifier("draft.\(draft.id)")
                 }
             } header: {
-                Text("下書き").font(.caption2.weight(.semibold))
+                Label("タップして、編集を再開", systemImage: "square.and.pencil")
+                    .font(.nibbleBody).textCase(nil).padding(.vertical, 8)
+            } footer: {
+                Text("下書きは、編集画面で「保存」すると一覧やキーボードから使えます。")
+                    .font(.nibbleBody).padding(.vertical, 16)
             }
         }
         if model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil {

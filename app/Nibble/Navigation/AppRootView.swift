@@ -16,6 +16,8 @@ struct AppRootView: View {
     @SkipEquatable private let effects: any LibraryEffects
     @State private var routeOwner = LibraryTaskOwner()
     @State private var showsTrash = false
+    @State private var searchPresented = false
+    @State private var searchPresentationID = UUID()
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -37,8 +39,7 @@ struct AppRootView: View {
         tabs
         .background(LibraryNoticeWindow(model: currentLibrary, taskOwner: routeOwner,
                                        isPresented: presentsNotice))
-        .tabViewSearchActivation(.searchTabSelection)
-        .tabBarMinimizeBehavior(.never)
+        .tabBarMinimizeBehavior(.onScrollDown)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .onSubmit(of: .search) { searchFocused = false }
@@ -55,7 +56,10 @@ struct AppRootView: View {
         .tint(.nibbleAccent)
         .onChange(of: selectedTab) {
             updateNoticePresentation()
-            if selectedTab != .search { searchFocused = false }
+            if selectedTab != .search {
+                searchFocused = false
+                searchPresented = false
+            }
         }
         .onChange(of: showsTrash) { updateNoticePresentation() }
         .onChange(of: all.editor?.id) { updateNoticePresentation() }
@@ -94,13 +98,16 @@ struct AppRootView: View {
         @Bindable var searchableLibrary = search
         return TabView(selection: Binding(get: { selectedTab }, set: {
             selectedTab = $0
+            searchPresented = $0 == .search
+            if $0 == .search { searchPresentationID = UUID() }
             updateNoticePresentation()
         })) {
             Tab(value: TabID.library) {
                 library(all, title: "一覧", showsFilters: true)
             } label: {
-                Label { Text("一覧") } icon: { TabIcon.library }
+                TabIcon.library
             }
+            .accessibilityLabel("一覧")
             Tab(value: TabID.settings) {
                 NavigationStack {
                     SettingsView(showTrash: {
@@ -111,24 +118,43 @@ struct AppRootView: View {
                 .environment(\.illustrationPlaybackAllowed,
                              selectedTab == .settings && !showsTrash && all.editor == nil && search.editor == nil)
             } label: {
-                Label { Text("設定") } icon: { TabIcon.settings }
+                TabIcon.settings
             }
-            Tab(value: TabID.search, role: .search) {
-                library(search, title: "検索", showsSearchPrompt: true)
-                    .searchable(text: $searchableLibrary.query, prompt: "タイトルや本文を検索")
-                    .searchFocused($searchFocused)
-                    .searchPresentationToolbarBehavior(.avoidHidingContent)
+            .accessibilityLabel("設定")
+            Tab(value: TabID.search) {
+                NavigationStack {
+                    LibraryScreen(model: search, title: "検索", showsFilters: false, showsSearchPrompt: true,
+                                  searchFocused: $searchFocused)
+                        .searchable(text: $searchableLibrary.query, isPresented: $searchPresented,
+                                    placement: .toolbar,
+                                    prompt: "タイトルや本文を検索")
+                        .searchFocused($searchFocused)
+                        .searchPresentationToolbarBehavior(.avoidHidingContent)
+                        .toolbar {
+                            DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                        }
+                        .toolbar(searchPresented ? .visible : .hidden, for: .bottomBar)
+                        .toolbar(searchPresented ? .hidden : .visible, for: .tabBar)
+                        .onChange(of: searchPresented) { searchFocused = searchPresented }
+                        .onAppear {
+                            searchPresented = true
+                            searchFocused = true
+                        }
+                }
+                // Reenter the native search presentation while the root model keeps its query and results.
+                .id(searchPresentationID)
             } label: {
-                Label { Text("検索") } icon: { TabIcon.search }
+                TabIcon.search
             }
+            .accessibilityLabel("検索")
         }
         .modifier(LibraryResultFeedback(all: all, search: search))
     }
 
-    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false, showsSearchPrompt: Bool = false) -> some View {
+    private func library(_ model: LibraryModel, title: String, showsFilters: Bool = false) -> some View {
         NavigationStack {
             LibraryScreen(model: model, title: title, showsFilters: showsFilters,
-                          showsSearchPrompt: showsSearchPrompt, searchFocused: $searchFocused)
+                          searchFocused: $searchFocused)
         }
     }
 

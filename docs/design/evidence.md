@@ -26,11 +26,21 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 タブはアプリ内の領域へ移動するための部品であり、実行操作の入口として扱わない。領域の状態を保ち、短いラベルを付け、空の領域でも入口を消さないことを勧めている。
 
+2026-09-21に[SwiftUI tabBarMinimizeBehavior](https://developer.apple.com/documentation/swiftui/view/tabbarminimizebehavior(_:))と[UIKit onScrollDown](https://developer.apple.com/documentation/uikit/uitabbarcontroller/minimizebehavior/onscrolldown)の公開仕様を確認した。iOS 26.0以上のiPhoneでは、下方向のスクロールで縮小し、上方向で展開する標準動作を指定できる。個別アプリの操作到達性は実行で確認する。
+
+### R21 Instagramのアイコンナビゲーション
+
+出典：[Instagram — 日本のApp Store](https://apps.apple.com/jp/app/instagram/id389801252)。2026-09-21にInstagram, Inc.が公開するiPhone用スクリーンショットを確認した。フィードとリールの画面では検索を含む複数の移動先をアイコンのみの同一タブ列に置いている。
+
+参照範囲は公開静止画の情報構造であり、最新のアプリ実機操作・段階配信中の外観・スクロール時の時間変化を確認したものではない。C01の縮小動作は利用者の希望とR01の標準APIをもとに採用し、Instagramの内部実装を根拠にしない。
+
 ### R02 検索
 
 出典：[Apple HIG — Search fields](https://developer.apple.com/design/human-interface-guidelines/search-fields)。閲読範囲：Best practices、scope、iOS/iPadOSの配置と起動。
 
 検索対象をplaceholderで伝え、可能なら入力とともに結果を更新する。すぐ検索を始める入口と、候補を探索する検索ページを使い分ける。対象を絞る場合は広い範囲から始める。
+
+下部の標準検索欄は[DefaultToolbarItem](https://developer.apple.com/documentation/swiftui/defaulttoolbaritem/init(kind:placement:))で配置する。[WWDC25の標準デザイン解説](https://developer.apple.com/videos/play/wwdc2025/323/)が示す、iPhoneで届きやすい下部に検索を置く考え方をC12へ適用する。
 
 ### R03 レイアウト
 

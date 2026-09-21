@@ -194,16 +194,32 @@ def main():
                 search_tab = tabs["検索"]["frame"]
                 if not (44 <= add["width"] <= 60 and 44 <= add["height"] <= 60):
                     raise VerificationError("Create control must remain compact and tappable")
-                if (add["y"] + add["height"] > search_tab["y"] or
-                        abs(add["x"] + add["width"] - search_tab["x"] - search_tab["width"]) > 8):
-                    raise VerificationError("Create must sit above the trailing search button")
+                trailing_inset = before["screen"]["width"] - add["x"] - add["width"]
+                if add["y"] + add["height"] > search_tab["y"] or not 16 <= trailing_inset <= 28:
+                    raise VerificationError("Create must sit above the tabs at the trailing content margin")
             elif create_id not in identifiers(before):
                 raise VerificationError("Empty library must expose one labelled creation action")
             with run.recording():
                 run.tap(create_id)
-                run.ui("new-editor")
+                wait_ui("new-editor", lambda data: "editor.body" in identifiers(data)
+                        and "editor.keyboard.dismiss" in identifiers(data))
                 paste("editor.title", title)
                 paste("editor.body", body)
+                # Opening supplementary help must not end the editing session
+                # or replace its input. The later save/copy checks exact bytes.
+                before_help = run.ui("before-editor-help")
+                input_values = {e["uniqueId"]: e.get("value") for e in before_help["entries"]
+                                if e.get("uniqueId") in ("editor.title", "editor.body")}
+                run.tap("editor.keyboard.help")
+                wait_ui("editor-help", lambda data: "editor.lengthLimit" in identifiers(data))
+                run.screenshot("editor-help")
+                run.tap("editor.help.close")
+                after_help = wait_ui("editor-help-returned", lambda data: "editor.body" in identifiers(data)
+                                     and "editor.keyboard.dismiss" in identifiers(data))
+                restored_values = {e["uniqueId"]: e.get("value") for e in after_help["entries"]
+                                   if e.get("uniqueId") in input_values}
+                if restored_values != input_values:
+                    raise VerificationError("Editor input changed after closing supplementary help")
                 background_editor("library-editor-background")
                 run.tap("editor.close")
                 pending = wait_ui("draft-kept", lambda data: any(
@@ -278,6 +294,9 @@ def main():
                 menu(row, "pin-menu")
                 label("ピン留め")
                 wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
+                close_search()
+                tab("検索")
+                wait_ui("search-reselected", lambda data: "Search" in identifiers(data))
                 close_search()
                 tab("一覧")
                 library = wait_ui("returned-library", lambda data: row in identifiers(data))
@@ -360,6 +379,7 @@ def main():
                     e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 run.screenshot("search-empty")
                 close_search()
+                tab("一覧")
                 finished = wait_ui("finished", lambda data: row in identifiers(data)
                                    and not search_fields(data))
                 if any(entry.get("uniqueId", "").startswith("draft.")
@@ -400,7 +420,7 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "visible_row_menu": True, "pin": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
-                "native_tabs": True, "shared_root_heading_typography": True,
+                "native_tabs": True, "search_tab_reselect_focus": True, "shared_root_heading_typography": True,
                 "optional_heading_subtitle": True, "create_above_search": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
                 "empty_search_guidance": True, "top_filters": True,
