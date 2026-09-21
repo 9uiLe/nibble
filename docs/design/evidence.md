@@ -34,6 +34,8 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 同日に利用者が提示した通常・縮小の二枚の画面では、縮小後も全アイコンが同じ順序で残り、バーの幅・高さと記号が小さくなる。C01はこちらの構成を正とする。参照は静止画の比較であり、遷移時間、最新アプリの実操作、内部実装の確認を意味しない。標準の一項目だけを残す縮小APIは採用しない。寸法の変化には[ScrollGeometry](https://developer.apple.com/documentation/swiftui/view/onscrollgeometrychange(for:of:action:))の観測、素材には[glassEffect](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:))を用いる。
 
+利用者の修正指定により、新規作成は右上へ分離し、タブの記号は通常24pt・縮小16ptとする。検索への移動だけではキーボードを開かない。縮小は固定レイアウトへの[scaleEffect](https://developer.apple.com/documentation/swiftui/view/scaleeffect(_:anchor:))で連続補間し、素材・選択背景・操作領域を一緒に変形する。これはnibbleの採用仕様であり、Instagram内部の再現を主張するものではない。
+
 ### R02 検索
 
 出典：[Apple HIG — Search fields](https://developer.apple.com/design/human-interface-guidelines/search-fields)。閲読範囲：Best practices、scope、iOS/iPadOSの配置と起動。

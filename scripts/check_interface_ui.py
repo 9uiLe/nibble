@@ -53,19 +53,19 @@ def main():
 
     def check_tab_scrolling(mode):
         def tabs(data):
-            return {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.") or e.get("uniqueId") == "library.add"}
+            return {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
 
         data = run.ui(f"{mode}-tabs-expanded")
         expanded = tabs(data)
         width, height = data["screen"]["width"], data["screen"]["height"]
         high, low = f"{width * 0.45:.0f},{height * 0.32:.0f}", f"{width * 0.45:.0f},{height * 0.78:.0f}"
-        if set(expanded) != {"一覧", "設定", "検索", "新規作成"}:
+        if set(expanded) != {"一覧", "設定", "検索"}:
             raise VerificationError("Expanded tabs must retain their accessible names")
         run.command(["sim-use", "swipe", "--from", low, "--to", high,
                      "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
         minimized = tabs(run.ui(f"{mode}-tabs-minimized"))
         if set(minimized) != set(expanded):
-            raise VerificationError("Compact navigation must retain all four controls")
+            raise VerificationError("Compact navigation must retain all three destinations")
         for name, frame in minimized.items():
             if min(frame["height"], frame["width"]) < 44:
                 raise VerificationError("Compact navigation must keep 44pt targets")
@@ -124,7 +124,7 @@ def main():
                 time.sleep(0.5)
         run.manifest["layout_frames"] = frames
         run.manifest["assertions"] = {"library_editor_settings_guides_frames_unchanged": True,
-                                      "all_four_tabs_shrink_and_restore": True}
+                                      "all_three_tabs_shrink_and_restore": True}
     except (Exception, KeyboardInterrupt) as caught:
         error = repr(caught)
         raise

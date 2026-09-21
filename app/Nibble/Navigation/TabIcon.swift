@@ -9,8 +9,11 @@ struct TabIcon: @MainActor EquatableBodyView {
 
     var equatableBody: some View {
         Image(systemName: symbol)
-            .font(.system(size: size, weight: .semibold))
+            .resizable()
+            .scaledToFit()
+            .font(.system(size: size, weight: .medium))
             .symbolRenderingMode(.monochrome)
+            .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }

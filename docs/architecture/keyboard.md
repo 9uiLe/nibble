@@ -25,7 +25,9 @@ OSのkeyboard背景とニュートラルな文字、主操作と挿入結果の�
 
 ## 構成と責務
 
-controllerは入力先・権限・OS作用、Viewは配置とUIタスク、modelは要求/操作ID・ページ・全文・通知、Reader actorは短命接続によるDB操作を所有する。UI/OSはMainActor、DBはactorで扱い、[共通保存層](../product-specification.md#保存形式と接続)の原文とtransaction契約を使う。
+controllerは入力先・権限・OS作用、Viewは配置と表示の寿命、`KeyboardTaskOwner`は操作の開始・重複・取消、modelは要求/操作ID・ページ・全文・通知、Reader actorは短命接続によるDB操作を所有する。UI/OSはMainActor、DBはactorで扱い、[共通保存層](../product-specification.md#保存形式と接続)の原文とtransaction契約を使う。
+
+`KeyboardView`は詳細の切替・読込と通知期限のtask・アクセシビリティのフォーカスを保持する。一覧は`KeyboardBrowseView`、対象選択は`KeyboardFilterBar`、各行は`KeyboardSnippetRow`、全文は`KeyboardDetailView`、下部は`KeyboardControls`へ分割する。表示部品は個別ファイルへ置き、値だけの行要約・通知は比較可能な表示入力を受け取る。共通パネルの伸長・角丸・左右余白は`KeyboardPanelStyle`が担う。詳細の表示中も一覧を保持して、戻った位置を失わない。
 
 ## 共有データと読み取りの契約
 

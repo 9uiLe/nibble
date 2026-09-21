@@ -19,9 +19,14 @@ struct DeletedSnippetsView: View {
                           searchFocused: $searchFocused)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("閉じる", systemImage: "xmark") { dismiss() }
-                            .accessibilityIdentifier("library.trash.close")
+                        Button { dismiss() } label: {
+                            Label("閉じる", systemImage: "xmark")
+                                .modifier(IconControlStyle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("library.trash.close")
                     }
+                    .sharedBackgroundVisibility(.hidden)
                 }
         }
         .searchable(text: $library.query, prompt: "削除した項目を検索")

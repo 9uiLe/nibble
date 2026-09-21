@@ -26,8 +26,5 @@ struct ScreenHeading: @MainActor EquatableBodyView {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 23)
-        .padding(.top, 12)
-        .padding(.bottom, 18)
     }
 }

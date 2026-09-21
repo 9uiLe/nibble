@@ -198,13 +198,12 @@ def main():
             create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"
             if create_id == "library.add":
                 add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
-                search_tab = tabs["検索"]["frame"]
                 if min(add["width"], add["height"]) < 44:
                     raise VerificationError("Create must retain a 44pt target")
-                if abs(add["y"] - search_tab["y"]) > 1 or abs(add["height"] - search_tab["height"]) > 1:
-                    raise VerificationError("Create must occupy the same bar as the navigation tabs")
+                if add["x"] < before["screen"]["width"] * 0.7 or add["y"] >= 150:
+                    raise VerificationError("Create must remain at the top trailing corner")
             else:
-                raise VerificationError("Creation must always remain in the four-item bar")
+                raise VerificationError("Creation must remain visible in the heading")
             with run.recording():
                 run.tap(create_id)
                 wait_ui("new-editor", lambda data: "editor.body" in identifiers(data)
@@ -214,6 +213,8 @@ def main():
                 # Opening supplementary help must not end the editing session
                 # or replace its input. The later save/copy checks exact bytes.
                 before_help = run.ui("before-editor-help")
+                if "editor.help" in identifiers(before_help) or "editor.more" in identifiers(before_help):
+                    raise VerificationError("Keyboard and screen toolbars must be mutually exclusive")
                 input_values = {e["uniqueId"]: e.get("value") for e in before_help["entries"]
                                 if e.get("uniqueId") in ("editor.title", "editor.body")}
                 run.tap("editor.keyboard.help")
@@ -226,6 +227,21 @@ def main():
                                    if e.get("uniqueId") in input_values}
                 if restored_values != input_values:
                     raise VerificationError("Editor input changed after closing supplementary help")
+                run.screenshot("editor-keyboard-spacing")
+                run.tap("editor.keyboard.dismiss")
+                unfocused = wait_ui("editor-keyboard-dismissed", lambda data: "editor.help" in identifiers(data)
+                                    and "editor.exitGuidance" in identifiers(data)
+                                    and "editor.keyboard.dismiss" not in identifiers(data))
+                if "editor.keyboard.help" in identifiers(unfocused):
+                    raise VerificationError("Keyboard help must disappear with the keyboard controls")
+                if not any(e.get("label") == "空白や改行は、そのまま保存されます。"
+                           for e in unfocused["entries"]):
+                    raise VerificationError("Preservation guidance must be visible beside the save/close explanation")
+                run.screenshot("editor-exit-guidance")
+                run.tap("editor.body")
+                wait_ui("editor-refocused", lambda data: "editor.keyboard.dismiss" in identifiers(data)
+                        and "editor.help" not in identifiers(data)
+                        and "editor.exitGuidance" not in identifiers(data))
                 background_editor("library-editor-background")
                 run.tap("editor.close")
                 pending = wait_ui("draft-kept", lambda data: any(
@@ -252,6 +268,12 @@ def main():
                 run.tap("library.filter.all")
                 wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 tab("検索")
+                opened = wait_ui("search-opened", lambda data: "search.field" in identifiers(data))
+                time.sleep(0.5)
+                opened = run.ui("search-no-autofocus")
+                if "search.done" in identifiers(opened) or "Search" in identifiers(opened):
+                    raise VerificationError("Entering Search must not activate the keyboard")
+                run.tap("search.field")
                 focused = wait_ui("search-focused", lambda data: "Search" in identifiers(data))
                 search_heading = check_navigation_title(focused, "検索")
                 if abs(search_heading["height"] - library_heading["height"]) > 1:
@@ -305,7 +327,9 @@ def main():
                 wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
                 tab("検索")
-                wait_ui("search-reselected", lambda data: "Search" in identifiers(data))
+                reselected = wait_ui("search-reselected", lambda data: "search.field" in identifiers(data))
+                if "Search" in identifiers(reselected) or "search.done" in identifiers(reselected):
+                    raise VerificationError("Reselecting Search must not activate the keyboard")
                 close_search()
                 tab("一覧")
                 library = wait_ui("returned-library", lambda data: row in identifiers(data))
@@ -322,6 +346,8 @@ def main():
                 label("ピン留めを解除")
                 wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
                 tab("検索")
+                wait_ui("independent-search-opened", lambda data: "search.field" in identifiers(data))
+                run.tap("search.field")
                 wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
                 # The query remains independent from the library's pinned filter.
                 paste_search(title)
@@ -362,6 +388,8 @@ def main():
                 check_actions(restarted, snippet_id)
                 run.screenshot("actions-after-restart")
                 tab("検索")
+                wait_ui("search-opened-again", lambda data: "search.field" in identifiers(data))
+                run.tap("search.field")
                 wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
                 paste_search(title)
                 wait_ui("pin-search-result", lambda data: row in identifiers(data))
@@ -428,8 +456,8 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "visible_row_menu": True, "pin": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
-                "four_item_navigation_bar": True, "search_tab_reselect_focus": True, "shared_root_heading_typography": True,
-                "optional_heading_subtitle": True, "create_in_tab_bar": True, "search_field_at_top": True,
+                "three_destination_navigation_bar": True, "search_tab_does_not_autofocus": True, "shared_root_heading_typography": True,
+                "optional_heading_subtitle": True, "create_at_top_trailing": True, "search_field_at_top": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
                 "empty_search_guidance": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,

@@ -66,7 +66,7 @@ def main():
         for attempt in range(12):
             data = run.ui(f"reveal-{attempt}")
             bottom = min((e["frame"]["y"] for e in data["entries"]
-                          if e.get("uniqueId") == "library.add" or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
+                          if e.get("uniqueId", "").startswith("navigation.tab.") or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
             top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
                        if e.get("role") in ("Heading", "TextField") and e["frame"]["y"] < 250), default=126) + 8
             entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
@@ -262,9 +262,10 @@ def main():
                     previous = None
                     for attempt in range(12):
                         data = run.ui(f"scroll-{attempt}")
-                        add_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add")
+                        tab_top = min(e["frame"]["y"] for e in data["entries"]
+                                      if e.get("uniqueId", "").startswith("navigation.tab."))
                         controls = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")
-                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= add_frame["y"]]
+                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= tab_top]
                         signature = [(e["uniqueId"], round(e["frame"]["y"])) for e in controls]
                         if signature and signature == previous:
                             break
