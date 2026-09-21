@@ -13,6 +13,8 @@ import uuid
 
 from script_ui import ui
 from verification_evidence import differences, working_hashes
+from verification_catalog import (STAGES, REGRESSION_STEPS, PERFORMANCE_STEPS,
+                                  PRODUCT_STEPS, OFFLINE_STEPS, SCOPES)
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
@@ -20,11 +22,6 @@ STATIC_SCRIPTS = {
     'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py',
     'scripts/swift_task_boundary.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
 }
-OFFLINE_STEPS = {'static', 'preview-native'}
-REGRESSION_STEPS = ['static', 'preview-native', 'fixture-test', 'product-test',
-                    'fixture-smoke', 'mvp', 'notice', 'interface', 'about']
-EXPERIMENT_STEPS = ['performance-test', 'research-test', 'research-ui']
-SCOPES = ('auto', 'inspection', 'fixture', 'product', 'regression', 'performance', 'research')
 
 
 def changed_files(root, base):
@@ -59,8 +56,6 @@ def plan(paths, scope='auto'):
             manual.append('再生の時間・メモリ: --scope performance（' + path + '）')
             if path.startswith('app/TestSupport/'):
                 select('product-test', path + ': 共有する画面ホスト')
-        elif path.startswith('research/probe/'):
-            manual.append('比較実験: --scope research と research/probe/README.md（' + path + '）')
         elif path.startswith('app/NibbleTests/'):
             select('product-test', path + ': 製品テスト')
         elif path.startswith('validation/VerificationAppTests/'):
@@ -70,21 +65,20 @@ def plan(paths, scope='auto'):
         elif path in STATIC_SCRIPTS or path.startswith(('scripts/tests/', 'scripts/examples/', 'tools/ui-design/', '.github/')):
             continue
         elif path.startswith('app/'):
-            select('product-test', path)
-            select('mvp', path)
-            for name in ('notice', 'interface', 'about'):
+            for name in PRODUCT_STEPS:
                 select(name, path + ': 製品の表示・操作へ影響')
             if path.startswith(('app/Shared/', 'app/NibbleShare/', 'app/NibbleKeyboard/', 'app/Nibble.xcodeproj/')):
-                manual.append('共有拡張・キーボードのOS導線: docs/mvp.md（' + path + '）')
-        elif path == 'scripts/check-mvp-ui.py':
-            select('mvp', path)
-        elif path == 'scripts/check-notice-ui.py':
-            select('notice', path)
-        elif path == 'scripts/check-interface-ui.py':
-            select('interface', path)
-        elif path == 'scripts/check-about-ui.py':
-            select('about', path)
-        elif path in {'validation/StoreBenchmark.swift', 'scripts/benchmark-store.py'}:
+                manual.append('共有拡張・キーボードのOS導線: docs/ios-verification.md（' + path + '）')
+        elif path == 'scripts/check_library_ui.py':
+            select('library-ui', path)
+        elif path == 'scripts/check_notice_ui.py':
+            select('notice-ui', path)
+        elif path == 'scripts/check_interface_ui.py':
+            select('interface-ui', path)
+        elif path == 'scripts/check_about_ui.py':
+            select('about-ui', path)
+            select('keyboard-guide-ui', path)
+        elif path in {'validation/StoreBenchmark.swift', 'scripts/benchmark_store.py'}:
             manual.append('保存層の性能: docs/performance-verification.md（' + path + '）')
         elif path.startswith('validation/'):
             for name in ('fixture-test', 'fixture-smoke'):
@@ -92,20 +86,16 @@ def plan(paths, scope='auto'):
         else:
             for name in REGRESSION_STEPS[1:]:
                 select(name, path + ': 共通基盤・設定・未知の変更は通常回帰を検査')
-    groups = {'inspection': {'preview-native'}, 'fixture': {'fixture-test', 'fixture-smoke'},
-              'product': {'product-test', 'mvp', 'notice', 'interface', 'about'},
-              'regression': set(REGRESSION_STEPS), 'performance': {'performance-test'},
-              'research': {'research-test', 'research-ui'}}
-    all_steps = REGRESSION_STEPS + EXPERIMENT_STEPS
+    all_steps = REGRESSION_STEPS + PERFORMANCE_STEPS
     if scope != 'auto':
-        selected = {name: ['明示したscope: ' + scope] for name in groups[scope] | {'static'}}
-    omitted = [{'id': name, 'reason': ('測定条件・比較目的を決めて明示的に実行する' if name in EXPERIMENT_STEPS else
+        selected = {name: ['明示したscope: ' + scope] for name in SCOPES[scope] | {'static'}}
+    omitted = [{'id': name, 'reason': ('測定条件を決めて明示的に実行する' if name in PERFORMANCE_STEPS else
                                                '変更から自動選択されない' if scope == 'auto' else '明示したscopeの対象外')}
                for name in all_steps if name not in selected]
     return {'scope': scope, 'changed_files': paths,
             'steps': [{'id': name, 'reasons': selected[name]} for name in all_steps if name in selected],
             'excluded': omitted, 'manual_review': sorted(set(manual)),
-            'preconditions': ['about実行時はSettings > Accessibility > Motionを開いておく'] if 'about' in selected else [],
+            'preconditions': [],
             'coverage': '選択したローカル工程・targetの全テスト・UI導線。手動確認・媒体の目視は別途必要'}
 
 
@@ -116,16 +106,11 @@ def command_for(name, device):
         return [sys.executable, '-m', 'unittest', 'discover', '-s', 'scripts/tests/macos', '-v']
     if not device:
         raise ValueError('iOSの計画には専用Simulatorの --device UDID が必要です')
-    if name in {'fixture-test', 'fixture-smoke', 'product-test', 'performance-test', 'research-test'}:
-        config = {'product-test': 'app/project.json', 'performance-test': 'app/performance-project.json',
-                  'research-test': 'research/probe/project.json'}.get(name, 'validation/project.json')
-        return [sys.executable, 'scripts/ios.py', 'smoke' if name == 'fixture-smoke' else 'test',
-                '--project-config', config, '--configuration', 'Release', '--device', device]
-    if name == 'research-ui':
-        return [sys.executable, 'research/probe/check-ui.py', '--device', device]
-    script = {'mvp': 'check-mvp-ui.py', 'notice': 'check-notice-ui.py',
-              'interface': 'check-interface-ui.py', 'about': 'check-about-ui.py'}[name]
-    return [sys.executable, 'scripts/' + script, '--device', device]
+    stage = STAGES[name]
+    if stage.project:
+        return [sys.executable, 'scripts/ios.py', stage.command,
+                '--project-config', stage.project, '--configuration', 'Release', '--device', device]
+    return [sys.executable, 'scripts/' + stage.script, '--device', device, *stage.arguments]
 
 
 def execute(argv, log, timeout, session=None):
@@ -194,16 +179,10 @@ def run_plan(selected, directory, device, timeout=1800):
                             raise ValueError('Evidence device differs from the plan')
                         if manifest.get('environment', {}).get('configuration') != 'Release':
                             raise ValueError('Evidence configuration differs from the plan')
-                        expected_scheme = ('VerificationApp' if step['id'].startswith('fixture-') else
-                                           'ResearchProbe' if step['id'].startswith('research-') else
-                                           'NibblePerformance' if step['id'] == 'performance-test' else 'Nibble')
-                        if manifest['project']['scheme'] != expected_scheme:
+                        stage = STAGES[step['id']]
+                        if manifest['project']['scheme'] != stage.scheme:
                             raise ValueError('Evidence target differs from the plan')
-                        expected_command = ('test' if step['id'].endswith('-test') else {
-                            'fixture-smoke': 'smoke', 'mvp': 'mvp-ui', 'notice': 'notice-ui',
-                            'interface': 'fixed-interface', 'about': 'rive-about', 'research-ui': 'research-ui',
-                        }[step['id']])
-                        if manifest['command'] != expected_command:
+                        if manifest['command'] != stage.command:
                             raise ValueError('Planned verification did not run')
                     except (ValueError, OSError, KeyError):
                         step['status'] = 'failed'
@@ -228,7 +207,7 @@ def main(argv=None):
     parser.add_argument('action', choices=('plan', 'run'))
     parser.add_argument('--base', default='origin/main', help='Compare this revision with the working tree, including untracked files')
     parser.add_argument('--since', type=Path, help='Only changes since this successful result; failed results cannot suppress work')
-    parser.add_argument('--scope', choices=SCOPES, default='auto')
+    parser.add_argument('--scope', choices=('auto', *SCOPES), default='auto')
     parser.add_argument('--device')
     parser.add_argument('--output', type=Path, help='New directory; existing results are never overwritten')
     args = parser.parse_args(argv)

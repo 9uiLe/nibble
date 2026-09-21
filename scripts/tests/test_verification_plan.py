@@ -17,7 +17,7 @@ class SelectionTests(unittest.TestCase):
         return {step['id'] for step in verify.plan(paths, scope)['steps']}
 
     def test_docs_do_not_start_simulators(self):
-        self.assertEqual(self.selected(['docs/mvp.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
+        self.assertEqual(self.selected(['docs/ios-verification.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
 
     def test_static_tooling_changes_do_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})
@@ -39,34 +39,35 @@ class SelectionTests(unittest.TestCase):
             with self.subTest(path=path):
                 selected = self.selected([path])
                 self.assertTrue({'static', 'preview-native', 'fixture-test', 'fixture-smoke',
-                                 'product-test', 'mvp', 'notice', 'interface', 'about'} <= selected)
-                self.assertFalse({'research-test', 'research-ui', 'performance-test'} & selected)
-        selected = verify.plan(['app/Shared/LibraryRequest.swift'])
-        self.assertIn('product-test', self.selected(['app/Shared/LibraryRequest.swift']))
+                                 'product-test', 'library-ui', 'notice-ui', 'interface-ui', 'about-ui', 'keyboard-guide-ui'} <= selected)
+                self.assertNotIn('performance-test', selected)
+        selected = verify.plan(['app/Shared/Domain/LibraryRequest.swift'])
+        self.assertIn('product-test', self.selected(['app/Shared/Domain/LibraryRequest.swift']))
         self.assertTrue(selected['manual_review'])
-        self.assertTrue(selected['preconditions'])
+        self.assertEqual(selected['preconditions'], [])
 
-    def test_measurement_and_research_require_explicit_scopes(self):
-        for path in ('research/probe/ResearchProbe/Stores.swift', 'app/NibblePerformanceTests/Measurements.swift'):
+    def test_measurement_requires_explicit_scope(self):
+        for path in ('validation/StoreBenchmark.swift', 'app/NibblePerformanceTests/Measurements.swift'):
             with self.subTest(path=path):
                 result = verify.plan([path])
                 self.assertEqual({step['id'] for step in result['steps']}, {'static'})
                 self.assertTrue(result['manual_review'])
         self.assertEqual(self.selected([], 'performance'), {'static', 'performance-test'})
-        self.assertEqual(self.selected([], 'research'), {'static', 'research-test', 'research-ui'})
-        self.assertFalse({'research-test', 'research-ui', 'performance-test'} & self.selected([], 'regression'))
+        self.assertNotIn('performance-test', self.selected([], 'regression'))
         self.assertEqual(self.selected(['app/TestSupport/RiveTestSupport.swift']), {'static', 'product-test'})
         self.assertIn('app/performance-project.json', verify.command_for('performance-test', 'explicit'))
-        self.assertIn('research/probe/project.json', verify.command_for('research-test', 'explicit'))
 
     def test_ui_driver_changes_select_the_affected_flow(self):
-        self.assertEqual(self.selected(['scripts/check-notice-ui.py']), {'static', 'notice'})
+        self.assertEqual(self.selected(['scripts/check_notice_ui.py']), {'static', 'notice-ui'})
+        self.assertEqual(self.selected(['scripts/check_library_ui.py']), {'static', 'library-ui'})
+        self.assertEqual(self.selected(['scripts/check_about_ui.py']), {'static', 'about-ui', 'keyboard-guide-ui'})
+        self.assertEqual(verify.command_for('keyboard-guide-ui', 'explicit')[-2:], ['--story', 'keyboard'])
         result = verify.plan(['README.md'], 'fixture')
         self.assertEqual({step['id'] for step in result['steps']}, {'static', 'fixture-test', 'fixture-smoke'})
         self.assertTrue(all(row['reason'] for row in result['excluded']))
 
     def test_test_selection_flags_are_not_inferred(self):
-        for name in ['fixture-test', 'product-test', 'performance-test', 'research-test']:
+        for name in ['fixture-test', 'product-test', 'performance-test']:
             argv = verify.command_for(name, 'explicit')
             self.assertEqual(argv[2], 'test')
             self.assertFalse(any('only-testing' in value or 'skip-testing' in value for value in argv))

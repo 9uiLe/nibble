@@ -1,6 +1,6 @@
 # 証跡とPRの検査
 
-この手順は、実行したソース・結果・画像・録画を照合し、レビュー記録とPRを作成するためのもの。検査の設計と保証範囲は[検証とレビュー基盤](decisions/0001-local-ios-verification.md)、ビルド・操作・撮影は[ローカルiOS検証](ios-verification.md)に定義する。
+この手順は、実行したソース・結果・画像・録画を照合し、レビュー記録とPRを作成するためのもの。検査の設計と保証範囲は[検証とレビュー基盤](architecture/verification.md)、ビルド・操作・撮影は[ローカルiOS検証](ios-verification.md)に定義する。
 
 ## 前提と記録の役割
 
@@ -22,7 +22,7 @@
 
 ### 1. ビルドと期待結果を含むrunを取得する
 
-[検証計画の実行結果](ios-verification.md#変更から検証を実行する)から、対象工程の`steps[].runs`を確認する。個別に実行する場合は、製品の`app/project.json`、fixtureの`validation/project.json`、研究用の`research/probe/project.json`を[対象別手順](ios-verification.md#検証対象の切り替え)で選ぶ。画面の期待結果は各対象のUI driverで判定する。
+[検証計画の実行結果](ios-verification.md#変更から検証を実行する)から、対象工程の`steps[].runs`を確認する。個別に実行する場合は、製品の`app/project.json`、fixtureの`validation/project.json`を[対象別手順](ios-verification.md#検証対象の切り替え)で選ぶ。画面の期待結果は各対象のUI driverで判定する。
 
 ソース照合には、同じrun内で対象scheme・UDIDへのビルド成功が必要になる。単独の`screenshot`・`record`は、install済みアプリのソースとの対応を持たない補助的な撮影記録として扱う。
 
@@ -47,7 +47,7 @@ nix develop --command python3 scripts/check_evidence.py \
 | テスト結果 | `test`またはtest summaryを持つrunは、成功したテストが1件以上あり、失敗がない |
 | 媒体 | run確定時の`media_sha256`と、保存された媒体の追加・削除・内容に相違がない |
 
-検証入力は、projectを含む対象ルート（`app/`、`validation/`、`research/probe/`）全体、共有`scripts/`、`flake.nix`、`flake.lock`。Markdownを除き、ソース・テスト・Xcode設定・共有lock・driver・ツールの追加・変更・削除を照合する。CLIから検査範囲を狭めることはできない。
+検証入力は、projectを含む対象ルート（`app/`、`validation/`）全体、共有`scripts/`、`flake.nix`、`flake.lock`。Markdownを除き、ソース・テスト・Xcode設定・共有lock・driver・ツールの追加・変更・削除を照合する。CLIから検査範囲を狭めることはできない。
 
 文書のみの変更で入力が一致する場合はrunを再利用できる。必要な形式やhashが欠けた記録はソース照合に使用できない。事後にhashを推定して実行時の記録に加えない。
 
@@ -140,7 +140,7 @@ nix develop --command python3 scripts/check_pr.py commits --base origin/main \
 | 新規画面 | 画像1点以上と「変更前：対象外（新規画面のため）」、動画と対象条件 |
 | UI対象外 | 「対象外：文書のみ」などの理由。証跡欄は残す |
 
-画像はMarkdownの画像リンク、録画はMarkdownのHTTPSリンクを使用する。自動判定は`app/`、`validation/VerificationApp/`、`research/probe/ResearchProbe/`と両検証アプリのXcode projectをUI対象とし、Markdown、名前が`Tests`で終わるディレクトリ、`TestSupport`ディレクトリを除く。この判定に含まれない変更でも、UIへ影響する場合は証跡を付ける。
+画像はMarkdownの画像リンク、録画はMarkdownのHTTPSリンクを使用する。自動判定は`app/`、`validation/VerificationApp/`とfixtureのXcode projectをUI対象とし、Markdown、名前が`Tests`で終わるディレクトリ、`TestSupport`ディレクトリを除く。この判定に含まれない変更でも、UIへ影響する場合は証跡を付ける。
 
 ### 2. コミット済みの差分と照合する
 

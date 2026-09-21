@@ -105,7 +105,11 @@ struct KeyboardView: View {
 
     @ViewBuilder private var content: some View {
         if let failure = model.failure {
-            ScrollView { Text(failure).padding(16).frame(maxWidth: .infinity, alignment: .leading) }
+            ScrollView {
+                Text(failure)
+                    .font(.nibbleBody)
+                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+            }
         } else if let page = model.page, !page.items.isEmpty {
             ScrollView {
                 LazyVStack(spacing: 0) {

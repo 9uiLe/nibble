@@ -1,6 +1,6 @@
 # エージェント向け開発ルール
 
-nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼び出し、原文を保つ保存・利用、迷わない編集・削除、描画・応答性能を優先する。製品実装は[製品設計](docs/decisions/0002-mvp-app.md)、開発規約は[開発ガイド](CONTRIBUTING.md)を正本とする。
+nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼び出し、原文を保つ保存・利用、迷わない編集・削除、描画・応答性能を優先する。製品実装は[製品仕様・要件](docs/product-specification.md)、開発規約は[開発ガイド](CONTRIBUTING.md)を正本とする。
 
 ## 作業の入口
 
@@ -9,13 +9,13 @@ nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼
 | 作業 | 参照先 |
 | --- | --- |
 | 文書・指示 | 対象文書と参照元・参照先、[文書の責務](CONTRIBUTING.md#文書の責務) |
-| Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品設計](docs/decisions/0002-mvp-app.md) |
+| Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品仕様・要件](docs/product-specification.md) |
 | UI | [UI設計](docs/design/README.md)から対象の画面・部品・理由・評価条件 |
-| Rive制作・接続 | [演出設計](docs/decisions/0004-rive-presentation.md)、[アセット手順](app/Animations/README.md)。about配下は[局所規約](app/Animations/about/AGENTS.md)も適用 |
+| Rive制作・接続 | [演出設計](docs/architecture/presentation.md)、[アセット手順](app/Animations/README.md)。about配下は[局所規約](app/Animations/about/AGENTS.md)も適用 |
 | iOS実行・証跡・PR | [nibble-verification](.agents/skills/nibble-verification/SKILL.md)。静的検査だけなら不要 |
-| AIでの画面確認 | [観測の設計](docs/decisions/0001-local-ios-verification.md#画面の観測と閲覧用データ)、[CLI仕様と開発](docs/simulator-inspection.md)、[画像の全体と細部の確認](docs/review-evidence.md#画像の全体と細部の確認) |
-| 検証基盤・CI | [基盤設計](docs/decisions/0001-local-ios-verification.md)、[スクリプト設計](docs/script-tooling.md)、変更する検査と回帰テスト |
-| TestFlight | [配布手順](docs/testflight.md)、[配布設計](docs/decisions/0003-testflight-distribution.md) |
+| AIでの画面確認 | [観測の設計](docs/architecture/verification.md#画面の観測と閲覧用データ)、[CLI仕様と開発](docs/simulator-inspection.md)、[画像の全体と細部の確認](docs/review-evidence.md#画像の全体と細部の確認) |
+| 検証基盤・CI | [基盤設計](docs/architecture/verification.md)、[スクリプト設計](docs/script-tooling.md)、変更する検査と回帰テスト |
+| TestFlight | [配布手順](docs/testflight.md)、[配布設計](docs/architecture/distribution.md) |
 
 ## 作業範囲と権限
 
@@ -23,14 +23,14 @@ nibbleはiOS 26.0以上向けのスニペットツールである。素早い呼
 
 PR作成はマージや権限変更を含まない。依頼にない公開・マージ・権限変更、手順で承認を要求する操作は承認後に実行する。承認済みの同じ範囲を再確認しない。確認が必要な場合も独立した編集・検証を済ませ、操作と承認根拠を示す。アップロードだけの依頼へPR・媒体公開を追加しない。
 
-iOS検証は専用Simulatorとダミーデータを使う。既存端末を消去・削除しない。最低対応OSは26.0、実行検証は26.5のみで、製品MVPの受入に実機を含めない。
+iOS検証は専用Simulatorとダミーデータを使う。既存端末を消去・削除しない。最低対応OSは26.0、実行検証は26.5のみで、製品の受入に実機を含めない。
 
 ## 実装と設計の境界
 
 - モデルの操作は処理と結果反映を待つasync APIとする。UIの開始はTaskingの所有者と`startTask`に限定し、所有・寿命・重複を定義する。
 - SwiftUIの独自アニメーションはScopedAnimation、説明イラスト内の時間と状態はRMLへ置く。
 - 自作Viewは`@Equatable`を宣言し、値表示と親入力の比較方式を[比較規約](docs/library-policy.md#viewの比較境界)で選ぶ。生Task・別scheduler・直接アニメーション・直接比較・手書き`==`・抑制コメントは禁止する。
-- UI変更はF・S・C・R・GのIDで仕様・理由・根拠・課題を対応させる。[表示固定方針](docs/design/decisions/0002-fixed-interface.md)を適用し、画面ごとにOS設定追従を追加しない。
+- UI変更はF・S・C・R・GのIDで仕様・理由・根拠・課題を対応させる。[表示固定方針](docs/design/rationale/fixed-interface.md)を適用し、画面ごとにOS設定追従を追加しない。
 - 採用仕様は設計台帳、具体的な不足は監査、観測と未実施は対象ソース付きの検証記録へ置く。`docs/design/review.json`は意味の照合後に更新し、検査を通す目的だけで再生成しない。
 
 具体的な宣言・許可する構文・契約の検査は実装規約、UIの更新手順はUI設計を参照する。

@@ -22,6 +22,7 @@ import time
 import uuid
 
 from script_ui import ui
+from ios_project import FIXTURE_CONFIG, PRODUCT_CONFIG, load_project
 from verification_evidence import differences, inputs, media_hashes, working_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,6 +99,15 @@ class Run:
         self.save_seconds = getattr(self, "save_seconds", 0.0) + time.monotonic() - start
         self.save_count = getattr(self, "save_count", 0) + 1
 
+    def artifact_path(self, name, suffix):
+        """Repeated observations keep their original artifacts."""
+        candidate = self.path / (name + suffix)
+        index = 2
+        while candidate.exists():
+            candidate = self.path / (f"{name}-{index}" + suffix)
+            index += 1
+        return candidate
+
     def command(self, argv, name=None, timeout=60, *, display=True):
         argv = [str(a) for a in argv]
         monitor = argv[0] == "sim-use" and hasattr(self, "launched_pid")
@@ -116,7 +126,8 @@ class Run:
         environment = {**os.environ, "SIM_USE_NO_DAEMON": "1"}
         if monitor:
             environment["SIM_USE_NO_CRASH_DETECT"] = "1"
-        event = {"argv": argv, "stdout": name + ".log", "stderr": name + ".stderr.log"}
+        stem = self.artifact_path(name, ".log").stem
+        event = {"argv": argv, "stdout": stem + ".log", "stderr": stem + ".stderr.log"}
         self.manifest["commands"].append(event)
         self.save()
         start = time.monotonic()
@@ -139,7 +150,7 @@ class Run:
     def setup(self):
         if platform.system() != "Darwin":
             raise VerificationError("iOS verification runs on a local Mac; Linux CI only runs static checks")
-        self.config = json.loads((ROOT / self.args.project_config).read_text())
+        self.config = load_project(ROOT, self.args.project_config)
         if not shutil.which("sim-use"):
             raise VerificationError("sim-use is missing. Run through nix develop --command python3 scripts/ios.py")
         if self.command(["sim-use", "--version"], "sim-use-version").strip() != "0.14.0":
@@ -275,14 +286,14 @@ class Run:
         result = json.loads(self.command(["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"], name))
         if not result.get("ok") or (not result.get("data", {}).get("entries") and not allow_empty):
             raise VerificationError(f"Cannot observe UI: {result}")
-        write_json(self.path / (name + ".json"), result)
+        write_json(self.artifact_path(name, ".json"), result)
         return result["data"]
 
     def tap(self, identifier):
         self.command(["sim-use", "tap", "--id", identifier, "--wait-timeout", "5", "--device", self.args.device])
 
     def screenshot(self, name="screenshot"):
-        path = self.path / (name + ".png")
+        path = self.artifact_path(name, ".png")
         self.command([XCRUN, "simctl", "io", self.args.device, "screenshot", "--type=png", path], name)
         if not path.is_file() or path.stat().st_size == 0:
             raise VerificationError("Screenshot was not written")
@@ -328,9 +339,9 @@ class Run:
             self.command([XCRUN, "swift", ROOT / "scripts/video_frames.swift", path, self.path / "video-frames"],
                          "video-inspection", timeout=120)
 
-    def smoke(self):
+    def fixture_smoke(self):
         if self.config["bundle_id"] != "dev.nibble.VerificationApp":
-            raise VerificationError("smoke is specific to the verification fixture; add a product-specific flow later")
+            raise VerificationError("fixture-smoke requires validation/project.json")
         self.launch()
         self.command(["sim-use", "devices", "--no-physical-ios"], "sim-use-devices")
         self.ui("before")
@@ -418,9 +429,9 @@ def expect_text(data, identifier, text):
 def parser():
     cli = argparse.ArgumentParser(description=__doc__)
     subs = cli.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "devices", "create", "boot", "build", "test", "run", "ui", "tap", "paste", "screenshot", "record", "smoke"):
+    for name in ("doctor", "devices", "create", "boot", "build", "test", "run", "ui", "tap", "paste", "screenshot", "record", "fixture-smoke"):
         sub = subs.add_parser(name)
-        sub.add_argument("--project-config", default="validation/project.json")
+        sub.add_argument("--project-config", default=FIXTURE_CONFIG if name == "fixture-smoke" else PRODUCT_CONFIG)
         sub.add_argument("--device", help="Explicit Simulator UDID; no implicit 'booted' target")
         sub.add_argument("--configuration", choices=("Debug", "Release"), default="Debug")
         if name == "create":
@@ -429,7 +440,7 @@ def parser():
             sub.add_argument("--name", default="nibble Verification")
         if name == "tap":
             sub.add_argument("identifier")
-        if name in ("paste", "smoke"):
+        if name in ("paste", "fixture-smoke"):
             sub.add_argument("--text", default="日本語 👩🏽‍💻\nHello, nibble!")
         if name == "paste":
             sub.add_argument("--target-id", required=True)
@@ -479,8 +490,8 @@ def main(argv=None):
                 elif args.command == "run":
                     run.launch()
                     run.ui()
-                elif args.command == "smoke":
-                    run.smoke()
+                elif args.command == "fixture-smoke":
+                    run.fixture_smoke()
                 else:
                     if run.device["state"] != "Booted":
                         raise VerificationError("Boot the explicitly selected Simulator first")

@@ -9,9 +9,55 @@ import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-SPEC = importlib.util.spec_from_file_location("about_ui", Path(__file__).parents[1] / "check-about-ui.py")
+SPEC = importlib.util.spec_from_file_location("about_ui", Path(__file__).parents[1] / "check_about_ui.py")
 about_ui = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(about_ui)
+
+
+class MotionNavigationTests(unittest.TestCase):
+    def test_transition_prefers_motion_and_does_not_repeat_the_departing_row(self):
+        def screen(*identifiers):
+            return {'appPackage': 'com.apple.Preferences',
+                    'entries': [{'uniqueId': value} for value in identifiers]}
+        root = screen('com.apple.settings.accessibility')
+        mixed = screen('com.apple.settings.accessibility', 'MOTION_TITLE', 'BackButton')
+        destination = {'appPackage': 'com.apple.Preferences',
+                       'entries': [{'uniqueId': 'REDUCE_MOTION', 'value': '0'}]}
+        run = SimpleNamespace(args=SimpleNamespace(device='dedicated'), manifest={},
+                              ui=Mock(side_effect=[root, root, mixed, mixed, destination]),
+                              tap=Mock(), command=Mock(), save=Mock())
+        with patch.object(about_ui.time, 'sleep'):
+            self.assertFalse(about_ui.AboutCheck(run).motion())
+        self.assertEqual([call.args[0] for call in run.tap.call_args_list],
+                         ['com.apple.settings.accessibility', 'MOTION_TITLE'])
+
+    def test_navigates_observed_settings_controls_without_changing_motion(self):
+        screens = [
+            {'entries': [{'uniqueId': identifier}], 'appPackage': 'com.apple.Preferences'}
+            for identifier in ['BackButton', 'com.apple.settings.accessibility', 'MOTION_TITLE']
+        ]
+        screens.append({'entries': [{'uniqueId': 'REDUCE_MOTION', 'value': '1'}],
+                        'appPackage': 'com.apple.Preferences'})
+        run = SimpleNamespace(args=SimpleNamespace(device='dedicated'), manifest={},
+                              ui=Mock(side_effect=screens), tap=Mock(), command=Mock(), save=Mock())
+        with patch.object(about_ui.time, 'sleep'):
+            self.assertTrue(about_ui.AboutCheck(run).motion())
+        self.assertEqual([call.args[0] for call in run.tap.call_args_list],
+                         ['BackButton', 'com.apple.settings.accessibility', 'MOTION_TITLE'])
+        self.assertEqual(run.command.call_count, 1)
+        self.assertEqual(run.manifest['motion_observations'],
+                         [{'before': True, 'requested': None, 'observed': True}])
+
+    def test_does_not_tap_stale_controls_from_another_app_and_fails_bounded(self):
+        run = SimpleNamespace(args=SimpleNamespace(device='dedicated'), manifest={},
+                              ui=Mock(return_value={'appPackage': 'nibble.9uiLe.com',
+                                  'entries': [{'uniqueId': 'BackButton'}]}),
+                              tap=Mock(), command=Mock(), save=Mock())
+        with patch.object(about_ui.time, 'sleep'), self.assertRaises(about_ui.VerificationError):
+            about_ui.AboutCheck(run).motion()
+        run.tap.assert_not_called()
+        self.assertLessEqual(run.ui.call_count, 24)
+        self.assertNotIn('motion_observations', run.manifest)
 
 
 class FaultRetryTests(unittest.TestCase):

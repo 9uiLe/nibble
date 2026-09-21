@@ -74,7 +74,7 @@ class PRTests(unittest.TestCase):
 
     def test_ui_cannot_declare_out_of_scope_and_tests_can(self):
         for path in ['app/Shared/LibraryModel.swift', 'app/Nibble/View.swift', 'app/Nibble.xcodeproj/project.pbxproj',
-                     'research/probe/ResearchProbe/ContentView.swift']:
+                     'validation/VerificationApp/App.swift']:
             with self.subTest(path=path):
                 self.assertTrue(check_pr.check(self.snapshot(files=[path])))
         self.assertEqual(check_pr.check(self.snapshot(files=['app/NibbleTests/Tests.swift'])), [])
@@ -123,7 +123,7 @@ class EvidenceFixture:
         self.revision, self.hashes = self.source_identity()
         (self.run / 'image.png').write_bytes(b'fixture-image')
         (self.run / 'command.log').write_text('success')
-        self.manifest = {'evidence_version': 1, 'status': 'passed', 'command': 'smoke', 'commit': self.revision,
+        self.manifest = {'evidence_version': 1, 'status': 'passed', 'command': 'library-ui', 'commit': self.revision,
                          'dirty': False, 'files_sha256': self.hashes, 'files_sha256_end': self.hashes,
                          'project': {'project': 'app/Nibble.xcodeproj', 'scheme': 'Nibble'},
                          'device': {'udid': '12345678-1234-1234-1234-123456789abc',
@@ -169,7 +169,7 @@ class EvidenceSourceTests(EvidenceFixture, unittest.TestCase):
     def test_run_changed_during_execution_fails_and_keeps_manifest(self):
         run = ios.Run.__new__(ios.Run)
         run.path, run.manifest = self.run, copy.deepcopy(self.manifest)
-        run.args = SimpleNamespace(command='smoke')
+        run.args = SimpleNamespace(command='library-ui')
         (self.root / 'app/source.swift').write_text('let value = 2\n')
         with patch.object(ios, 'ROOT', self.root), redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(ios.VerificationError, 'changed during'):
@@ -255,6 +255,21 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_shell_examples_require_real_repository_commands_and_configs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'scripts').mkdir()
+            (root / 'scripts/run.py').write_text('')
+            (root / 'app').mkdir()
+            (root / 'app/project.json').write_text('{}')
+            document = root / 'README.md'
+            document.write_text('```sh\npython3 scripts/run.py --config app/project.json > artifacts/result.json\n```\n')
+            self.assertEqual(check_docs.check(root)['errors'], [])
+            (root / 'scripts/run.py').unlink()
+            self.assertTrue(any('scripts/run.py' in error for error in check_docs.check(root)['errors']))
+            (root / 'app/project.json').unlink()
+            self.assertEqual(len(check_docs.check(root)['errors']), 2)
+
     def test_reference_links_encoded_paths_duplicates_and_fenced_examples(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

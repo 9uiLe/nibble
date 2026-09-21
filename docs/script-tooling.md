@@ -11,13 +11,13 @@ nibbleの開発スクリプトは、検査、ビルド、Simulator操作、観�
 | 構成 | 責務 | 実装 |
 | --- | --- | --- |
 | 解析・照合・変換処理 | 入力を検査し、違反・差分・集計値・派生データを返す | Swift構文規約、文書解析、証跡・PR照合、画面要素の要約、画像変換、Rive契約、UI設計Module |
-| CLI・実行driver | 引数、処理順序、端末の排他制御、ログ、結果ファイル、終了コードを管理する | `verify.py`、`ios.py`、`inspect_ui.py`、対象別driver、`benchmark-verification.py`、`scripts/check_*.py`、`testflight.py`など |
+| CLI・実行driver | 引数、処理順序、端末の排他制御、ログ、結果ファイル、終了コードを管理する | `verify.py`、`ios.py`、`inspect_ui.py`、対象別driver、`benchmark_verification.py`、`scripts/check_*.py`、`testflight.py`など |
 | 表示Adapter | 表示内容を組み立て、形式の選択、応答の検査、表示障害への対処を行う | `scripts/script_ui.py`の`Reporter`と共有インスタンス`ui` |
 | 表示プロセス | 表示定義を検査し、人向けの整形またはJSON応答を返す | Nixで固定したhamioの`render`コマンド |
 
 CLIは処理結果から終了コードを決め、必要なデータを保存し、表示Adapterへ要約を渡す。解析・照合・変換処理は表示プロセスを起動しない。再利用可能な`tools/ui-design/`は独自のCLIと出力契約を持ち、nibble側の`check_ui_design.py`が表示を接続する。
 
-複数工程を実行するCLIは、個別コマンドの結果と自身の実行範囲を対応付けて保存する。iOS検証では`verify.py`が計画と工程結果、`ios.py`が個別run、測定CLIがサイクルと集計値を所有する。相互の参照と保証範囲は[検証基盤の設計](decisions/0001-local-ios-verification.md)に従う。
+複数工程を実行するCLIは、個別コマンドの結果と自身の実行範囲を対応付けて保存する。iOS検証では`verify.py`が計画と工程結果、`ios.py`が個別run、測定CLIがサイクルと集計値を所有する。相互の参照と保証範囲は[検証基盤の設計](architecture/verification.md)に従う。
 
 表示の単位は、利用者が進行を追う工程の開始・終了と検査結果とする。内部の高頻度処理は記録を保存し、外側の工程で要約する。iOS driverのPID照合は操作前後に実行してログと成否を残し、進捗表示を対応するUI工程へまとめる。表示粒度によってクラッシュ判定や失敗の扱いを変えない。
 
@@ -27,7 +27,7 @@ CLIは処理結果から終了コードを決め、必要なデータを保存�
 
 CLIは引数で対象・操作・出力先を受け取り、指定された設定やデータファイルを読み込む。入力形式と有効値を検査してから業務処理を開始する。Python CLIの引数解析にはargparseを使い、`--help`は標準出力、引数の構文エラーは標準エラー出力へargparseが直接表示する。この段階ではhamioを呼ばない。処理開始後の診断は表示Adapterへ渡す。
 
-`inspect_ui.py`の入力は、`tree`では保存済みのsim-use JSON、`image`ではPNGと出力ディレクトリである。対象の選択や表示量は引数で指定し、対話入力を要求しない。CLIは`ui_observation`の解析と`ui_preview`の画像加工を呼ぶ。取得元と加工結果の関係は[画面の観測設計](decisions/0001-local-ios-verification.md#画面の観測と閲覧用データ)、データ形式は[CLI仕様](simulator-inspection.md)に定義する。
+`inspect_ui.py`の入力は、`tree`では保存済みのsim-use JSON、`image`ではPNGと出力ディレクトリである。対象の選択や表示量は引数で指定し、対話入力を要求しない。CLIは`ui_observation`の解析と`ui_preview`の画像加工を呼ぶ。取得元と加工結果の関係は[画面の観測設計](architecture/verification.md#画面の観測と閲覧用データ)、データ形式は[CLI仕様](simulator-inspection.md)に定義する。
 
 ## 出力と成否の契約
 
@@ -119,7 +119,7 @@ nix flake check --no-update-lock-file --print-build-logs
 
 表示に関係する変更では、[表示の回帰テスト](../scripts/tests/test_script_ui.py)で正常表示、処理の失敗、表示障害、stdoutの結果、終了コード、文字列上限、子プロセスの環境を確認する。hamioを提供する環境のNix検査では実バイナリを必須にし、代替出力だけで合格しない。
 
-CLIの接続を変更した場合は、その呼び出し元も検証する。iOSの実行管理・撮影はVerificationAppのテストとsmokeで確認する。配布の秘密情報境界は、一時ディレクトリの偽認証情報で検査する。実際の署名や送信の成立には、配布用の検証が別に必要となる。
+CLIの接続を変更した場合は、その呼び出し元も検証する。iOSの実行管理・撮影はVerificationAppのテストと`fixture-smoke`で確認する。配布の秘密情報境界は、一時ディレクトリの偽認証情報で検査する。実際の署名や送信の成立には、配布用の検証が別に必要となる。
 
 表示のコストは同じ環境・出力先・回数で測り、処理本体の時間と分けて記録する。処理本体の性能指標へ表示時間を混ぜない。
 

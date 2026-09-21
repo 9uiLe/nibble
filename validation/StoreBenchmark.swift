@@ -48,7 +48,7 @@ func millis(_ elapsed: Duration) -> Double {
             let start = clock.now
             let page = try await store.library(LibraryRequest())
             let duration = millis(start.duration(to: clock.now))
-            precondition(page.items.count == 100 && page.drafts.count == 3 && page.hasMore)
+            precondition(page.items.count == 100 && page.drafts.count == LibraryRequest.draftPreviewLimit && page.hasMore)
             if index == 0 { retained = withExtendedLifetime(page) { footprint() } }
             if index > 0 { values.append(duration) }
         }

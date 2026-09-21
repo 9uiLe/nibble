@@ -1,6 +1,6 @@
 # Swift実装の責務と境界
 
-この規約は本体・拡張・Package・テスト・研究・検証基盤のSwiftへ適用する。モデルの操作完了、UIのタスク所有、表示の比較を宣言から判断できる構成にする。製品固有の状態遷移は[製品設計](decisions/0002-mvp-app.md)が所有する。
+この規約は本体・拡張・Package・テスト・検証基盤のSwiftへ適用する。モデルの操作完了、UIのタスク所有、表示の比較を宣言から判断できる構成にする。製品固有の状態遷移は[製品仕様・要件](product-specification.md)が所有する。
 
 ## 依存とビルド
 
@@ -15,7 +15,7 @@
 
 製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#3-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 
-Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/ThirdPartyNotices.txt)と各依存の条件を維持する。
+Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/Resources/ThirdPartyNotices.txt)と各依存の条件を維持する。
 
 ## 操作APIと開始API
 
@@ -129,7 +129,7 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 独自の表示変化は名前付きAnimationScopeへ限定し、valueまたはproxyのscope.animateを使う。複数triggerのfactoryはAnimationTrigger.animationと型名を明記する。入力等にはanimationBarrierを置く。
 
-OSのsheet transactionとアプリ内部の変化は境界を分ける。Debug診断はmodifierへ届くtransactionを扱い、子孫の全表示やUIKitを保証しない。入力・スクロール・画面遷移は実行確認する。製品の表示設定は[固定方針](design/decisions/0002-fixed-interface.md)に従う。
+OSのsheet transactionとアプリ内部の変化は境界を分ける。Debug診断はmodifierへ届くtransactionを扱い、子孫の全表示やUIKitを保証しない。入力・スクロール・画面遷移は実行確認する。製品の表示設定は[固定方針](design/rationale/fixed-interface.md)に従う。
 
 ## Riveの表示境界
 
@@ -212,7 +212,7 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 
 Taskingは所有と重複、ScopedAnimationは適用範囲、AppMacrosは値比較と親入力更新を宣言できるため使う。製品側は終了イベント、伝播、比較入力と状態寿命を設計し、compiler・テスト・画面・性能で確認する。
 
-依存の更新はexact要求・lock・ソース・ライセンス・対応OSを照合する。保守停止、OS/toolchain不適合、実測悪化、表現上の制約を見直し条件とする。判断と実施範囲は[製品の検証範囲](mvp-validation.md)に対応させる。
+依存の更新はexact要求・lock・ソース・ライセンス・対応OSを照合する。保守停止、OS/toolchain不適合、実測悪化、表現上の制約を見直し条件とする。判断と実施範囲は[製品の検証範囲](testing.md#検証範囲と制約)に対応させる。
 
 ## ツールチェーン上の注意
 

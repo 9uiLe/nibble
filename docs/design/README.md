@@ -8,24 +8,24 @@ UIは、保存した内容を見つけ、対象を取り違えずに利用し、
 | --- | --- | --- |
 | [共通原則](foundations.md) | F | 色・文字・余白・操作領域・状態・動きの共通判断 |
 | [画面構成](screens.md) | S | 目的、到達と終了、読み順、固定/スクロール、画面固有の評価 |
-| [部品台帳](components.md) | C | 要素の責務、配置理由、代替案の利点と負担、受入条件 |
-| [根拠](../../research/06-interface-design-evidence.md) | R | 外部指針と確認範囲、製品への適用限界 |
+| [部品台帳](components.md) | C | 要素の責務、配置理由、制約、受入条件 |
+| [根拠](evidence.md) | R | 外部指針と確認範囲、製品への適用限界 |
 | [評価課題](audit.md) | G | 実装との照合で確認する点と未完了の評価 |
 
 IDは意味を表し、Swiftの型と一対一である必要はない。同じ責務は同じIDを使う。全画面で同じ規則はF、画面全体の導線はS、要素固有の理由はCに置き、同じ仕様を複数の表へ転記しない。
 
-日本語UIは、[F09の語彙・文体・表記](foundations.md#f09-文言とデータ)を共通規則とし、[文言設計](copy.md)で一覧・編集・共有・キーボードの操作と具体的な表現を対応させる。[検証記録](../copy-validation.md)は対象ソースと観測範囲を示す。
+日本語UIは、[F09の語彙・文体・表記](foundations.md#f09-文言とデータ)を共通規則とし、[文言設計](copy.md)で一覧・編集・共有・キーボードの操作と具体的な表現を対応させる。対象ソースと観測範囲は[証跡手順](../review-evidence.md)に従いrunへ記録する。
 
 ## 採用判断
 
 | 判断書 | 内容 |
 | --- | --- |
-| [操作・識別・回復](decisions/0001-library-actions.md) | 可視の管理入口、下書きの表示予算、明示的な編集終了 |
-| [表示設定](decisions/0002-fixed-interface.md) | 文字・太字・コントラスト・演出の固定とOS所有部分 |
-| [使用回数順](decisions/0003-usage-order.md) | 使用の定義、並び順、未使用の補足、使用記録の失敗 |
-| [完了通知](decisions/0004-result-notices.md) | 内容を動かさない通知層、取り消し、滞在と期限 |
-| [Keyboard](../decisions/0005-snippet-keyboard.md) | 入力・全文・権限・共有DB・入力先の寿命 |
-| [説明イラスト](../decisions/0004-rive-presentation.md) | 説明の意味、配置、再生方針、ホストとRMLの分担 |
+| [操作・識別・回復](rationale/library-actions.md) | 可視の管理入口、下書きの表示予算、明示的な編集終了 |
+| [表示設定](rationale/fixed-interface.md) | 文字・太字・コントラスト・演出の固定とOS所有部分 |
+| [使用回数順](rationale/usage-order.md) | 使用の定義、並び順、未使用の補足、使用記録の失敗 |
+| [完了通知](rationale/result-notices.md) | 内容を動かさない通知層、取り消し、滞在と期限 |
+| [Keyboard](../architecture/keyboard.md) | 入力・全文・権限・共有DB・入力先の寿命 |
+| [説明イラスト](../architecture/presentation.md) | 説明の意味、配置、再生方針、ホストとRMLの分担 |
 
 情報構造や操作の意味を選ぶ際は[共通ひな形](../../tools/ui-design/templates/decision.md)を使う。規定内の調整は対象IDの理由へ記す。外部指針、製品判断、効果の仮説、実測した観測は区別する。一般の設計工程は[共通手順](../../tools/ui-design/workflow.md)に従う。
 

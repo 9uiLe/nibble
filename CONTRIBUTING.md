@@ -7,14 +7,15 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | 知りたいこと | 正本 |
 | --- | --- |
 | 起動までの準備 | [README](README.md) |
-| 製品のデータ・処理・失敗回復 | [製品設計](docs/decisions/0002-mvp-app.md) |
+| ソース配置・依存・責務 | [アプリケーションの構成](docs/architecture/README.md) |
+| 製品のデータ・処理・失敗回復 | [製品仕様・要件](docs/product-specification.md) |
 | Swiftの宣言・非同期・比較・アニメーション | [実装規約](docs/library-policy.md) |
 | 画面・部品と配置理由 | [UI設計](docs/design/README.md) |
 | テストの責務、削除・統合、回帰と測定の選択 | [テスト設計](docs/testing.md) |
-| 検証の実行管理、画面の観測、保証範囲 | [検証基盤](docs/decisions/0001-local-ios-verification.md) |
+| 検証の実行管理、画面の観測、保証範囲 | [検証基盤](docs/architecture/verification.md) |
 | 検証計画・実行・画面情報の取得と要約 | [ローカルiOS検証](docs/ios-verification.md) |
 | 画面確認CLIの仕様・サンプル・開発 | [観測データの確認](docs/simulator-inspection.md) |
-| 検証実行方式の測定条件と観測値 | [検証時間の評価記録](docs/verification-performance.md) |
+| 製品と検証工程の測定 | [性能手順](docs/performance-verification.md)、[検証時間の測定](docs/ios-verification.md#検証時間を比較する) |
 | 画像・録画の確認、ソース・媒体・PRの照合 | [証跡手順](docs/review-evidence.md) |
 | CLIの入出力とhamioによる表示 | [スクリプト設計](docs/script-tooling.md) |
 | 配布操作と秘密情報 | [TestFlight手順](docs/testflight.md) |
@@ -32,12 +33,11 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 
 | 対象 | 設定 | 手順 |
 | --- | --- | --- |
-| Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | [製品検証](docs/mvp.md) |
+| Nibble / NibbleShare / NibbleKeyboard | `app/project.json` | [製品検証](docs/ios-verification.md) |
 | VerificationApp | `validation/project.json` | [実行基盤のfixture](docs/ios-verification.md) |
 | Rive性能 | `app/performance-project.json` | [性能手順](docs/performance-verification.md#riveの補助指標) |
-| ResearchProbe | `research/probe/project.json` | [比較実験](research/probe/README.md) |
 
-製品のSimulatorビルドはApp Groupのためad hoc署名を使い、Developer Teamを指定しない。製品MVPの受入に実機検証は含めない。配布担当者が行うTestFlightの実機確認は別の工程である。
+製品のSimulatorビルドはApp Groupのためad hoc署名を使い、Developer Teamを指定しない。製品の受入に実機検証は含めない。配布担当者が行うTestFlightの実機確認は別の工程である。
 
 ## 開発ツールの管理
 
@@ -61,7 +61,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | workflow-policy / nix-format | Ubuntu runner方針、workflow・shell構文、Nix書式 |
 | swift-library-policy | 禁止API、タスク開始、View比較の構文 |
-| documentation | 文書リンク、Skill、Swift例、設計IDと未確認入力 |
+| documentation | 文書リンク、Skill、Swift例、shell例のコマンドと設定パスの実在、設計IDと未確認入力 |
 | ui-design / ios-tooling | 共通設計ツールと製品Adapter、実行・証跡・PR検査の回帰 |
 | rive-assets | 制作ソース・生成物・Data Binding契約 |
 
@@ -75,7 +75,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | 検証基盤・CI | 変更した動作の回帰。iOS実行・撮影の成立へ影響する場合は対象targetでも確認 |
 | 保存済み画面の解析・加工 | [画面確認CLIの検証](docs/simulator-inspection.md#構成と開発)。画像加工とCLIはローカルMacの`preview-native`も実行 |
 
-テストは[保証の置き場所と選択基準](docs/testing.md)に従い、削除すると見逃す現実的な不具合を根拠に置く。通常回帰、性能測定、研究実験をそれぞれ選択する。統合時は固有のassertionを残し、件数やカバレッジ率を維持目標にしない。
+テストは[保証の置き場所と選択基準](docs/testing.md)に従い、削除すると見逃す現実的な不具合を根拠に置く。通常回帰と性能測定を目的に応じて選択する。統合時は固有のassertionを残し、件数やカバレッジ率を維持目標にしない。
 
 ### スクリプトの表示とデータ
 
@@ -83,7 +83,7 @@ stdoutは結果データ、stderrは工程と診断に使う。[表示Adapter](d
 
 ## UIの設計と実装
 
-[UI設計](docs/design/README.md)から対象IDの目的・構成・配置理由・代替案・評価条件を確認する。採用仕様、外部根拠、仮説、観測を区別する。共通ツールキットは製品非依存とし、nibbleのパス・検査範囲は製品のpolicyへ置く。
+[UI設計](docs/design/README.md)から対象IDの目的・構成・配置理由・制約・評価条件を確認する。採用仕様、外部根拠、仮説、観測を区別する。共通ツールキットは製品非依存とし、nibbleのパス・検査範囲は製品のpolicyへ置く。
 
 設計と実装を照合し、確認文書と判断要約をreview.jsonに記録する。仕様を維持する変更にも根拠を記す。ID・hashは機械検査、理由と網羅性はレビュー、挙動と見た目は実行検証の責務である。更新方法は[変更時の手順](docs/design/README.md#変更時の手順)に従う。
 
@@ -103,11 +103,11 @@ GitHub Actionsの全jobは`runs-on: ubuntu-24.04`を直接指定する。runner�
 
 ## 技術の選定
 
-OS/API制約、原文とデータの安全性、実測した応答・描画、保守・依存更新、移行と復旧の負担を比較する。変更負担の大きい選択は小さい比較実験で確かめ、製品の判断書へ目的・採用案・代替案の利点と負担・採用条件・見直し条件を記す。未採用の研究を製品仕様にしない。
+OS/API制約、原文とデータの安全性、実測した応答・描画、保守・依存更新、移行と復旧の負担を比較する。変更負担の大きい選択は小さい比較実験で確かめ、製品の設計文書へ目的・構成・責務・要件に対する利点と負担・見直し条件を記す。実験結果は対象ソース付きの記録とし、設計文書は採用する仕様を直接説明する。
 
 ## コード公開の運用
 
-コード公開を目的とし、外部からのIssue・PR・コメント投稿を受け付けない。GitHubの権限設定と投稿制限で運用する。公開リポジトリの閲覧・clone・forkはGitHubの機能に従う。[ライセンスと公開範囲](research/04-security-distribution-and-operations.md#7-公開コードとライセンス)を参照する。
+コード公開を目的とし、外部からのIssue・PR・コメント投稿を受け付けない。GitHubの権限設定と投稿制限で運用する。公開リポジトリの閲覧・clone・forkはGitHubの機能に従う。[ライセンスと公開範囲](docs/reference/security.md#公開コードとライセンス)を参照する。
 
 ## PRの作り方と完了条件
 

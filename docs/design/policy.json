@@ -31,22 +31,27 @@
       "references": true
     },
     {
-      "path": "docs/decisions/0002-mvp-app.md",
+      "path": "docs/product-specification.md",
       "kind": "file",
       "references": true
     },
     {
-      "path": "docs/decisions/0004-rive-presentation.md",
+      "path": "docs/architecture/README.md",
       "kind": "file",
       "references": true
     },
     {
-      "path": "docs/decisions/0005-snippet-keyboard.md",
+      "path": "docs/architecture/presentation.md",
       "kind": "file",
       "references": true
     },
     {
-      "path": "research/06-interface-design-evidence.md",
+      "path": "docs/architecture/keyboard.md",
+      "kind": "file",
+      "references": true
+    },
+    {
+      "path": "docs/design/evidence.md",
       "kind": "file",
       "references": true
     },
@@ -85,7 +90,7 @@
     },
     {
       "prefix": "R",
-      "path": "research/06-interface-design-evidence.md",
+      "path": "docs/design/evidence.md",
       "format": "heading"
     },
     {
