@@ -112,6 +112,7 @@ struct LibraryScreen: View {
                 if model.loadingInterrupted {
                     Button { startTask(.refresh) } label: {
                         Label("読み込みを再開", systemImage: "arrow.clockwise")
+                            .font(.nibbleTitle)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .contentShape(.rect)
                     }
@@ -119,8 +120,16 @@ struct LibraryScreen: View {
                 }
                 if searchPrompt {
                     if model.loading { loadingRow }
-                    ContentUnavailableView("保存した項目を検索", systemImage: "magnifyingglass",
-                                           description: Text("タイトルや本文の言葉で探せます。"))
+                    ContentUnavailableView {
+                        Label {
+                            Text("保存した項目を検索").font(.nibbleTitle)
+                        } icon: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                    } description: {
+                        Text("タイトルや本文の言葉で探せます。")
+                            .font(.nibbleBody)
+                    }
                         .accessibilityIdentifier("search.prompt")
                         .listRowSeparator(.hidden)
                 } else {
@@ -133,6 +142,7 @@ struct LibraryScreen: View {
                             if model.hasMore {
                                 Button { model.showMore() } label: {
                                     Text("さらに表示")
+                                        .font(.nibbleTitle)
                                         .frame(maxWidth: .infinity, minHeight: 44)
                                         .contentShape(.rect)
                                 }
@@ -159,7 +169,7 @@ struct LibraryScreen: View {
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 15, leading: 22, bottom: 4, trailing: 22))
         } else if displaysDrafts && !model.drafts.isEmpty {
-            Section("下書き") {
+            Section {
                 ForEach(model.drafts) { draft in
                     Button { startTask(.open(.draft(draft.id))) } label: {
                         Label {
@@ -185,6 +195,8 @@ struct LibraryScreen: View {
                     .accessibilityHint("編集を再開します")
                     .accessibilityIdentifier("draft.\(draft.id)")
                 }
+            } header: {
+                Text("下書き").font(.caption2.weight(.semibold))
             }
         }
         if model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil {
@@ -250,7 +262,10 @@ struct LibraryScreen: View {
     }
 
     private var loadingRow: some View {
-        ProgressView(showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中")
+        ProgressView {
+            Text(showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中")
+                .font(.nibbleBody)
+        }
             .frame(maxWidth: .infinity, minHeight: 44)
             .accessibilityIdentifier("library.loading")
     }
@@ -264,19 +279,23 @@ struct LibraryScreen: View {
                 Text(failure.message).font(.callout).foregroundStyle(.primary)
                 if failure.recovery == .reload {
                     Button("一覧を再読み込み") { startTask(.reload) }
+                        .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.reload")
                 } else if failure.recovery == .retryUsage {
                     Button("回数と日時を記録し直す") { startTask(.retryUsage) }
+                        .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.retryUsage")
                 } else if case .retryRestore(let id) = failure.recovery {
                     Button("もう一度復元する") { startTask(.restore(id)) }
+                        .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.large)
                         .disabled(model.restoringIDs.contains(id))
                         .accessibilityIdentifier("library.retryRestore")
                 } else {
                     Button("閉じる") { model.dismissFailure() }
+                        .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.large)
                         .accessibilityIdentifier("library.dismissFailure")
                 }
@@ -327,18 +346,25 @@ struct LibraryScreen: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label(emptyContent.title, systemImage: emptyContent.symbol)
+            Label {
+                Text(emptyContent.title).font(.nibbleTitle)
+            } icon: {
+                Image(systemName: emptyContent.symbol)
+            }
         } description: {
             Text(emptyContent.message)
+                .font(.nibbleBody)
         } actions: {
             if showsCreationCTA {
                 Button("新しく作る") { startTask(.open(.new)) }
+                    .font(.nibbleTitle)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .accessibilityIdentifier("library.createFirst")
                     .keyboardShortcut("n", modifiers: .command)
             } else if showsFilters && model.filter == .pinned {
                 Button("すべてを見る") { model.filter = .all }
+                    .font(.nibbleTitle)
                     .buttonStyle(.bordered)
                     .controlSize(.large)
                     .accessibilityIdentifier("library.showAll")

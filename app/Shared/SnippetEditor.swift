@@ -78,7 +78,10 @@ struct SnippetEditor: View {
                             .accessibilityIdentifier("editor.error")
                         if failure.canSaveAsNew {
                             Button("新しい項目として保存") { startTask(.saveAsNew) }
+                                .font(.nibbleTitle)
                                 .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                                .accessibilityIdentifier("editor.saveAsNew")
                         }
                     }
                     Text("「保存」を押すと、一覧やキーボードから使えます。「閉じる」を押すと、入力した内容が下書きに残ります。空の新規入力や、変更していない項目は下書きに残りません。")
@@ -112,7 +115,9 @@ struct SnippetEditor: View {
                     .accessibilityIdentifier("editor.more")
                     Spacer()
                     if case .finishing(let operation) = model.phase {
-                        ProgressView(operation.progressTitle)
+                        ProgressView {
+                            Text(operation.progressTitle).font(.nibbleBody)
+                        }
                     }
                 }
                 ToolbarItemGroup(placement: .keyboard) {

@@ -11,9 +11,12 @@ struct LibrarySettingsView: View {
     var body: some View {
         List {
             Group {
-                Section("保存した項目") {
+                Section {
                     Button("削除した項目", systemImage: "trash", action: showTrash)
                         .accessibilityIdentifier("library.trash")
+                } header: {
+                    Text("保存した項目")
+                        .font(.footnote.weight(.semibold))
                 }
                 Section {
                     NavigationLink {
@@ -32,6 +35,7 @@ struct LibrarySettingsView: View {
                     .accessibilityIdentifier("settings.about")
                 }
             }
+            .font(.nibbleTitle)
             .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
