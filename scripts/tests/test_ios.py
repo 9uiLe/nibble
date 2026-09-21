@@ -185,6 +185,20 @@ class ProcessTests(unittest.TestCase):
         logs = [event['stdout'] for event in commands]
         self.assertEqual(len(logs), len(set(logs)))
 
+    def test_repeated_observation_names_preserve_each_result(self):
+        for value in ['first', 'second']:
+            self.run.command([sys.executable, '-c', f'print({value!r})'], 'poll')
+            with patch.object(self.run, 'command', return_value=json.dumps(
+                    {'ok': True, 'data': {'entries': [{'value': value}]}})):
+                self.run.ui('poll')
+        commands = self.run.manifest['commands']
+        self.assertEqual([(self.run.path / event['stdout']).read_text().strip()
+                          for event in commands], ['first', 'second'])
+        observations = sorted(self.run.path.glob('poll*.json'))
+        self.assertEqual(len(observations), 2)
+        self.assertEqual({json.loads(path.read_text())['data']['entries'][0]['value']
+                          for path in observations}, {'first', 'second'})
+
     def test_empty_ui_is_only_allowed_for_explicit_transition_polling(self):
         payload = {"ok": True, "data": {"entries": []}}
         with patch.object(self.run, "command", return_value=json.dumps(payload)):
@@ -217,6 +231,27 @@ class ProcessTests(unittest.TestCase):
         manifests = list(self.run.path.glob("*/manifest.json"))
         self.assertEqual(len(manifests), 1)
         self.assertEqual(json.loads(manifests[0].read_text())["status"], "failed")
+
+    def test_malformed_project_config_fails_before_running_apple_tools(self):
+        config = self.run.path / 'invalid.json'
+        config.write_text('{"scheme": "Nibble"}')
+        with patch.object(ios, 'ARTIFACTS', self.run.path), \
+                patch.object(ios.platform, 'system', return_value='Darwin'), \
+                patch.object(ios.subprocess, 'run') as command, \
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(ios.main(['doctor', '--project-config', str(config)]), 1)
+        command.assert_not_called()
+        manifest = json.loads(next(self.run.path.glob('*/manifest.json')).read_text())
+        self.assertEqual(manifest['status'], 'failed')
+
+    def test_product_is_default_and_fixture_smoke_selects_its_own_target(self):
+        for action, expected in [('build', 'app/project.json'),
+                                 ('fixture-smoke', 'validation/project.json')]:
+            run = MagicMock()
+            with self.subTest(action=action), patch.object(ios, 'Run', return_value=run) as factory, \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(ios.main([action, '--device', 'D099A849-386F-4EAE-AE12-02D8DC623AF2']), 0)
+                self.assertEqual(factory.call_args.args[0].project_config, expected)
 
     def test_native_command_retains_logs_exit_code_and_separates_display(self):
         import ios

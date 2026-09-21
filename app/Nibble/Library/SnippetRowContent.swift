@@ -1,7 +1,7 @@
 import AppMacros
 import SwiftUI
 
-/// Only displayed values cross this gate. Actions and observable state belong to LibraryRootView.
+/// Only displayed values cross this gate. Actions and observable state belong to AppRootView.
 @Equatable
 struct SnippetRowContent: @MainActor EquatableBodyView {
     let title: String

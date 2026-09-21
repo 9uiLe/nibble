@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify explanation playback and reading on an explicit iOS 26.5 Simulator.
 
-The Simulator's Settings app must be on Accessibility > Motion when this starts.
-The driver observes Reduce Motion, selects the requested mode and restores it.
+The driver navigates Settings from observed controls, checks Reduce Motion,
+selects the requested mode and restores it.
 """
 import argparse
 from contextlib import ExitStack
@@ -30,13 +30,22 @@ class AboutCheck:
 
     def motion(self, requested=None):
         def wait_switch(expected=None):
-            for index in range(10):
+            for index in range(24):
                 data = self.run.ui(f"motion-{index}", allow_empty=True)
                 switch = element(data, "REDUCE_MOTION")
                 if (data.get("appPackage") == "com.apple.Preferences" and switch is not None
                         and switch.get("value") in ("0", "1")
                         and (expected is None or switch["value"] == str(int(expected)))):
                     return switch
+                if data.get("appPackage") == "com.apple.Preferences" and switch is None:
+                    target = next((identifier for identifier in
+                                   ("com.apple.settings.accessibility", "MOTION_TITLE", "BackButton")
+                                   if element(data, identifier)), None)
+                    if target:
+                        self.run.tap(target)
+                    elif data.get("entries") and data.get("screen"):
+                        # Reveal the root's Accessibility row when Settings retained a scroll position.
+                        self.scroll(data, up=True)
                 time.sleep(0.3)
             raise VerificationError("Settings > Accessibility > Motion did not reach the expected switch state")
 

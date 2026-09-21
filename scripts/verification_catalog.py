@@ -1,5 +1,6 @@
 """Public verification stages: one definition owns invocation and expected evidence."""
 from dataclasses import dataclass
+from ios_project import FIXTURE_CONFIG, PERFORMANCE_CONFIG, PRODUCT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -15,9 +16,9 @@ class Stage:
 REGRESSION = (
     Stage('static'),
     Stage('preview-native'),
-    Stage('fixture-test', project='validation/project.json', scheme='VerificationApp', command='test'),
-    Stage('product-test', project='app/project.json', scheme='Nibble', command='test'),
-    Stage('fixture-smoke', project='validation/project.json', scheme='VerificationApp', command='smoke'),
+    Stage('fixture-test', project=FIXTURE_CONFIG, scheme='VerificationApp', command='test'),
+    Stage('product-test', project=PRODUCT_CONFIG, scheme='Nibble', command='test'),
+    Stage('fixture-smoke', project=FIXTURE_CONFIG, scheme='VerificationApp', command='fixture-smoke'),
     Stage('library-ui', 'check_library_ui.py', scheme='Nibble', command='library-ui'),
     Stage('notice-ui', 'check_notice_ui.py', scheme='Nibble', command='notice-ui'),
     Stage('interface-ui', 'check_interface_ui.py', scheme='Nibble', command='fixed-interface'),
@@ -26,7 +27,7 @@ REGRESSION = (
           arguments=('--story', 'keyboard')),
 )
 PERFORMANCE = (
-    Stage('performance-test', project='app/performance-project.json', scheme='NibblePerformance', command='test'),
+    Stage('performance-test', project=PERFORMANCE_CONFIG, scheme='NibblePerformance', command='test'),
 )
 STAGES = {stage.id: stage for stage in (*REGRESSION, *PERFORMANCE)}
 REGRESSION_STEPS = [stage.id for stage in REGRESSION]

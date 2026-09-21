@@ -95,8 +95,7 @@ def plan(paths, scope='auto'):
     return {'scope': scope, 'changed_files': paths,
             'steps': [{'id': name, 'reasons': selected[name]} for name in all_steps if name in selected],
             'excluded': omitted, 'manual_review': sorted(set(manual)),
-            'preconditions': ['説明画面の実行前にSettings > Accessibility > Motionを開いておく']
-            if selected.keys() & {'about-ui', 'keyboard-guide-ui'} else [],
+            'preconditions': [],
             'coverage': '選択したローカル工程・targetの全テスト・UI導線。手動確認・媒体の目視は別途必要'}
 
 

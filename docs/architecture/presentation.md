@@ -44,7 +44,7 @@ nibbleの説明イラストは、文章を保存する操作と、保存した�
 | RivePresentation | 読込済みアセットのFileと処理を実行するWorkerを扱うResource、独立したSessionの生成、Canvasの停止・再描画・表示用Viewの解放 |
 | IllustrationPlayback | 説明画面ごとの読込処理、Session、失敗状態、読込結果の採否 |
 | AboutIllustration / KeyboardIllustration | 読込taskの所有、配色、図の可視性、代替表示、説明文、再読み込みボタン |
-| LibraryRootView | 選択タブと全面シートの状態から、説明画面の再生を許可するかを伝える |
+| AppRootView | 選択タブと全面シートの状態から、説明画面の再生を許可するかを伝える |
 
 図形と時間はRML、画面状態はSwiftUI、値の受け渡しはData Bindingが担当する。フレーム進行には[R20の固定runtimeの時計](../design/evidence.md#r20-riveの停止と復帰)を使い、フレームごとの状態をSwiftUIへ転送しない。RivePresentationは製品固有のパスや型を持たず、ホストがアセットと表示方針を渡す。
 

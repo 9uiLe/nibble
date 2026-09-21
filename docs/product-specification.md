@@ -72,7 +72,7 @@ flowchart TD
 
 ### 状態の寿命
 
-一覧・検索のモデルはシーンのルートLibraryRootView、画面操作は各LibraryTaskOwner、編集入力とフォーカスはSnippetEditorが所有する。編集シートもルートから提示する。タブ内容の一時離脱・背景移行で提示元を失い、編集中のシートが閉じないようにするためである。
+一覧・検索のモデルはシーンのルートAppRootView、画面操作は各LibraryTaskOwner、編集入力とフォーカスはSnippetEditorが所有する。編集シートもルートから提示する。タブ内容の一時離脱・背景移行で提示元を失い、編集中のシートが閉じないようにするためである。
 
 Viewの比較用inputRevisionは親入力の更新を表し、SwiftUIのidentityや永続データのIDには使わない。Bindingや操作先の差し替えで入力・フォーカス・タスク所有者・Rive Sessionを破棄しない。詳細は[比較規約](library-policy.md#viewの比較境界)に従う。
 

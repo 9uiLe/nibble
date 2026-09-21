@@ -35,4 +35,3 @@ struct DeletedSnippetsView: View {
         .onDisappear { model.setNoticePresentation(false) }
     }
 }
-

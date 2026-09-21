@@ -4,7 +4,7 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 ## ナビゲーションと一覧
 
-実装：[LibraryRootView](../../app/Nibble/Navigation/LibraryRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/Library/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/Library/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/Library/LibraryFilterBar.swift)。
+実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/Library/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/Library/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/Library/LibraryFilterBar.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
@@ -22,7 +22,7 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 ## 検索と状態表示
 
-実装：[LibraryRootView](../../app/Nibble/Navigation/LibraryRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/Library/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/Library/LibraryNotice.swift)。
+実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/Library/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/Library/LibraryNotice.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
@@ -70,7 +70,7 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 ## システムと共有拡張
 
-実装：[LibraryRootView](../../app/Nibble/Navigation/LibraryRootView.swift)、[SnippetEditor](../../app/Shared/Editing/SnippetEditor.swift)、[ShareViewController](../../app/NibbleShare/ShareViewController.swift)。
+実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[SnippetEditor](../../app/Shared/Editing/SnippetEditor.swift)、[ShareViewController](../../app/NibbleShare/ShareViewController.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |

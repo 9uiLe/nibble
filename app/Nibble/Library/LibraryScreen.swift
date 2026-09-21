@@ -193,9 +193,9 @@ struct LibraryScreen: View {
             emptyState
         } else if model.contentRequest.filter != .drafts {
             Section {
-                ForEach(visibleItems) { item in snippetRow(item) }
+                ForEach(model.items) { item in snippetRow(item) }
             } header: {
-                if model.contentRequest.filter != .trash && !visibleItems.isEmpty {
+                if model.contentRequest.filter != .trash && !model.items.isEmpty {
                     HStack {
                         Text(sectionTitle).fontWeight(.semibold)
                         Spacer()
@@ -295,10 +295,7 @@ struct LibraryScreen: View {
     }
 
     private var displaysDrafts: Bool { showsFilters && (model.contentRequest.filter == .all || model.contentRequest.filter == .drafts) }
-    private var visibleItems: [SnippetSummary] {
-        model.items
-    }
-    private var contentIsEmpty: Bool { visibleItems.isEmpty && (!displaysDrafts || model.drafts.isEmpty) }
+    private var contentIsEmpty: Bool { model.items.isEmpty && (!displaysDrafts || model.drafts.isEmpty) }
     private var showsCreationCTA: Bool {
         showsFilters && (model.filter == .all || model.filter == .drafts)
             && model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil

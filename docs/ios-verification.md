@@ -14,7 +14,7 @@
 | VerificationApp | 共通コマンド・文字列照合・撮影を試験するfixture | `validation/VerificationApp.xcodeproj` / `VerificationApp` | [validation/project.json](../validation/project.json) |
 | NibblePerformance | Riveの時間・メモリ測定 | `app/Nibble.xcodeproj` / `NibblePerformance` | [app/performance-project.json](../app/performance-project.json) |
 
-最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の期待動作は[製品仕様・要件](product-specification.md)、自動工程の責務は[テスト設計](testing.md)を参照する。`ios.py`の対象設定を省略するとVerificationAppを選び、`smoke`もこのfixtureだけに使用できる。
+最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の期待動作は[製品仕様・要件](product-specification.md)、自動工程の責務は[テスト設計](testing.md)を参照する。`ios.py`の対象設定を省略すると製品のNibbleを選ぶ。`fixture-smoke`は基盤試験用のVerificationAppを選び、このfixtureだけに使用できる。
 
 以下のコマンドは、リポジトリルートで開いたNixシェル内で実行する。エージェントとCIはJSON形式を指定する。
 
@@ -78,7 +78,7 @@ python3 scripts/verify.py plan --base origin/main
 | `validation/VerificationAppTests/` | fixtureの全テスト |
 | 製品の実装・アセット・Xcode設定 | 製品テスト、基本操作・通知・固定表示・説明画面のUI |
 | 個別の製品UI driver | そのdriverのUI導線 |
-| その他の`validation/`（保存層の測定harnessを除く） | fixtureのテスト・smoke |
+| その他の`validation/`（保存層の測定harnessを除く） | fixtureのテスト・fixture-smoke |
 | `app/NibblePerformanceTests/`、保存層の測定harness | 手動確認欄に測定・比較の実行先を表示。通常回帰へは追加しない |
 | `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
 | 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
@@ -89,7 +89,7 @@ python3 scripts/verify.py plan --base origin/main
 xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
 ```
 
-計画に`about-ui`または`keyboard-guide-ui`が含まれる場合は、専用Simulatorの「設定 > アクセシビリティ > 動作」を開いておく。英語表示ではSettings > Accessibility > Motionに当たる。driverは「視差効果を減らす」を観測・操作し、終了時に元へ戻す。共有拡張・キーボードのOS導線は、変更した責務と本書の操作手順に照らして確認する。
+説明画面のdriverは、専用Simulatorの設定を開き、観測したコントロールから「アクセシビリティ > 動作」へ移動する。「視差効果を減らす」の現在値を確認して操作し、終了時に元へ戻す。設定画面へ到達できない場合は有限回の観測で失敗とする。共有拡張・キーボードのOS導線は、変更した責務と本書の操作手順に照らして確認する。
 
 準備ができたら実行する。`run`は実行時のソースから計画を作るので、先に表示した`plan`の結果を固定して実行するコマンドではない。
 
@@ -126,30 +126,29 @@ python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
 
 ## ビルド・テスト・動作確認
 
-個別コマンドは特定工程の調査や明示的な再検査に使う。計画に従って合格した工程を、追加の変更や懸念なしに繰り返す必要はない。次はVerificationAppをReleaseで検証する例である。
+個別コマンドは特定工程の調査や明示的な再検査に使う。計画に従って合格した工程を、追加の変更や懸念なしに繰り返す必要はない。次は製品のNibbleをReleaseで検証する例である。
 
 ```sh
 python3 scripts/ios.py build --configuration Release --device "$NIBBLE_SIMULATOR"
 python3 scripts/ios.py test --configuration Release --device "$NIBBLE_SIMULATOR"
 python3 scripts/ios.py run --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py smoke --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
 `build`はビルド、`test`はビルドとSwift Testing、`run`はビルド・インストール・起動・画面読取を行う。`--configuration`の省略値はDebugなので、受け入れ検証ではReleaseを明示する。`test`は終了コードとxcresult summaryを確認し、成功1件以上・失敗なしを要求する。0件と全skipは合格にならない。
 
-`smoke`はfixtureの画面読取、リセット、入力欄選択、ダミーテキスト貼り付け、反映、出力値の完全一致を検査し、画像と録画を生成する。既定の入力は`日本語 👩🏽‍💻`、改行、`Hello, nibble!`で、`--text`で変更できる。専用端末のクリップボードとfixtureの入力状態を書き換える。
+`fixture-smoke`はfixtureの画面読取、リセット、入力欄選択、ダミーテキスト貼り付け、反映、出力値の完全一致を検査し、画像と録画を生成する。既定の入力は`日本語 👩🏽‍💻`、改行、`Hello, nibble!`で、`--text`で変更できる。専用端末のクリップボードとfixtureの入力状態を書き換える。
 
 ビルドは実行Mac向けのarchitectureを使い、テスト用とUI用でキャッシュを分ける。製品はApp Groupのentitlementを渡すためad hoc署名を使い、Developer Teamや証明書を必要としない。署名設定を省略したfixtureは未署名でビルドする。
 
 ## 検証対象の切り替え
 
-製品には`app/project.json`、基盤fixtureには`validation/project.json`、Rive測定には`app/performance-project.json`を指定する。
+製品には`app/project.json`、基盤fixtureには`validation/project.json`、Rive測定には`app/performance-project.json`を指定する。設定の読込と検査は`scripts/ios_project.py`が担う。必須項目は`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`で、任意の`simulator_signing`は`disabled`または`ad-hoc`とする。未知のキー、空の値、存在しないproject、不正なbundle ID・OS版・署名方式は、Appleツールを起動する前に拒否する。
 
 ```sh
 python3 scripts/ios.py test --project-config app/project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
 python3 scripts/check_library_ui.py --device "$NIBBLE_SIMULATOR"
-
+python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
 `build`や`run`にも同じ`--project-config`を指定できる。製品の通知・説明画面・OS連携は次節を参照する。
@@ -212,11 +211,11 @@ targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・
 ### 画面を取得して操作する
 
 ```sh
-python3 scripts/ios.py ui --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fixture.input
-python3 scripts/ios.py paste --device "$NIBBLE_SIMULATOR" \
+python3 scripts/ios.py ui --project-config validation/project.json --device "$NIBBLE_SIMULATOR"
+python3 scripts/ios.py tap --project-config validation/project.json --device "$NIBBLE_SIMULATOR" fixture.input
+python3 scripts/ios.py paste --project-config validation/project.json --device "$NIBBLE_SIMULATOR" \
   --target-id fixture.input --text '日本語の確認 🧪'
-python3 scripts/ios.py tap --device "$NIBBLE_SIMULATOR" fixture.apply
+python3 scripts/ios.py tap --project-config validation/project.json --device "$NIBBLE_SIMULATOR" fixture.apply
 ```
 
 この例は起動済みのVerificationAppを操作する。`ui`は画面情報を読み取り、`tap`と`paste`は操作前後の画面情報を保存する。操作先には直前の観測で確認した`uniqueId`を使う。コマンド成功後は、操作後の値や状態を期待結果と照合する。
@@ -259,7 +258,7 @@ python3 scripts/ios.py record --device "$NIBBLE_SIMULATOR" --seconds 10
 
 静止画は`simctl io screenshot`、動画は`simctl io recordVideo`で取得する。録画は開始通知を待ち、SIGINTで確定する。`--seconds`は0より大きく60以下を指定する。動画の長さと代表フレーム3枚はSwift・AVFoundation・AppKitで取得する。
 
-fixtureのsmokeでは、録画の確定後に操作後の静止画を撮影する。同時取得によってボタン文字が欠ける場合を避け、静止画と録画を独立して確認できる順序にする。
+fixture-smokeでは、録画の確定後に操作後の静止画を撮影する。同時取得によってボタン文字が欠ける場合を避け、静止画と録画を独立して確認できる順序にする。
 
 任意の操作を記録する場合は、一つのターミナルで`record`を実行し、別のターミナルでNixのsim-useを使う。直接のsim-useやXcode操作はdriverの端末ロックに参加しない。同じUDIDへ別の検証を同時に流さない。
 
@@ -281,14 +280,14 @@ fixtureのsmokeでは、録画の確定後に操作後の静止画を撮影す�
 
 [benchmark_verification.py](../scripts/benchmark_verification.py)は、JSONで指定したコマンド列を一巡の検証サイクルとして連続実行する。各工程とサイクルの時間、成功回の中央値・最小・最大・ばらつき、測定時間窓内の完了数を`results.json`へ保存する。失敗は記録して停止し、自動再試行しない。
 
-次は起動済みの専用端末でfixtureのtestとsmokeを測る例。測定するキャッシュ条件に合わせて準備実行を済ませ、`--condition`へ実際の条件を記載する。
+次は起動済みの専用端末でfixtureのtestとfixture-smokeを測る例。測定するキャッシュ条件に合わせて準備実行を済ませ、`--condition`へ実際の条件を記載する。
 
 ```sh
 mkdir -p artifacts
 cat > artifacts/verification-commands.json <<JSON
 [
-  ["python3", "scripts/ios.py", "test", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"],
-  ["python3", "scripts/ios.py", "smoke", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"]
+  ["python3", "scripts/ios.py", "test", "--project-config", "validation/project.json", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"],
+  ["python3", "scripts/ios.py", "fixture-smoke", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"]
 ]
 JSON
 python3 scripts/benchmark_verification.py \

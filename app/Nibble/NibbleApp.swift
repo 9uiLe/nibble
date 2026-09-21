@@ -8,7 +8,7 @@ struct NibbleApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LibraryRootView(store: store, effects: SystemLibraryEffects())
+            AppRootView(store: store, effects: SystemLibraryEffects())
                 .modifier(NibbleInterface())
                 .background(SceneInterfaceDefaults())
         }

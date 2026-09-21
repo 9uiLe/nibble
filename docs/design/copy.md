@@ -20,7 +20,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 タブと画面名は現在地、検索欄は調べる対象を伝える。削除した項目の検索は、通常の保存済み項目の検索から独立している。
 
-実装：[LibraryRootView.swift](../../app/Nibble/Navigation/LibraryRootView.swift)。S01・S02・S06・C01・C12・C39。
+実装：[AppRootView.swift](../../app/Nibble/Navigation/AppRootView.swift)。S01・S02・S06・C01・C12・C39。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -217,7 +217,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 保存層は対象の状態と入力制約を返し、画面側が操作に合う回復方法を添える。同じ保存エラーでも、編集画面と共有開始前では利用できる操作が異なる。
 
-実装：[Snippet.swift](../../app/Shared/Domain/Snippet.swift)。S01〜S03・S07・S09・C04・C17・C30・C42・C47。
+実装：[Snippet.swift](../../app/Shared/Domain/Snippet.swift)、[StoreError.swift](../../app/Shared/Domain/StoreError.swift)。S01〜S03・S07・S09・C04・C17・C30・C42・C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -296,7 +296,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 本体が共有保存領域を準備する。キーボードは準備されていない保存領域を作らず、本体での保存と一覧の更新へ案内する。
 
-実装：[KeyboardReader.swift](../../app/Shared/Keyboard/KeyboardReader.swift)。S09・C45〜C47。
+実装：[KeyboardContracts.swift](../../app/Shared/Domain/KeyboardContracts.swift)。S09・C45〜C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |

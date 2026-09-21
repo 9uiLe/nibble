@@ -14,6 +14,36 @@ about_ui = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(about_ui)
 
 
+class MotionNavigationTests(unittest.TestCase):
+    def test_navigates_observed_settings_controls_without_changing_motion(self):
+        screens = [
+            {'entries': [{'uniqueId': identifier}], 'appPackage': 'com.apple.Preferences'}
+            for identifier in ['BackButton', 'com.apple.settings.accessibility', 'MOTION_TITLE']
+        ]
+        screens.append({'entries': [{'uniqueId': 'REDUCE_MOTION', 'value': '1'}],
+                        'appPackage': 'com.apple.Preferences'})
+        run = SimpleNamespace(args=SimpleNamespace(device='dedicated'), manifest={},
+                              ui=Mock(side_effect=screens), tap=Mock(), command=Mock(), save=Mock())
+        with patch.object(about_ui.time, 'sleep'):
+            self.assertTrue(about_ui.AboutCheck(run).motion())
+        self.assertEqual([call.args[0] for call in run.tap.call_args_list],
+                         ['BackButton', 'com.apple.settings.accessibility', 'MOTION_TITLE'])
+        self.assertEqual(run.command.call_count, 1)
+        self.assertEqual(run.manifest['motion_observations'],
+                         [{'before': True, 'requested': None, 'observed': True}])
+
+    def test_does_not_tap_stale_controls_from_another_app_and_fails_bounded(self):
+        run = SimpleNamespace(args=SimpleNamespace(device='dedicated'), manifest={},
+                              ui=Mock(return_value={'appPackage': 'nibble.9uiLe.com',
+                                  'entries': [{'uniqueId': 'BackButton'}]}),
+                              tap=Mock(), command=Mock(), save=Mock())
+        with patch.object(about_ui.time, 'sleep'), self.assertRaises(about_ui.VerificationError):
+            about_ui.AboutCheck(run).motion()
+        run.tap.assert_not_called()
+        self.assertLessEqual(run.ui.call_count, 24)
+        self.assertNotIn('motion_observations', run.manifest)
+
+
 class FaultRetryTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

@@ -3,7 +3,7 @@ import SwiftUI
 import ScopedAnimation
 
 @Equatable
-struct LibraryRootView: View {
+struct AppRootView: View {
     // Refresh parent-owned inputs even when the macro excludes their values.
     private let inputRevision = UUID()
 

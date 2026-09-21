@@ -44,7 +44,7 @@ class SelectionTests(unittest.TestCase):
         selected = verify.plan(['app/Shared/Domain/LibraryRequest.swift'])
         self.assertIn('product-test', self.selected(['app/Shared/Domain/LibraryRequest.swift']))
         self.assertTrue(selected['manual_review'])
-        self.assertTrue(selected['preconditions'])
+        self.assertEqual(selected['preconditions'], [])
 
     def test_measurement_requires_explicit_scope(self):
         for path in ('validation/StoreBenchmark.swift', 'app/NibblePerformanceTests/Measurements.swift'):

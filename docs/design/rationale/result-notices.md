@@ -47,7 +47,7 @@ flowchart TD
 
 | 所有者 | 責務 |
 | --- | --- |
-| `LibraryRootView` | 一覧・検索のモデル、タブ選択、シート、検索フォーカスを保持する。選択タブとシーンの状態から通知の表示資格を決める |
+| `AppRootView` | 一覧・検索のモデル、タブ選択、シート、検索フォーカスを保持する。選択タブとシーンの状態から通知の表示資格を決める |
 | `LibraryModel` | 保存層への操作、結果反映、通知値、表示可能な滞在、期限、復元中の対象UUIDを管理する |
 | `LibraryTaskOwner` | 同期UIイベントから`startTask`で操作を受理し、受理時の滞在を固定する。操作の寿命と重複を管理してモデルをawaitする |
 | `LibraryNoticeWindow.AnchorView` | 内容ウィンドウへの接続を検知し、そのシーンに通知ウィンドウとhosting controllerを作成・保持・解放する |
@@ -56,7 +56,7 @@ flowchart TD
 | `LibraryNotice` | 結果と取り消しボタンを描画し、通知IDごとの期限処理をawaitする |
 | `LibraryResultFeedback` / `LibraryEffects` | 常設のView modifierで成功イベントの触覚を観測する / 成功時の読み上げを実行する |
 
-`LibraryRootView`は通知の有無によらず同じTabView構造と接続Viewを保持する。検索語、フォーカス、スクロール、編集中の状態の寿命は、それぞれの画面とモデルのidentityに従う。通知の表示だけで画面を作り直さない。
+`AppRootView`は通知の有無によらず同じTabView構造と接続Viewを保持する。検索語、フォーカス、スクロール、編集中の状態の寿命は、それぞれの画面とモデルのidentityに従う。通知の表示だけで画面を作り直さない。
 
 シーンのルートでは、通知の滞在をscenePhase・選択タブ・提示シートから更新し、onDisappearを離脱判定に使わない。初期表示の再構築でも破棄されるViewのdisappearが後から届くことがあり、同じStateを引き継いだ現在の画面の通知を無効にしてしまうためである。実際の非active化はscenePhase、タブ・シートの移動はそれぞれの状態変更で滞在を終了する。接続Viewの破棄では通知ウィンドウを解放する。通知値はルートのbodyで常に読み取り、計算済みの表示資格を接続Viewへ渡す。シートを開かない起動直後のコピーで成立を確認する。
 
