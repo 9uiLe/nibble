@@ -97,7 +97,15 @@ nix flake check --no-update-lock-file --print-build-logs
 
 GitHub ActionsもUbuntuで同じ共通コマンドを使います。macOS runnerは間接起動を含めて禁止し、Apple SDK・Simulatorの検証はローカルMacで行います。PRイベントでは本文と全コミットも検査し、mainは`workflow-policy`の成功をマージ条件にします。共通検査にはGitHub認証は不要です。
 
-### 3. XcodeとSwift Packageを準備する
+### 3. 変更に必要な検証を確認する
+
+```sh
+python3 scripts/verify.py plan --base origin/main
+```
+
+工程・準備事項・手動確認と、詳細を保存した`plan.json`のパスが返ります。計画だけでは検査を実行しません。文書や静的検査の変更はNix環境だけで実行できます。iOSの工程が選ばれた場合は、次のXcodeとSimulatorの準備へ進みます。実行と状態確認は[検証計画の手順](docs/ios-verification.md#変更から検証を実行する)、作業別の資料は[開発ガイド](CONTRIBUTING.md#作業の進め方)を参照してください。
+
+### 4. XcodeとSwift Packageを準備する
 
 iOSを検証するMacに[Xcode](https://developer.apple.com/xcode/)をインストールし、一度起動してライセンス確認と追加コンポーネントの導入を完了します。確認環境はXcode 26.5です。Settings → Locations → Command Line Toolsで使うXcodeを選び、確認します。
 
@@ -136,9 +144,9 @@ xcodebuild -resolvePackageDependencies \
 通常のセットアップでは共有lockを使用し、全マクロの検証を無効にする設定は使いません。ライセンスと依存構成の見直し条件は[実装規約](docs/library-policy.md#採用理由と更新条件)を参照してください。
 
 
-### 4. 専用Simulatorで製品を実行する
+### 5. 専用Simulatorで製品を実行する
 
-[ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。変更の確認は`verify.py plan`で対象と事前条件を確認し、`verify.py run`で共通検査・対象テスト・UI操作を実行します。[検証計画の手順](docs/ios-verification.md#変更から検証を実行する)に、結果の読み方と再計画の方法を説明しています。
+[ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。計画の準備事項を満たしたら`verify.py run`で共通検査・対象テスト・UI操作を実行し、`verify.py status --result <結果ファイル>`で成否と未開始工程を確認します。
 
 通常回帰は`--scope regression`、製品は`--scope product`、Riveの時間・メモリ測定は`--scope performance`で選べます。測定は目的と条件を決めて実行します。
 
@@ -151,7 +159,7 @@ python3 scripts/ios.py run --project-config app/project.json \
   --configuration Release --device "$NIBBLE_SIMULATOR"
 ```
 
-### 5. 証跡を確認してPRへ記載する
+### 6. 証跡を確認してPRへ記載する
 
 [観測データの確認](docs/simulator-inspection.md)で操作の状態を要素情報から読み、外観は全体画像と必要な細部を開いて確認します。[証跡とPRの手順](docs/review-evidence.md)で、実行ソース・原本媒体・観測記録を照合します。文書だけの変更は[共通検査](CONTRIBUTING.md#実行と検査)とPR本文の確認を行い、撮影が不要な理由を記載します。
 

@@ -65,10 +65,18 @@ open -a Simulator
 比較元を指定して計画を確認する。差分には比較元からのコミット済み変更、ステージ済み・未ステージの変更、未追跡ファイル、削除を含む。
 
 ```sh
-python3 scripts/verify.py plan --base origin/main --output artifacts/verification-plan
+python3 scripts/verify.py plan --base origin/main
 ```
 
-`--output`は新しいディレクトリへ完全な`plan.json`を保存し、stdoutには工程ID・変更件数・手動確認と参照先を返す。再計画には別の保存先を使う。選択理由の確認には保存した計画を開く。`--output`を省略すると従来どおり詳細をstdoutへ返す。
+`plan`は`artifacts/verify/<計画ID>/plan.json`へ詳細を保存し、stdoutには工程ID・変更件数・準備事項・手動確認と参照先を返す。`--output`で任意の新しい保存先を指定できる。既存ディレクトリは上書きしない。選択・除外理由やソースsnapshotが必要なときは、返されたパスの計画を開く。
+
+| 操作 | 引数 | 成功時の動作 |
+| --- | --- | --- |
+| `plan` | `--base`または`--since`、`--scope`、`--output` | 検査を実行せず、計画を保存して要約を返す |
+| `run` | 計画と同じ引数、iOS工程用の`--device` | 実行時に再計画し、工程結果・ログ・run参照を保存する |
+| `status` | 必須の`--result` | 保存済み結果と現在ソースを読み、状態の要約を返す |
+
+`--base`と`--since`は比較元の指定で、同時には使わない。省略時は`origin/main`を使う。`--since`は結果内のソースsnapshotと比較するためGitの比較元ブランチを必要としない。操作に対応しない引数は拒否する。引数は各操作の`--help`でも確認できる。
 
 完全な計画の`steps`は選択した工程と理由、`excluded`は対象外の工程と理由、`preconditions`は実行前の準備、`manual_review`は自動工程とは別に判断する確認事項を示す。主な選択規則は次のとおりで、複数の変更に該当すると必要な工程を合わせて選ぶ。
 
@@ -120,9 +128,9 @@ stdoutに成否と結果ファイルのパスを返す。既定の保存先は`a
 python3 scripts/verify.py status --result artifacts/verify/対象ID/result.json
 ```
 
-記録された成否・失敗理由、工程ごとの時間・ログ・run、開始時からの変更ファイル、手動確認事項を返す。ログは`result.json`の親ディレクトリ基準。`source_stable`は記録内の開始・終了ソースの一致、`source_matches_current`は終了ソースと現在のworktreeの一致で、終了記録がなければ両方`null`となる。結果は完全なJSONを一時ファイルから置換して保存するため、実行中も読み取れる。
+記録された成否・失敗理由、工程ごとの時間・ログ・run、開始時からの変更ファイル、手動確認事項を返す。ログは`result.json`の親ディレクトリ、runは実行したリポジトリのルート基準。`source_stable`は記録内の開始・終了ソースの一致、`source_matches_current`は終了ソースと現在の作業ツリーの一致で、終了記録がなければ両方`null`となる。結果は完全なJSONを一時ファイルから置換して保存するため、実行中も読み取れる。
 
-`status`の終了コード0は読み取り成功を意味する。`status: failed`を成功へ変えず、`running`はプロセスの生存を保証しない。媒体hashや観測の真実性は検査しない。引き継ぎ先や別worktreeではソース不一致を確認し、必要なログ・runだけを開く。待機には起動元のプロセス待機を使い、状態の短周期ポーリングを繰り返さない。
+`status`の終了コード0は読み取り成功を意味する。`status: failed`を成功へ変えず、`running`はプロセスの生存を保証しない。媒体hashや観測の真実性は検査しない。作業を再開するときはソース不一致を確認し、必要なログ・runだけを開く。待機には起動元のプロセス待機を使い、状態の短周期ポーリングを繰り返さない。
 
 ### 成功結果からの再計画
 

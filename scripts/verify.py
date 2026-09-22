@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plan and execute verification for changed files; retain scope, failures and elapsed time."""
+"""Save verification plans, execute their scope, and summarize recorded results."""
 import argparse
 from datetime import datetime, timezone
 import json
@@ -33,10 +33,10 @@ def changed_files(root, base):
 
 def changes_since(path, current):
     previous = json.loads(path.read_text())
-    if (previous.get('status') != 'passed' or not previous.get('steps')
-            or any(step.get('status') != 'passed' for step in previous['steps'])
-            or previous.get('source_start') != previous.get('source_end')
-            or not isinstance(previous.get('source_end'), dict)):
+    validate_report(previous)
+    if (previous['status'] != 'passed'
+            or any(step['status'] != 'passed' for step in previous['steps'])
+            or previous['source_start'] != previous.get('source_end')):
         raise ValueError('--since requires a successful, source-stable result')
     return differences(previous['source_end'], current)
 
@@ -94,10 +94,17 @@ def plan(paths, scope='auto'):
     omitted = [{'id': name, 'reason': ('測定条件を決めて明示的に実行する' if name in PERFORMANCE_STEPS else
                                                '変更から自動選択されない' if scope == 'auto' else '明示したscopeの対象外')}
                for name in all_steps if name not in selected]
+    preconditions = ['リポジトリルートのNix環境で実行し、検証中はソースを編集しない']
+    if 'preview-native' in selected:
+        preconditions.append('画像加工の試験にはmacOS付属のsipsを使う')
+    if set(selected) - OFFLINE_STEPS:
+        preconditions.append('XcodeとiOS 26.5 runtimeを用意し、専用SimulatorのUDIDをrun --deviceへ指定する')
+    if set(selected) & (PRODUCT_STEPS - {'product-test'}):
+        preconditions.append('専用Simulatorの検証用Nibbleを初期化し、ダミーデータで操作する。docs/ios-verification.mdを参照')
     return {'scope': scope, 'changed_files': paths,
             'steps': [{'id': name, 'reasons': selected[name]} for name in all_steps if name in selected],
             'excluded': omitted, 'manual_review': sorted(set(manual)),
-            'preconditions': [],
+            'preconditions': preconditions,
             'coverage': '選択したローカル工程・targetの全テスト・UI導線。手動確認・媒体の目視は別途必要'}
 
 
@@ -142,16 +149,21 @@ def save_report(path, report):
     temporary.replace(path)
 
 
-def summarize_report(report, path, current):
-    """Inspect recorded progress; this neither validates media nor authorizes reuse."""
-    if (not isinstance(report, dict) or report.get('status') not in {'running', 'passed', 'failed'}
+def validate_report(report):
+    """Require a verification record before interpreting its state or source snapshot."""
+    if (not isinstance(report, dict) or report.get('status') not in ('running', 'passed', 'failed')
             or not isinstance(report.get('source_start'), dict)
             or not isinstance(report.get('steps'), list) or not report['steps']
             or any(not isinstance(step, dict) or not isinstance(step.get('id'), str)
-                   or step.get('status') not in {'pending', 'running', 'passed', 'failed'}
+                   or step.get('status') not in ('pending', 'running', 'passed', 'failed')
                    for step in report['steps'])
             or ('source_end' in report and not isinstance(report['source_end'], dict))):
         raise ValueError('Expected a verification result.json')
+
+
+def summarize_report(report, path, current):
+    """Inspect recorded progress; this neither validates media nor authorizes reuse."""
+    validate_report(report)
     end = report.get('source_end')
     return {
         'result': str(path), 'status': report['status'],
@@ -238,43 +250,46 @@ def run_plan(selected, directory, device, timeout=1800):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('plan', 'run', 'status'))
-    parser.add_argument('--result', type=Path, help='status: inspect this result without executing any stage')
-    parser.add_argument('--base', default='origin/main', help='Compare this revision with the working tree, including untracked files')
-    parser.add_argument('--since', type=Path, help='Only changes since this successful result; failed results cannot suppress work')
-    parser.add_argument('--scope', choices=('auto', *SCOPES), default='auto')
-    parser.add_argument('--device')
-    parser.add_argument('--output', type=Path, help='New directory; existing results are never overwritten')
+    actions = parser.add_subparsers(dest='action', required=True)
+    for action, help_text in [('plan', 'Save a plan and return its summary'),
+                              ('run', 'Plan from current sources and execute the selected stages')]:
+        command = actions.add_parser(action, help=help_text, description=help_text)
+        comparison = command.add_mutually_exclusive_group()
+        comparison.add_argument('--base', help='Compare the working tree with this revision (default: origin/main)')
+        comparison.add_argument('--since', type=Path, help='Compare with a successful, source-stable result instead of a revision')
+        command.add_argument('--scope', choices=('auto', *SCOPES), default='auto')
+        command.add_argument('--output', type=Path, help='New directory (default: artifacts/verify/<unique ID>); never overwritten')
+        if action == 'run':
+            command.add_argument('--device', help='Dedicated iOS 26.5 Simulator UDID; required for iOS stages')
+    status = actions.add_parser('status', help='Summarize a saved result without running stages')
+    status.add_argument('--result', type=Path, required=True, help='Verification result.json to read')
     args = parser.parse_args(argv)
-    if (args.action == 'status') != (args.result is not None):
-        parser.error('--result is required for status and only valid with status')
     try:
         before = working_hashes(ROOT)
         if args.action == 'status':
             report = json.loads(args.result.read_text())
             print(json.dumps(summarize_report(report, args.result, before), ensure_ascii=False))
             return 0
-        revision, paths = changed_files(ROOT, args.base)
+        revision = None
         if args.since:
             paths = changes_since(args.since, before)
+        else:
+            revision, paths = changed_files(ROOT, args.base or 'origin/main')
         if before != working_hashes(ROOT):
             raise ValueError('Sources changed while planning')
         selected = {'base': revision, 'since': str(args.since) if args.since else None,
                     'planning_source': before, **plan(paths, args.scope)}
-        if args.action == 'plan':
-            if args.output:
-                args.output.mkdir(parents=True, exist_ok=False)
-                path = args.output / 'plan.json'
-                save_report(path, selected)
-                print(json.dumps({'plan': str(path), 'base': revision, 'scope': args.scope,
-                                  'changed_file_count': len(paths),
-                                  'steps': [step['id'] for step in selected['steps']],
-                                  'manual_review': selected['manual_review'],
-                                  'details': '選択・除外理由とソースsnapshotはplanを参照。runは実行時に再計画する。'}, ensure_ascii=False))
-                return 0
-            print(json.dumps({key: value for key, value in selected.items() if key != 'planning_source'}, ensure_ascii=False, indent=2))
-            return 0
         directory = args.output or ROOT / 'artifacts/verify' / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex[:6])
+        if args.action == 'plan':
+            directory.mkdir(parents=True, exist_ok=False)
+            path = directory / 'plan.json'
+            save_report(path, selected)
+            print(json.dumps({'plan': str(path), 'base': revision, 'since': selected['since'], 'scope': args.scope,
+                              'changed_file_count': len(paths),
+                              'steps': [step['id'] for step in selected['steps']],
+                              'preconditions': selected['preconditions'],
+                              'manual_review': selected['manual_review']}, ensure_ascii=False))
+            return 0
         report = run_plan(selected, directory, args.device)
         print(json.dumps({'status': report['status'], 'result': str(directory / 'result.json'),
                           'elapsed_seconds': report['elapsed_seconds'], 'manual_review': report['manual_review']}, ensure_ascii=False))

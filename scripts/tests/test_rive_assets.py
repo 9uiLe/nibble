@@ -58,7 +58,7 @@ class RiveAssetTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     rive_assets.structure(self.source, self.asset)
 
-    def test_legacy_inputs_and_scripts_are_not_unsigned_assets(self):
+    def test_state_machine_inputs_scripts_and_shaders_are_rejected(self):
         for tag in ('StateMachineNumber', 'ScriptAsset', 'ShaderAsset'):
             (self.source / "scene.rml").write_text(SCENE.replace('</Rive>', f'<{tag}/></Rive>'))
             with self.assertRaisesRegex(ValueError, "unsigned, script-free"):

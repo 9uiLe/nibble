@@ -13,7 +13,7 @@
 
 直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
 
-製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#3-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
+製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#4-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 
 Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/Resources/ThirdPartyNotices.txt)と各依存の条件を維持する。
 
