@@ -4,6 +4,8 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 ## ナビゲーションと一覧
 
+項目名は`SnippetTextPresentation`で整形し、保存済み・下書き・Keyboardの行は`SnippetHeading`を使う。本体の2行・左側ピンとKeyboardの1行・右側ピンは表示文脈の差として保持する。`PinButton`は同じ状態と操作名を受け取り、メニュー／スワイプのラベルとKeyboardのアイコンを描き分ける。絞り込み・操作資格・更新処理は呼出元のモデルと保存層が担う。
+
 実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/Library/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/Library/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/Library/LibraryFilterBar.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
@@ -22,7 +24,7 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 ## 検索と状態表示
 
-実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[LibraryModel](../../app/Nibble/Library/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/Library/LibraryNotice.swift)。
+実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[LibraryModel](../../app/Shared/Application/LibraryModel.swift)、[LibraryNotice](../../app/Nibble/Library/LibraryNotice.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |
@@ -37,7 +39,9 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 ## 編集
 
-実装：[SnippetEditor](../../app/Shared/Editing/SnippetEditor.swift)、[EditorModel](../../app/Shared/Editing/EditorModel.swift)。
+入力中・非入力時の補足入口は共通の`EditorHelpButton`を使う。配置と排他的な表示、フォーカス復帰は各コンテナに残す。補足と保存失敗に示す上限はDomainの定義から生成する。
+
+実装：[SnippetEditor](../../app/Shared/Editing/SnippetEditor.swift)、[EditorModel](../../app/Shared/Application/EditorModel.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |
 | --- | --- | --- | --- |

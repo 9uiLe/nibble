@@ -93,7 +93,7 @@ python3 scripts/verify.py plan --base origin/main
 | `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
 | 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
 
-製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。基本操作のdriverは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
+製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。通常の入力工程ではOS標準の英語キーボードを選ぶ。nibbleキーボードを追加済みの場合は地球儀から切り替え、通常キーが表示されることを画面で確認する。Keyboard拡張の検証は専用の操作手順で別に行う。基本操作のdriverは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
 
 ```sh
 xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com

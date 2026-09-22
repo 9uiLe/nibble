@@ -73,15 +73,6 @@ class DesignChecks(unittest.TestCase):
     def errors(self):
         return design.check(self.root, 'policy.json')['errors']
 
-    def test_reviewed_tree_passes_without_git_or_network(self):
-        result = design.check(self.root, 'policy.json')
-        self.assertEqual(result['errors'], [])
-        self.assertEqual(result['ids'], {'C': 3, 'S': 1, 'F': 1, 'R': 1, 'G': 1})
-
-    def test_configuration_edits_require_review(self):
-        self.write('client/config.json', '{"enabled": true}\n')
-        self.assertIn('Unreviewed changed input: client/config.json', self.errors())
-
     def test_new_source_and_design_inputs_are_detected(self):
         for name, contents in (('client/new-feature/Screen.tsx', 'export const newScreen = {}\n'),
                                ('design/new-pattern.md', '# Pattern\n')):
@@ -97,10 +88,15 @@ class DesignChecks(unittest.TestCase):
         self.assertIn('Unreviewed removed input: client/screens/Panel.tsx', errors)
         self.assertIn('Unreviewed added input: client/screens/Renamed.tsx', errors)
 
-    def test_updating_documents_does_not_accept_unreviewed_source(self):
+    def test_source_configuration_and_document_changes_require_review(self):
+        result = design.check(self.root, 'policy.json')
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(result['ids'], {'C': 3, 'S': 1, 'F': 1, 'R': 1, 'G': 1})
+        self.write('client/config.json', '{"enabled": true}\n')
         self.write('client/screens/Panel.tsx', 'export const differentPanel = {}\n')
         self.write('design/screens.md', '## S01 Library\nUpdated text.\n')
         errors = self.errors()
+        self.assertIn('Unreviewed changed input: client/config.json', errors)
         self.assertIn('Unreviewed changed input: client/screens/Panel.tsx', errors)
         self.assertIn('Unreviewed changed input: design/screens.md', errors)
         self.record()

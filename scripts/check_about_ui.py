@@ -10,7 +10,7 @@ import hashlib
 from pathlib import Path
 import time
 from types import SimpleNamespace
-from ios import ROOT, Run, XCRUN, VerificationError
+from ios import simulator_lock, ROOT, Run, XCRUN, VerificationError
 
 
 def element(data, identifier):
@@ -262,7 +262,7 @@ def main():
     contexts = ExitStack()
     try:
         run.setup()
-        contexts.enter_context(run.device_lock())
+        contexts.enter_context(simulator_lock(args.device))
         run.boot()
         for name in ("appearance", "content_size", "increase_contrast"):
             original[name] = run.command([XCRUN, "simctl", "ui", args.device, name]).strip()

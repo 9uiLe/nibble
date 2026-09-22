@@ -2,7 +2,7 @@ import Foundation
 
 enum KeyboardFilter: String, CaseIterable, Sendable {
     case all, pinned
-    var title: String { self == .all ? "すべて" : "ピン留め" }
+    var libraryFilter: LibraryFilter { self == .all ? .all : .pinned }
 }
 
 struct KeyboardRequest: Hashable, Sendable {
@@ -27,13 +27,6 @@ protocol KeyboardReading: Sendable {
     func setPinned(_ pinned: Bool, for item: SnippetSummary) async throws -> SnippetSummary
 }
 
-enum KeyboardReadError: Error, LocalizedError {
+enum KeyboardReadError: Error, Equatable {
     case notPrepared, changed
-
-    var errorDescription: String? {
-        switch self {
-        case .notPrepared: "nibbleで文章やURLを保存してから、更新ボタンを押してください。"
-        case .changed: "項目が変更されています。一覧を更新して選び直してください。"
-        }
-    }
 }

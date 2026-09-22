@@ -21,7 +21,7 @@ struct SnippetUsageTests {
             try await group.waitForAll()
         }
         let item = try await other.snippet(id)
-        #expect(item.useCount == 4 && item.lastUsedAt == uses.last?.completedAt)
+        #expect(item.usage.count == 4 && item.usage.lastUsedAt == uses.last?.completedAt)
     }
 
     @Test @MainActor func cancellationAfterCopyStillPersistsTheAdmittedUse() async throws {
@@ -36,8 +36,8 @@ struct SnippetUsageTests {
         tasks.cancelAll()
         recorder.resume()
         await tasks.waitForIdle()
-        #expect(try await files.store.snippet(id).useCount == 1)
-        #expect(try await files.store.snippet(id).lastUsedAt == instant)
+        #expect(try await files.store.snippet(id).usage.count == 1)
+        #expect(try await files.store.snippet(id).usage.lastUsedAt == instant)
     }
 
     @Test @MainActor func refreshReevaluatesTimeWithoutModifyingUsage() async throws {
@@ -48,11 +48,11 @@ struct SnippetUsageTests {
         var clock = instant.addingTimeInterval(720 * 3600 - 1)
         let model = LibraryModel(store: files.store, effects: RecordingLibraryEffects(), now: { clock })
         await model.refresh()
-        #expect(!model.items[0].isDeletionCandidate(at: model.evaluatedAt))
+        #expect(model.unusedSince(for: model.items[0]) == nil)
         clock = clock.addingTimeInterval(1)
         await model.refresh()
-        #expect(model.items[0].isDeletionCandidate(at: model.evaluatedAt))
-        #expect(try await files.store.snippet(id).useCount == 1)
+        #expect(model.unusedSince(for: model.items[0]) == instant)
+        #expect(try await files.store.snippet(id).usage.count == 1)
     }
 
     @Test func retriesAreIdempotentAndLateRecordsDoNotMoveLastUseBackwards() async throws {
@@ -69,7 +69,7 @@ struct SnippetUsageTests {
         try await other.recordUse(later)
         try await files.store.recordUse(earlier)
         let result = try await other.snippet(id)
-        #expect(result.useCount == 2 && result.lastUsedAt?.timeIntervalSince1970 == later.completedAt.timeIntervalSince1970)
+        #expect(result.usage.count == 2 && result.usage.lastUsedAt?.timeIntervalSince1970 == later.completedAt.timeIntervalSince1970)
         #expect(result.revision == original.revision && result.updatedAt == original.updatedAt)
         await #expect(throws: StoreError.conflict) {
             try await other.recordUse(SnippetUse(id: earlier.id, snippetID: UUID(), completedAt: instant))
@@ -84,12 +84,12 @@ struct SnippetUsageTests {
         try db.execute("CREATE TRIGGER reject_usage BEFORE UPDATE OF use_count ON snippets BEGIN SELECT RAISE(ABORT,'fixture'); END")
         let use = SnippetUse(id: UUID(), snippetID: id, completedAt: instant)
         await #expect(throws: StoreError.database) { try await files.store.recordUse(use) }
-        #expect(try await files.store.snippet(id).useCount == 0)
-        #expect(try await files.store.snippet(id).lastUsedAt == nil)
+        #expect(try await files.store.snippet(id).usage.count == 0)
+        #expect(try await files.store.snippet(id).usage.lastUsedAt == nil)
         try db.execute("DROP TRIGGER reject_usage")
         try await files.store.recordUse(use)
-        #expect(try await files.store.snippet(id).useCount == 1)
-        #expect(try await files.store.snippet(id).lastUsedAt == instant)
+        #expect(try await files.store.snippet(id).usage.count == 1)
+        #expect(try await files.store.snippet(id).usage.lastUsedAt == instant)
     }
 
     @Test func usageOrderBreaksTiesByEditTimeThenIDWithoutPartitioningPins() async throws {
@@ -113,32 +113,12 @@ struct SnippetUsageTests {
         #expect(try await files.store.search().map(\.id) == [d, a, b, c, e])
     }
 
-    @Test func pageExpansionHasNoMissingOrDuplicatedRows() async throws {
-        let files = try TestDatabase()
-        defer { files.removeFiles() }
-        _ = try await files.store.search()
-        let db = try SQLiteDatabase(url: files.url)
-        let ids = (1...201).map { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0))! }
-        try db.writeTransaction {
-            for id in ids {
-                try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count) VALUES(?,'項目','本文','本文',0,1,1000,0,0)", [.text(id.uuidString)])
-            }
-        }
-        let first = try await files.store.library(LibraryRequest())
-        let second = try await files.store.library(LibraryRequest().expanded)
-        let full = try await files.store.library(LibraryRequest().expanded.expanded)
-        #expect(first.items.map(\.id) == Array(ids.prefix(100)) && first.hasMore)
-        #expect(second.items.map(\.id) == Array(ids.prefix(200)) && second.hasMore)
-        #expect(full.items.map(\.id) == ids && !full.hasMore)
-    }
-
     @Test func candidateBoundaryUsesElapsedHoursAndRequiresRecordedUse() {
-        let never = SnippetSummary(id: UUID(), title: "", preview: "", pinned: false, revision: 1)
+        let never = SnippetUsage(count: 0, lastUsedAt: nil)
         #expect(!never.isDeletionCandidate(at: instant))
-        let pinned = SnippetSummary(id: UUID(), title: "", preview: "", pinned: true, revision: 1,
-                                    useCount: 1, lastUsedAt: instant)
-        #expect(!pinned.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600 - 0.001)))
-        #expect(pinned.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600)))
+        let used = SnippetUsage(count: 1, lastUsedAt: instant)
+        #expect(!used.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600 - 0.001)))
+        #expect(used.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600)))
     }
 
     @Test func editingDeletionAndRestorationPreserveUsage() async throws {
@@ -155,11 +135,11 @@ struct SnippetUsageTests {
         let reopened = SnippetStore(location: files.url)
         _ = try await reopened.mutate(.restore, id: id)
         let result = try await reopened.snippet(id)
-        #expect(result.useCount == 1 && result.lastUsedAt == instant && result.pinned)
+        #expect(result.usage.count == 1 && result.usage.lastUsedAt == instant && result.pinned)
         #expect(result.body == draft.body)
         let newID = try await create(reopened, body: "共有取り込み相当の新規本文")
-        #expect(try await reopened.snippet(newID).useCount == 0)
-        #expect(try await reopened.snippet(newID).lastUsedAt == nil)
+        #expect(try await reopened.snippet(newID).usage.count == 0)
+        #expect(try await reopened.snippet(newID).usage.lastUsedAt == nil)
         _ = try await reopened.mutate(.delete, id: id)
         _ = try await reopened.mutate(.permanentlyDelete, id: id)
         let db = try SQLiteDatabase(url: files.url)
@@ -190,12 +170,12 @@ struct SnippetUsageTests {
         let draft = try await files.store.draft(draftID)
         #expect(value.body.utf8.elementsEqual(text.utf8) && value.title == "題名")
         #expect(value.revision == 7 && value.updatedAt == Date(timeIntervalSince1970: 123) && value.pinned)
-        #expect(value.useCount == 0 && value.lastUsedAt == nil && !value.deleted && trash.deleted)
+        #expect(value.usage.count == 0 && value.usage.lastUsedAt == nil && !value.deleted && trash.deleted)
         #expect(draft.body.utf8.elementsEqual(text.utf8) && draft.title == "未保存" && draft.sequence == 3)
         #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [2])
         #expect(try await reader.page(KeyboardRequest()).items.map(\.id) == [id])
         _ = try await SnippetStore(location: files.url).search()
-        #expect(try await files.store.snippet(id).useCount == 0)
+        #expect(try await files.store.snippet(id).usage.count == 0)
     }
 
     @Test @MainActor func copiesAcrossModelsUpdateOneRecordAndClearCandidate() async throws {
@@ -208,15 +188,15 @@ struct SnippetUsageTests {
         let search = LibraryModel(store: files.store, effects: effects, surface: .search, now: { instant })
         search.query = "検索"
         await all.refresh()
-        #expect(all.items[0].isDeletionCandidate(at: all.evaluatedAt))
+        #expect(all.unusedSince(for: all.items[0]) != nil)
         await all.copy(id)
         await search.copy(id)
-        #expect(try await files.store.snippet(id).useCount == 3)
-        #expect(search.items[0].lastUsedAt == instant && search.query == "検索")
-        #expect(!search.items[0].isDeletionCandidate(at: search.evaluatedAt))
+        #expect(try await files.store.snippet(id).usage.count == 3)
+        #expect(search.items[0].usage?.lastUsedAt == instant && search.query == "検索")
+        #expect(search.unusedSince(for: search.items[0]) == nil)
         #expect(effects.events == [.copy("検索の本文"), .announce("コピーしました"), .copy("検索の本文"), .announce("コピーしました")])
         await search.copy(UUID())
-        #expect(try await files.store.snippet(id).useCount == 3)
+        #expect(try await files.store.snippet(id).usage.count == 3)
     }
 
     @Test(arguments: [false, true]) @MainActor
@@ -231,12 +211,12 @@ struct SnippetUsageTests {
         #expect(model.notice?.message == "コピーしました" && model.failure?.recovery == .retryUsage)
         #expect(model.failure?.title.contains("コピー済み") == true)
         #expect(model.failure?.message.contains("コピー回数と最後にコピーした日時の記録だけ") == true)
-        #expect(try await files.store.snippet(id).useCount == (committed ? 1 : 0))
+        #expect(try await files.store.snippet(id).usage.count == (committed ? 1 : 0))
         await model.retryUsageRecording()
         await model.retryUsageRecording()
         #expect(model.failure == nil)
-        #expect(try await files.store.snippet(id).useCount == 1)
-        #expect(try await files.store.snippet(id).lastUsedAt == instant)
+        #expect(try await files.store.snippet(id).usage.count == 1)
+        #expect(try await files.store.snippet(id).usage.lastUsedAt == instant)
         #expect(effects.events == [.copy("一度だけコピー"), .announce("コピーしました")])
     }
 

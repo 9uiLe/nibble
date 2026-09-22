@@ -27,10 +27,8 @@ class RuntimeCacheTests(unittest.TestCase):
     def write_manifest(self):
         (self.package / 'build-manifest.json').write_text(json.dumps(self.manifest))
 
-    def test_reuses_identical_inputs_and_unchanged_framework(self):
-        self.assertTrue(runtime.cache_valid(self.package, self.identity))
-
     def test_patch_toolchain_or_source_change_invalidates_cache(self):
+        self.assertTrue(runtime.cache_valid(self.package, self.identity))
         for key, value in [('definition_sha256', {'drawable-acquisition.patch': 'two'}),
                            ('xcode', 'Xcode 27'), ('sources', {'rive-ios': 'other'})]:
             with self.subTest(key=key):
@@ -61,12 +59,14 @@ class RuntimeCacheTests(unittest.TestCase):
     def test_package_configuration_and_dependency_resolver_are_build_inputs(self):
         definition = self.package / 'definition'
         definition.mkdir()
-        for name in ['Package.swift', 'build.json', 'dependency.lua', 'drawable-acquisition.patch']:
+        expected = {'Package.swift', 'build.json', 'dependency.lua', 'drawable-acquisition.patch'}
+        for name in expected:
             (definition / name).write_text('input')
         before = runtime.definition_hashes(definition)
+        self.assertEqual(set(before), expected)
         (definition / 'README.md').write_text('documentation')
         self.assertEqual(before, runtime.definition_hashes(definition))
-        for name in before:
+        for name in expected:
             with self.subTest(name=name):
                 (definition / name).write_text('changed')
                 self.assertNotEqual(before, runtime.definition_hashes(definition))

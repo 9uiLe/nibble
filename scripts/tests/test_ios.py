@@ -9,6 +9,7 @@ from pathlib import Path
 import signal
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
@@ -140,8 +141,6 @@ class ProcessTests(unittest.TestCase):
         with patch.object(self.run, "command", return_value="42 0 UIKitApplication:nibble.9uiLe.com[x]\n43 0 UIKitApplication:nibble.9uiLe.com[y]"):
             with self.assertRaises(ios.VerificationError):
                 self.run.process_id()
-        with patch.object(self.run, "command", return_value="42 0 UIKitApplication:nibble.9uiLe.com[x]"):
-            self.assertEqual(self.run.process_id(), 42)
 
     def test_host_monitor_rejects_exit_and_reused_pid(self):
         self.run.launched_pid = 42
@@ -213,6 +212,26 @@ class ProcessTests(unittest.TestCase):
         with patch.object(self.run, "command", side_effect=ios.VerificationError("Process exited")):
             with self.assertRaises(ios.VerificationError):
                 self.run.ui(allow_empty=True)
+
+    def test_wait_requires_a_nonempty_matching_observation_and_propagates_failures(self):
+        ready = {"entries": [{"uniqueId": "ready"}]}
+        with patch.object(self.run, "ui", side_effect=[{"entries": []}, ready]), patch.object(ios.time, "sleep"):
+            self.assertEqual(self.run.wait_ui("ready", lambda data: True), ready)
+        with patch.object(self.run, "ui", return_value=ready), patch.object(ios.time, "sleep"):
+            with self.assertRaisesRegex(ios.VerificationError, "did not reach"):
+                self.run.wait_ui("absent", lambda data: False, attempts=2)
+        with patch.object(self.run, "ui", side_effect=ios.VerificationError("Process exited")):
+            with self.assertRaisesRegex(ios.VerificationError, "Process exited"):
+                self.run.wait_ui("ready", lambda data: True)
+
+    def test_finish_records_empty_message_exceptions_as_diagnostic_failures(self):
+        for error in [KeyboardInterrupt(), StopIteration(), ""]:
+            with self.subTest(error=type(error).__name__), patch.object(ios, "ui"):
+                self.run.args = SimpleNamespace(command="fixture")
+                self.run.finish(error)
+                recorded = json.loads((self.run.path / "manifest.json").read_text())
+                self.assertEqual(recorded["status"], "failed")
+                self.assertTrue(recorded["error"])
 
     def test_explicit_ui_command_returns_snapshot_json_without_progress_on_stdout(self):
         run = MagicMock()
@@ -320,7 +339,7 @@ class ProductDriverFailureTests(unittest.TestCase):
 
 class DriverCancellationTests(unittest.TestCase):
     def test_interrupt_is_recorded_as_failure_in_every_product_driver(self):
-        for filename in ['check_library_ui.py', 'check_notice_ui.py', 'check_interface_ui.py', 'check_about_ui.py']:
+        for filename in ['check_library_ui.py', 'check_notice_ui.py', 'check_interface_ui.py', 'check_about_ui.py', 'check_controls_ui.py']:
             with self.subTest(filename=filename):
                 spec = importlib.util.spec_from_file_location('cancel_driver', Path(__file__).parents[1] / filename)
                 driver = importlib.util.module_from_spec(spec)

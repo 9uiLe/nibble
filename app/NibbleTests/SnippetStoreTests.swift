@@ -108,8 +108,18 @@ struct SnippetTests {
         await #expect(throws: StoreError.empty) { try await store.save(draft) }
         #expect(try await store.snippet(id).body == "original")
         #expect(try await store.drafts().first?.id == draft.id)
-        draft.body = String(repeating: "あ", count: 333_334)
-        await #expect(throws: StoreError.tooLarge) { try await store.save(draft) }
+        draft.body = String(repeating: "あ", count: 333_333) + "a"
+        draft.title = String(repeating: "あ", count: 170) + "ab"
+        try await store.save(draft) // Exact UTF-8 limits, not character counts.
+        let atLimit = try await store.beginDraft(snippetID: id)
+        var tooLong = atLimit
+        tooLong.title += "a"
+        await #expect(throws: StoreError.tooLarge) { try await store.save(tooLong) }
+        tooLong = atLimit
+        tooLong.body += "a"
+        await #expect(throws: StoreError.tooLarge) { try await store.save(tooLong) }
+        #expect(try await store.snippet(id).body.utf8.count == 1_000_000)
+        #expect(try await store.draft(atLimit.id).title.utf8.count == 512)
     }
 
     @Test func parallelConnectionsKeepEveryInsert() async throws {

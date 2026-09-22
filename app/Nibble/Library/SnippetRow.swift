@@ -32,9 +32,7 @@ struct SnippetRow: View {
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if !isTrash {
-                Button(item.pinned ? "ピン留めを解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") {
-                    perform(.pin)
-                }
+                PinButton(pinned: item.pinned, action: { perform(.pin) })
                 .tint(.nibbleAccent)
                 .accessibilityIdentifier("swipe.pin.\(item.id)")
             }

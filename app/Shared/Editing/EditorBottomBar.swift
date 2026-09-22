@@ -17,12 +17,7 @@ struct EditorBottomBar: View {
                     Text(operation.progressTitle).font(.nibbleBody)
                 }
             } else {
-                Button(action: showHelp) {
-                    Text("入力と保存について")
-                        .font(.nibbleBody)
-                        .frame(minHeight: InterfaceMetrics.touchSize)
-                        .contentShape(.rect)
-                }
+                EditorHelpButton(action: showHelp)
                 .accessibilityIdentifier("editor.help")
             }
         }

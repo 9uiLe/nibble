@@ -10,6 +10,41 @@ from check_swift_policy import SwiftLexer, check, violations
 
 
 class SwiftPolicyTests(unittest.TestCase):
+    def test_layers_reject_inward_dependencies_and_keep_ports_framework_independent(self):
+        sources = {
+            'app/Shared/Domain/Value.swift': 'import Foundation\nstruct Value {}',
+            'app/Shared/Application/Contracts/Reading.swift': 'protocol Reading { func read() -> Value }',
+            'app/Shared/Application/Model.swift': 'import Observation\nstruct Model { let reader: any Reading }',
+            'app/Shared/Persistence/Store.swift': 'import SQLite3\nstruct Store: Reading { func read() -> Value { Value() } }',
+            'app/Nibble/SystemEffects.swift': 'import UIKit\nstruct SystemEffects {}',
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, source in sources.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source)
+            self.assertEqual(check(root)[1], [])
+            cases = [
+                ('Domain/Value', 'import struct UIKit.UIView', 'cannot import UIKit'),
+                ('Domain/Value', 'typealias Alias = Reading', 'cannot reference Reading'),
+                ('Application/Model', 'let storage: Store', 'cannot reference Store'),
+                ('Application/Model', 'let effect: SystemEffects', 'cannot reference SystemEffects'),
+                ('Application/Contracts/Reading', 'import Observation', 'cannot import Observation'),
+                ('Persistence/Store', 'let model: Model', 'cannot reference Model'),
+                ('Application/Model', 'let text = error.localizedDescription', 'format localizedDescription'),
+            ]
+            for name, addition, diagnostic in cases:
+                path = root / f'app/Shared/{name}.swift'
+                original = path.read_text()
+                with self.subTest(name=name, addition=addition):
+                    path.write_text(original + '\n' + addition)
+                    self.assertTrue(any(diagnostic in error for error in check(root)[1]))
+                path.write_text(original)
+            domain = root / 'app/Shared/Domain/Value.swift'
+            domain.write_text(sources['app/Shared/Domain/Value.swift'] + '\n// Store\nlet sample = "import UIKit; Model()"')
+            self.assertEqual(check(root)[1], [])
+
     def test_rive_uses_resource_session_entry_points(self):
         for symbol in ("RiveViewModel", "RiveView", "RiveModel", "RiveFile", "RiveStateMachineInstance", "RiveSMIInput"):
             self.assertTrue(violations(f"typealias Old = RiveRuntime.{symbol}"))
@@ -115,7 +150,7 @@ class SwiftPolicyTests(unittest.TestCase):
                 self.assertEqual(violations(source), [])
 
     def test_product_events_require_the_reviewed_explicit_callback_label(self):
-        for view, label in [("SnippetRow", "perform"), ("LibraryNotice", "restore")]:
+        for view, label in [("SnippetRow", "perform"), ("LibraryNotice", "restore"), ("PinButton", "action")]:
             prefix = '@Equatable struct Screen: View { private let inputRevision = UUID(); func startTask() { work() }; var body: some View { '
             with self.subTest(view=view):
                 self.assertEqual(violations(prefix + f'{view}({label}: {{ startTask() }})' + ' } }'), [])

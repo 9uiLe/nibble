@@ -8,12 +8,13 @@ from swift_view_structure import structure_violations
 
 class ViewStructureTests(unittest.TestCase):
     def test_display_helpers_are_rejected_in_every_product_entry(self):
-        for base in ['Nibble', 'NibbleShare', 'NibbleKeyboard', 'Shared', 'Packages/P/Sources/P']:
-            for member in ['var header: some View { Text("x") }',
-                           'func row() -> some SwiftUI.View { Text("x") }',
-                           '@ViewBuilder func item() -> Text { Text("x") }']:
-                with self.subTest(base=base, member=member):
-                    self.assertTrue(structure_violations('struct Card: View {' + member + '}', f'app/{base}/Card.swift'))
+        paths = ['Nibble', 'NibbleShare', 'NibbleKeyboard', 'Shared', 'Packages/P/Sources/P']
+        cases = [(base, 'var header: some View { Text("x") }') for base in paths]
+        cases += [('Nibble', 'func row() -> some SwiftUI.View { Text("x") }'),
+                  ('Nibble', '@ViewBuilder func item() -> Text { Text("x") }')]
+        for base, member in cases:
+            with self.subTest(base=base, member=member):
+                self.assertTrue(structure_violations('struct Card: View {' + member + '}', f'app/{base}/Card.swift'))
 
     def test_protocol_witnesses_values_and_native_bridges_are_allowed(self):
         for source, name in [

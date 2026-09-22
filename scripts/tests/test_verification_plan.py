@@ -2,6 +2,9 @@
 import importlib.util
 import io
 import json
+import os
+import signal
+import time
 from pathlib import Path
 import subprocess
 import sys
@@ -54,8 +57,8 @@ class SelectionTests(unittest.TestCase):
                 self.assertTrue({'static', 'preview-native', 'fixture-test', 'fixture-smoke',
                                  'product-test', 'library-ui', 'notice-ui', 'interface-ui', 'about-ui', 'keyboard-guide-ui'} <= selected)
                 self.assertNotIn('performance-test', selected)
-        selected = verify.plan(['app/Shared/Domain/LibraryRequest.swift'])
-        self.assertIn('product-test', self.selected(['app/Shared/Domain/LibraryRequest.swift']))
+        selected = verify.plan(['app/Shared/Application/Contracts/LibraryRequest.swift'])
+        self.assertIn('product-test', self.selected(['app/Shared/Application/Contracts/LibraryRequest.swift']))
         self.assertTrue(selected['manual_review'])
 
     def test_preconditions_describe_only_the_selected_environment(self):
@@ -312,10 +315,44 @@ class ExecutionTests(unittest.TestCase):
 
     def test_timeout_signals_and_reaps_the_command_group(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ROOT', Path(directory)):
-            log = Path(directory) / 'command.log'
-            with self.assertRaises(subprocess.TimeoutExpired):
-                verify.execute([sys.executable, '-c', 'import time; time.sleep(60)'], log, .1)
-            self.assertTrue(log.is_file())
+            root = Path(directory)
+            ready = root / 'ready'
+            reaped = root / 'reaped'
+            child = "import os,pathlib,sys,time; pathlib.Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(60)"
+            parent = (
+                "import pathlib,signal,subprocess,sys,time\n"
+                "def stop(signum, frame):\n"
+                "    status = child.wait(timeout=2)\n"
+                "    pathlib.Path(sys.argv[2]).write_text(str(status))\n"
+                "    raise SystemExit(130)\n"
+                "signal.signal(signal.SIGINT, stop)\n"
+                f"child = subprocess.Popen([sys.executable, '-c', {child!r}, sys.argv[1]])\n"
+                "time.sleep(60)\n"
+            )
+            spawn = subprocess.Popen
+            def started(*args, **kwargs):
+                process = spawn(*args, **kwargs)
+                deadline = time.monotonic() + 5
+                while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.01)
+                if not ready.exists():
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                    self.fail('Child did not reach the timeout fixture gate')
+                return process
+            try:
+                with patch.object(verify.subprocess, 'Popen', side_effect=started):
+                    with self.assertRaises(subprocess.TimeoutExpired):
+                        verify.execute([sys.executable, '-c', parent, str(ready), str(reaped)], root / 'command.log', .05)
+                self.assertNotEqual(int(reaped.read_text()), 0)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(int(ready.read_text()), 0)
+            finally:
+                if ready.exists():
+                    try:
+                        os.kill(int(ready.read_text()), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
     def test_keyboard_interrupt_is_preserved_and_pending_steps_are_not_successful(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'):
@@ -329,15 +366,23 @@ class ExecutionTests(unittest.TestCase):
 
 
 class PlannedEvidenceTests(unittest.TestCase):
-    def test_wrong_device_configuration_target_or_action_cannot_satisfy_selected_tests(self):
+    def test_evidence_must_match_the_complete_project_device_configuration_and_action(self):
+        config = {'project': 'validation/Selected.xcodeproj', 'scheme': 'Selected',
+                  'bundle_id': 'dev.test.Selected', 'app_name': 'Selected', 'minimum_ios': '26.0'}
         valid = {'device': {'udid': 'explicit'}, 'environment': {'configuration': 'Release'},
-                 'project': {'scheme': 'VerificationApp'}, 'command': 'test'}
+                 'project': config, 'command': 'test'}
         alternatives = [dict(valid, device={'udid': 'another'}),
                         dict(valid, environment={'configuration': 'Debug'}),
-                        dict(valid, project={'scheme': 'Another'}), dict(valid, command='build')]
-        for manifest in alternatives:
+                        dict(valid, project=dict(config, scheme='Another')),
+                        dict(valid, project=dict(config, bundle_id='dev.nibble.Other')),
+                        dict(valid, command='build')]
+        for manifest in [valid, *alternatives]:
             with self.subTest(manifest=manifest), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+                project = root / config['project']
+                project.mkdir(parents=True)
+                (project / 'project.pbxproj').write_text('fixture')
+                (root / verify.STAGES['fixture-test'].project).write_text(json.dumps(config))
                 output = root / 'result'
                 def execute(argv, log, timeout, session=None):
                     if '--device' in argv:
@@ -350,5 +395,6 @@ class PlannedEvidenceTests(unittest.TestCase):
                         patch.object(verify, 'execute', side_effect=execute), \
                         patch('check_evidence.check_run', return_value=manifest):
                     report = verify.run_plan(verify.plan(['validation/VerificationAppTests/Tests.swift']), output, 'explicit')
-                self.assertEqual(report['status'], 'failed')
-                self.assertEqual(report['steps'][1]['status'], 'failed')
+                expected = 'passed' if manifest == valid else 'failed'
+                self.assertEqual(report['status'], expected)
+                self.assertEqual(report['steps'][1]['status'], expected)

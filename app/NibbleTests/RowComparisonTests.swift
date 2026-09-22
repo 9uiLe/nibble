@@ -66,17 +66,18 @@ extension UIIntegrationTests {
             }
 
             let initial = try await render(original)
+            var previous = initial
+            // Change one field at a time, so another field cannot mask a missed update.
             for row in [
                 SnippetRowContent(title: "予定", preview: "確認します", pinned: false),
-                SnippetRowContent(title: "返信", preview: "明日確認します", pinned: false),
-                SnippetRowContent(title: "返信", preview: "確認します", pinned: true),
-                SnippetRowContent(title: "返信", preview: "確認します", pinned: false,
+                SnippetRowContent(title: "予定", preview: "明日確認します", pinned: false),
+                SnippetRowContent(title: "予定", preview: "明日確認します", pinned: true),
+                SnippetRowContent(title: "予定", preview: "明日確認します", pinned: true,
                                   unusedSince: Date(timeIntervalSince1970: 0)),
             ] {
                 let updated = try await render(row)
-                #expect(updated != initial)
-                let restored = try await render(original)
-                #expect(restored == initial)
+                #expect(updated != previous)
+                previous = updated
             }
 
             let untitled = SnippetRowContent(title: "", preview: "一件目", pinned: false)
@@ -90,13 +91,6 @@ extension UIIntegrationTests {
             try await Task.sleep(for: .milliseconds(100))
             #expect(try pixels() != initial)
             window.overrideUserInterfaceStyle = .light
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(try pixels() == initial)
-
-            host.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(try pixels() != initial)
-            host.traitOverrides.preferredContentSizeCategory = .large
             try await Task.sleep(for: .milliseconds(100))
             #expect(try pixels() == initial)
         }

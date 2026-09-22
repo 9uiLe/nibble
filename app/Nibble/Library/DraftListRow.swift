@@ -17,9 +17,8 @@ struct DraftListRow: View {
                     .background(Color.nibbleSoft, in: .rect(cornerRadius: 10))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(draft.displayTitle).font(.nibbleTitle)
-                        .foregroundStyle(.primary).lineLimit(2)
-                    if !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    SnippetHeading(title: draft.displayTitle, pinned: false, style: .library)
+                    if draft.textPresentation.hasExplicitTitle {
                         Text(draft.preview).font(.nibbleBody).foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
@@ -38,7 +37,7 @@ struct DraftListRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("下書き、\(draft.displayTitle)")
-        .accessibilityValue(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        .accessibilityValue(!draft.textPresentation.hasExplicitTitle
             ? Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
             : Text("\(draft.preview)、\(draft.updatedAt, format: .dateTime.month().day().hour().minute())"))
         .accessibilityHint("編集を再開します")

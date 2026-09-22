@@ -5,11 +5,10 @@ import plistlib
 import time
 from types import SimpleNamespace
 
-from ios import Run, VerificationError
+from ios import simulator_lock, Run, VerificationError
 
 
-def identifiers(data):
-    return {entry.get('uniqueId') for entry in data['entries']}
+from product_ui import identifiers, paste_editor
 
 
 def main():
@@ -19,14 +18,6 @@ def main():
     run = Run(SimpleNamespace(command='controls-ui', device=args.device,
                               configuration='Release', project_config='app/project.json'))
     error = None
-
-    def wait(name, predicate):
-        for attempt in range(20):
-            data = run.ui(f'{name}-{attempt}', allow_empty=True)
-            if predicate(data):
-                return data
-            time.sleep(.2)
-        raise VerificationError('UI did not reach expected state: ' + name)
 
     def controls(data, expected, absent=()):
         present = identifiers(data)
@@ -47,9 +38,9 @@ def main():
 
     try:
         run.setup()
-        with run.device_lock():
+        with simulator_lock(args.device):
             run.launch()
-            root = wait('root', lambda d: 'navigation.tab.search' in identifiers(d))
+            root = run.wait_ui('root', lambda d: 'navigation.tab.search' in identifiers(d))
             with run.recording():
                 tabs = {e.get('uniqueId'): e['frame'] for e in root['entries']
                         if e.get('uniqueId', '').startswith('navigation.tab.')}
@@ -57,9 +48,9 @@ def main():
                 run.command(['sim-use', 'swipe', '--from', f"{start['x'] + start['width']/2},{start['y'] + start['height']/2}",
                              '--to', f"{end['x'] + end['width']/2},{end['y'] + end['height']/2}",
                              '--duration', '0.6', '--device', args.device])
-                wait('native-tab-drag', lambda d: 'settings.version' in identifiers(d))
+                run.wait_ui('native-tab-drag', lambda d: 'settings.version' in identifiers(d))
                 run.tap('navigation.tab.search')
-                wait('search', lambda d: any(e.get('uniqueId') == 'navigation.title' and e.get('label') == '検索'
+                run.wait_ui('search', lambda d: any(e.get('uniqueId') == 'navigation.title' and e.get('label') == '検索'
                                              for e in d['entries']))
                 # Observe beyond presentation completion to catch delayed auto-focus.
                 time.sleep(.5)
@@ -68,7 +59,7 @@ def main():
                          ('search.done', 'Search'))
                 run.screenshot('search-without-keyboard')
                 run.tap('navigation.tab.settings')
-                data = wait('settings', lambda d: 'settings.version' in identifiers(d))
+                data = run.wait_ui('settings', lambda d: 'settings.version' in identifiers(d))
                 info = plistlib.loads((run.derived / 'Build/Products/Release-iphonesimulator/Nibble.app/Info.plist').read_bytes())
                 expected = f"バージョン {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})"
                 version = next(e for e in data['entries'] if e.get('uniqueId') == 'settings.version')
@@ -76,30 +67,38 @@ def main():
                     raise VerificationError('Settings version differs from the installed bundle')
                 run.screenshot('settings-version-disclosures')
                 run.tap('library.trash')
-                data = wait('deleted', lambda d: 'library.trash.close' in identifiers(d))
+                data = run.wait_ui('deleted', lambda d: 'library.trash.close' in identifiers(d))
                 controls(data, ('library.trash.close',))
                 run.screenshot('deleted-close')
                 run.tap('library.trash.close')
-                wait('settings-returned', lambda d: 'settings.version' in identifiers(d) and 'library.trash.close' not in identifiers(d))
+                run.wait_ui('settings-returned', lambda d: 'settings.version' in identifiers(d) and 'library.trash.close' not in identifiers(d))
                 run.tap('library.add')
-                data = wait('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
+                data = run.wait_ui('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
                 controls(data, ('editor.close', 'editor.save', 'editor.keyboard.help', 'editor.keyboard.dismiss'),
                          ('editor.help', 'editor.more'))
+                input_values = {'editor.title': '入力保持の確認', 'editor.body': '本文を保持します。\n二行目 👩🏽‍💻'}
+                for identifier, value in input_values.items():
+                    paste_editor(run, identifier, value)
                 run.screenshot('editor-keyboard-controls')
                 run.tap('editor.keyboard.help')
-                wait('help', lambda d: 'editor.lengthLimit' in identifiers(d))
+                run.wait_ui('help', lambda d: 'editor.lengthLimit' in identifiers(d))
                 run.screenshot('editor-help')
                 run.tap('editor.help.close')
-                wait('focus-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d) and 'editor.lengthLimit' not in identifiers(d))
+                restored = run.wait_ui('focus-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d) and 'editor.lengthLimit' not in identifiers(d))
+                actual = {e['uniqueId']: e.get('value') for e in restored['entries'] if e.get('uniqueId') in input_values}
+                if actual != input_values:
+                    raise VerificationError('Help changed the populated editor title or body')
                 run.tap('editor.keyboard.dismiss')
-                data = wait('editor-unfocused', lambda d: 'editor.help' in identifiers(d) and 'editor.keyboard.dismiss' not in identifiers(d))
+                data = run.wait_ui('editor-unfocused', lambda d: 'editor.help' in identifiers(d) and 'editor.keyboard.dismiss' not in identifiers(d))
                 controls(data, ('editor.close', 'editor.save', 'editor.help', 'editor.more'),
                          ('editor.keyboard.help', 'editor.keyboard.dismiss'))
+                if not any(e.get('label') == '空白や改行は、そのまま保存されます。' for e in data['entries']):
+                    raise VerificationError('Preservation guidance must explain save and close')
                 run.screenshot('editor-guidance')
                 run.tap('editor.close')
-                wait('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
+                run.wait_ui('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
                 run.tap('navigation.tab.library')
-                wait('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
+                run.wait_ui('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
                 for collection, headings in (
                     ('pinned', {'ピン留めした項目', 'ピン留めした項目はありません'}),
                     ('drafts', {'タップして、編集を再開', '下書きはありません'}),
@@ -108,11 +107,11 @@ def main():
                         return ('editor.body' not in identifiers(data)
                                 and any(e.get('label') in headings for e in data['entries']))
                     run.tap('library.filter.' + collection)
-                    wait(collection + '-selected', collection_visible)
+                    run.wait_ui(collection + '-selected', collection_visible)
                     run.tap('library.add')
-                    wait(collection + '-new-editor', lambda d: 'editor.body' in identifiers(d))
+                    run.wait_ui(collection + '-new-editor', lambda d: 'editor.body' in identifiers(d))
                     run.tap('editor.close')
-                    wait(collection + '-creation-returned', collection_visible)
+                    run.wait_ui(collection + '-creation-returned', collection_visible)
                     run.screenshot('creation-returns-to-' + collection)
                 run.tap('library.filter.all')
                 run.manifest['assertions'] = {
@@ -124,14 +123,16 @@ def main():
                     'native_toolbar_and_custom_action_bounds': True,
                     'keyboard_and_screen_actions_exclusive': True,
                     'help_restores_focus': True,
-                    'empty_editor_returns_to_caller': True,
+                    'editor_returns_to_caller': True,
+                    'help_preserves_title_and_body': True,
                     'creation_preserves_collection': True,
                 }
-    except BaseException as exc:
-        error = str(exc)
-        raise
+    except (Exception, KeyboardInterrupt) as exc:
+        error = exc
     finally:
         run.finish(error)
+    if error is not None:
+        raise SystemExit(repr(error))
 
 
 if __name__ == '__main__':

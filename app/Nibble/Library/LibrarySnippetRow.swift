@@ -12,7 +12,7 @@ struct LibrarySnippetRow: View {
 
     var body: some View {
         SnippetRow(item: item, isTrash: model.contentRequest.filter == .trash,
-                   unusedSince: model.contentRequest.filter != .trash && item.isDeletionCandidate(at: model.evaluatedAt) ? item.lastUsedAt : nil,
+                   unusedSince: model.unusedSince(for: item),
                    perform: { action in
             switch action {
             case .edit:

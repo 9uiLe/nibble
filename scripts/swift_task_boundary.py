@@ -14,7 +14,7 @@ MEMBERS = {
     "taskSlot": {"replace", "cancel", "close", "cancelAndWaitForIdle", "waitForIdle"},
 }
 # Reviewed product callbacks invoked synchronously by Button actions only.
-PRODUCT_EVENTS = {"SnippetRow": "perform", "LibraryNotice": "restore"}
+PRODUCT_EVENTS = {"SnippetRow": "perform", "LibraryNotice": "restore", "PinButton": "action"}
 SCOPES = {"function_declaration", "lambda_literal", "computed_property", "willset_didset_block", "init_declaration", "deinit_declaration", "class_declaration"}
 
 

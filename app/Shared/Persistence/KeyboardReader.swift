@@ -25,9 +25,8 @@ actor KeyboardReader: KeyboardReading {
         try db.preserveWAL()
         return try db.writeTransaction {
             try Task.checkCancellation()
-            try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND revision=? AND deleted=0",
-                [.int(pinned ? 1 : 0), .text(item.id.uuidString), .int(item.revision)])
-            guard db.changes == 1 else { throw KeyboardReadError.changed }
+            do { try SnippetCommands.setPinned(pinned, id: item.id, revision: item.revision, in: db) }
+            catch StoreError.conflict { throw KeyboardReadError.changed }
             return try SnippetQueries.summary(db, id: item.id, includesUsage: false)
         }
     }
@@ -35,8 +34,8 @@ actor KeyboardReader: KeyboardReading {
     func page(_ request: KeyboardRequest) throws -> KeyboardPage {
         let db = try database()
         return try db.readTransaction {
-            let items = try SnippetQueries.search(db, query: "", filter: request.filter == .all ? .all : .pinned,
-                limit: KeyboardRequest.pageSize + 1, offset: request.offset, keyboard: true)
+            let items = try SnippetQueries.search(db, query: "", filter: request.filter.libraryFilter,
+                limit: KeyboardRequest.pageSize + 1, offset: request.offset, ordering: .pinnedFirst, includesUsage: false)
             try Task.checkCancellation()
             return KeyboardPage(items: Array(items.prefix(KeyboardRequest.pageSize)), hasMore: items.count > KeyboardRequest.pageSize)
         }

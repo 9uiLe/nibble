@@ -17,8 +17,8 @@ struct LibraryReadState {
 
     let surface: LibrarySurface
     private(set) var request: LibraryRequest
-    private(set) var snapshot: Snapshot?
     private var collections: [LibraryFilter: Snapshot] = [:]
+    var snapshot: Snapshot? { collections[request.filter] }
     private var completion: (request: LibraryRequest, outcome: Outcome)?
     private var active: UUID?
 
@@ -44,10 +44,9 @@ struct LibraryReadState {
     var refreshOnAppearance: Bool { surface != .library || snapshot == nil }
 
     mutating func select(_ filter: LibraryFilter) {
-        guard surface == .library, filter != .trash, filter != request.filter else { return }
+        guard surface == .library, LibrarySurface.collections.contains(filter), filter != request.filter else { return }
         if let retained = collections[filter] {
             request = retained.request
-            snapshot = retained
             completion = (request, .loaded)
         } else {
             request = LibraryRequest(filter: filter)
@@ -62,7 +61,7 @@ struct LibraryReadState {
     mutating func showMore() { request = request.expanded }
 
     mutating func begin() -> Read {
-        let requests = surface == .library ? [LibraryFilter.all, .pinned, .drafts].map { filter in
+        let requests = surface == .library ? LibrarySurface.collections.map { filter in
             LibraryRequest(filter: filter, limit: filter == request.filter ? request.limit
                 : collections[filter]?.request.limit ?? LibraryRequest.pageSize)
         } : [request]
@@ -88,10 +87,7 @@ struct LibraryReadState {
         guard admits(read) else { return false }
         guard pages.count == read.requests.count else { throw StoreError.unavailable }
         let snapshots = zip(read.requests, pages).map { Snapshot(request: $0, page: $1) }
-        if surface == .library {
-            collections = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.request.filter, $0) })
-        }
-        snapshot = snapshots.first { $0.request == request }
+        collections = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.request.filter, $0) })
         completion = (request, .loaded)
         return true
     }

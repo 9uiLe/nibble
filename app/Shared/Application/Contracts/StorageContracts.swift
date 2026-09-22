@@ -19,11 +19,6 @@ enum SnippetMutation: Sendable {
     case delete, restore, permanentlyDelete
 }
 
-/// A mutation's subject is read in the transaction that commits the change.
-struct SnippetMutationResult: Sendable {
-    let subject: String
-}
-
 protocol SnippetUsageRecording: Sendable {
     func recordUse(_ use: SnippetUse) async throws
 }
@@ -31,6 +26,6 @@ protocol SnippetUsageRecording: Sendable {
 protocol LibraryStorage: LibraryReading, LibraryOpening, SnippetUsageRecording {
     func savedBody(_ id: UUID) async throws -> String
     func setPinned(_ pinned: Bool, id: UUID) async throws
-    func mutate(_ mutation: SnippetMutation, id: UUID) async throws -> SnippetMutationResult
+    func mutate(_ mutation: SnippetMutation, id: UUID) async throws -> SnippetSummary
     func keepDraft(_ draft: Draft) async throws
 }

@@ -57,16 +57,7 @@ nibbleは、端末内のテキストを保存し、検索・コピー・キー�
 
 ## 構成と責務
 
-```mermaid
-flowchart TD
-    Entry[本体・共有拡張の入口] --> UI[画面とタスク所有者]
-    Entry --> Store[SnippetStore actor]
-    UI --> Model[LibraryModel / EditorModel]
-    Model --> Store
-    Model --> Effects[MainActorのOS作用]
-    Store --> SQL[同期SQL・接続所有]
-    Keyboard[Keyboard controller / model] --> Reader[既存DBの読取・ピン更新]
-```
+コードの配置・依存方向・各概念の正本は[アーキテクチャ](architecture/README.md)に定める。Domainが原文・下書き・使用状況の規則、Applicationがユースケースと結果の採否、保存層が接続とtransaction、Viewが表示形式と操作の受付を担う。
 
 入口が依存を組み立ててinitializerで渡す。UIからグローバルな保存層を探索しない。本体の一覧・検索・削除一覧は保存層を共有し、要求・結果・失敗は各モデルが独立して持つ。共有拡張は別プロセスの保存層を同じ編集機能へ渡す。
 
@@ -94,7 +85,7 @@ KeyboardReaderは要求ごとの短命な読取専用接続を持つ。フルア
 
 一覧は要約、利用は対象1件の本文、編集開始は対象の下書きまたは全文を読む。利用前に未削除状態と必要なrevisionを検査する。長い本文を行の更新や対象属性の照合のためだけに複製しない。
 
-削除・復元等の通知対象名は更新を確定するtransactionで取得する。画面の古い要約を変更結果の正本にしない。確定後にモデルが一覧と通知を更新する。
+削除・復元等の対象の要約は更新を確定するtransactionで取得し、通知対象名はその要約から表示側で生成する。画面の古い要約を変更結果の正本にしない。確定後にモデルが一覧と通知を更新する。
 
 ## 検索と一覧の性能
 

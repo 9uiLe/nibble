@@ -58,7 +58,7 @@ actor SnippetStore: LibraryStorage, DraftEditing {
         return counts
     }
 
-    func search(_ query: String = "", filter: LibraryFilter = .all, limit: Int = 100) throws -> [SnippetSummary] {
+    func search(_ query: String = "", filter: LibraryFilter = .all, limit: Int = LibraryRequest.pageSize) throws -> [SnippetSummary] {
         let interval = signposter.beginInterval("Search")
         defer { signposter.endInterval("Search", interval) }
         try Task.checkCancellation()
@@ -106,7 +106,7 @@ actor SnippetStore: LibraryStorage, DraftEditing {
     }
 
     @discardableResult
-    func mutate(_ mutation: SnippetMutation, id: UUID) throws -> SnippetMutationResult {
+    func mutate(_ mutation: SnippetMutation, id: UUID) throws -> SnippetSummary {
         try SnippetCommands.apply(mutation, id: id, to: database())
     }
 

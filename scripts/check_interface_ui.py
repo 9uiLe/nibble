@@ -5,7 +5,7 @@ from contextlib import ExitStack
 import time
 from types import SimpleNamespace
 
-from ios import Run, XCRUN, VerificationError
+from ios import simulator_lock, Run, XCRUN, VerificationError
 
 
 def main():
@@ -84,7 +84,7 @@ def main():
 
     try:
         run.setup()
-        contexts.enter_context(run.device_lock())
+        contexts.enter_context(simulator_lock(args.device))
         run.boot()
         for name in ("appearance", "content_size", "increase_contrast"):
             original[name] = run.command([XCRUN, "simctl", "ui", args.device, name]).strip()

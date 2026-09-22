@@ -8,16 +8,17 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | --- | --- |
 | `app/Nibble/NibbleApp.swift` | 本体の依存生成とsceneの入口 |
 | `app/Nibble/Navigation/` | `AppRootView`のタブ・シート・scene、`AppRoute`、共通見出し、`AppTab`の領域定義、標準TabViewの表示 |
-| `app/Nibble/Library/` | `LibrarySurface`による画面種別、`LibraryReadState`の要求・保持・結果採否、`LibraryModel`の操作、タスク所有者、行と通知 |
+| `app/Nibble/Library/` | 画面・行・通知、タスク所有者、`LibraryPresentation`による文言、`SystemLibraryEffects`によるOS作用 |
 | `app/Nibble/Settings/` | 設定、製品情報、キーボード利用案内 |
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
 | `app/NibbleShare/` | `SharedDraftLoader`の取込・下書き保存、失敗文言、controllerの共通エディター提示 |
 | `app/NibbleKeyboard/` | OS入力先・権限・キーボードのViewとcontroller |
-| `app/Shared/Domain/` | 項目、下書き、原文の検証、保存エラー、一覧・キーボードの要求と読込protocol |
+| `app/Shared/Domain/` | 項目・使用状況・並び順、下書きの入力順序と置換資格、原文の検証、保存エラー |
+| `app/Shared/Application/Contracts/` | 一覧・編集・Keyboardの要求と結果、読書込とOS作用のprotocol。具体的な接続や表示形式を持たない |
+| `app/Shared/Application/` | `LibraryModel`・`EditorModel`・`KeyboardModel`の操作、`LibraryReadState`の取得結果と採否、型で表した成功・失敗・回復 |
 | `app/Shared/Persistence/` | SQLite接続、schema、同期SQL、`SnippetStore`と既存DB専用の`KeyboardReader` actor |
-| `app/Shared/Editing/` | `EditorModel`、`EditorTaskOwner`、`SnippetEditor`と入力・操作・補足の表示部品。本体と共有拡張で使用 |
-| `app/Shared/Keyboard/` | `KeyboardModel`とOS作用を渡す`KeyboardEffects` |
-| `app/Shared/Interface/` | 色、文字役割、`InterfaceMetrics`と`IconControlStyle`、固定表示のSwiftUI・UIKit境界 |
+| `app/Shared/Editing/` | `EditorTaskOwner`、`SnippetEditor`と入力・操作・補足の表示部品、`EditorPresentation`の文言。本体と共有拡張で使用 |
+| `app/Shared/Interface/` | 項目名・上限・失敗の表示形式、共通見出しとピン操作、色、文字役割、操作領域、固定表示のSwiftUI・UIKit境界 |
 | `app/Shared/Resources/` | 配布する第三者ライセンスの告知 |
 | `runtime/rive/` | 描画先取得を専用キューへ分離するRive基盤の固定ソース定義・Package定義 |
 | `app/Packages/RivePresentation/` | 製品に依存しないRiveのResource・Session・Canvas |
@@ -28,26 +29,45 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 
 ```mermaid
 flowchart TD
-    App[NibbleApp] --> Root[AppRootView]
-    Share[ShareViewController] --> Editor[SnippetEditor / EditorModel]
-    Root --> Library[LibraryScreen / LibraryModel]
-    Root --> Editor
-    Library --> Store[SnippetStore actor]
-    Editor --> Store
-    Store --> SQL[SQLiteDatabase / Queries / Commands]
-    Keyboard[KeyboardViewController / KeyboardView] --> Model[KeyboardModel]
-    Model --> Reader[KeyboardReader actor]
-    Reader --> SQL
-    SQL --> DB[App Group SQLite]
+    Entry[App / Extension の依存生成] --> View[View・TaskOwner・OS Adapter]
+    Entry --> Storage[Persistence: Store / Reader / SQL]
+    View --> UseCase[Application: Model / ReadState]
+    UseCase --> Ports[Application Contracts]
+    Storage --> Ports
+    UseCase --> Domain[Domain: 原文・下書き・使用状況・順序]
+    Ports --> Domain
+    Storage --> Domain
+    Storage --> DB[App Group SQLite]
 ```
+
+矢印はソースの依存を示す。入口は具体的なStore・ReaderとOS Adapterを生成してprotocolでモデルへ渡す。Domainは他のレイヤーを参照せず、Applicationは保存形式やUI frameworkを知らない。PersistenceはContractsを実装する。
 
 モデルのasync APIは受理した処理と状態反映まで待つ。Viewはタスクの開始・寿命・重複を、モデルは要求と結果の整合性を、actorは接続とtransactionを所有する。SQL実行中にawaitしない。本体のコピーと読み上げは`LibraryEffects`、Keyboardの挿入・コピー・終了は`KeyboardEffects`へ分離する。OSの作用とDBの確定は同じtransactionにはできないため、コピー完了と使用記録の失敗を別の結果にする。
 
 `LibraryReading.libraries(_:)`は要求順のページを一つのDB読取transactionから返す。単一ページの`library(_:)`もこの入口を使う。本体一覧はすべて・ピン留め・下書きの3ページを`LibraryReadState`が保持し、選択とページ上限、読込のID、完了状態を管理する。検索・削除一覧はそれぞれ一つの要求を持つ。`LibraryModel`の画面種別が有効な検索・フィルターと通知元を決め、`LibraryScreen`は同じ種別を参照する。
 
-表示は選択した要求に対応する`LibraryPage`を使う。保存層で絞った結果をUIでピン別に再分割せず、使用回数順とsnapshotの意味を保つ。削除・復元・完全削除は`mutate(_:id:)`が対象名の取得と変更を同じtransactionへ収める。
+表示は選択した要求に対応する`LibraryPage`を使う。選択中のページを別の可変状態へ複製せず、保持辞書から導出する。保存層で絞った結果をUIでピン別に再分割せず、使用回数順とsnapshotの意味を保つ。削除・復元・完全削除は`mutate(_:id:)`が対象の要約取得と変更を同じtransactionへ収め、項目名の整形は表示側が担う。
 
 新規DBはschema 2で作成する。schema 1は原文・UUID・下書き・削除状態を維持して2へ移行する。配布済みデータの継続利用のためにこの互換性を持ち、未対応schemaを初期化で置き換えない。Keyboardはschema 1/2を読み、移行は行わない。
+
+## 概念ごとの正本と更新経路
+
+DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・SQLite・Viewを参照しない。ApplicationのモデルはContractsのprotocolを通じて保存と外部作用を調整する。永続化層はSQLの形式と原子的な更新を所有し、原文の検証や下書きの置換資格をDomainへ委譲する。表示層はDomainの値とApplicationの結果から文言を作る。`Notice`・`Failure`・`Message`は操作、理由、対象を保持し、回復の可否はApplication、文言・日付・数値形式はPresentationが所有する。読み上げも同じ結果から生成する。
+
+| 概念 | 正本・更新経路 | 派生値と保持の責務 |
+| --- | --- | --- |
+| 保存済み本文・UUID・revision・削除状態 | SQLiteの`snippets`。`SnippetStore` / `KeyboardReader`から同期Commandsを実行する | `Snippet`は全文、`SnippetSummary`は上限付き要約。別の編集可能データとして扱わず、操作時にUUID・必要なrevisionで読み直す |
+| 原文の保存資格・UTF-8上限 | `SnippetText`。共有取込と最終保存が同じ検証を呼ぶ | `EditorModel.hasBody`も同じ空白判定を使用する。UTF-8全体を数える上限検証は保存時に行い、入力のたびに本文全体を走査しない。上限案内・失敗文言は`SnippetInputLimits`から生成する |
+| 下書きの同一性・入力順序 | `Draft.Checkpoint`の下書きID・対象ID・開始revisionとsequence。`Draft`がUTF-8変更時にsequenceを進め、置換資格を判定する | `DraftQueries`はwrite transactionで保存済みcheckpointと照合する。自動保存は同一sessionの新しい入力だけを受理する。保持・保存・破棄は同一sequenceの同一原文も受理する。欠落した下書きを自動保存で復活させない |
+| 使用回数・最後のコピー日時 | `SnippetCommands.recordUse`。使用IDごとの`snippet_uses`と`snippets`の集計列を同じtransactionで更新する | 集計列は永続化した派生値。再試行は同じ使用IDを使い、二重加算しない。完全削除は履歴も同時に除く。`SnippetUsage`が経過時間による削除候補を判定し、`LibraryModel`が読込時点の時計を渡す。未使用は候補にしない |
+| 一覧の意味と並び順 | `LibraryFilter`・`SnippetOrdering`。本体は使用回数順、削除一覧は更新順、Keyboardはピン優先を要求する | SQLは要求された順序をクエリーへ変換する。Viewで再び並べ替えない |
+| 操作結果と失敗回復 | Applicationの型付き結果。`StoreError`と操作を受けて回復経路を決める | 文言は`LibraryPresentation`・`EditorPresentation`・`KeyboardPresentation`・`SnippetPresentation`。モデル内に文言と判定を重複させない |
+| 使用記録の再試行 | `LibraryModel.PendingUse`ごとのpending / recording / failed | 記録中IDと失敗を別集合へ同期しない。コピー作用は再実行せず、確定後に一覧・検索を更新する |
+| 一覧の取得結果・選択 | `LibraryReadState.collections`とrequest。各3ページを同じ読取transactionから置換する | 件数・hasMoreは同じsnapshotのSQL結果。画面間のsnapshotは独立した取得キャッシュで、操作・編集終了・明示更新が再取得の入口。フィルター切替自体では取得しない |
+| Keyboardの一覧・詳細 | `KeyboardModel.rows`がUUIDごとの要約を一つだけ保持する | ページはID列、詳細は選択IDと本文読込状態。ピン変更は一つの要約を更新し、一覧と詳細へ導出する。詳細中のピン解除は選択を維持する。revision更新時は取得済み本文を無効にし、旧revisionの遅延結果を拒否する。使用状況を取得しない投影はnilで表し、0回と混同しない |
+| 項目名・ピン操作の表示 | `SnippetTextPresentation`、`SnippetHeading`、`PinButton` | 本文代替名・明示タイトルの判定を共通化する。本体とKeyboardの字級・行数・ピン位置は明示的なstyleとして保持する。保存可否や操作資格は共通Viewに持ち込まない |
+
+`revision`は保存項目の変更、`sequence`は下書き入力、Markdownの解析番号は本文解析要求を識別する。意味と寿命が違うため一つの番号へ統合しない。選択・折り畳み・フォーカスなどの表示状態も永続データと分ける。
 
 ## 表示と状態の所有
 
@@ -74,6 +94,6 @@ flowchart TD
 
 ## 開発ツール
 
-`scripts/ios_project.py`が対象configを検査し、`scripts/verification_catalog.py`が検証工程のID・実行コマンド・期待scheme・runの種類を定義し、`verify.py`が差分から選択して直列実行する。製品回帰、基盤fixture、性能測定は目的で分ける。`validation/`は基盤試験と製品の保存層測定・共有入力に必要なfixtureだけを持つ。
+`scripts/ios_project.py`が対象configを検査し、`scripts/verification_catalog.py`が検証工程のID・実行コマンド・対象configへの参照・runの種類を定義し、`verify.py`が差分から選択して直列実行する。証跡のproject情報は同じconfigの全フィールドと照合する。製品回帰、基盤fixture、性能測定は目的で分ける。`validation/`は基盤試験と製品の保存層測定・共有入力に必要なfixtureだけを持つ。
 
 文書は相対リンク、Swift例、設計台帳を共通検査で照合する。UIの採用仕様は`docs/design/`、製品に依存しない照合処理は`tools/ui-design/`、nibble固有の対象選択はpolicyとAdapterに置く。結果のJSONと進捗表示は[CLIの契約](../script-tooling.md)に従って分離する。
