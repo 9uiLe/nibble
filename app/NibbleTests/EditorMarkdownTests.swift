@@ -119,6 +119,10 @@ extension UIIntegrationTests {
             #expect(titleFont.pointSize == 26)
             let boldFont = try #require(view.textStorage.attribute(.font, at: bold.range.location, effectiveRange: nil) as? UIFont)
             #expect(boldFont.fontDescriptor.symbolicTraits.contains(.traitBold))
+            let paragraph = try #require(view.textStorage.attribute(.paragraphStyle, at: bold.range.location,
+                                                                    effectiveRange: nil) as? NSParagraphStyle)
+            #expect(paragraph.lineSpacing == 4)
+            #expect((MarkdownStyle().inputAttributes[.paragraphStyle] as? NSParagraphStyle)?.lineSpacing == 4)
             view.setMarkedText("にほん", selectedRange: NSRange(location: 3, length: 0))
             let composed = view.text
             let markedRange = view.markedTextRange

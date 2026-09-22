@@ -92,6 +92,8 @@ def main():
                      args.device, "通知を確認するダミー本文"])
         label("本文の末尾にペースト")
         run.wait_ui("body-pasted", lambda data: any(e.get("uniqueId") == "editor.body" and e.get("value") == "通知を確認するダミー本文" for e in data["entries"]))
+        run.tap("editor.keyboard.dismiss")
+        run.wait_ui("paste-keyboard-dismissed", lambda data: "editor.keyboard.dismiss" not in identifiers(data))
         run.tap("editor.save")
         run.wait_ui("created-list", lambda data: "library.add" in identifiers(data) and "editor.body" not in identifiers(data))
         for attempt in range(15):

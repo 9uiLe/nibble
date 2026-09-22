@@ -29,7 +29,7 @@ struct AppRootView: View {
                 showsSettings = true
             })
             .navigationDestination(isPresented: $showsSettings) {
-                SettingsView(library: library, showTrash: { showsTrash = true })
+                SettingsView(showTrash: { showsTrash = true })
                     .environment(\.illustrationPlaybackAllowed,
                                  showsSettings && !showsTrash && library.editor == nil)
             }

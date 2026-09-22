@@ -5,8 +5,6 @@ import SwiftUI
 struct SettingsView: View {
     // Refresh parent-owned inputs even when the macro excludes their values.
     private let inputRevision = UUID()
-    @SkipEquatable let library: LibraryModel
-
     let showTrash: () -> Void
 
     var body: some View {
@@ -15,8 +13,5 @@ struct SettingsView: View {
         .navigationTitle("設定")
         .toolbarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { CreateSnippetButton(model: library) }
-        }
     }
 }

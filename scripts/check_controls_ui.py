@@ -47,9 +47,19 @@ def main():
                 data = run.ui('search-idle')
                 controls(data, ('navigation.settings', 'library.add'),
                          ('search.done', 'Search'))
+                idle_search = next(entry['frame'] for entry in data['entries'] if entry.get('uniqueId') == 'search.field')
                 run.screenshot('search-without-keyboard')
+                run.tap('search.field')
+                focused = run.wait_ui('search-focused', lambda d: 'search.done' in identifiers(d))
+                focused_search = next(entry['frame'] for entry in focused['entries'] if entry.get('uniqueId') == 'search.field')
+                if any(abs(idle_search[key] - focused_search[key]) > 1 for key in ('x', 'width')):
+                    raise VerificationError('Search input width changes when keyboard dismissal appears')
+                run.tap('search.done')
+                run.wait_ui('search-unfocused', lambda d: 'search.done' not in identifiers(d))
                 run.open_settings()
                 data = run.wait_ui('settings', lambda d: 'settings.version' in identifiers(d))
+                if 'library.add' in identifiers(data):
+                    raise VerificationError('Settings must not show the creation button')
                 info = plistlib.loads((run.derived / 'Build/Products/Release-iphonesimulator/Nibble.app/Info.plist').read_bytes())
                 if info['UISupportedInterfaceOrientations'] != ['UIInterfaceOrientationPortrait']:
                     raise VerificationError('The application must support portrait only')
@@ -64,6 +74,7 @@ def main():
                 run.screenshot('deleted-close')
                 run.tap('library.trash.close')
                 run.wait_ui('settings-returned', lambda d: 'settings.version' in identifiers(d) and 'library.trash.close' not in identifiers(d))
+                run.workspace()
                 run.tap('library.add')
                 data = run.wait_ui('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
                 controls(data, ('editor.close', 'editor.save', 'editor.keyboard.help', 'editor.keyboard.dismiss'),
@@ -102,8 +113,7 @@ def main():
                     raise VerificationError('Preservation guidance must explain save and close')
                 run.screenshot('editor-guidance')
                 run.tap('editor.close')
-                run.wait_ui('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
-                run.workspace()
+                run.wait_ui('caller-preserved', lambda d: 'library.add' in identifiers(d) and 'editor.body' not in identifiers(d))
                 run.wait_ui('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
                 for collection, headings in (
                     ('pinned', {'ピン留めした項目', 'ピン留めした項目はありません'}),
@@ -122,7 +132,9 @@ def main():
                 run.tap('library.filter.all')
                 run.manifest['assertions'] = {
                     'search_does_not_focus_on_entry': True,
+                    'search_input_width_stable_across_focus': True,
                     'settings_version_matches_bundle': expected,
+                    'settings_has_no_create_action': True,
                     'settings_deleted_returns': True,
                     'workspace_controls_at_least_44pt': True,
                     'settings_hierarchical_navigation': True,
