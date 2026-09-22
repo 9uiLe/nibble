@@ -11,6 +11,15 @@ import verification_evidence as evidence
 
 
 class BatchIdentityTests(unittest.TestCase):
+    def test_runtime_inputs_invalidate_both_product_and_fixture_evidence(self):
+        hashes = {'runtime/rive/build.json': 'build', 'runtime/rive/Package.swift': 'package',
+                  'runtime/rive/dependency.lua': 'resolver', 'runtime/rive/drawable-acquisition.patch': 'patch',
+                  'runtime/rive/README.md': 'documentation'}
+        expected = {name: value for name, value in hashes.items() if not name.endswith('.md')}
+        for project in ['app/Nibble.xcodeproj', 'validation/VerificationApp.xcodeproj']:
+            with self.subTest(project=project):
+                self.assertEqual(evidence.inputs(hashes, {'project': project}), expected)
+
     def test_binary_empty_duplicate_newline_and_multiple_batches_match_git(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

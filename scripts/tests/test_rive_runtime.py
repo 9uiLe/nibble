@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-import build_rive_runtime as runtime
+import rive_runtime as runtime
 
 
 class RuntimeCacheTests(unittest.TestCase):
@@ -14,7 +14,8 @@ class RuntimeCacheTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.package = Path(self.temp.name)
-        self.identity = {'patch_sha256': 'patch-one', 'xcode': 'Xcode 26.5', 'sources': {'rive-ios': 'fixed-source'}}
+        self.identity = {'definition_sha256': {'drawable-acquisition.patch': 'one'},
+                         'xcode': 'Xcode 26.5', 'sources': {'rive-ios': 'fixed-source'}}
         (self.package / 'Package.swift').write_text('fixture package')
         framework = self.package / 'RiveRuntime.xcframework'
         framework.mkdir()
@@ -30,7 +31,8 @@ class RuntimeCacheTests(unittest.TestCase):
         self.assertTrue(runtime.cache_valid(self.package, self.identity))
 
     def test_patch_toolchain_or_source_change_invalidates_cache(self):
-        for key, value in [('patch_sha256', 'patch-two'), ('xcode', 'Xcode 27'), ('sources', {'rive-ios': 'other'})]:
+        for key, value in [('definition_sha256', {'drawable-acquisition.patch': 'two'}),
+                           ('xcode', 'Xcode 27'), ('sources', {'rive-ios': 'other'})]:
             with self.subTest(key=key):
                 self.assertFalse(runtime.cache_valid(self.package, {**self.identity, key: value}))
 
@@ -48,8 +50,27 @@ class RuntimeCacheTests(unittest.TestCase):
         self.manifest['files_sha256'] = {}
         self.write_manifest()
         self.assertFalse(runtime.cache_valid(self.package, self.identity))
+
         (self.package / 'build-manifest.json').write_text('{')
         self.assertFalse(runtime.cache_valid(self.package, self.identity))
+
+    def test_nested_manifest_cannot_hide_an_unrecorded_file(self):
+        (self.package / 'RiveRuntime.xcframework/build-manifest.json').write_text('{}')
+        self.assertFalse(runtime.cache_valid(self.package, self.identity))
+
+    def test_package_configuration_and_dependency_resolver_are_build_inputs(self):
+        definition = self.package / 'definition'
+        definition.mkdir()
+        for name in ['Package.swift', 'build.json', 'dependency.lua', 'drawable-acquisition.patch']:
+            (definition / name).write_text('input')
+        before = runtime.definition_hashes(definition)
+        (definition / 'README.md').write_text('documentation')
+        self.assertEqual(before, runtime.definition_hashes(definition))
+        for name in before:
+            with self.subTest(name=name):
+                (definition / name).write_text('changed')
+                self.assertNotEqual(before, runtime.definition_hashes(definition))
+                (definition / name).write_text('input')
 
     def test_read_only_nix_headers_can_be_removed_before_next_platform_build(self):
         import shutil

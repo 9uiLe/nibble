@@ -61,6 +61,7 @@ class BuildCacheTests(unittest.TestCase):
         self.assertIn('-disableAutomaticPackageResolution', argv)
         first = self.run.command.call_args_list[0]
         self.assertEqual(first.args[1], 'prepare-rive-runtime')
+        self.assertEqual(first.args[0][-2:], [ios.ROOT / 'scripts/rive_runtime.py', 'prepare'])
 
     def test_runtime_preparation_failure_stops_before_xcodebuild(self):
         self.run.command.side_effect = ios.VerificationError('runtime build failed')

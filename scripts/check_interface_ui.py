@@ -55,31 +55,31 @@ def main():
         def tabs(data):
             return {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
 
-        data = run.ui(f"{mode}-tabs-expanded")
-        expanded = tabs(data)
+        data = run.ui(f"{mode}-tabs-initial")
+        initial = tabs(data)
         width, height = data["screen"]["width"], data["screen"]["height"]
         high, low = f"{width * 0.45:.0f},{height * 0.32:.0f}", f"{width * 0.45:.0f},{height * 0.78:.0f}"
-        if set(expanded) != {"一覧", "設定", "検索"}:
-            raise VerificationError("Expanded tabs must retain their accessible names")
-        if any(min(frame["width"], frame["height"]) < 44 for frame in expanded.values()):
+        if set(initial) != {"一覧", "設定", "検索"}:
+            raise VerificationError("Native tabs must retain their accessible names")
+        if any(min(frame["width"], frame["height"]) < 44 for frame in initial.values()):
             raise VerificationError("Native tabs must retain at least 44pt targets")
         run.command(["sim-use", "swipe", "--from", low, "--to", high,
                      "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
         scrolled = tabs(run.ui(f"{mode}-tabs-scrolled"))
-        if scrolled != expanded:
+        if scrolled != initial:
             raise VerificationError("Scrolling must preserve all standard tabs without shrinking")
         time.sleep(0.5)
-        if tabs(run.ui(f"{mode}-tabs-settled")) != expanded:
+        if tabs(run.ui(f"{mode}-tabs-settled")) != initial:
             raise VerificationError("Settling must preserve the standard tab bar")
         run.screenshot(f"{mode}-tabs-scrolled")
         run.command(["sim-use", "swipe", "--from", high, "--to", low,
                      "--duration", "0.4", "--post-delay", "0.8", "--device", args.device])
         restored = tabs(run.ui(f"{mode}-tabs-returned"))
-        if restored != expanded:
+        if restored != initial:
             raise VerificationError("Scrolling back must preserve all standard tabs")
         run.screenshot(f"{mode}-tabs-returned")
         run.manifest.setdefault("tab_scroll_frames", {})[mode] = {
-            "before": expanded, "scrolled": scrolled, "returned": restored,
+            "before": initial, "scrolled": scrolled, "returned": restored,
         }
 
     try:

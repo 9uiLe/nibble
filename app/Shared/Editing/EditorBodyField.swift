@@ -6,10 +6,8 @@ struct EditorBodyField: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: EditorModel
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
-    @State private var highlighting = MarkdownHighlighting()
 
     var body: some View {
-        @Bindable var editor = model
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("本文").font(.nibbleTitle).foregroundStyle(.secondary)
@@ -36,24 +34,7 @@ struct EditorBodyField: View {
                     .font(.nibbleBody).foregroundStyle(.secondary)
                     .accessibilityIdentifier("editor.bodyRequirement")
             }
-            ZStack(alignment: .topLeading) {
-                if model.body.isEmpty {
-                    Text("保存したい文章やURLを入力。Markdownも使えます。")
-                        .font(.nibbleBody).foregroundStyle(.tertiary)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-                MarkdownTextField(text: $editor.body, focus: focus, highlighting: highlighting)
-                    .frame(minHeight: 180)
-                    .focused(focus, equals: .body)
-            }
-        }
-        .task(id: model.draft.sequence) {
-            let source = model.body
-            try? await Task.sleep(for: .milliseconds(80))
-            guard !Task.isCancelled else { return }
-            let parsed = await MarkdownHighlighting.parse(source)
-            if !Task.isCancelled, SnippetText.hasSameBytes(source, model.body) { highlighting = parsed }
+            MarkdownEditor(model: model, focus: focus)
         }
     }
 }

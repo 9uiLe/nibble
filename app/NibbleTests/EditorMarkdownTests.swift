@@ -7,6 +7,23 @@ import UIKit
 extension UIIntegrationTests {
     @Suite("Markdown source editing", .serialized)
     @MainActor struct EditorMarkdownTests {
+        @Test func bodyParsingIdentityTracksBytesIndependentlyOfTitle() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
+            model.title = "タイトル"
+            #expect(model.bodyRevision == 0)
+            model.body = "か\u{3099}"
+            let revision = model.bodyRevision
+            model.body = "か\u{3099}"
+            #expect(model.bodyRevision == revision)
+            model.body = "が"
+            #expect(model.bodyRevision == revision + 1)
+            #expect(await model.finish(.save))
+            model.body = "完了後の入力"
+            #expect(model.bodyRevision == revision + 1 && model.body == "が")
+        }
+
         @Test func newEditorFocusesTheMountedMarkdownInput() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }

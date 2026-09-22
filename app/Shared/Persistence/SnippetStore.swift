@@ -21,10 +21,6 @@ actor SnippetStore: LibraryStorage, DraftEditing {
         return db
     }
 
-    func library(_ request: LibraryRequest) throws -> LibraryPage {
-        try libraries([request])[0]
-    }
-
     /// All retained filters and their counts describe one database snapshot.
     func libraries(_ requests: [LibraryRequest]) throws -> [LibraryPage] {
         try Task.checkCancellation()

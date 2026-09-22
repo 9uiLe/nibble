@@ -13,7 +13,7 @@
     flake = false;
   };
 
-  # Sources for the locally patched Apple runtime; revisions are recorded in flake.lock.
+  # Rive rendering foundation sources; build definitions live in runtime/rive.
   inputs.rive-ios-source = {
     url = "github:rive-app/rive-ios/4c42e5839167a06a56d336e80813578bac018dde";
     flake = false;

@@ -21,6 +21,7 @@ final class EditorModel {
     }
 
     private(set) var draft: Draft
+    private(set) var bodyRevision = 0
     private(set) var phase = Phase.editing
     private(set) var failure: Failure?
     private let store: any DraftEditing
@@ -37,7 +38,11 @@ final class EditorModel {
 
     var body: String {
         get { draft.body }
-        set { if phase == .editing { draft.body = newValue } }
+        set {
+            guard phase == .editing, !SnippetText.hasSameBytes(draft.body, newValue) else { return }
+            draft.body = newValue
+            bodyRevision += 1
+        }
     }
 
     var hasBody: Bool { !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

@@ -1,16 +1,16 @@
 import Foundation
 
-/// A read completes with one request's database snapshot; it never starts background work.
+/// All pages and counts are read in one database transaction, in request order.
+/// Implementations must not compose independent reads into a batch.
 protocol LibraryReading: Sendable {
-    func library(_ request: LibraryRequest) async throws -> LibraryPage
     func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage]
 }
 
 extension LibraryReading {
-    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage] {
-        var pages: [LibraryPage] = []
-        for request in requests { pages.append(try await library(request)) }
-        return pages
+    func library(_ request: LibraryRequest) async throws -> LibraryPage {
+        let pages = try await libraries([request])
+        guard pages.count == 1, let page = pages.first else { throw StoreError.unavailable }
+        return page
     }
 }
 

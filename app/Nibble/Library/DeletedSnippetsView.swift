@@ -10,13 +10,13 @@ struct DeletedSnippetsView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
-        _model = State(initialValue: LibraryModel(store: store, effects: effects, filter: .trash))
+        _model = State(initialValue: LibraryModel(store: store, effects: effects, surface: .deleted))
     }
 
     var body: some View {
         @Bindable var library = model
         NavigationStack {
-            LibraryScreen(model: model, surface: .deleted,
+            LibraryScreen(model: model,
                           searchFocused: $searchFocused)
                 .modifier(LibraryNoticeOverlay(model: model, taskOwner: noticeTaskOwner,
                                                isPresented: model.noticeContext.isPresented))

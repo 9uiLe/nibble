@@ -47,7 +47,7 @@ nix develop --command python3 scripts/check_evidence.py \
 | テスト結果 | `test`またはtest summaryを持つrunは、成功したテストが1件以上あり、失敗がない |
 | 媒体 | run確定時の`media_sha256`と、保存された媒体の追加・削除・内容に相違がない |
 
-検証入力は、projectを含む対象ルート（`app/`、`validation/`）全体、共有`scripts/`、`flake.nix`、`flake.lock`。Markdownを除き、ソース・テスト・Xcode設定・共有lock・driver・ツールの追加・変更・削除を照合する。CLIから検査範囲を狭めることはできない。
+検証入力は、projectを含む対象ルート（`app/`、`validation/`）全体、共有`scripts/`、描画基盤の`runtime/`、`flake.nix`、`flake.lock`。Markdownを除き、ソース・テスト・Xcode設定・共有lock・driver・ツールの追加・変更・削除を照合する。CLIから検査範囲を狭めることはできない。
 
 文書のみの変更で入力が一致する場合はrunを再利用できる。必要な形式やhashが欠けた記録はソース照合に使用できない。事後にhashを推定して実行時の記録に加えない。
 

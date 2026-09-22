@@ -14,8 +14,8 @@ struct CreateSnippetButton: View {
             Image(systemName: "plus")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 24, height: 24)
-                .frame(width: 36, height: 36)
+                .frame(width: InterfaceMetrics.creationSymbolSize, height: InterfaceMetrics.creationSymbolSize)
+                .frame(width: InterfaceMetrics.creationSize, height: InterfaceMetrics.creationSize)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .contentShape(.circle)
         }

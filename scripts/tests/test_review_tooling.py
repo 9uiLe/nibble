@@ -158,7 +158,7 @@ class EvidenceSourceTests(EvidenceFixture, unittest.TestCase):
         self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--no-gpg-sign', '-m', 'docs')
         _, hashes = revision_hashes(self.root, 'HEAD')
         check_evidence.check_run(self.run, hashes)
-        for name in ['app/source.swift', 'scripts/driver.py', 'app/new.swift', 'flake.lock']:
+        for name in ['app/source.swift', 'scripts/driver.py', 'app/new.swift', 'runtime/rive/build.json', 'runtime/rive/drawable-acquisition.patch', 'flake.lock']:
             changed = {**hashes, name: 'b' * 64}
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'reference inputs'):
                 check_evidence.check_run(self.run, changed)

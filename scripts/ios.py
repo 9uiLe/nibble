@@ -201,7 +201,7 @@ class Run:
     def build(self, test=False):
         self.boot()
         if self.config["project"].startswith("app/"):
-            runtime = self.command([sys.executable, ROOT / "scripts/build_rive_runtime.py"],
+            runtime = self.command([sys.executable, ROOT / "scripts/rive_runtime.py", "prepare"],
                                    "prepare-rive-runtime", timeout=3600)
             self.manifest["rive_runtime"] = json.loads(runtime)
         # Xcode still validates every build. Cache partitioning avoids toggling

@@ -42,34 +42,19 @@ final class LibraryModel {
         let recovery: Recovery
     }
 
-    private(set) var request = LibraryRequest()
-    struct Snapshot {
-        let request: LibraryRequest
-        let page: LibraryPage
-    }
-
-    private(set) var snapshot: Snapshot?
-    let retainsFilters: Bool
-    private var filterSnapshots: [LibraryFilter: Snapshot] = [:]
-    private enum ReadOutcome { case loaded, cancelled, failed(Failure) }
-    private var completedRead: (request: LibraryRequest, outcome: ReadOutcome)?
-    private var activeRefresh: UUID?
+    private var content: LibraryReadState
+    let surface: LibrarySurface
     private let libraryReader: any LibraryReading
     private let libraryOpener: any LibraryOpening
+    var request: LibraryRequest { content.request }
+    var snapshot: LibraryReadState.Snapshot? { content.snapshot }
     var page: LibraryPage { snapshot?.page ?? LibraryPage() }
-    var contentRequest: LibraryRequest { snapshot?.request ?? request }
-    var contentIsCurrent: Bool {
-        guard let snapshot else { return false }
-        return snapshot.request.filter == request.filter
-            && snapshot.request.query == request.query
-    }
-    // Selection changes synchronously invalidate completion, before the UI starts its task.
-    var loading: Bool { activeRefresh != nil || completedRead?.request != request }
-    var loadingInterrupted: Bool {
-        guard !loading, completedRead?.request == request,
-              case .cancelled = completedRead?.outcome else { return false }
-        return true
-    }
+    var contentRequest: LibraryRequest { content.contentRequest }
+    var contentIsCurrent: Bool { content.contentIsCurrent }
+    var loading: Bool { content.loading }
+    var loadingInterrupted: Bool { content.interrupted }
+    var readDemand: LibraryRequest? { content.demand }
+    var refreshOnAppearance: Bool { content.refreshOnAppearance }
     private(set) var notice: Notice?
     private(set) var feedback = 0
     private(set) var mutationRevision = 0
@@ -81,55 +66,47 @@ final class LibraryModel {
                            message: "本文は貼り付けて使えます。下のボタンで、コピー回数と最後にコピーした日時の記録だけをやり直せます。\n" + (usageErrors[pending.id] ?? ""),
                            recovery: .retryUsage)
         }
-        if completedRead?.request == request, case .failed(let failure) = completedRead?.outcome { return failure }
-        return nil
+        guard let error = content.error else { return nil }
+        return Failure(title: "一覧を読み込めませんでした",
+                       message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload)
     }
     var editor: Draft?
     private var opening: UUID?
 
     var query: String {
         get { request.query }
-        set {
-            guard !SnippetText.hasSameBytes(newValue, request.query) else { return }
-            request = LibraryRequest(query: newValue, filter: request.filter)
-        }
+        set { content.search(newValue) }
     }
     var filter: LibraryFilter {
         get { request.filter }
-        set {
-            guard newValue != request.filter else { return }
-            if retainsFilters, let retained = filterSnapshots[newValue], retained.request.query == request.query {
-                request = retained.request
-                snapshot = retained
-                completedRead = (request, .loaded)
-            } else {
-                request = LibraryRequest(query: request.query, filter: newValue)
-            }
-        }
+        set { content.select(newValue) }
     }
     var items: [SnippetSummary] { page.items }
     var drafts: [DraftSummary] { page.drafts }
     var hasMore: Bool { contentIsCurrent && page.hasMore }
 
-    func showMore() { request = request.expanded }
+    func showMore() { content.showMore() }
     func dismissFailure() { operationFailure = nil }
 
-    init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all, retainsFilters: Bool = false,
+    init(store: any LibraryStorage, effects: any LibraryEffects, surface: LibrarySurface = .library,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
          usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init,
-         noticeOrigin: Notice.Origin = .library,
          noticeSleep: @escaping (ContinuousClock.Instant) async throws -> Void = { try await ContinuousClock().sleep(until: $0) }) {
         self.store = store
-        self.retainsFilters = retainsFilters
+        self.surface = surface
+        content = LibraryReadState(surface: surface)
         self.effects = effects
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
         self.usageRecorder = usageRecorder ?? store
         self.now = now
-        self.noticeOrigin = filter == .trash ? .trash : noticeOrigin
+        self.noticeOrigin = switch surface {
+        case .library: .library
+        case .search: .search
+        case .deleted: .trash
+        }
         self.noticeSleep = noticeSleep
         evaluatedAt = now()
-        request = LibraryRequest(filter: filter)
     }
 
     func clearNotice() {
@@ -166,45 +143,16 @@ final class LibraryModel {
 
     func refresh() async {
         guard !Task.isCancelled else { return }
-        let token = UUID()
-        activeRefresh = token
-        let requested = request
-        defer { if activeRefresh == token { activeRefresh = nil } }
+        let read = content.begin()
+        defer { content.end(read) }
         do {
-            let requests: [LibraryRequest]
-            if retainsFilters && requested.filter != .trash {
-                requests = [LibraryFilter.all, .pinned, .drafts].map { filter in
-                    LibraryRequest(query: requested.query, filter: filter,
-                                   limit: filter == requested.filter ? requested.limit
-                                       : filterSnapshots[filter]?.request.limit ?? LibraryRequest.pageSize)
-                }
-            } else { requests = [requested] }
-            let pages = try await libraryReader.libraries(requests)
+            let pages = try await libraryReader.libraries(read.requests)
             try Task.checkCancellation()
-            guard activeRefresh == token, canAdoptRead(requested) else { return }
-            guard pages.count == requests.count else { throw StoreError.unavailable }
-            let snapshots = zip(requests, pages).map { Snapshot(request: $0, page: $1) }
-            if retainsFilters {
-                filterSnapshots = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.request.filter, $0) })
-            }
-            snapshot = snapshots.first { $0.request.filter == request.filter }
-            evaluatedAt = now()
-            completedRead = (request, .loaded)
+            if try content.accept(pages, from: read) { evaluatedAt = now() }
         } catch {
-            guard activeRefresh == token, canAdoptRead(requested) else { return }
-            let outcome: ReadOutcome = Task.isCancelled || error is CancellationError ? .cancelled
-                : .failed(Failure(title: "一覧を読み込めませんでした",
-                                  message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload))
-            completedRead = (request, outcome)
+            let outcome: LibraryReadState.Outcome = Task.isCancelled || error is CancellationError ? .cancelled : .failed(error)
+            content.complete(outcome, from: read)
         }
-    }
-
-    private func canAdoptRead(_ requested: LibraryRequest) -> Bool {
-        if retainsFilters && requested.filter != .trash && request.filter != .trash {
-            return request.query == requested.query
-                && (request.filter != requested.filter || request.limit == requested.limit)
-        }
-        return request == requested
     }
 
     /// Invalidates only this owner's presentation request, without cancelling accepted writes.

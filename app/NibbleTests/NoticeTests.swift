@@ -13,7 +13,7 @@ extension UIIntegrationTests {
             let first = try await create(files.store, title: "一つ目", body: "本文1")
             let second = try await create(files.store, title: "二つ目", body: "本文2")
             let effects = RecordingLibraryEffects()
-            let model = LibraryModel(store: files.store, effects: effects, noticeOrigin: .search)
+            let model = LibraryModel(store: files.store, effects: effects, surface: .search)
             model.query = "本文"
             await model.delete(first)
             let deleted = try #require(model.notice)
@@ -258,7 +258,7 @@ private final class PausedNoticeStorage: LibraryStorage {
         if pausesMutation { try await gate.pause() }
         return try await store.mutate(mutation, id: id)
     }
-    func library(_ request: LibraryRequest) async throws -> LibraryPage { try await store.library(request) }
+    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage] { try await store.libraries(requests) }
     func beginDraft(snippetID: UUID?, body: String) async throws -> Draft { try await store.beginDraft(snippetID: snippetID, body: body) }
     func editingDraft(for id: UUID) async throws -> Draft { try await store.editingDraft(for: id) }
     func draft(_ id: UUID) async throws -> Draft { try await store.draft(id) }

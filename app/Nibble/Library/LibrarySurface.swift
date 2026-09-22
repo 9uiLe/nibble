@@ -1,4 +1,4 @@
-/// A library surface fixes its navigation and search controls independently of its data filter.
+/// A surface fixes its controls, permitted requests, refresh policy and notice origin.
 enum LibrarySurface {
     case library, search, deleted
 

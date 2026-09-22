@@ -349,7 +349,7 @@ class DeploymentTests(Fixture):
         self.assertTrue(run.manifest['completed'])
         archive_command = dict(calls)['archive']
         preparation = dict(calls)['prepare-rive-runtime']
-        self.assertIn('scripts/build_rive_runtime.py', preparation)
+        self.assertEqual(preparation[-2:], ['scripts/rive_runtime.py', 'prepare'])
         for value in self.values.values():
             self.assertNotIn(value, ' '.join(preparation))
         self.assertNotIn('-skipMacroValidation', archive_command)

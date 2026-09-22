@@ -8,7 +8,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | --- | --- |
 | `app/Nibble/NibbleApp.swift` | 本体の依存生成とsceneの入口 |
 | `app/Nibble/Navigation/` | `AppRootView`のタブ・シート・scene、`AppRoute`、共通見出し、`AppTab`の領域定義、標準TabViewの表示 |
-| `app/Nibble/Library/` | `LibrarySurface`による一覧・検索・削除一覧の表示種別、操作モデル、タスク所有者、行と通知 |
+| `app/Nibble/Library/` | `LibrarySurface`による画面種別、`LibraryReadState`の要求・保持・結果採否、`LibraryModel`の操作、タスク所有者、行と通知 |
 | `app/Nibble/Settings/` | 設定、製品情報、キーボード利用案内 |
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
 | `app/NibbleShare/` | `SharedDraftLoader`の取込・下書き保存、失敗文言、controllerの共通エディター提示 |
@@ -19,6 +19,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Shared/Keyboard/` | `KeyboardModel`とOS作用を渡す`KeyboardEffects` |
 | `app/Shared/Interface/` | 色、文字役割、`InterfaceMetrics`と`IconControlStyle`、固定表示のSwiftUI・UIKit境界 |
 | `app/Shared/Resources/` | 配布する第三者ライセンスの告知 |
+| `runtime/rive/` | 描画先取得を専用キューへ分離するRive基盤の固定ソース定義・Package定義 |
 | `app/Packages/RivePresentation/` | 製品に依存しないRiveのResource・Session・Canvas |
 
 `Shared`はソースの共有単位であり、すべてを全targetへリンクするという意味ではない。Xcode projectのSourcesが各targetの必要な部分を選ぶ。キーボードは編集StoreとRiveをリンクせず、本体・共有拡張だけがDB作成とschema移行を行う。本体のテストはKeyboardのモデルとReaderも検査する。
@@ -42,7 +43,9 @@ flowchart TD
 
 モデルのasync APIは受理した処理と状態反映まで待つ。Viewはタスクの開始・寿命・重複を、モデルは要求と結果の整合性を、actorは接続とtransactionを所有する。SQL実行中にawaitしない。本体のコピーと読み上げは`LibraryEffects`、Keyboardの挿入・コピー・終了は`KeyboardEffects`へ分離する。OSの作用とDBの確定は同じtransactionにはできないため、コピー完了と使用記録の失敗を別の結果にする。
 
-一覧は要求に対応する一つの`LibraryPage`を表示する。保存層で絞った結果をUIでピン別に再分割せず、使用回数順とsnapshotの意味を保つ。削除・復元・完全削除は`mutate(_:id:)`が対象名の取得と変更を同じtransactionへ収める。
+`LibraryReading.libraries(_:)`は要求順のページを一つのDB読取transactionから返す。単一ページの`library(_:)`もこの入口を使う。本体一覧はすべて・ピン留め・下書きの3ページを`LibraryReadState`が保持し、選択とページ上限、読込のID、完了状態を管理する。検索・削除一覧はそれぞれ一つの要求を持つ。`LibraryModel`の画面種別が有効な検索・フィルターと通知元を決め、`LibraryScreen`は同じ種別を参照する。
+
+表示は選択した要求に対応する`LibraryPage`を使う。保存層で絞った結果をUIでピン別に再分割せず、使用回数順とsnapshotの意味を保つ。削除・復元・完全削除は`mutate(_:id:)`が対象名の取得と変更を同じtransactionへ収める。
 
 新規DBはschema 2で作成する。schema 1は原文・UUID・下書き・削除状態を維持して2へ移行する。配布済みデータの継続利用のためにこの互換性を持ち、未対応schemaを初期化で置き換えない。Keyboardはschema 1/2を読み、移行は行わない。
 
@@ -56,7 +59,7 @@ flowchart TD
 
 設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景・標準見出し・スクロール観測を共通化する。説明内容と各ページの余白はページに残す。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 
-編集は`SnippetEditor`が入力・シートの寿命と終了結果を観測し、`EditorForm`、タイトル・本文の入力、上部の`EditorToolbar`、下部の`EditorBottomBar`、補足に表示を分ける。下部操作と`EditorKeyboardAccessory`は同じsafeAreaInsetで排他的に配置し、各ボタンの操作領域をSwiftUIの制約で確保する。保存・保持・破棄の業務処理は`EditorModel`、開始・重複・取消は`EditorTaskOwner`にある。操作完了をモデルのterminal stateで受けて、成功した場合だけ画面を閉じる。
+編集は`SnippetEditor`が入力・シートの寿命と終了結果を観測し、`EditorForm`、タイトル・本文の入力、上部の`EditorToolbar`、下部の`EditorBottomBar`、補足に表示を分ける。下部操作と`EditorKeyboardAccessory`は同じsafeAreaInsetで排他的に配置し、各ボタンの操作領域をSwiftUIの制約で確保する。`EditorBodyField`は本文の案内とPasteButton、`MarkdownEditor`は解析の開始と結果採否、`MarkdownInput`はSwiftUIのBinding・フォーカスとUIKitの接続、`MarkdownTextView`はIME・選択・Undoを維持する文字属性を担当する。UIKit内のスクロールを無効にして外側のスクロールへ統一する。保存・保持・破棄の業務処理は`EditorModel`、開始・重複・取消は`EditorTaskOwner`にある。操作完了をモデルのterminal stateで受けて、成功した場合だけ画面を閉じる。
 
 共有取込は`SharedDraftLoader.load`が入力providerの選択・原文の取得・検証・下書き保存を完了まで待つ。`ShareViewController`はextensionの寿命、タスク開始と取消、編集画面・失敗の提示、共有元への終了を担当する。保存後に共有元が離脱していた場合は提示を中止し、保存済みの下書きは残す。
 
