@@ -83,5 +83,28 @@ extension UIIntegrationTests {
                 #expect(Array(view.text.utf8) == Array(source.utf8))
             }
         }
+
+        @Test(arguments: ["\n", "\r", "\r\n", "\n\r"], ["", "前\0 "])
+        func formattingUsesOriginalCoordinates(lineBreak: String, prefix: String) async throws {
+            let source = "# 日本語 👩🏽‍💻" + lineBreak + lineBreak + prefix + "**太字** *斜体* `値` か\u{3099}"
+            let highlights = await MarkdownHighlighting.parse(source)
+            let heading = try #require(highlights.spans.first { $0.heading == 1 })
+            let bold = try #require(highlights.spans.first { $0.bold })
+            let italic = try #require(highlights.spans.first { $0.italic })
+            let code = try #require(highlights.spans.first { $0.code })
+            let original = source as NSString
+            #expect(original.substring(with: heading.range) == "日本語 👩🏽‍💻")
+            #expect(original.substring(with: bold.range) == "太字")
+            #expect(original.substring(with: italic.range) == "斜体")
+            #expect(original.substring(with: code.range) == "値")
+            let view = MarkdownTextView()
+            view.text = source
+            view.selectedRange = NSRange(location: original.length, length: 0)
+            view.apply(highlights)
+            #expect(Array(view.text.utf8) == Array(source.utf8))
+            #expect(view.selectedRange == NSRange(location: original.length, length: 0))
+            let font = try #require(view.textStorage.attribute(.font, at: bold.range.location, effectiveRange: nil) as? UIFont)
+            #expect(font.fontDescriptor.symbolicTraits.contains(.traitBold))
+        }
     }
 }

@@ -57,7 +57,7 @@ flowchart TD
 
 本体・共有拡張・キーボード・表示PackageのViewは、責務ごとの型とファイルへ分けている。入力と更新境界をView型で表し、Viewを返す補助関数・算出プロパティを作らない。`body`・`equatableBody`、Modifier・Style・representableの必須メソッドは各protocolの定義として保持する。`LibrarySurface`が一覧・検索・削除一覧の有効な表示構成を表し、`LibraryScreen`は画面の状態と寿命、`LibraryList`は読込状態とリスト、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。共通のリスト外観は`LibraryListStyle`が担う。タブの表示・ドラッグ選択・safe areaは標準TabViewが所有する。
 
-設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景・標準見出し・スクロール観測を共通化する。説明内容と各ページの余白はページに残す。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
+設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景と標準見出しを共通化する。説明内容と各ページの余白はページに残し、各イラストが自身の可視性を観測する。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 
 編集は`SnippetEditor`が入力・シートの寿命と終了結果を観測し、`EditorForm`、タイトル・本文の入力、上部の`EditorToolbar`、下部の`EditorBottomBar`、補足に表示を分ける。下部操作と`EditorKeyboardAccessory`は同じsafeAreaInsetで排他的に配置し、各ボタンの操作領域をSwiftUIの制約で確保する。`EditorBodyField`は本文の案内とPasteButton、`MarkdownEditor`は解析の開始と結果採否、`MarkdownInput`はSwiftUIのBinding・フォーカスとUIKitの接続、`MarkdownTextView`はIME・選択・Undoを維持する文字属性を担当する。UIKit内のスクロールを無効にして外側のスクロールへ統一する。保存・保持・破棄の業務処理は`EditorModel`、開始・重複・取消は`EditorTaskOwner`にある。操作完了をモデルのterminal stateで受けて、成功した場合だけ画面を閉じる。
 

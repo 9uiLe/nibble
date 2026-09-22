@@ -98,6 +98,23 @@ def main():
                 run.screenshot('editor-guidance')
                 run.tap('editor.close')
                 wait('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
+                run.tap('navigation.tab.library')
+                wait('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
+                for collection, headings in (
+                    ('pinned', {'ピン留めした項目', 'ピン留めした項目はありません'}),
+                    ('drafts', {'タップして、編集を再開', '下書きはありません'}),
+                ):
+                    def collection_visible(data):
+                        return ('editor.body' not in identifiers(data)
+                                and any(e.get('label') in headings for e in data['entries']))
+                    run.tap('library.filter.' + collection)
+                    wait(collection + '-selected', collection_visible)
+                    run.tap('library.add')
+                    wait(collection + '-new-editor', lambda d: 'editor.body' in identifiers(d))
+                    run.tap('editor.close')
+                    wait(collection + '-creation-returned', collection_visible)
+                    run.screenshot('creation-returns-to-' + collection)
+                run.tap('library.filter.all')
                 run.manifest['assertions'] = {
                     'search_does_not_focus_on_entry': True,
                     'settings_version_matches_bundle': expected,
@@ -108,6 +125,7 @@ def main():
                     'keyboard_and_screen_actions_exclusive': True,
                     'help_restores_focus': True,
                     'empty_editor_returns_to_caller': True,
+                    'creation_preserves_collection': True,
                 }
     except BaseException as exc:
         error = str(exc)

@@ -297,15 +297,20 @@ extension UIIntegrationTests {
             #expect(model.contentRequest.limit == LibraryRequest.pageSize)
         }
 
-        @Test func creatingFromFilteredLibraryReturnsToAll() async throws {
+        @Test(arguments: [LibraryFilter.all, .pinned, .drafts])
+        func creatingKeepsTheSelectedCollection(filter: LibraryFilter) async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let model = LibraryModel(store: database.store)
-            model.filter = .drafts
+            await model.refresh()
+            model.filter = filter
             await model.open(.new)
             let draft = try #require(model.editor)
-            #expect(model.filter == .all)
+            #expect(model.filter == filter && model.readDemand == nil)
+            model.editor = nil
             await model.refresh()
+            #expect(model.filter == filter)
+            model.filter = .drafts
             #expect(model.drafts.map(\.id) == [draft.id])
         }
 

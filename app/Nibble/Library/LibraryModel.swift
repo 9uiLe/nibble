@@ -178,7 +178,6 @@ final class LibraryModel {
                 if case .new = source { try? await store.keepDraft(draft) }
                 return
             }
-            if case .new = source { filter = .all }
             setNoticePresentation(false)
             editor = draft
         } catch is CancellationError { }
