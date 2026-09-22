@@ -67,8 +67,7 @@
         "hamio": "hamio",
         "nixpkgs": "nixpkgs_2",
         "rive-cli": "rive-cli",
-        "sim-use": "sim-use",
-        "wts": "wts"
+        "sim-use": "sim-use"
       }
     },
     "sim-use": {
@@ -81,23 +80,6 @@
       "original": {
         "type": "file",
         "url": "https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz"
-      }
-    },
-    "wts": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789899997,
-        "narHash": "sha256-eKRSRJ8SZ4pYC2H/0lR3cfoBlYCxZTDGLVuw8U2DcdQ=",
-        "owner": "9uiLe",
-        "repo": "wts",
-        "rev": "f1cb5dda3a52a757cba841e40ae806647c5b09b2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "9uiLe",
-        "repo": "wts",
-        "rev": "f1cb5dda3a52a757cba841e40ae806647c5b09b2",
-        "type": "github"
       }
     }
   },

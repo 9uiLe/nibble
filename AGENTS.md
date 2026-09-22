@@ -9,7 +9,7 @@ nibbleはiOS 26.0以上向けのスニペットツール。素早い利用、原
 | 作業 | 参照先 |
 | --- | --- |
 | 文書・指示 | 対象文書と参照元・参照先、[文書の責務](CONTRIBUTING.md#文書の責務) |
-| 並列開発・引き継ぎ | [作業の分離と継続](CONTRIBUTING.md#作業の分離と継続)。wtsはNix環境内で`--format json`を指定 |
+| 作業の引き継ぎ | [引き継ぎ内容](CONTRIBUTING.md#作業の引き継ぎ) |
 | Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品仕様・要件](docs/product-specification.md) |
 | UI | [UI設計](docs/design/README.md)から対象の画面・部品・理由・評価条件 |
 | Rive制作・接続 | [演出設計](docs/architecture/presentation.md)、[アセット手順](app/Animations/README.md)。about配下は[局所規約](app/Animations/about/AGENTS.md)も適用 |
@@ -28,7 +28,7 @@ iOS検証は専用Simulatorとダミーデータを使う。既存端末を消�
 
 ## 検査と完了
 
-各worktreeのルートのNix環境で`NIBBLE_UI_FORMAT=json`を指定する。補助ツールはflakeとlockで固定し、Homebrew・pip等を前提にしない。stdoutの結果とstderrの表示を分け、表示障害で業務を再試行しない。
+リポジトリルートのNix環境で`NIBBLE_UI_FORMAT=json`を指定する。補助ツールはflakeとlockで固定し、Homebrew・pip等を前提にしない。stdoutの結果とstderrの表示を分け、表示障害で業務を再試行しない。
 
 仕上げに`nix flake check --no-update-lock-file --print-build-logs`と[変更種別の追加検証](CONTRIBUTING.md#実行と検査)を行う。合格後は追加変更・失敗・未解決の懸念へ検査を絞る。規約の追加時は判定可能な不変条件を既存検査と違反例の回帰テストへ組み込む。
 

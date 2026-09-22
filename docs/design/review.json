@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "C01・F05・F06・R21・G03を照合。主要タブは通常24pt・縮小20ptの記号、通常36pt・縮小32ptの操作領域の高さ、記号の左右各16ptの余白で構成する。バーは内容幅で中央に配置し、記号・選択背景・操作領域の寸法を同じアニメーション内で補間する。確保領域を固定し、スクロール内容の再配置を抑える。作成・編集・通知の操作は各部品の寸法契約を適用する。利用者によるタブの押し分けはG03で評価する。 今回は開発用wtsだけをflake.lockへ追加した。既存のnixpkgs・hamio・sim-use・rive-cli、app配下の実装とアセットには差分がなく、C01・F05・F06の表示・操作仕様を維持する。AGENTSの宣言規約の重複削除は実装規約への作業別参照へ集約し、UI契約を変更しない。",
+  "summary": "C01・F05・F06・R21・G03を照合。主要タブは通常24pt・縮小20ptの記号、通常36pt・縮小32ptの操作領域の高さ、記号の左右各16ptの余白で構成する。バーは内容幅で中央に配置し、記号・選択背景・操作領域の寸法を同じアニメーション内で補間する。確保領域を固定し、スクロール内容の再配置を抑える。作成・編集・通知の操作は各部品の寸法契約を適用する。利用者によるタブの押し分けはG03で評価する。",
   "references": [
     "docs/design/components.md",
     "docs/design/foundations.md",
@@ -173,7 +173,7 @@
     "docs/design/rationale/usage-order.md": "520ff063d0a25d5aec2fd42ce61a76c02f6f08f1e6e820241417e245680e93b5",
     "docs/design/screens.md": "ba05bf1292722dc23eab58b2d5f0872eb82a471be538470461a1832d9656be76",
     "docs/product-specification.md": "114d036fb65c134fb9a0de440abe59e52c33afd3d91cc0998f1b680f2d657b9e",
-    "flake.lock": "137a41f5af92e675626a3b76585386e04c25508f8fa73cb0f891f61fabd52b2e",
+    "flake.lock": "6e96a91669e23afe13e9f8827cbcb7a0423b72b8aac15b36a673e75916a08365",
     "tools/ui-design/README.md": "fbabf5e481e06184d098868181f68619fa92ffe84af76ba6f8ec21f39595f4fc",
     "tools/ui-design/benchmarks/measure.py": "2475625ce23317975fdd6335dd914ebec1af02cbaf00504d1b82184d707b7396",
     "tools/ui-design/default.nix": "785defe5f5d45434d35fe52b9e4a9d5edc3357a229c7aab30882a80797fcd7f0",

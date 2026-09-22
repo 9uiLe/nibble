@@ -18,7 +18,6 @@ from verification_catalog import (STAGES, REGRESSION_STEPS, PERFORMANCE_STEPS,
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
-    '.wts.json',
     'scripts/check_docs.py', 'scripts/check_swift_policy.py', 'scripts/check_ui_design.py',
     'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py',
     'scripts/swift_task_boundary.py', 'scripts/swift_view_structure.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
