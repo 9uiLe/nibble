@@ -183,13 +183,13 @@ class EvidenceSourceTests(EvidenceFixture, unittest.TestCase):
 class EvidenceTests(EvidenceFixture, unittest.TestCase):
     def test_tampered_media_failed_run_old_os_or_missing_logs_rejected(self):
         original = copy.deepcopy(self.manifest)
-        for mutation in ['status', 'runtime', 'media', 'logs', 'legacy']:
+        for mutation in ['status', 'runtime', 'media', 'logs', 'missing_version']:
             self.manifest = copy.deepcopy(original)
             if mutation == 'status': self.manifest['status'] = 'failed'
             if mutation == 'runtime': self.manifest['device']['runtime']['version'] = '26.0'
             if mutation == 'media': self.manifest['media_sha256']['image.png'] = '0' * 64
             if mutation == 'logs': self.manifest['commands'][0]['stdout'] = 'missing.log'
-            if mutation == 'legacy': self.manifest.pop('evidence_version')
+            if mutation == 'missing_version': self.manifest.pop('evidence_version')
             self.save()
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 check_evidence.check_run(self.run, self.hashes)

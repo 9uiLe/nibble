@@ -1,5 +1,6 @@
 """Verification selection and fail-fast orchestration contracts, without Apple tools."""
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -50,7 +51,19 @@ class SelectionTests(unittest.TestCase):
         selected = verify.plan(['app/Shared/Domain/LibraryRequest.swift'])
         self.assertIn('product-test', self.selected(['app/Shared/Domain/LibraryRequest.swift']))
         self.assertTrue(selected['manual_review'])
-        self.assertEqual(selected['preconditions'], [])
+
+    def test_preconditions_describe_only_the_selected_environment(self):
+        static = ' '.join(verify.plan(['README.md'])['preconditions'])
+        self.assertIn('Nix', static)
+        self.assertNotIn('Simulator', static)
+        inspection = ' '.join(verify.plan([], 'inspection')['preconditions'])
+        self.assertIn('sips', inspection)
+        self.assertNotIn('Simulator', inspection)
+        fixture = ' '.join(verify.plan([], 'fixture')['preconditions'])
+        self.assertIn('iOS 26.5', fixture)
+        self.assertIn('--device', fixture)
+        self.assertNotIn('初期化', fixture)
+        self.assertIn('初期化', ' '.join(verify.plan([], 'product')['preconditions']))
 
     def test_measurement_requires_explicit_scope(self):
         for path in ('validation/StoreBenchmark.swift', 'app/NibblePerformanceTests/Measurements.swift'):
@@ -102,19 +115,144 @@ class SelectionTests(unittest.TestCase):
     def test_since_requires_success_and_compares_additions_deletions_and_content(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'result.json'
-            original = {'status': 'passed', 'steps': [{'status': 'passed'}],
+            original = {'status': 'passed', 'steps': [{'id': 'static', 'status': 'passed'}],
                         'source_start': {'gone': 'a', 'changed': 'b', 'same': 'c'},
                         'source_end': {'gone': 'a', 'changed': 'b', 'same': 'c'}}
             path.write_text(json.dumps(original))
             self.assertEqual(verify.changes_since(path, {'new': 'd', 'changed': 'z', 'same': 'c'}),
                              ['changed', 'gone', 'new'])
-            for key, value in [('status', 'failed'), ('steps', [{'status': 'pending'}]), ('source_end', {})]:
+            for key, value in [('status', 'failed'), ('steps', [{'id': 'static', 'status': 'pending'}]), ('source_end', {})]:
                 path.write_text(json.dumps({**original, key: value}))
                 with self.assertRaises(ValueError):
+                    verify.changes_since(path, {})
+            for malformed in [[], {}, {**original, 'steps': [None]}]:
+                path.write_text(json.dumps(malformed))
+                with self.subTest(malformed=malformed), self.assertRaises(ValueError):
                     verify.changes_since(path, {})
 
 
 class ExecutionTests(unittest.TestCase):
+    def test_status_preserves_failed_and_pending_work_without_reusing_success(self):
+        report = {'status': 'failed', 'source_start': {'a': 'old'},
+                  'source_end': {'a': 'new'}, 'error': 'Sources changed during verification',
+                  'steps': [{'id': 'static', 'status': 'passed', 'seconds': 2, 'log': 'static.log'},
+                            {'id': 'product-test', 'status': 'pending'}],
+                  'manual_review': ['録画を確認する']}
+        result = verify.summarize_report(report, Path('artifacts/run/result.json'), {'a': 'new', 'b': 'added'})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['steps'], report['steps'])
+        self.assertEqual(result['error'], report['error'])
+        self.assertEqual(result['manual_review'], report['manual_review'])
+        self.assertFalse(result['source_stable'])
+        self.assertFalse(result['source_matches_current'])
+        self.assertEqual(result['changed_since_start'], ['a', 'b'])
+        self.assertNotIn('source_start', result)
+
+    def test_running_status_does_not_claim_completion_or_process_liveness(self):
+        report = {'status': 'running', 'source_start': {'a': 'hash'},
+                  'steps': [{'id': 'static', 'status': 'running'}]}
+        result = verify.summarize_report(report, Path('result.json'), {'a': 'hash'})
+        self.assertEqual(result['status'], 'running')
+        self.assertIsNone(result['source_stable'])
+        self.assertIsNone(result['source_matches_current'])
+        for malformed in [[], {}, {**report, 'status': []}, {**report, 'steps': []},
+                          {**report, 'steps': [None]}, {**report, 'steps': [{'id': 'static', 'status': []}]},
+                          {**report, 'source_end': None}]:
+            with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                verify.summarize_report(malformed, Path('result.json'), {})
+
+    def test_report_publication_keeps_old_snapshot_when_replace_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'result.json'
+            verify.save_report(path, {'status': 'running'})
+            with patch.object(Path, 'replace', side_effect=OSError('interrupted')), self.assertRaises(OSError):
+                verify.save_report(path, {'status': 'passed'})
+            self.assertEqual(json.loads(path.read_text()), {'status': 'running'})
+            verify.save_report(path, {'status': 'failed'})
+            self.assertEqual(json.loads(path.read_text()), {'status': 'failed'})
+            self.assertFalse(path.with_suffix('.json.tmp').exists())
+
+    def test_plan_output_saves_complete_reasons_and_refuses_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'), \
+                patch.object(verify, 'working_hashes', return_value={'a': 'hash'}), \
+                patch.object(verify, 'changed_files', return_value=('commit', ['README.md'])), \
+                patch('builtins.print') as emit, patch.object(verify, 'execute') as execute:
+            output = Path(directory) / 'plan'
+            self.assertEqual(verify.main(['plan', '--output', str(output)]), 0)
+            saved = json.loads((output / 'plan.json').read_text())
+            self.assertEqual(saved['planning_source'], {'a': 'hash'})
+            self.assertTrue(saved['excluded'])
+            self.assertTrue(saved['steps'][0]['reasons'])
+            summary = json.loads(emit.call_args.args[0])
+            self.assertEqual(summary['steps'], ['static'])
+            self.assertEqual(summary['preconditions'], saved['preconditions'])
+            self.assertNotIn('planning_source', summary)
+            self.assertEqual(verify.main(['plan', '--output', str(output)]), 1)
+            execute.assert_not_called()
+
+    def test_default_plan_saves_details_in_distinct_directories_without_execution(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'), \
+                patch.object(verify, 'ROOT', Path(directory)), \
+                patch.object(verify, 'working_hashes', return_value={'README.md': 'hash'}), \
+                patch.object(verify, 'changed_files', return_value=('commit', ['README.md'])), \
+                patch('builtins.print') as emit, patch.object(verify, 'run_plan') as run:
+            paths = []
+            for _ in range(2):
+                self.assertEqual(verify.main(['plan']), 0)
+                summary = json.loads(emit.call_args.args[0])
+                path = Path(summary['plan'])
+                self.assertEqual(path.parent.parent, Path(directory) / 'artifacts/verify')
+                saved = json.loads(path.read_text())
+                self.assertEqual(saved['planning_source'], {'README.md': 'hash'})
+                self.assertEqual(summary['changed_file_count'], 1)
+                self.assertNotIn('excluded', summary)
+                paths.append(path)
+            self.assertNotEqual(*paths)
+            run.assert_not_called()
+
+    def test_since_plan_uses_the_snapshot_without_resolving_a_git_base(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'), \
+                patch.object(verify, 'working_hashes', return_value={'README.md': 'new'}), \
+                patch.object(verify, 'changed_files') as changed, patch('builtins.print') as emit:
+            result = Path(directory) / 'result.json'
+            result.write_text(json.dumps({'status': 'passed', 'steps': [{'id': 'static', 'status': 'passed'}],
+                                         'source_start': {'README.md': 'old'}, 'source_end': {'README.md': 'old'}}))
+            output = Path(directory) / 'plan'
+            self.assertEqual(verify.main(['plan', '--since', str(result), '--output', str(output)]), 0)
+            saved = json.loads((output / 'plan.json').read_text())
+            self.assertEqual(saved['changed_files'], ['README.md'])
+            self.assertIsNone(saved['base'])
+            self.assertEqual(json.loads(emit.call_args.args[0])['since'], str(result))
+            changed.assert_not_called()
+
+    def test_arguments_are_validated_for_the_selected_operation_before_reading_sources(self):
+        invalid = [['status'], ['status', '--result', 'result.json', '--scope', 'product'],
+                   ['status', '--result', 'result.json', '--output', 'out'],
+                   ['plan', '--device', 'device'], ['run', '--result', 'result.json'],
+                   ['plan', '--base', 'HEAD', '--since', 'result.json'],
+                   ['run', '--base', 'HEAD', '--since', 'result.json']]
+        with patch.object(verify, 'working_hashes') as read, patch('sys.stderr', new=io.StringIO()):
+            for argv in invalid:
+                with self.subTest(argv=argv), self.assertRaises(SystemExit) as failure:
+                    verify.main(argv)
+                self.assertEqual(failure.exception.code, 2)
+            read.assert_not_called()
+
+    def test_status_is_read_only_and_does_not_resolve_base_or_run_stages(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'), \
+                patch.object(verify, 'working_hashes', return_value={'a': 'hash'}), \
+                patch.object(verify, 'changed_files') as changed, \
+                patch.object(verify, 'run_plan') as run, patch('builtins.print'):
+            path = Path(directory) / 'result.json'
+            data = {'status': 'passed', 'source_start': {'a': 'hash'}, 'source_end': {'a': 'hash'},
+                    'steps': [{'id': 'static', 'status': 'passed'}]}
+            path.write_text(json.dumps(data))
+            original = path.read_bytes()
+            self.assertEqual(verify.main(['status', '--result', str(path)]), 0)
+            self.assertEqual(path.read_bytes(), original)
+            changed.assert_not_called()
+            run.assert_not_called()
+
     def test_native_preview_step_completes_without_ios_run_or_device(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(verify, 'ui'):
             root = Path(directory)
