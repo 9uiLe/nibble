@@ -53,12 +53,8 @@ def check_run(directory, reference_hashes):
     require(re.fullmatch(r'[\da-fA-F]{8}(?:-[\da-fA-F]{4}){3}-[\da-fA-F]{12}', device['udid']), 'Expected explicit Simulator UDID')
     require(manifest.get('commands'), 'No commands recorded')
     for event in manifest['commands']:
-        handled = event.get('handled_error', {})
-        assertions = manifest.get('assertions', {})
-        recovered = (event.get('exit_code') == 1 and isinstance(handled, dict) and handled.get('reason')
-                     and isinstance(assertions, dict) and assertions.get(handled.get('assertion')) is True)
-        require(not event.get('error') and (event.get('exit_code') == 0 or recovered),
-                'Unresolved command failure: ' + str(event.get('argv')))
+        require(not event.get('error') and event.get('exit_code') == 0,
+                'Command failure: ' + str(event.get('argv')))
         for key in ['stdout', 'stderr']:
             if key in event:
                 path = directory / event[key]

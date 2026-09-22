@@ -8,10 +8,15 @@ struct EditorHelpButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text("入力と保存について")
-                .font(.nibbleBody)
-                .frame(minHeight: InterfaceMetrics.touchSize)
-                .contentShape(.rect)
+            HStack(spacing: 6) {
+                Text("入力と保存について")
+                    .font(.nibbleBody)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: InterfaceMetrics.touchSize)
+            .contentShape(.rect)
         }
     }
 }

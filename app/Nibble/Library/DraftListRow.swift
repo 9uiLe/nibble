@@ -11,11 +11,6 @@ struct DraftListRow: View {
     var body: some View {
         Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "square.and.pencil")
-                    .font(.body).foregroundStyle(Color.nibbleAccent)
-                    .frame(width: 36, height: 36)
-                    .background(Color.nibbleSoft, in: .rect(cornerRadius: 10))
-                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 6) {
                     SnippetHeading(title: draft.displayTitle, pinned: false, style: .library)
                     if draft.textPresentation.hasExplicitTitle {

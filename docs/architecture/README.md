@@ -18,6 +18,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Shared/Application/` | `LibraryModel`・`EditorModel`・`KeyboardModel`の操作、`LibraryReadState`の取得結果と採否、型で表した成功・失敗・回復 |
 | `app/Shared/Persistence/` | SQLite接続、schema、同期SQL、`SnippetStore`と既存DB専用の`KeyboardReader` actor |
 | `app/Shared/Editing/` | `EditorTaskOwner`、`SnippetEditor`と入力・操作・補足の表示部品、`EditorPresentation`の文言。本体と共有拡張で使用 |
+| `app/Shared/Editing/Markdown/` | 原文からの解析、共通の文字スタイル、入力とプレビュー、UIKitの編集接続 |
 | `app/Shared/Interface/` | 項目名・上限・失敗の表示形式、共通見出しとピン操作、色、文字役割、操作領域、固定表示のSwiftUI・UIKit境界 |
 | `app/Shared/Resources/` | 配布する第三者ライセンスの告知 |
 | `runtime/rive/` | 描画先取得を専用キューへ分離するRive基盤の固定ソース定義・Package定義 |
@@ -79,13 +80,15 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 
 設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景と標準見出しを共通化する。説明内容と各ページの余白はページに残し、各イラストが自身の可視性を観測する。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 
-編集は`SnippetEditor`が入力・シートの寿命と終了結果を観測し、`EditorForm`、タイトル・本文の入力、上部の`EditorToolbar`、下部の`EditorBottomBar`、補足に表示を分ける。下部操作と`EditorKeyboardAccessory`は同じsafeAreaInsetで排他的に配置し、各ボタンの操作領域をSwiftUIの制約で確保する。`EditorBodyField`は本文の案内とPasteButton、`MarkdownEditor`は解析の開始と結果採否、`MarkdownInput`はSwiftUIのBinding・フォーカスとUIKitの接続、`MarkdownTextView`はIME・選択・Undoを維持する文字属性を担当する。UIKit内のスクロールを無効にして外側のスクロールへ統一する。保存・保持・破棄の業務処理は`EditorModel`、開始・重複・取消は`EditorTaskOwner`にある。操作完了をモデルのterminal stateで受けて、成功した場合だけ画面を閉じる。
+編集は本体と共有拡張が同じ`SnippetEditor`を使う。`EditorModel`が入力・永続化・終了結果、`EditorTaskOwner`が操作の開始・重複・取消、画面がフォーカス・表示モード・補足シートの寿命を所有する。Markdownの解析・装飾・閲覧は`Shared/Editing/Markdown/`へまとめる。原文を保持する表現、解析結果の採否、スクロールとUIKitの接続は[編集の設計](editing.md)に定める。
 
 共有取込は`SharedDraftLoader.load`が入力providerの選択・原文の取得・検証・下書き保存を完了まで待つ。`ShareViewController`はextensionの寿命、タスク開始と取消、編集画面・失敗の提示、共有元への終了を担当する。保存後に共有元が離脱していた場合は提示を中止し、保存済みの下書きは残す。
 
 レイアウトは親からのサイズ提案、内容の自然な大きさ、alignment、safe areaを使う。見出しと操作の関係はStackで表し、本文は伸長・折返し・スクロールを許す。固定寸法は記号、最小操作領域、スクロール中に動かさないバーの確保領域など、意味のある制約に限定する。部品化だけで描画性能の改善を断定せず、操作と同条件の測定を分けて確認する。
 
 ## 分野ごとの契約
+
+- [編集とMarkdown](editing.md)：原文、解析、表示モード、入力の寿命。
 
 - [キーボード](keyboard.md)：権限、既存DB、入力先と可視性の寿命。
 - [説明イラスト](presentation.md)：RML、再生位置、停止・復帰、解放。

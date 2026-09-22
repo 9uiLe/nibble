@@ -12,7 +12,6 @@ struct DraftResumeRow: View {
         HStack(spacing: 4) {
             Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "square.and.pencil").font(.callout)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("下書きを再開").font(.footnote.weight(.medium))
                         Text(draft.displayTitle).font(.caption2).lineLimit(1)

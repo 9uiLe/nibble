@@ -18,7 +18,7 @@ extension UIIntegrationTests {
         let previous = RiveLog.logger
         RiveLog.logger = log
         defer { RiveLog.logger = previous }
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         host.show(AnyView(RiveCanvas(session: session, paused: true).frame(width: 300, height: 200)))
         try await host.wait { !log.advances.isEmpty }
@@ -43,7 +43,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func loadingUsesTheAppearanceAtCompletion() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         for keyboard in [false, true] {
             let probe = IllustrationLoadProbe()
@@ -72,7 +72,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func keyboardTabReturnKeepsTheCurrentPalette() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         let navigation = RiveNavigationProbe()
         navigation.keyboard = true
@@ -99,7 +99,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func navigationTabsAndFullScreenCoverKeepPlaybackUntilPop() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         let navigation = RiveNavigationProbe()
         navigation.scheme = .dark
@@ -139,7 +139,7 @@ extension UIIntegrationTests {
         let previous = RiveLog.logger
         RiveLog.logger = log
         defer { RiveLog.logger = previous }
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         func show(paused: Bool, phase: ScenePhase, revision: Int = 0, width: CGFloat = 300) {
             host.show(AnyView(RiveCanvas(session: session, paused: paused, renderingRevision: revision)
@@ -203,7 +203,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func illustrationsWaitForVisibilityAndKeepTheirViewportAcrossHostStops() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         for keyboard in [false, true] {
             let playback = IllustrationPlayback()
@@ -245,7 +245,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func independentCanvasesReleaseTheirOwnedResources() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         var first: IllustrationPlayback? = IllustrationPlayback()
         var second: IllustrationPlayback? = IllustrationPlayback()
@@ -275,7 +275,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func illustrationLoadFailureRetryAndCancellation() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         let probe = IllustrationLoadProbe()
         let playback = IllustrationPlayback { name, bundle in try await probe.load(name, bundle) }
@@ -312,7 +312,7 @@ extension UIIntegrationTests {
 
     @Test @MainActor
     func keyboardIllustrationPausesOffscreenAndKeepsItsSession() async throws {
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         host.show(AnyView(KeyboardGuideView()))
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }

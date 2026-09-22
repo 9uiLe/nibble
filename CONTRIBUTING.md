@@ -14,6 +14,7 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 | --- | --- |
 | 起動までの準備 | [README](README.md) |
 | ソース配置・依存・責務 | [アプリケーションの構成](docs/architecture/README.md) |
+| 原文入力・Markdown表示・編集の寿命 | [編集の設計](docs/architecture/editing.md) |
 | 製品のデータ・処理・失敗回復 | [製品仕様・要件](docs/product-specification.md) |
 | Swiftの宣言・非同期・比較・アニメーション | [実装規約](docs/library-policy.md) |
 | 画面・部品と配置理由 | [UI設計](docs/design/README.md) |

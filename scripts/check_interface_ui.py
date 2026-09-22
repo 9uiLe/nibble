@@ -5,7 +5,8 @@ from contextlib import ExitStack
 import time
 from types import SimpleNamespace
 
-from ios import simulator_lock, Run, XCRUN, VerificationError
+from ios import simulator_lock, XCRUN, VerificationError
+from product_ui import ProductRun as Run, native_tabs
 
 
 def main():
@@ -53,7 +54,7 @@ def main():
 
     def check_tab_scrolling(mode):
         def tabs(data):
-            return {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
+            return {e["label"]: e["frame"] for e in native_tabs(data).values()}
 
         data = run.ui(f"{mode}-tabs-initial")
         initial = tabs(data)

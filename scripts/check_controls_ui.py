@@ -2,13 +2,14 @@
 """Verify settings, search entry and editor controls on an explicit iOS Simulator."""
 import argparse
 import plistlib
+from pathlib import Path
 import time
 from types import SimpleNamespace
 
-from ios import simulator_lock, Run, VerificationError
+from ios import simulator_lock, VerificationError
 
 
-from product_ui import identifiers, paste_editor
+from product_ui import ProductRun as Run, native_tabs, identifiers
 
 
 def main():
@@ -23,13 +24,15 @@ def main():
         present = identifiers(data)
         if not set(expected) <= present or set(absent) & present:
             raise VerificationError('Unexpected controls: ' + str(present))
-        for entry in data['entries']:
-            if entry.get('uniqueId') in expected:
+        entries = {entry.get('uniqueId'): entry for entry in data['entries'] if entry.get('uniqueId')}
+        entries.update(native_tabs(data))
+        for identifier, entry in entries.items():
+            if identifier in expected:
                 frame = entry['frame']
                 # Native navigation items expose their 36pt visual bounds in AX;
                 # UIKit owns the surrounding hit area. Exercise each actual action.
-                native = entry['uniqueId'] in ('editor.close', 'editor.save', 'editor.help.close', 'library.trash.close')
-                creation = entry['uniqueId'] == 'library.add'
+                native = identifier in ('editor.close', 'editor.save', 'editor.help.close', 'library.trash.close')
+                creation = identifier == 'library.add'
                 minimum = 36 if native or creation else 44
                 if frame['width'] < minimum or frame['height'] < minimum:
                     raise VerificationError('Control is smaller than its touch target: ' + str(entry))
@@ -42,8 +45,7 @@ def main():
             run.launch()
             root = run.wait_ui('root', lambda d: 'navigation.tab.search' in identifiers(d))
             with run.recording():
-                tabs = {e.get('uniqueId'): e['frame'] for e in root['entries']
-                        if e.get('uniqueId', '').startswith('navigation.tab.')}
+                tabs = {selector: entry['frame'] for selector, entry in native_tabs(root).items()}
                 start, end = tabs['navigation.tab.library'], tabs['navigation.tab.settings']
                 run.command(['sim-use', 'swipe', '--from', f"{start['x'] + start['width']/2},{start['y'] + start['height']/2}",
                              '--to', f"{end['x'] + end['width']/2},{end['y'] + end['height']/2}",
@@ -76,10 +78,24 @@ def main():
                 data = run.wait_ui('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
                 controls(data, ('editor.close', 'editor.save', 'editor.keyboard.help', 'editor.keyboard.dismiss'),
                          ('editor.help', 'editor.more'))
-                input_values = {'editor.title': '入力保持の確認', 'editor.body': '本文を保持します。\n二行目 👩🏽‍💻'}
+                input_values = {'editor.title': '入力保持の確認', 'editor.body': (Path(__file__).resolve().parents[1] / 'validation/EditorMarkdown.txt').read_text()}
                 for identifier, value in input_values.items():
-                    paste_editor(run, identifier, value)
+                    run.paste_editor(identifier, value)
                 run.screenshot('editor-keyboard-controls')
+                run.select_editor_mode('プレビュー')
+                preview = run.wait_ui('markdown-preview', lambda d: 'editor.body' not in identifiers(d)
+                                      and 'editor.keyboard.dismiss' not in identifiers(d)
+                                      and any(e.get('role') == 'Heading' and e.get('label') == '見出し' for e in d['entries']))
+                labels = {entry.get('label') for entry in preview['entries']}
+                if not {'見出し', '太字と本文 👩🏽‍💻'} <= labels or 'editor.body' in identifiers(preview):
+                    raise VerificationError('Markdown preview must show rendered text and hide source input')
+                run.screenshot('editor-markdown-preview')
+                run.select_editor_mode('入力')
+                editing = run.wait_ui('markdown-input-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d)
+                                      and 'editor.body' in identifiers(d))
+                actual = {e['uniqueId']: e.get('value') for e in editing['entries'] if e.get('uniqueId') in input_values}
+                if actual != input_values:
+                    raise VerificationError('Preview changed the editor source')
                 run.tap('editor.keyboard.help')
                 run.wait_ui('help', lambda d: 'editor.lengthLimit' in identifiers(d))
                 run.screenshot('editor-help')
@@ -125,6 +141,7 @@ def main():
                     'help_restores_focus': True,
                     'editor_returns_to_caller': True,
                     'help_preserves_title_and_body': True,
+                    'markdown_preview_hides_syntax_and_restores_source': True,
                     'creation_preserves_collection': True,
                 }
     except (Exception, KeyboardInterrupt) as exc:

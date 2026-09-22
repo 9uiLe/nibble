@@ -3,7 +3,7 @@ import CoreGraphics
 /// Visual dimensions and touch dimensions describe separate layout constraints, in points.
 enum InterfaceMetrics {
     static let creationSize: CGFloat = 36
-    static let creationSymbolSize: CGFloat = 24
+    static let creationSymbolSize: CGFloat = 18
     static let controlSize: CGFloat = 36
     static let controlSymbolSize: CGFloat = 18
     static let touchSize: CGFloat = 44

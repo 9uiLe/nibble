@@ -14,6 +14,7 @@ output { overflow-wrap: anywhere; }
 <label for="source">共有する本文</label>
 <textarea id="source">  ご確認ありがとうございます。
 日本語 が 👩🏽‍💻  </textarea>
+<button id="markdown" onclick="fetch('EditorMarkdown.txt').then(response => { if (!response.ok) throw new Error(response.status); return response.text(); }).then(text => document.getElementById('source').value = text).catch(error => document.getElementById('status').textContent = error.message)">Markdownの入力例を使う</button>
 <button id="share" onclick="navigator.share({text: document.getElementById('source').value}).catch(error => document.getElementById('status').textContent = error.name)">テキストを共有</button>
 <p id="status" aria-live="polite"></p>
 <label for="destination">ペースト先</label>
