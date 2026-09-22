@@ -100,8 +100,9 @@ class ProcessTests(unittest.TestCase):
         self.run.args.configuration = "Release"
         for test in [False, True]:
             with self.subTest(test=test), patch.object(self.run, "boot"), patch.object(self.run, "command") as command, patch.object(ios, "validate_summary"):
+                command.return_value = '{}'
                 self.run.build(test=test)
-                arguments = command.call_args_list[0].args[0]
+                arguments = command.call_args_list[1].args[0]
                 self.assertEqual("ENABLE_TESTABILITY=YES" in arguments, test)
                 self.assertEqual(arguments[-1], "test" if test else "build")
 

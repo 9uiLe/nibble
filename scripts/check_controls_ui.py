@@ -38,9 +38,12 @@ def main():
                 # Native navigation items expose their 36pt visual bounds in AX;
                 # UIKit owns the surrounding hit area. Exercise each actual action.
                 native = entry['uniqueId'] in ('editor.close', 'editor.save', 'editor.help.close', 'library.trash.close')
-                minimum = 36 if native else 44
+                creation = entry['uniqueId'] == 'library.add'
+                minimum = 36 if native or creation else 44
                 if frame['width'] < minimum or frame['height'] < minimum:
                     raise VerificationError('Control is smaller than its touch target: ' + str(entry))
+                if creation and any(abs(frame[axis] - 36) > .5 for axis in ('width', 'height')):
+                    raise VerificationError('Creation button must be 36 by 36 points: ' + str(entry))
 
     try:
         run.setup()

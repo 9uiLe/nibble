@@ -11,7 +11,7 @@
 | View比較の生成 | AppMacrosの@Equatable / EquatableBodyView |
 | RMLの表示 | ローカルPackageのRivePresentation経由でrive-iosのApple runtime API |
 
-直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
+SPMの直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。RiveRuntimeは[描画先取得の修正](architecture/presentation.md#描画先の取得)を含むローカルPackageとし、ソース・間接依存をflake.lockで固定してビルドする。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
 
 製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#4-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 

@@ -62,11 +62,173 @@
         "url": "https://releases.rive.app/cli/v1.0.4/rive-macos-arm64.tar.gz"
       }
     },
+    "rive-core-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789448174,
+        "narHash": "sha256-6UJKF+9wDv/ILmEwligO+VkTIHeemsJ2aEhHp/VglpY=",
+        "owner": "rive-app",
+        "repo": "rive-runtime",
+        "rev": "1af8ccbefdf906ea5c33e80845360c62b43bafb3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rive-app",
+        "repo": "rive-runtime",
+        "rev": "1af8ccbefdf906ea5c33e80845360c62b43bafb3",
+        "type": "github"
+      }
+    },
+    "rive-harfbuzz": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1773434286,
+        "narHash": "sha256-7TE3qdjVK+QYPLdGHtsfcqjEmbjPiegWK6u0RAeLhs8=",
+        "owner": "rive-app",
+        "repo": "harfbuzz",
+        "rev": "08d34675f64b1ac4880f4f10c9fd474a56dd4399",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rive-app",
+        "ref": "rive_13.1.1",
+        "repo": "harfbuzz",
+        "type": "github"
+      }
+    },
+    "rive-ios-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789463385,
+        "narHash": "sha256-4nD2i7HerFHrgok+4RThxTdSlkwilGMMtPDpeBoC3PM=",
+        "owner": "rive-app",
+        "repo": "rive-ios",
+        "rev": "4c42e5839167a06a56d336e80813578bac018dde",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rive-app",
+        "repo": "rive-ios",
+        "rev": "4c42e5839167a06a56d336e80813578bac018dde",
+        "type": "github"
+      }
+    },
+    "rive-libhydrogen": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778802633,
+        "narHash": "sha256-65o7odXZvgLu5GORWHsaUX2iNx5rs5CoEYGwkt/nZ7g=",
+        "owner": "luigi-rosso",
+        "repo": "libhydrogen",
+        "rev": "4c298c5e3012d891b8b375c6dd215f580a36ed60",
+        "type": "github"
+      },
+      "original": {
+        "owner": "luigi-rosso",
+        "ref": "rive_0_2",
+        "repo": "libhydrogen",
+        "type": "github"
+      }
+    },
+    "rive-luau": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786738445,
+        "narHash": "sha256-sY+/zbiFF3PKlwtHVpn/FISnJwtZ6YdScsWj4CDiJ0U=",
+        "owner": "luigi-rosso",
+        "repo": "luau",
+        "rev": "fb6ff089bd5687713a59aa60a5baa86e0a5c8bfd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "luigi-rosso",
+        "ref": "rive_0_734",
+        "repo": "luau",
+        "type": "github"
+      }
+    },
+    "rive-miniaudio": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1747244852,
+        "narHash": "sha256-9F5+plMKhd3o9DBXyGH77c1MtE1w3QFu42UEpO29stE=",
+        "owner": "rive-app",
+        "repo": "miniaudio",
+        "rev": "3a8b070f80e203a35ec763c5118da20805a90d5a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rive-app",
+        "ref": "rive_changes_5",
+        "repo": "miniaudio",
+        "type": "github"
+      }
+    },
+    "rive-ply": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1518720172,
+        "narHash": "sha256-PEwIgmM7DQHy6FOhcUwkricrdW3wZe3ggSQnUvgKISo=",
+        "owner": "dabeaz",
+        "repo": "ply",
+        "rev": "0f398b72618c1564d71f7dc0558e6722b241875a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "dabeaz",
+        "ref": "3.11",
+        "repo": "ply",
+        "type": "github"
+      }
+    },
+    "rive-sheenbidi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1650787099,
+        "narHash": "sha256-ybHM+/ZBf3QIJax41CsiiEaRN4kZvattT4o1U7vJsPQ=",
+        "owner": "Tehreer",
+        "repo": "SheenBidi",
+        "rev": "adfccc46504b1be37b8894f064121c56c31312f7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Tehreer",
+        "ref": "v2.6",
+        "repo": "SheenBidi",
+        "type": "github"
+      }
+    },
+    "rive-yoga": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787361209,
+        "narHash": "sha256-an0r+I/QwFnZC+F9Xi127jg0cGKrh/Fg21/nr5xCxSM=",
+        "owner": "rive-app",
+        "repo": "yoga",
+        "rev": "dc9e0e9f7c29c2a910e76f3738a800ca3c73e7fa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rive-app",
+        "ref": "rive_changes_v2_0_1_3_grid",
+        "repo": "yoga",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "hamio": "hamio",
         "nixpkgs": "nixpkgs_2",
         "rive-cli": "rive-cli",
+        "rive-core-source": "rive-core-source",
+        "rive-harfbuzz": "rive-harfbuzz",
+        "rive-ios-source": "rive-ios-source",
+        "rive-libhydrogen": "rive-libhydrogen",
+        "rive-luau": "rive-luau",
+        "rive-miniaudio": "rive-miniaudio",
+        "rive-ply": "rive-ply",
+        "rive-sheenbidi": "rive-sheenbidi",
+        "rive-yoga": "rive-yoga",
         "sim-use": "sim-use"
       }
     },

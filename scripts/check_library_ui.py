@@ -42,8 +42,10 @@ def main():
         row = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "snippet." + snippet_id)
         copy = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "copy." + snippet_id)
         trailing = copy["x"] >= row["x"] + row["width"] - 1
-        if not trailing or min(copy["width"], copy["height"], add["width"], add["height"]) < 44:
-            raise VerificationError("Copy must stay trailing; copy and creation need minimum 44pt targets")
+        if not trailing or min(copy["width"], copy["height"]) < 44:
+            raise VerificationError("Copy must stay trailing with a minimum 44pt target")
+        if any(abs(add[axis] - 36) > 0.5 for axis in ("width", "height")):
+            raise VerificationError("Create must retain a 36pt target")
 
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
@@ -207,8 +209,8 @@ def main():
             create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"
             if create_id == "library.add":
                 add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
-                if min(add["width"], add["height"]) < 44:
-                    raise VerificationError("Create must retain a 44pt target")
+                if any(abs(add[axis] - 36) > 0.5 for axis in ("width", "height")):
+                    raise VerificationError("Create must retain a 36pt target")
                 if add["x"] < before["screen"]["width"] * 0.7 or add["y"] >= 150:
                     raise VerificationError("Create must remain at the top trailing corner")
             else:

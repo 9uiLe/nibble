@@ -148,6 +148,14 @@ python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
 
 ## ビルド・テスト・動作確認
 
+製品のビルド前に、CLIが修正済みRiveRuntimeを準備する。初回はローカルMacでiOS・Simulator向けにコンパイルし、以後は入力と完成物のhashが一致する場合に再利用する。Xcodeから直接開く場合は、先に次を実行する。認証情報と署名は使用しない。
+
+```sh
+nix develop --command env NIBBLE_UI_FORMAT=json python3 scripts/build_rive_runtime.py
+```
+
+生成先と更新条件は[描画先の取得](architecture/presentation.md#描画先の取得)を参照する。
+
 個別コマンドは特定工程の調査や明示的な再検査に使う。計画に従って合格した工程を、追加の変更や懸念なしに繰り返す必要はない。次は製品のNibbleをReleaseで検証する例である。
 
 ```sh

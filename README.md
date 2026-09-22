@@ -13,7 +13,7 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | 共有拡張 | 他アプリの共有シートからテキスト・URLを取り込む |
 | キーボード | 行タップで本文を挿入し、右端の「その他」から全文を読む。フルアクセスを許可するとコピー・ピン更新も使える |
 
-一覧・検索・設定は下部のアイコンタブで切り替えます。下方向のスクロールで三つのアイコンを残して小さくなり、上方向で戻ります。新規作成は各ルート画面右上の＋から開きます。編集画面の×は閉じる、チェックは保存で、すべてのアイコンに読み上げ名と操作領域を設けます。
+一覧・検索・設定は下部の標準タブバーで切り替えます。スクロール中も縮小せず、タップとOS標準のドラッグ選択を使えます。新規作成は各ルート画面右上の＋から開きます。編集画面の×は閉じる、チェックは保存で、すべてのアイコンに読み上げ名と操作領域を設けます。
 
 削除した項目は通知の「元に戻す」または設定の削除一覧から復元できます。全文、入力の保持、操作の失敗を区別して扱う契約は[製品仕様・要件](docs/product-specification.md)に定義します。
 
@@ -125,11 +125,12 @@ Swift Package Manager（SPM）がアプリのライブラリ依存を解決し�
 | swift-scoped-animation | 0.2.2 | アニメーションの適用範囲と伝播の制御 |
 | swift-app-macros | 0.3.0 | 本体・共有拡張・キーボード・RivePresentationのViewにMainActor上の比較を定義 |
 | swift-syntax | 603.0.2 | Mac上でAppMacrosのマクロを構築する間接依存 |
-| rive-ios | 6.27.0 | RivePresentationを通じた説明イラストの表示。本体のみ |
+| rive-ios | 6.27.0＋ローカル描画修正 | RivePresentationを通じた説明イラストの表示。本体のみ。ソースはflake.lockで固定 |
 
 swift-syntaxはAppMacrosのmanifestが指定する版を使います。製品の構成と依存の対応条件は[依存とビルド](docs/library-policy.md#依存とビルド)に定義しています。ネットワーク接続のあるMacで依存を解決してください。
 
 ```sh
+python3 scripts/build_rive_runtime.py
 xcodebuild -resolvePackageDependencies \
   -project app/Nibble.xcodeproj -scheme Nibble \
   -clonedSourcePackagesDirPath artifacts/SourcePackages

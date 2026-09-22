@@ -86,11 +86,11 @@ Canvasの停止状態は次のORで決まる。
 
 ホストは、アセット契約、Sessionの保持期間、読込と再試行、表示時の配色、可視性、再生方針、説明文と読み上げを定義する。Canvasは演出の意味やレイアウトを決めない。fitなどの描画設定は `session.rive` へ指定し、操作可能なアセットでは表示範囲とタッチ座標を照合する。Reduce Motionへの追従方針もホストがアセット固有のData Bindingへ渡す。
 
-[Package.swift](Package.swift)はSwift tools 6.0、rive-iosとswift-app-macrosのexact指定を持つ。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンを使用し、利用アプリはPackage.resolvedを共有する。接続にはApple runtime APIのWorker、File、Rive、ViewModelInstanceとData Bindingを使う。
+[Package.swift](Package.swift)はSwift tools 6.0とswift-app-macrosのexact指定を持つ。RiveRuntimeは6.27.0へ描画先取得の修正を適用し、[固定ソースからのビルド](../../../docs/architecture/presentation.md#描画先の取得)が生成するローカルPackageを参照する。AppMacrosのコンパイルにはSwift 6.3対応ツールチェーンを使用し、利用アプリはPackage.resolvedを共有する。接続にはApple runtime APIのWorker、File、Rive、ViewModelInstanceとData Bindingを使う。
 
 別のアプリやリポジトリへ導入するときは、次の接続を用意する。
 
-1. Packageのproductを追加し、制作ソースと生成済み `.riv` を製品側で管理する。
+1. 修正済みRiveRuntimeを同じ固定入力から生成し、Package.swiftのローカル依存先を接続する。Packageのproductを追加し、制作ソースと生成済み `.riv` を製品側で管理する。
 2. `.riv` を指定Bundleへ同梱し、契約、所有者、ホストViewを実装する。
 3. RiveRuntimeのFramework同梱と探索経路を設定し、通常のアプリ起動で確認する。
 4. 依存lockとライセンスを管理し、実バイナリの契約、独立状態、停止・復帰、設定変更、失敗回復を検証する。

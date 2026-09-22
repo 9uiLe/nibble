@@ -1,0 +1,283 @@
+--- a/Source/Concurrency/View/RiveUIView.swift
++++ b/Source/Concurrency/View/RiveUIView.swift
+@@ -59,6 +59,13 @@
+     /// lets `draw(in:)` bail early with a non-blocking `wait(timeout: .now())`
+     /// instead. Signaled via ``DrawableToken`` when the draw completes.
+     private var drawableSemaphore: DispatchSemaphore?
++    private var drawableSource: DrawableSource?
++
++    // Core Animation may wait for presentation even after a GPU completion has
++    // returned a semaphore permit. Never perform that wait on the main actor.
++    private let drawableQueue = DispatchQueue(label: "app.rive.drawable-acquisition", qos: .userInteractive)
++    private var drawableAcquisitionPending = false
++    private var drawableGeneration: UInt64 = 0
+ 
+     private var renderer: (any RiveUIRendererProtocol)?
+ 
+@@ -121,6 +128,7 @@
+     // respected.
+     private var _isPaused: Bool = true {
+         didSet {
++            if _isPaused != oldValue { drawableGeneration &+= 1 }
+             let newValue = _isPaused
+             controller?.isPaused = newValue
+             #if !os(macOS) || RIVE_MAC_CATALYST
+@@ -307,12 +315,14 @@
+ 
+     #if !os(macOS) || RIVE_MAC_CATALYST
+     public override func didMoveToWindow() {
++        drawableGeneration &+= 1
+         // This is also called when the view is removed (before deinit), which will
+         // implicitly invalidate the display link. 
+         updateDisplayLink()
+     }
+     #else
+     public override func viewDidMoveToWindow() {
++        drawableGeneration &+= 1
+         // This is also called when the view is removed (before deinit), which will
+         // implicitly invalidate the display link.
+         updateDisplayLink()
+@@ -362,6 +372,7 @@
+         let maxDrawableCount: Int
+         if let metalLayer = mtkView.layer as? CAMetalLayer {
+             maxDrawableCount = metalLayer.maximumDrawableCount
++            drawableSource = DrawableSource(metalLayer)
+         } else {
+             maxDrawableCount = 1
+         }
+@@ -369,6 +380,7 @@
+     }
+ 
+     private func setupRive() {
++        drawableGeneration &+= 1
+         if let rive {
+             RiveLog.debug(tag: .view, "[RiveUIView] Setting up Rive renderer and controller")
+             renderer = rive.makeRenderer()
+@@ -409,16 +421,26 @@
+     ///
+     /// - Parameter view: The Metal view to render into
+     public func draw(in view: MTKView) {
+-        guard let controller else {
++        // Keep only one acquisition in flight; advancing queued frames while
++        // waiting would add latency and unbounded work to the command server.
++        guard !drawableAcquisitionPending,
++              isOnscreen(),
++              let controller,
++              let renderer,
++              let device = view.device,
++              let source = drawableSource,
++              let drawableSemaphore,
++              view.drawableSize.width > 0, view.drawableSize.height > 0,
++              drawableSemaphore.wait(timeout: .now()) == .success else {
+             return
+         }
+-
++        let token = DrawableToken(drawableSemaphore)
++        let size = view.drawableSize
+         let now = displayLink?.timestamp ?? CACurrentMediaTime()
+-        let isOnscreenValue = isOnscreen()
+         let configuration = controller.advance(
+             now: now,
+-            isOnscreen: isOnscreenValue,
+-            drawableSize: view.drawableSize,
++            isOnscreen: true,
++            drawableSize: size,
+             scaleProvider: self
+         )
+ 
+@@ -426,65 +448,50 @@
+             return
+         }
+ 
+-        // Bind main-actor-side MetalKit and drawable temporaries to this
+-        // submission. The asynchronous command-server callback has its own
+-        // autorelease pool in `_RiveUIRendererCore`.
+-        autoreleasepool {
+-            guard let device = view.device else {
+-                RiveLog.error(tag: .view, "[RiveUIView] Draw failed: missing device")
+-                delegate?.view(self, didReceiveError: .noDevice)
+-                return
+-            }
+-
+-            guard let drawableSemaphore else {
+-                return
+-            }
+-
+-            guard drawableSemaphore.wait(timeout: .now()) == .success else {
+-                return
+-            }
+-
+-            // Token guarantees signal() for this wait(), even if the draw
+-            // callback is never executed (e.g. CommandServer disconnects first).
+-            let token = DrawableToken(drawableSemaphore)
+-
+-            guard let currentDrawable = view.currentDrawable else {
+-                token.signal()
+-                RiveLog.error(tag: .view, "[RiveUIView] Draw failed: missing drawable")
+-                delegate?.view(self, didReceiveError: .noDrawable)
+-                return
+-            }
+-
+-            guard let renderer else {
+-                token.signal()
+-                RiveLog.error(tag: .view, "[RiveUIView] Draw failed: missing renderer")
+-                delegate?.view(self, didReceiveError: .noRenderer)
+-                return
+-            }
+-
+-            let drawableLifetime = DrawableLifetime(currentDrawable, token: token)
+-
+-            renderer.draw(
+-                configuration,
+-                to: currentDrawable.texture,
+-                from: device,
+-                onDraw: { commandBuffer in
+-                    guard let drawable = drawableLifetime.drawable else {
+-                        assertionFailure("Drawable must remain alive while its callback executes")
++        let generation = drawableGeneration
++        drawableAcquisitionPending = true
++        drawableQueue.async {
++            autoreleasepool {
++                let lifetime = source.nextDrawable().map { DrawableLifetime($0, texture: $0.texture, token: token) }
++                DispatchQueue.main.async { [weak self, weak view] in
++                    guard let self, let view else { return }
++                    self.drawableAcquisitionPending = false
++                    guard self.drawableGeneration == generation,
++                          self.controller === controller,
++                          self.isOnscreen(), view.drawableSize == size else {
++                        if self.controller === controller { controller.invalidateDraw() }
++                        self.tick()
+                         return
+                     }
+-                    drawableLifetime.markPresented()
+-                    commandBuffer.addCompletedHandler { _ in
+-                        token.signal()
++                    guard let lifetime, let texture = lifetime.texture else {
++                        controller.invalidateDraw()
++                        self.delegate?.view(self, didReceiveError: .noDrawable)
++                        self.tick()
++                        return
+                     }
+-                    commandBuffer.present(drawable)
+-                },
+-                onSkipped: nil,
+-                onError: { [weak self] error in
+-                    self?.notifyDelegateOfRendererError(error)
++                    // A layer resize may race acquisition. Never render with the
++                    // dimensions of an old drawable or lose a paused bootstrap.
++                    guard texture.width == Int(size.width),
++                          texture.height == Int(size.height) else {
++                        controller.invalidateDraw()
++                        self.tick()
++                        return
++                    }
++                    renderer.draw(
++                        configuration,
++                        to: texture,
++                        from: device,
++                        onDraw: { commandBuffer in
++                            guard let drawable = lifetime.drawable else { return }
++                            lifetime.markPresented()
++                            commandBuffer.addCompletedHandler { _ in token.signal() }
++                            commandBuffer.present(drawable)
++                        },
++                        onSkipped: nil,
++                        onError: { [weak self] error in self?.notifyDelegateOfRendererError(error) }
++                    )
+                 }
+-            )
+-
++            }
+         }
+     }
+ 
+@@ -693,6 +700,7 @@
+         displayLink.frameRate = frameRate
+         displayLink.isPaused = isPaused
+         self.displayLink = displayLink
++        tick() // A paused view also needs its first frame after entering a window.
+     }
+ 
+     private func tick() {
+@@ -706,6 +714,25 @@
+ }
+ 
+ extension RiveUIView {
++    /// Only Metal's thread-safe drawable acquisition crosses the actor boundary.
++    /// Layer/view configuration and final drawable retirement remain on main.
++    private final class DrawableSource: @unchecked Sendable {
++        private final class Storage: @unchecked Sendable {
++            var layer: CAMetalLayer?
++            init(_ layer: CAMetalLayer) { self.layer = layer }
++        }
++        private let storage: Storage
++        init(_ layer: CAMetalLayer) { storage = Storage(layer) }
++        func nextDrawable() -> CAMetalDrawable? {
++            dispatchPrecondition(condition: .notOnQueue(.main))
++            return storage.layer?.nextDrawable()
++        }
++        deinit {
++            let storage = storage
++            DispatchQueue.main.async { storage.layer = nil }
++        }
++    }
++
+     /// Retires our drawable reference on main, including when a queued callback
+     /// is discarded without executing.
+     final class DrawableLifetime: @unchecked Sendable {
+@@ -714,24 +741,28 @@
+         // even if the worker has not finished releasing its storage reference.
+         private final class Storage: @unchecked Sendable {
+             var drawable: CAMetalDrawable?
++            var texture: MTLTexture?
+             let token: DrawableToken
+             var wasPresented = false
+ 
+-            init(_ drawable: CAMetalDrawable, token: DrawableToken) {
++            init(_ drawable: CAMetalDrawable, texture: MTLTexture?, token: DrawableToken) {
+                 self.drawable = drawable
++                self.texture = texture
+                 self.token = token
+             }
+         }
+ 
+         private let storage: Storage
+ 
+-        init(_ drawable: CAMetalDrawable, token: DrawableToken) {
+-            storage = Storage(drawable, token: token)
++        init(_ drawable: CAMetalDrawable, texture: MTLTexture? = nil, token: DrawableToken) {
++            storage = Storage(drawable, texture: texture, token: token)
+         }
+ 
+         var drawable: CAMetalDrawable? {
+             storage.drawable
+         }
++
++        var texture: MTLTexture? { storage.texture }
+ 
+         func markPresented() {
+             storage.wasPresented = true
+@@ -741,6 +772,7 @@
+             let storage = storage
+             DispatchQueue.main.async {
+                 storage.drawable = nil
++                storage.texture = nil
+                 if !storage.wasPresented {
+                     storage.token.signal()
+                 }
+--- a/Source/Concurrency/View/RiveController.swift
++++ b/Source/Concurrency/View/RiveController.swift
+@@ -146,6 +146,13 @@
+         RiveLog.trace(tag: .view, "[RiveUIView] Resetting frame timing")
+         // This will cause the initial advance on next play to be 0.
+         lastTimestamp = nil
++    }
++
++    // Acquisition can be invalidated by a resize, pause or view replacement.
++    // Keep the bootstrap/settled redraw obligation until a frame is submitted.
++    func invalidateDraw() {
++        hasProcessedFirstDraw = false
++        lastDrawnDrawableSize = nil
+     }
+ 
+     func advance(

@@ -70,6 +70,14 @@ Canvasはホストから渡された停止要求と自身の条件をORで合成
 
 表示用Viewを取り外す際は、同期的に停止し、表示用Viewが持つRive参照を外す。取り外されたViewがSwiftUI内部に一時的に残っても、再生時計やFileを保持し続けないためである。
 
+## 描画先の取得
+
+RiveRuntime 6.27.0へ[ローカルpatch](../../scripts/rive-runtime.patch)を適用する。Metalの描画先はGPUの完了後も画面への提示を待って再利用できない場合があり、[CAMetalLayer.nextDrawable](https://developer.apple.com/documentation/quartzcore/cametallayer/nextdrawable())は呼出元を待たせる。取得をruntime内部の専用キューへ移し、メインスレッドでスクロール処理を継続できる構成とする。[AppleのカスタムMetal View](https://developer.apple.com/documentation/metal/creating-a-custom-metal-view)と同様に、View・layerの設定はメインスレッド、描画先の取得はバックグラウンドで扱う。
+
+取得中の要求はViewごとに1件とし、その間は次のフレームを蓄積しない。textureの取得も専用キュー内で済ませ、取得後はメインスレッドで世代・可視性・寸法を照合する。停止・View差し替え・離脱・resizeで古くなった結果を破棄し、初回・停止中の再描画義務を戻す。layer・描画先・textureの最後の参照はメインキューで解放し、GPU投入数の制限を維持する。再生時計・フレームレート・RMLの画質は変更しない。
+
+Apple runtime・core・間接依存のソースとビルド補助ツールはflakeとlockで固定する。[ビルドスクリプト](../../scripts/build_rive_runtime.py)がローカルMacでiOSとSimulator向けXCFrameworkを生成し、入力と完成物のhashを照合して再利用する。生成物は`artifacts/RiveRuntime/`、ソース・工程ログは`artifacts/rive-runtime/`へ置く。SPMキャッシュの書換えや外部の独自バイナリ公開には依存しない。上流で同じ待ちが解消された版へ移行できた時点でpatchとローカルビルドを廃止する。
+
 ## 配色と寸法
 
 ライト／ダークの配色は、Sessionが利用可能になった時点の画面設定から決める。ホストは配色をData Bindingへ渡してから初めてCanvasを表示する。読込中に外観が変わった場合も、完了時の設定を使う。
