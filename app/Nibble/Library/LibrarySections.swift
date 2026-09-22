@@ -21,7 +21,7 @@ struct LibrarySections: View {
                     DraftListRow(model: model, taskOwner: taskOwner, draft: draft)
                 }
             } header: {
-                Label("タップして、編集を再開", systemImage: "square.and.pencil")
+                Text("タップして、編集を再開")
                     .font(.nibbleBody).textCase(nil).padding(.vertical, 8)
             } footer: {
                 Text("下書きは、編集画面で「保存」すると一覧やキーボードから使えます。")

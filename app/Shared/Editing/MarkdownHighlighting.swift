@@ -2,6 +2,16 @@ import Foundation
 
 /// Ranges refer to the untouched source, including its Markdown punctuation.
 struct MarkdownHighlighting: Equatable, Sendable {
+    struct Block: Equatable, Identifiable, Sendable {
+        let id: Int
+        var text: AttributedString
+        let heading: Int?
+        let code: Bool
+        let quote: Bool
+        let listMarker: String?
+        let listDepth: Int
+    }
+
     struct Span: Equatable, Sendable {
         let range: NSRange
         let heading: Int?
@@ -14,6 +24,7 @@ struct MarkdownHighlighting: Equatable, Sendable {
     }
     var source = ""
     var spans: [Span] = []
+    var blocks: [Block] = []
 
     @concurrent
     static func parse(_ source: String) async -> Self {
@@ -26,20 +37,40 @@ struct MarkdownHighlighting: Equatable, Sendable {
         var result = Self(source: source)
         for run in parsed.runs {
             if Task.isCancelled { return Self(source: source) }
-            guard let position = run.markdownSourcePosition,
-                  let range = input.range(for: position) else { continue }
             let inline = run.inlinePresentationIntent ?? []
             var heading: Int?
             var code = inline.contains(.code)
+            var codeBlock = false
             var quote = false
+            var listItem: Int?
+            var orderedList: Bool?
+            var listDepth = 0
             for component in run.presentationIntent?.components ?? [] {
                 switch component.kind {
                 case .header(level: let level): heading = level
-                case .codeBlock: code = true
+                case .codeBlock: code = true; codeBlock = true
                 case .blockQuote: quote = true
+                case .listItem(ordinal: let ordinal): if listItem == nil { listItem = ordinal }
+                case .orderedList:
+                    if orderedList == nil { orderedList = true }
+                    listDepth += 1
+                case .unorderedList:
+                    if orderedList == nil { orderedList = false }
+                    listDepth += 1
                 default: break
                 }
             }
+            let blockID = run.presentationIntent?.components.first?.identity ?? 0
+            let content = AttributedString(parsed[run.range])
+            if result.blocks.last?.id == blockID {
+                result.blocks[result.blocks.count - 1].text.append(content)
+            } else {
+                let marker = listItem.map { orderedList == true ? "\($0)." : "•" }
+                result.blocks.append(Block(id: blockID, text: content, heading: heading, code: codeBlock,
+                                           quote: quote, listMarker: marker, listDepth: listDepth))
+            }
+            guard let position = run.markdownSourcePosition,
+                  let range = input.range(for: position) else { continue }
             result.spans.append(Span(range: range, heading: heading,
                                      bold: inline.contains(.stronglyEmphasized),
                                      italic: inline.contains(.emphasized), code: code,

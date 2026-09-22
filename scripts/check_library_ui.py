@@ -7,8 +7,8 @@ import time
 from types import SimpleNamespace
 from uuid import uuid4
 
-from ios import simulator_lock, Run, XCRUN, VerificationError
-from product_ui import identifiers, paste_editor
+from ios import simulator_lock, XCRUN, VerificationError
+from product_ui import ProductRun as Run, native_tabs, identifiers, paste_editor
 
 
 def main():
@@ -112,7 +112,7 @@ def main():
             if filters != {"library.filter.all", "library.filter.pinned", "library.filter.drafts"}:
                 raise VerificationError("Expected All, Pinned and Drafts filters above the library")
             run.screenshot("before")
-            tabs = {e.get("label"): e for e in before["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
+            tabs = {e.get("label"): e for e in native_tabs(before).values()}
             if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
                 raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
             create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"

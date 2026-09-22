@@ -10,7 +10,8 @@ import hashlib
 from pathlib import Path
 import time
 from types import SimpleNamespace
-from ios import simulator_lock, ROOT, Run, XCRUN, VerificationError
+from ios import simulator_lock, ROOT, XCRUN, VerificationError
+from product_ui import ProductRun as Run, native_tabs
 
 
 def element(data, identifier):
@@ -223,8 +224,7 @@ class AboutCheck:
             paragraph = element(data, "about.privacy" if self.story == "about" else "keyboard.guide.limits")
             if paragraph:
                 frame = paragraph["frame"]
-                bar_top = min((entry["frame"]["y"] for entry in data["entries"]
-                               if entry.get("uniqueId", "").startswith("navigation.tab.")),
+                bar_top = min((entry["frame"]["y"] for entry in native_tabs(data).values()),
                               default=data["screen"]["height"] - 62)
                 if 75 <= frame["y"] and frame["y"] + frame["height"] <= bar_top - 8:
                     break

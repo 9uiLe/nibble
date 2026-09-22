@@ -6,8 +6,8 @@ import time
 from types import SimpleNamespace
 from uuid import uuid4
 
-from ios import simulator_lock, Run, XCRUN, VerificationError
-from product_ui import identifiers, paste_editor
+from ios import simulator_lock, XCRUN, VerificationError
+from product_ui import ProductRun as Run, native_tabs, identifiers, paste_editor
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
         return run.wait_ui(name, lambda data: "library.notice" not in identifiers(data) and "library.undo" not in identifiers(data))
 
     def navigation_frames(data):
-        frames = {e["label"]: e["frame"] for e in data["entries"] if e.get("uniqueId", "").startswith("navigation.tab.")}
+        frames = {e["label"]: e["frame"] for e in native_tabs(data).values()}
         frames.update({"library.add": e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add"})
         frames.update({e["uniqueId"]: e["frame"] for e in data["entries"]
                        if e.get("uniqueId", "").startswith("library.filter.")})
@@ -49,7 +49,7 @@ def main():
         for attempt in range(12):
             data = run.ui(f"reveal-{attempt}")
             bottom = min((e["frame"]["y"] for e in data["entries"]
-                          if e.get("uniqueId", "").startswith("navigation.tab.") or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
+                          if e in native_tabs(data).values() or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
             top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
                        if e.get("role") in ("Heading", "TextField") and e["frame"]["y"] < 250), default=126) + 8
             entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
@@ -235,8 +235,7 @@ def main():
                 def library_is_active(data):
                     return (data.get("appPackage") == run.config["bundle_id"]
                             and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "一覧" for e in data["entries"])
-                            and any(e.get("uniqueId") == "navigation.tab.library"
-                                    and "selected" in e.get("states", []) for e in data["entries"])
+                            and "selected" in native_tabs(data).get("navigation.tab.library", {}).get("states", [])
                             and ("library.add" in identifiers(data) or "library.createFirst" in identifiers(data)))
                 run.wait_ui("foreground-root", library_is_active)
                 time.sleep(0.3)
@@ -253,8 +252,7 @@ def main():
                     previous = None
                     for attempt in range(12):
                         data = run.ui(f"scroll-{attempt}")
-                        tab_top = min(e["frame"]["y"] for e in data["entries"]
-                                      if e.get("uniqueId", "").startswith("navigation.tab."))
+                        tab_top = min(e["frame"]["y"] for e in native_tabs(data).values())
                         controls = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")
                                     and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= tab_top]
                         signature = [(e["uniqueId"], round(e["frame"]["y"])) for e in controls]
