@@ -15,7 +15,7 @@ from script_ui import ui
 from ios_project import load_project
 from verification_evidence import differences, working_hashes
 from verification_catalog import (STAGES, REGRESSION_STEPS, PERFORMANCE_STEPS,
-                                  PRODUCT_STEPS, OFFLINE_STEPS, SCOPES)
+                                  PRODUCT_STEPS, PRODUCT_UI_INPUTS, OFFLINE_STEPS, SCOPES)
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
@@ -50,7 +50,15 @@ def plan(paths, scope='auto'):
         selected.setdefault(name, []).append(reason)
     select('static', '仕上げの共通検査')
     for path in paths:
-        if path.endswith('.md') or path.startswith('docs/') or path.startswith('.agents/'):
+        if path in PRODUCT_UI_INPUTS:
+            select('controls-ui', path + ': 編集の入力例')
+            manual.append('共有拡張の入力・プレビュー・保存と原文コピー: docs/ios-verification.md（' + path + '）')
+            continue
+        elif path == 'scripts/product_ui.py':
+            for name in PRODUCT_STEPS - {'product-test'}:
+                select(name, path + ': 製品UIの共通操作')
+            continue
+        elif path.endswith('.md') or path.startswith('docs/') or path.startswith('.agents/'):
             continue
         if path.startswith(('app/NibblePerformanceTests/', 'app/TestSupport/')) or path in {
                 'app/performance-project.json', 'app/Nibble.xcodeproj/xcshareddata/xcschemes/NibblePerformance.xcscheme'}:

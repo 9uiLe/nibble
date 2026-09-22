@@ -1,12 +1,13 @@
-"""Observed editor input shared by product UI checks; assertions stay in each scenario."""
+"""Observed native navigation and editor operations for product UI scenarios."""
 from ios import Run, VerificationError
 
 
 TAB_LABELS = {'navigation.tab.library': '一覧', 'navigation.tab.search': '検索', 'navigation.tab.settings': '設定'}
+EDITOR_MODES = ('入力', 'プレビュー')
 
 
 def native_tabs(data):
-    """Resolve test selectors to observed native tabs without changing raw AX data."""
+    """Resolve logical selectors without altering the raw accessibility observation."""
     if data.get('appPackage') != 'nibble.9uiLe.com':
         return {}
     resolved = {}
@@ -14,27 +15,20 @@ def native_tabs(data):
         matches = [entry for entry in data['entries']
                    if entry.get('label') == label
                    and (entry.get('uniqueId') == selector or entry.get('role') == 'RadioButton')]
-        if len(matches) > 1:
-            raise VerificationError('Ambiguous native tab: ' + label)
-        if matches:
-            resolved[selector] = matches[0]
+        entry = unique_entry(matches, 'native tab: ' + label)
+        if entry is not None:
+            resolved[selector] = entry
     return resolved
 
 
-class ProductRun(Run):
-    def tap(self, identifier):
-        if identifier not in TAB_LABELS:
-            return super().tap(identifier)
-        entry = native_tabs(self.ui('resolve-' + identifier)).get(identifier)
-        if entry is None:
-            raise VerificationError('Native tab is not visible: ' + identifier)
-        frame = entry['frame']
-        self.command(['sim-use', 'tap', '-x', str(frame['x'] + frame['width'] / 2),
-                      '-y', str(frame['y'] + frame['height'] / 2), '--device', self.args.device])
+def unique_entry(entries, description):
+    if len(entries) > 1:
+        raise VerificationError('Ambiguous ' + description)
+    return next(iter(entries), None)
 
 
 def identifiers(data):
-    return {entry.get("uniqueId", "") for entry in data["entries"]} | native_tabs(data).keys()
+    return {entry.get('uniqueId', '') for entry in data['entries']} | native_tabs(data).keys()
 
 
 def editor_viewport(data):
@@ -47,81 +41,101 @@ def editor_viewport(data):
     return top, bottom
 
 
-def paste_editor(run, identifier, text, replace=False):
-    def reflected(data):
-        value = next((e.get("value", "") for e in data["entries"] if e.get("uniqueId") == identifier), "")
-        # AX may collapse whitespace; each scenario checks saved/copied bytes separately.
-        return "".join(value.split()) == "".join(text.split())
+def input_point(data, identifier, *, trailing=False):
+    entry = unique_entry([e for e in data['entries'] if e.get('uniqueId') == identifier], identifier)
+    if entry is None:
+        raise VerificationError('Input is missing: ' + identifier)
+    frame = entry['frame']
+    top, bottom = editor_viewport(data)
+    top, bottom = max(top, frame['y']), min(bottom, frame['y'] + frame['height'])
+    if bottom - top < 12:
+        raise VerificationError('Input is covered by fixed controls: ' + identifier)
+    return frame['x'] + frame['width'] * (.95 if trailing else .5), (top + bottom) / 2
 
-    def focus_target(at_end=False):
-        def point(data):
-            frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == identifier)
-            top, bottom = editor_viewport(data)
-            top, bottom = max(top, frame['y']), min(bottom, frame['y'] + frame['height'])
-            if bottom <= top:
-                raise VerificationError("The input field is covered by fixed controls: " + identifier)
-            # These short fixtures leave trailing space. Avoid long-pressing
-            # inside a word, which selects a fragment instead of the menu.
-            return frame["x"] + frame["width"] * (0.95 if at_end else 0.5), (top + bottom) / 2
 
-        data = run.wait_ui(identifier + "-focus-target", lambda data: identifier in identifiers(data))
-        for attempt in range(4):
+def editor_mode_target(data, label):
+    if label not in EDITOR_MODES:
+        raise ValueError('Unknown editor mode: ' + label)
+    entries = data['entries']
+    # The app exposes a TabGroup; the shared editor can expose individual radio buttons.
+    entry = unique_entry([e for e in entries if e.get('label') == label
+                          and e.get('role') in ('RadioButton', 'Tab')], 'editor mode: ' + label)
+    if entry is not None:
+        return entry, .5
+    entry = unique_entry([e for e in entries if e.get('uniqueId') == 'editor.mode'
+                          and e.get('role') == 'TabGroup'], 'editor mode control')
+    if entry is None:
+        raise VerificationError('Editor mode is missing: ' + label)
+    return entry, .25 if label == '入力' else .75
+
+
+class ProductRun(Run):
+    def tap(self, identifier):
+        if identifier not in TAB_LABELS:
+            return super().tap(identifier)
+        entry = native_tabs(self.ui('resolve-' + identifier)).get(identifier)
+        if entry is None:
+            raise VerificationError('Native tab is not visible: ' + identifier)
+        self._tap_frame(entry['frame'])
+
+    def _tap_frame(self, frame, fraction=.5):
+        self.command(['sim-use', 'tap', '-x', str(frame['x'] + frame['width'] * fraction),
+                      '-y', str(frame['y'] + frame['height'] / 2), '--device', self.args.device])
+
+    def select_editor_mode(self, label):
+        data = self.ui('mode-' + label)
+        entry, fraction = editor_mode_target(data, label)
+        self._tap_frame(entry['frame'], fraction)
+
+    def _reveal_input(self, identifier):
+        data = self.wait_ui(identifier + '-present', lambda d: identifier in identifiers(d))
+        for attempt in range(5):
             frame = next(e['frame'] for e in data['entries'] if e.get('uniqueId') == identifier)
             top, bottom = editor_viewport(data)
-            if frame['y'] >= top and frame['y'] < bottom:
-                break
+            if min(bottom, frame['y'] + frame['height']) - max(top, frame['y']) >= 12:
+                return data
+            if attempt == 4 or bottom <= top:
+                raise VerificationError('Cannot reveal input: ' + identifier)
             start, end = top + (bottom - top) * .35, top + (bottom - top) * .75
             if frame['y'] >= bottom:
                 start, end = end, start
             x = data['screen']['width'] * .35
-            run.command(['sim-use', 'swipe', '--from', f'{x},{start}', '--to', f'{x},{end}',
-                         '--duration', '.4', '--post-delay', '.5', '--device', run.args.device])
-            data = run.ui(identifier + f'-revealed-{attempt}')
-        x, y = point(data)
-        run.command(["sim-use", "tap", "-x", str(x), "-y", str(y), "--duration", "0.05",
-                     "--post-delay", ".5", "--device", run.args.device])
-        data = run.wait_ui(identifier + "-focused", lambda data: identifier in identifiers(data)
-                       and "editor.keyboard.dismiss" in identifiers(data))
-        x, y = point(data)
-        return ["--target-x", str(x), "--target-y", str(y)]
+            self.command(['sim-use', 'swipe', '--from', f'{x},{start}', '--to', f'{x},{end}',
+                          '--duration', '.4', '--post-delay', '.5', '--device', self.args.device])
+            data = self.ui(identifier + f'-revealed-{attempt}')
 
-    target = focus_target(at_end=replace)
-    if replace:
-        for attempt in range(2):
-            try:
-                run.command(["sim-use", "paste", "--replace", "--via-menu", *target,
-                             "--device", run.args.device, text])
-                run.wait_ui(identifier + "-pasted", reflected)
-                return
-            except VerificationError as error:
-                if "Edit menu 'Select All' item did not appear" not in str(error):
-                    raise
-                run.manifest["commands"][-1]["handled_error"] = {
-                    "reason": "sim-use 0.14.0 cannot select Select All in the compact Japanese menu; use the observed native menu",
-                    "assertion": "edited_copy_utf8_exact",
-                }
-                run.save()
-                current = run.ui(identifier + f"-replace-menu-{attempt}")
-                if any(entry.get("label") in ("すべてを選択", "Select All") for entry in current["entries"]):
-                    break
-                disclosure = next((entry for entry in current["entries"]
-                                   if entry.get("role") == "Button" and entry.get("label") in ("進む", "Next")), None)
-                if disclosure is not None:
-                    run.command(["sim-use", "tap", "--label", disclosure["label"], "--element-type", "Button",
-                                 "--device", run.args.device])
-                    run.wait_ui(identifier + "-expanded-edit-menu", lambda data: any(
-                        entry.get("label") in ("すべてを選択", "Select All") for entry in data["entries"]))
-                    break
-                # The initial gesture can just focus the field. Retry once
-                # after observing it; do not accept an absent menu as success.
-                if attempt == 1:
-                    raise
-        # sim-use 0.14.0 opens the native menu but cannot match this
-        # runtime's Japanese Select All label. Verify and operate that menu.
-        for labels in (("すべてを選択", "Select All"), ("カット", "Cut")):
-            data = run.wait_ui(identifier + "-" + labels[0], lambda data: any(
-                entry.get("label") in labels for entry in data["entries"]))
-            item = next(entry["label"] for entry in data["entries"] if entry.get("label") in labels)
-            run.command(["sim-use", "tap", "--label", item, "--device", run.args.device])
-        target = focus_target()
-    run.paste_text(text, target, reflected, name=identifier + "-paste")
+    def _focus_input(self, identifier, *, trailing=False):
+        x, y = input_point(self._reveal_input(identifier), identifier, trailing=trailing)
+        self.command(['sim-use', 'tap', '-x', str(x), '-y', str(y), '--duration', '.05',
+                      '--post-delay', '.5', '--device', self.args.device])
+        self.wait_ui(identifier + '-keyboard', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
+        # Focus can resize the viewport and move the field. Observe and reveal again.
+        return input_point(self._reveal_input(identifier), identifier, trailing=trailing)
+
+    def _menu_item(self, labels, *, allow_next=False):
+        candidates = (*labels, '進む', 'Next') if allow_next else labels
+        data = self.wait_ui('edit-menu-' + labels[0], lambda d: any(e.get('label') in candidates for e in d['entries']))
+        entry = unique_entry([e for e in data['entries'] if e.get('label') in labels], 'edit menu: ' + labels[0])
+        if entry is None:
+            disclosure = unique_entry([e for e in data['entries'] if e.get('label') in ('進む', 'Next')
+                                       and e.get('role') == 'Button'], 'edit menu disclosure')
+            if disclosure is None:
+                raise VerificationError('Edit menu item is missing: ' + labels[0])
+            self._tap_frame(disclosure['frame'])
+            return self._menu_item(labels)
+        self._tap_frame(entry['frame'])
+
+    def paste_editor(self, identifier, text, *, replace=False):
+        def reflected(data):
+            value = next((e.get('value', '') for e in data['entries'] if e.get('uniqueId') == identifier), '')
+            # Accessibility may collapse whitespace. Scenarios also check saved/copied bytes.
+            return ''.join(value.split()) == ''.join(text.split())
+
+        x, y = self._focus_input(identifier, trailing=replace)
+        if replace:
+            self.command(['sim-use', 'tap', '-x', str(x), '-y', str(y), '--duration', '.7',
+                          '--post-delay', '.4', '--device', self.args.device])
+            self._menu_item(('すべてを選択', 'Select All'), allow_next=True)
+            self._menu_item(('カット', 'Cut'))
+            x, y = self._focus_input(identifier)
+        self.paste_text(text, ['--target-x', str(x), '--target-y', str(y)], reflected, name=identifier + '-paste')

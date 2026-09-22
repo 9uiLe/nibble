@@ -2,13 +2,14 @@
 """Verify settings, search entry and editor controls on an explicit iOS Simulator."""
 import argparse
 import plistlib
+from pathlib import Path
 import time
 from types import SimpleNamespace
 
 from ios import simulator_lock, VerificationError
 
 
-from product_ui import ProductRun as Run, native_tabs, identifiers, paste_editor
+from product_ui import ProductRun as Run, native_tabs, identifiers
 
 
 def main():
@@ -18,21 +19,6 @@ def main():
     run = Run(SimpleNamespace(command='controls-ui', device=args.device,
                               configuration='Release', project_config='app/project.json'))
     error = None
-
-    def select_mode(label):
-        data = run.ui('mode-' + label)
-        entry = next((e for e in data['entries'] if e.get('label') == label), None)
-        fraction = .5
-        if entry is None:
-            # sim-use exposes the native segmented control as a TabGroup on 26.5.
-            entry = next((e for e in data['entries'] if e.get('uniqueId') == 'editor.mode'
-                          and e.get('role') == 'TabGroup'), None)
-            fraction = .25 if label == '入力' else .75
-        if entry is None:
-            raise VerificationError('Markdown mode is missing: ' + label)
-        frame = entry['frame']
-        run.command(['sim-use', 'tap', '-x', str(frame['x'] + frame['width'] * fraction),
-                     '-y', str(frame['y'] + frame['height'] / 2), '--device', args.device])
 
     def controls(data, expected, absent=()):
         present = identifiers(data)
@@ -92,11 +78,11 @@ def main():
                 data = run.wait_ui('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
                 controls(data, ('editor.close', 'editor.save', 'editor.keyboard.help', 'editor.keyboard.dismiss'),
                          ('editor.help', 'editor.more'))
-                input_values = {'editor.title': '入力保持の確認', 'editor.body': '# 見出し\n\n**太字**と本文 👩🏽‍💻'}
+                input_values = {'editor.title': '入力保持の確認', 'editor.body': (Path(__file__).resolve().parents[1] / 'validation/EditorMarkdown.txt').read_text()}
                 for identifier, value in input_values.items():
-                    paste_editor(run, identifier, value)
+                    run.paste_editor(identifier, value)
                 run.screenshot('editor-keyboard-controls')
-                select_mode('プレビュー')
+                run.select_editor_mode('プレビュー')
                 preview = run.wait_ui('markdown-preview', lambda d: 'editor.body' not in identifiers(d)
                                       and 'editor.keyboard.dismiss' not in identifiers(d)
                                       and any(e.get('role') == 'Heading' and e.get('label') == '見出し' for e in d['entries']))
@@ -104,7 +90,7 @@ def main():
                 if not {'見出し', '太字と本文 👩🏽‍💻'} <= labels or 'editor.body' in identifiers(preview):
                     raise VerificationError('Markdown preview must show rendered text and hide source input')
                 run.screenshot('editor-markdown-preview')
-                select_mode('入力')
+                run.select_editor_mode('入力')
                 editing = run.wait_ui('markdown-input-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d)
                                       and 'editor.body' in identifiers(d))
                 actual = {e['uniqueId']: e.get('value') for e in editing['entries'] if e.get('uniqueId') in input_values}

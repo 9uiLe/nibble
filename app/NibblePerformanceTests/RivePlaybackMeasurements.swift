@@ -16,7 +16,7 @@ struct RivePlaybackMeasurements {
         let previous = RiveLog.logger
         RiveLog.logger = log
         defer { RiveLog.logger = previous }
-        let host = try RiveTestHost()
+        let host = try ViewTestHost()
         defer { host.close() }
         var samples: [[String: Double]] = []
         for keyboard in [false, true] {

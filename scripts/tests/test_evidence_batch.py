@@ -20,6 +20,12 @@ class BatchIdentityTests(unittest.TestCase):
             with self.subTest(project=project):
                 self.assertEqual(evidence.inputs(hashes, {'project': project}), expected)
 
+    def test_product_evidence_covers_shared_editor_fixtures(self):
+        hashes = {'validation/EditorMarkdown.txt': 'source', 'validation/ShareHost.html': 'host',
+                  'validation/VerificationApp/App.swift': 'unrelated'}
+        self.assertEqual(evidence.inputs(hashes, {'project': 'app/Nibble.xcodeproj'}),
+                         {name: hashes[name] for name in ('validation/EditorMarkdown.txt', 'validation/ShareHost.html')})
+
     def test_binary_empty_duplicate_newline_and_multiple_batches_match_git(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

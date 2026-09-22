@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from ios import simulator_lock, XCRUN, VerificationError
-from product_ui import ProductRun as Run, native_tabs, identifiers, paste_editor
+from product_ui import ProductRun as Run, native_tabs, identifiers
 
 
 def main():
@@ -85,7 +85,7 @@ def main():
     def create_item(title, data):
         run.tap("library.add" if "library.add" in identifiers(data) else "library.createFirst")
         data = run.wait_ui("editor", lambda data: "editor.body" in identifiers(data))
-        paste_editor(run, "editor.title", title)
+        run.paste_editor("editor.title", title)
         run.command(["python3", "-c", "import subprocess,sys; subprocess.run(['/usr/bin/xcrun','simctl','pbcopy',sys.argv[1]], input=sys.argv[2].encode(), check=True)",
                      args.device, "通知を確認するダミー本文"])
         label("本文の末尾にペースト")

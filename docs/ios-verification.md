@@ -195,7 +195,7 @@ python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_S
 python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。標準タブのドラッグ選択、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
+`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。標準タブのドラッグ選択、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。標準幅と狭幅の専用Simulatorで同じコマンドを実行し、タイトルから本文への移動、Markdownの見出し・太字と記号を隠したプレビュー、原文への復帰を確認する。入力例は`validation/EditorMarkdown.txt`を使う。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
 
 設定末尾の区切り線がないこと、アイコンの外観、キーボード上の8ptの間隔、背景の連続性、案内文のまとまりは保存した画像を全体と細部で確認する。標準幅と狭幅の専用Simulatorで実行し、AXの成功だけで外観を確認済みにしない。
 
@@ -226,7 +226,7 @@ python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard 
 python3 -m http.server 8766 --bind 127.0.0.1 --directory validation
 ```
 
-専用SimulatorのSafariで`http://127.0.0.1:8766/ShareHost.html`を開く。テキスト共有→nibbleで保存→本体コピー→Safariの標準編集メニューからペーストし、「本文のUTF-8を表示」で全バイトを照合する。URL共有も保存・コピー後のURLと照合する。共有を閉じた下書きは本体で再開する。終了後はサーバーを停止する。
+専用SimulatorのSafariで`http://127.0.0.1:8766/ShareHost.html`を開く。「Markdownの入力例を使う」で共通の入力例を読み込み、テキスト共有→nibbleのプレビュー→入力へ戻る→保存→本体のPull to Refresh→コピー→Safariの標準編集メニューからペーストし、「本文のUTF-8を表示」で全バイトを照合する。URL共有も保存・コピー後のURLと照合する。共有を閉じた下書きは本体で再開する。終了後はサーバーを停止する。
 
 ペースト結果の検証にクリップボードを上書きする`sim-use paste`を使わない。日本語のかな入力・変換確定はペーストと別に操作する。ショートカットの「URLを開く」から`nibble://library`と`nibble://new`を呼び出し、前者は一覧を初期化、後者は新規作成、編集中はいずれも既存入力を維持することを確認する。
 

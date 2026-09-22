@@ -4,6 +4,8 @@ import hashlib
 from pathlib import Path
 import subprocess
 
+from verification_catalog import PRODUCT_UI_INPUTS
+
 
 def digest(path):
     with path.open('rb') as stream:
@@ -68,8 +70,9 @@ def inputs(hashes, project):
     if project_path.is_absolute() or '..' in project_path.parts or project_path.parts[0] not in {'app', 'validation'}:
         raise ValueError('Expected a project under app/ or validation/')
     prefixes = (project_path.parts[0] + '/', 'scripts/', 'runtime/')
+    fixtures = PRODUCT_UI_INPUTS if project_path.parts[0] == 'app' else frozenset()
     return {name: value for name, value in hashes.items()
-            if not name.endswith('.md') and (name.startswith(prefixes) or name in {'flake.nix', 'flake.lock'})}
+            if not name.endswith('.md') and (name.startswith(prefixes) or name in fixtures or name in {'flake.nix', 'flake.lock'})}
 
 
 def differences(before, after):

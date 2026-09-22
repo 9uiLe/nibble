@@ -38,6 +38,13 @@ class SelectionTests(unittest.TestCase):
                          [sys.executable, 'scripts/check_controls_ui.py', '--device', 'device-id'])
         self.assertIn('controls-ui', self.selected(['app/Shared/Editing/EditorToolbar.swift']))
 
+    def test_editor_fixture_and_product_operations_select_their_consumers(self):
+        for path in ('validation/EditorMarkdown.txt', 'validation/ShareHost.html'):
+            self.assertEqual(self.selected([path]), {'static', 'controls-ui'})
+            self.assertTrue(verify.plan([path])['manual_review'])
+        self.assertEqual(self.selected(['scripts/product_ui.py']),
+                         {'static'} | (verify.PRODUCT_STEPS - {'product-test'}))
+
     def test_saved_observation_tool_does_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/ui_observation.py']), {'static'})
         for path in ('scripts/inspect_ui.py', 'scripts/ui_preview.py', 'scripts/tests/macos/test_ui_preview_native.py'):
@@ -82,7 +89,7 @@ class SelectionTests(unittest.TestCase):
                 self.assertTrue(result['manual_review'])
         self.assertEqual(self.selected([], 'performance'), {'static', 'performance-test'})
         self.assertNotIn('performance-test', self.selected([], 'regression'))
-        self.assertEqual(self.selected(['app/TestSupport/RiveTestSupport.swift']), {'static', 'product-test'})
+        self.assertEqual(self.selected(['app/TestSupport/RivePlaybackLog.swift']), {'static', 'product-test'})
         self.assertIn('app/performance-project.json', verify.command_for('performance-test', 'explicit'))
 
     def test_ui_driver_changes_select_the_affected_flow(self):

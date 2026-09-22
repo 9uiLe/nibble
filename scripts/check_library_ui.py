@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from ios import simulator_lock, XCRUN, VerificationError
-from product_ui import ProductRun as Run, native_tabs, identifiers, paste_editor
+from product_ui import ProductRun as Run, native_tabs, identifiers
 
 
 def main():
@@ -128,8 +128,8 @@ def main():
                 run.tap(create_id)
                 run.wait_ui("new-editor", lambda data: "editor.body" in identifiers(data)
                         and "editor.keyboard.dismiss" in identifiers(data))
-                paste_editor(run, "editor.title", title)
-                paste_editor(run, "editor.body", body)
+                run.paste_editor("editor.title", title)
+                run.paste_editor("editor.body", body)
                 background_editor("library-editor-background")
                 run.tap("editor.close")
                 pending = run.wait_ui("draft-kept", lambda data: any(
@@ -200,8 +200,8 @@ def main():
                 run.wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
                 edited_title = title + " 編集済み"
                 edited_body = "更新された本文\n" + body
-                paste_editor(run, "editor.title", edited_title, replace=True)
-                paste_editor(run, "editor.body", edited_body, replace=True)
+                run.paste_editor("editor.title", edited_title, replace=True)
+                run.paste_editor("editor.body", edited_body, replace=True)
                 background_editor("search-editor-background")
                 run.tap("editor.save")
                 run.wait_ui("edited", lambda data: any(e.get("uniqueId") == row

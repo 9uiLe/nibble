@@ -48,6 +48,11 @@
       "references": true
     },
     {
+      "path": "docs/architecture/editing.md",
+      "kind": "file",
+      "references": true
+    },
+    {
       "path": "docs/architecture/presentation.md",
       "kind": "file",
       "references": true

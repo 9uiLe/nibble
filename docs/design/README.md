@@ -36,6 +36,7 @@ IDは意味を表し、Swiftの型と一対一である必要はない。同じ�
 | [表示設定](rationale/fixed-interface.md) | 文字・太字・コントラスト・演出の固定とOS所有部分 |
 | [使用回数順](rationale/usage-order.md) | 使用の定義、並び順、未使用の補足、使用記録の失敗 |
 | [完了通知](rationale/result-notices.md) | 内容を動かさない通知層、取り消し、滞在と期限 |
+| [編集とMarkdown](../architecture/editing.md) | 原文の保持、入力とプレビュー、解析・フォーカス・保存の寿命 |
 | [Keyboard](../architecture/keyboard.md) | 入力・全文・権限・共有DB・入力先の寿命 |
 | [説明イラスト](../architecture/presentation.md) | 説明の意味、配置、再生方針、ホストとRMLの分担 |
 

@@ -1,45 +1,37 @@
 import Foundation
 
-/// Ranges refer to the untouched source, including its Markdown punctuation.
-struct MarkdownHighlighting: Equatable, Sendable {
+/// One source snapshot produces UTF-16 decoration spans and syntax-free preview blocks.
+struct MarkdownDocument: Equatable, Sendable {
     struct Block: Equatable, Identifiable, Sendable {
         let id: Int
         var text: AttributedString
-        let heading: Int?
-        let code: Bool
-        let quote: Bool
+        let style: MarkdownStyle
         let listMarker: String?
         let listDepth: Int
     }
 
     struct Span: Equatable, Sendable {
         let range: NSRange
-        let heading: Int?
-        let bold: Bool
-        let italic: Bool
-        let code: Bool
-        let strike: Bool
-        let quote: Bool
-        let link: Bool
+        let style: MarkdownStyle
     }
-    var source = ""
-    var spans: [Span] = []
-    var blocks: [Block] = []
+    private(set) var source = ""
+    private(set) var sourceSpans: [Span] = []
+    private(set) var previewBlocks: [Block] = []
 
     @concurrent
     static func parse(_ source: String) async -> Self {
         guard !Task.isCancelled else { return Self(source: source) }
         let input = SourceMap(source)
-        guard !Task.isCancelled,
-              let parsed = try? AttributedString(markdown: input.markdown, options: .init(appliesSourcePositionAttributes: true)) else {
-            return Self(source: source)
+        guard !Task.isCancelled else { return Self(source: source) }
+        guard let parsed = try? AttributedString(markdown: input.markdown, options: .init(appliesSourcePositionAttributes: true)) else {
+            return Self(source: source, previewBlocks: [Block(id: 0, text: AttributedString(source), style: MarkdownStyle(),
+                                                              listMarker: nil, listDepth: 0)])
         }
         var result = Self(source: source)
         for run in parsed.runs {
             if Task.isCancelled { return Self(source: source) }
             let inline = run.inlinePresentationIntent ?? []
             var heading: Int?
-            var code = inline.contains(.code)
             var codeBlock = false
             var quote = false
             var listItem: Int?
@@ -48,7 +40,7 @@ struct MarkdownHighlighting: Equatable, Sendable {
             for component in run.presentationIntent?.components ?? [] {
                 switch component.kind {
                 case .header(level: let level): heading = level
-                case .codeBlock: code = true; codeBlock = true
+                case .codeBlock: codeBlock = true
                 case .blockQuote: quote = true
                 case .listItem(ordinal: let ordinal): if listItem == nil { listItem = ordinal }
                 case .orderedList:
@@ -62,19 +54,17 @@ struct MarkdownHighlighting: Equatable, Sendable {
             }
             let blockID = run.presentationIntent?.components.first?.identity ?? 0
             let content = AttributedString(parsed[run.range])
-            if result.blocks.last?.id == blockID {
-                result.blocks[result.blocks.count - 1].text.append(content)
+            let style = MarkdownStyle(heading: heading, code: codeBlock, quote: quote)
+            if result.previewBlocks.last?.id == blockID {
+                result.previewBlocks[result.previewBlocks.count - 1].text.append(content)
             } else {
                 let marker = listItem.map { orderedList == true ? "\($0)." : "•" }
-                result.blocks.append(Block(id: blockID, text: content, heading: heading, code: codeBlock,
-                                           quote: quote, listMarker: marker, listDepth: listDepth))
+                result.previewBlocks.append(Block(id: blockID, text: content, style: style,
+                                                  listMarker: marker, listDepth: listDepth))
             }
             guard let position = run.markdownSourcePosition,
                   let range = input.range(for: position) else { continue }
-            result.spans.append(Span(range: range, heading: heading,
-                                     bold: inline.contains(.stronglyEmphasized),
-                                     italic: inline.contains(.emphasized), code: code,
-                                     strike: inline.contains(.strikethrough), quote: quote, link: run.link != nil))
+            result.sourceSpans.append(Span(range: range, style: style.applying(inline, link: run.link != nil)))
         }
         return result
     }
@@ -86,7 +76,7 @@ struct MarkdownHighlighting: Equatable, Sendable {
         private var utf16Offsets = [Int]()
 
         init(_ source: String) {
-            // Markdown parses NUL as U+FFFD. Its three bytes still refer to one
+            // Markdown parses NUL as U+FFFD. Its three bytes refer to one
             // original code unit; this copy is never written back to the editor.
             markdown = source.replacingOccurrences(of: "\0", with: "\u{FFFD}")
             utf16Offsets.reserveCapacity(markdown.utf8.count + 1)

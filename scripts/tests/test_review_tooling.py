@@ -194,7 +194,7 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 check_evidence.check_run(self.run, self.hashes)
 
-    def test_tolerated_failure_requires_successful_specific_assertion(self):
+    def test_failed_commands_cannot_be_reclassified_by_an_assertion(self):
         event = {'argv': ['sim-use', 'paste'], 'stdout': 'command.log'}
         self.manifest['commands'].append(event)
         event['exit_code'] = 1
@@ -203,7 +203,7 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
         with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
         self.manifest['assertions'] = {'exact_copy': True}
         self.save()
-        check_evidence.check_run(self.run, self.hashes)
+        with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
         event['error'] = 'timeout'
         self.save()
         with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)

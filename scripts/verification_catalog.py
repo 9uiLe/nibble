@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from ios_project import FIXTURE_CONFIG, PERFORMANCE_CONFIG, PRODUCT_CONFIG
 
 
+PRODUCT_UI_INPUTS = frozenset({'validation/EditorMarkdown.txt', 'validation/ShareHost.html'})
+
+
 @dataclass(frozen=True)
 class Stage:
     id: str

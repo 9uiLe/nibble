@@ -5,20 +5,20 @@ import UIKit
 /// UIKit exposes marked text and in-place attributes so styling never replaces
 /// Japanese composition, the selection, undo history or the Markdown source.
 @Equatable(.mainActor)
-struct MarkdownInput: UIViewRepresentable {
+struct MarkdownSourceInput: UIViewRepresentable {
     private let inputRevision = UUID()
     @Binding var text: String
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
-    let highlighting: MarkdownHighlighting
+    let document: MarkdownDocument
 
-    func makeUIView(context: Context) -> MarkdownTextView {
-        let view = MarkdownTextView()
+    func makeUIView(context: Context) -> MarkdownSourceTextView {
+        let view = MarkdownSourceTextView()
         view.delegate = context.coordinator
         view.isScrollEnabled = false
         view.backgroundColor = .clear
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0
-        view.font = .systemFont(ofSize: 13)
+        view.typingAttributes = MarkdownStyle().inputAttributes
         view.textColor = .label
         view.autocapitalizationType = .none
         view.autocorrectionType = .no
@@ -33,7 +33,7 @@ struct MarkdownInput: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: MarkdownTextView, context: Context) {
+    func updateUIView(_ view: MarkdownSourceTextView, context: Context) {
         context.coordinator.parent = self
         if view.isEditable != context.environment.isEnabled { view.isEditable = context.environment.isEnabled }
         if view.markedTextRange == nil {
@@ -42,7 +42,7 @@ struct MarkdownInput: UIViewRepresentable {
                 view.text = text
                 view.selectedRange = NSRange(location: min(selection.location, view.textStorage.length), length: 0)
             }
-            view.apply(highlighting)
+            view.apply(document)
         }
         // Reconcile requests once; repeated updates must not reclaim focus from the title.
         let wantsFocus = focus.wrappedValue == .body && view.isEditable
@@ -55,7 +55,7 @@ struct MarkdownInput: UIViewRepresentable {
         }
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: MarkdownTextView, context: Context) -> CGSize? {
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: MarkdownSourceTextView, context: Context) -> CGSize? {
         guard let width = proposal.width, width > 0 else { return nil }
         return CGSize(width: width, height: max(180, uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height))
     }
@@ -63,12 +63,12 @@ struct MarkdownInput: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, UITextViewDelegate {
-        var parent: MarkdownInput
+        var parent: MarkdownSourceInput
         var requestedFocus: Bool?
-        init(_ parent: MarkdownInput) { self.parent = parent }
+        init(_ parent: MarkdownSourceInput) { self.parent = parent }
         func textViewDidBeginEditing(_ textView: UITextView) { parent.focus.wrappedValue = .body }
         func textViewDidChange(_ textView: UITextView) {
-            (textView as? MarkdownTextView)?.invalidateHighlighting()
+            (textView as? MarkdownSourceTextView)?.invalidateStyling()
             parent.text = textView.text
             textView.invalidateIntrinsicContentSize()
         }
