@@ -22,7 +22,12 @@ struct DraftLifecycleTests {
         await #expect(throws: StoreError.staleDraft) { try await database.store.save(conflicting) }
         let foreign = Draft(id: draft.id, snippetID: UUID(), baseRevision: draft.baseRevision,
                             title: draft.title, body: draft.body, sequence: draft.sequence + 1)
+        try await database.store.updateDraft(foreign)
         await #expect(throws: StoreError.staleDraft) { try await database.store.discardDraft(foreign) }
+        let wrongBase = Draft(id: draft.id, snippetID: draft.snippetID, baseRevision: draft.baseRevision + 1,
+                              title: draft.title, body: "wrong session", sequence: draft.sequence + 1)
+        try await database.store.updateDraft(wrongBase)
+        await #expect(throws: StoreError.staleDraft) { try await database.store.keepDraft(wrongBase) }
         #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
     }
 
@@ -208,6 +213,11 @@ extension UIIntegrationTests {
             #expect(editor.failure?.message.contains("閉じられませんでした") == true)
             #expect(editor.failure?.message.contains("「新しい項目として保存」") == true)
             #expect(editor.failure?.message.contains("一覧を更新") == false)
+            editor.body = ""
+            #expect(!(await editor.finish(.saveAsNew)))
+            #expect(editor.failure?.recovery == .correctInput)
+            #expect(editor.failure?.message.contains("別の項目に保存できます") == false)
+            editor.body = draft.body
             let db = try SQLiteDatabase(url: database.url)
             try db.execute("CREATE TRIGGER reject_new_save BEFORE INSERT ON snippets BEGIN SELECT RAISE(ABORT,'fixture'); END")
             #expect(!(await editor.finish(.saveAsNew)))

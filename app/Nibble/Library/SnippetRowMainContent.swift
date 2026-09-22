@@ -21,7 +21,7 @@ struct SnippetRowMainContent: View {
                 .accessibilityIdentifier("snippet.\(item.id)")
                 .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)
                 .accessibilityValue(unusedSince.map {
-                    "30日以上コピーしていません、最後にコピーした日 " + $0.formatted(date: .numeric, time: .omitted)
+                    SnippetUsagePresentation.inactiveMessage + "、最後にコピーした日 " + $0.formatted(date: .numeric, time: .omitted)
                 } ?? "")
                 .accessibilityHint("編集します")
         }

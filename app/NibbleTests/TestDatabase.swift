@@ -27,7 +27,7 @@ final class RecordingLibraryEffects: LibraryEffects {
     enum Event: Equatable { case copy(String), announce(String) }
     private(set) var events: [Event] = []
     func copy(_ text: String) { events.append(.copy(text)) }
-    func announce(_ text: String) { events.append(.announce(text)) }
+    func announce(_ notice: LibraryModel.Notice) { events.append(.announce(notice.announcement)) }
 }
 
 extension LibraryModel {

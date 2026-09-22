@@ -28,10 +28,8 @@ class RiveAssetTests(unittest.TestCase):
                           sources_sha256=rive_assets.sources(self.source),
                           output_sha256=rive_assets.digest(self.root / "asset.riv"))
 
-    def test_valid_pair(self):
-        rive_assets.check_asset(self.root, self.asset)
-
     def test_source_and_new_material_require_rebuild(self):
+        rive_assets.check_asset(self.root, self.asset)
         (self.source / "material.png").write_bytes(b"new input")
         with self.assertRaisesRegex(ValueError, "Sources changed"):
             rive_assets.check_asset(self.root, self.asset)

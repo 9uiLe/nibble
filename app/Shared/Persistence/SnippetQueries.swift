@@ -8,8 +8,8 @@ enum SnippetQueries {
     }
 
     static func summary(_ db: SQLiteDatabase, id: UUID, includesUsage: Bool = true) throws -> SnippetSummary {
-        let usage = includesUsage ? "use_count,last_used" : "0,NULL"
-        let values = try db.rows("SELECT id,title,substr(body,1,180),pinned,revision,\(usage) FROM snippets WHERE id=?",
+        let usage = includesUsage ? "use_count,last_used" : "NULL,NULL"
+        let values = try db.rows("SELECT id,title,substr(body,1,\(SnippetText.previewLength)),pinned,revision,\(usage) FROM snippets WHERE id=?",
                                 [.text(id.uuidString)], map: summaryRow)
         guard let value = values.first else { throw StoreError.missing }
         return value
@@ -27,7 +27,7 @@ enum SnippetQueries {
     }
 
     static func search(_ db: SQLiteDatabase, query: String, filter: LibraryFilter,
-                       limit: Int, offset: Int = 0, keyboard: Bool = false) throws -> [SnippetSummary] {
+                       limit: Int, offset: Int = 0, ordering: SnippetOrdering? = nil, includesUsage: Bool = true) throws -> [SnippetSummary] {
         guard filter != .drafts else { return [] }
         let key = SnippetText.searchKey(query).trimmingCharacters(in: .whitespacesAndNewlines)
         let pinned = filter == .pinned ? " AND pinned=1" : ""
@@ -35,11 +35,15 @@ enum SnippetQueries {
         var values: [SQLValue] = [.int(filter == .trash ? 1 : 0)]
         if !key.isEmpty { values.append(.text(key)) }
         values += [.int(max(1, limit)), .int(max(0, offset))]
-        let usage = keyboard ? "0,NULL" : "use_count,last_used"
-        let order = keyboard ? "pinned DESC,updated DESC,id ASC"
-            : filter == .trash ? "updated DESC,id ASC" : "use_count DESC,updated DESC,id ASC"
+        let usage = includesUsage ? "use_count,last_used" : "NULL,NULL"
+        let order: String
+        switch ordering ?? filter.ordering {
+        case .mostUsed: order = "use_count DESC,updated DESC,id ASC"
+        case .recentlyUpdated: order = "updated DESC,id ASC"
+        case .pinnedFirst: order = "pinned DESC,updated DESC,id ASC"
+        }
         return try db.rows("""
-            SELECT id,title,substr(body,1,180),pinned,revision,\(usage) FROM snippets
+            SELECT id,title,substr(body,1,\(SnippetText.previewLength)),pinned,revision,\(usage) FROM snippets
             WHERE deleted=?\(pinned)\(matching)
             ORDER BY \(order) LIMIT ? OFFSET ?
             """, values, map: summaryRow)
@@ -47,8 +51,9 @@ enum SnippetQueries {
 
     private static func summaryRow(_ row: SQLRow) throws -> SnippetSummary {
         SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2),
-                       pinned: row.int(3) == 1, revision: row.int(4), useCount: row.int(5),
-                       lastUsedAt: row.isNull(6) ? nil : Date(timeIntervalSince1970: row.double(6)))
+                       pinned: row.int(3) == 1, revision: row.int(4),
+                       usage: row.isNull(5) ? nil : SnippetUsage(count: row.int(5),
+                           lastUsedAt: row.isNull(6) ? nil : Date(timeIntervalSince1970: row.double(6))))
     }
 
     static func snippet(_ db: SQLiteDatabase, id: UUID) throws -> Snippet {
@@ -56,7 +61,7 @@ enum SnippetQueries {
                                 [.text(id.uuidString)]) { row in
             Snippet(id: id, title: row.text(1), body: row.text(2), pinned: row.int(3) == 1,
                     revision: row.int(4), updatedAt: Date(timeIntervalSince1970: row.double(5)), deleted: row.int(6) == 1,
-                    useCount: row.int(7), lastUsedAt: row.isNull(8) ? nil : Date(timeIntervalSince1970: row.double(8)))
+                    usage: SnippetUsage(count: row.int(7), lastUsedAt: row.isNull(8) ? nil : Date(timeIntervalSince1970: row.double(8))))
         }
         guard let value = values.first else { throw StoreError.missing }
         return value

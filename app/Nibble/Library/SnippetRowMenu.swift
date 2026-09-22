@@ -15,7 +15,7 @@ struct SnippetRowMenu: View {
                 .accessibilityIdentifier("permanentlyDelete.\(item.id)")
         } else {
             Button("編集", systemImage: "square.and.pencil") { perform(.edit) }
-            Button(item.pinned ? "ピン留めを解除" : "ピン留め", systemImage: item.pinned ? "pin.slash" : "pin") { perform(.pin) }
+            PinButton(pinned: item.pinned, action: { perform(.pin) })
             Button("削除", systemImage: "trash", role: .destructive) { perform(.delete) }
                 .accessibilityIdentifier("delete.\(item.id)")
         }

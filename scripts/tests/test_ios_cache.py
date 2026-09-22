@@ -90,9 +90,9 @@ class BuildCacheTests(unittest.TestCase):
         other = ios.Run.__new__(ios.Run)
         other.args = self.run.args
         with patch.object(ios.tempfile, 'gettempdir', return_value=str(self.root)):
-            with self.run.device_lock():
+            with ios.simulator_lock(self.run.args.device):
                 with self.assertRaisesRegex(ios.VerificationError, 'Another'):
-                    with other.device_lock():
+                    with ios.simulator_lock(other.args.device):
                         self.fail('A second owner acquired the Simulator')
-            with other.device_lock():
+            with ios.simulator_lock(other.args.device):
                 pass

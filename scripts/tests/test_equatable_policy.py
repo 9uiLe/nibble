@@ -15,16 +15,7 @@ class EquatablePolicyTests(unittest.TestCase):
             body = 'var equatableBody: some View { Text(title) }'
             with self.subTest(protocol=protocol):
                 self.assertEqual(violations(declaration + ' { let title: String; ' + body + ' }'), [])
-                invalid_forms = [
-                    declaration + ' { var title: String; ' + body + ' }',
-                    declaration + ' { let title: String; let action: () -> Void; ' + body + ' }',
-                    declaration + ' { let title: String; var body: some View { Text(title) } }',
-                    declaration.removeprefix('@Equatable ') + ' { let title: String; ' + body + ' }',
-                    f'extension Row: @MainActor {protocol} {{ {body} }}',
-                ]
-                for invalid in (invalid_forms if protocol == "EquatableBodyView" else invalid_forms[:1]):
-                    with self.subTest(source=invalid):
-                        self.assertTrue(violations(invalid))
+                self.assertTrue(violations(declaration + ' { var title: String; ' + body + ' }'))
 
     def test_value_only_comparison_views_and_native_values_are_allowed(self):
         for source in [

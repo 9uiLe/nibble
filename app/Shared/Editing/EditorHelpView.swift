@@ -15,7 +15,7 @@ struct EditorHelpView: View {
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         Text("入力の上限").font(.nibbleTitle)
-                        Text("タイトルは任意で512バイトまで、本文は1 MB（1,000,000バイト）まで入力できます。")
+                        Text("タイトルは任意で\(SnippetInputLimits.title)まで、本文は\(SnippetInputLimits.body)まで入力できます。")
                             .accessibilityIdentifier("editor.lengthLimit")
                         Text("UTF-8で数えるため、文字によって使うバイト数が異なります。空白や改行は、そのまま保存されます。")
                         Text("本文が空、または空白や改行だけの場合は保存できません。")

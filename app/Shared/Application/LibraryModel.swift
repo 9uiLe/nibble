@@ -8,9 +8,16 @@ final class LibraryModel {
     private let usageRecorder: any SnippetUsageRecording
     private let now: () -> Date
     private(set) var evaluatedAt: Date
-    private var pendingUses: [SnippetUse] = []
-    private var recordingUses: Set<UUID> = []
-    private var usageErrors: [UUID: String] = [:]
+    private struct PendingUse {
+        enum State { case pending, recording, failed(StoreError) }
+        let use: SnippetUse
+        var state: State = .pending
+        var failure: StoreError? {
+            if case .failed(let message) = state { return message }
+            return nil
+        }
+    }
+    private var pendingUses: [PendingUse] = []
     enum EditorSource { case new, snippet(UUID), draft(UUID) }
 
     /// A visit to a visible surface. Leaving invalidates even work that finishes after returning.
@@ -19,7 +26,6 @@ final class LibraryModel {
         let isPresented: Bool
     }
     private(set) var noticeContext = NoticeContext(isPresented: true)
-    private let noticeOrigin: Notice.Origin
     private let noticeSleep: (ContinuousClock.Instant) async throws -> Void
     private var noticeDeadline: ContinuousClock.Instant?
     private(set) var restoringIDs: Set<UUID> = []
@@ -28,17 +34,22 @@ final class LibraryModel {
         enum Origin: Equatable { case library, search, trash }
         let id = UUID()
         let origin: Origin
-        let message: String
-        let subject: String?
-        let undoID: UUID?
+        enum Result: Equatable {
+            case copied, deleted(SnippetSummary), restored(SnippetSummary), permanentlyDeleted(SnippetSummary)
+        }
+        let result: Result
+        var undoID: UUID? {
+            if case .deleted(let item) = result { return item.id }
+            return nil
+        }
         var duration: Duration { undoID == nil ? .seconds(2) : .seconds(6) }
-        var announcement: String { subject.map { "\($0)、\(message)" } ?? message }
     }
 
     struct Failure: Equatable {
+        enum Operation: Equatable { case load, open, copy, pin, delete, restore, permanentlyDelete, notice, recordUse }
         enum Recovery: Equatable { case reload, dismiss, retryUsage, retryRestore(UUID) }
-        let title: String
-        let message: String
+        let operation: Operation
+        let reason: StoreError
         let recovery: Recovery
     }
 
@@ -61,15 +72,13 @@ final class LibraryModel {
     private var operationFailure: Failure?
     var failure: Failure? {
         if let operationFailure { return operationFailure }
-        if let pending = pendingUses.first(where: { usageErrors[$0.id] != nil }) {
-            return Failure(title: "コピー済みですが、回数と日時を記録できませんでした",
-                           message: "本文は貼り付けて使えます。下のボタンで、コピー回数と最後にコピーした日時の記録だけをやり直せます。\n" + (usageErrors[pending.id] ?? ""),
-                           recovery: .retryUsage)
+        if let reason = pendingUses.lazy.compactMap(\.failure).first {
+            return Failure(operation: .recordUse, reason: reason, recovery: .retryUsage)
         }
         guard let error = content.error else { return nil }
-        return Failure(title: "一覧を読み込めませんでした",
-                       message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload)
+        return Failure(operation: .load, reason: error as? StoreError ?? .database, recovery: .reload)
     }
+
     var editor: Draft?
     private var opening: UUID?
 
@@ -84,6 +93,12 @@ final class LibraryModel {
     var items: [SnippetSummary] { page.items }
     var drafts: [DraftSummary] { page.drafts }
     var hasMore: Bool { contentIsCurrent && page.hasMore }
+
+    func unusedSince(for item: SnippetSummary) -> Date? {
+        guard contentRequest.filter != .trash,
+              let usage = item.usage, usage.isDeletionCandidate(at: evaluatedAt) else { return nil }
+        return usage.lastUsedAt
+    }
 
     func showMore() { content.showMore() }
     func dismissFailure() { operationFailure = nil }
@@ -100,11 +115,6 @@ final class LibraryModel {
         self.libraryOpener = libraryOpener ?? store
         self.usageRecorder = usageRecorder ?? store
         self.now = now
-        self.noticeOrigin = switch surface {
-        case .library: .library
-        case .search: .search
-        case .deleted: .trash
-        }
         self.noticeSleep = noticeSleep
         evaluatedAt = now()
     }
@@ -131,7 +141,7 @@ final class LibraryModel {
             guard self.notice?.id == id else { return }
             clearNotice()
         } catch is CancellationError { }
-        catch { if self.notice?.id == id { report("通知を更新できませんでした", error) } }
+        catch { if self.notice?.id == id { report(.notice, error) } }
     }
 
     /// An explicit recovery reload clears the acknowledged operation failure.
@@ -183,7 +193,7 @@ final class LibraryModel {
         } catch is CancellationError { }
         catch {
             guard !Task.isCancelled, opening == requestID else { return }
-            report("編集を始められませんでした", error)
+            report(.open, error)
         }
     }
 
@@ -197,37 +207,36 @@ final class LibraryModel {
             try Task.checkCancellation()
             effects.copy(body)
             let use = SnippetUse(id: UUID(), snippetID: id, completedAt: now())
-            announce("コピーしました", context: context)
-            pendingUses.append(use)
+            announce(.copied, context: context)
+            pendingUses.append(PendingUse(use: use))
             await persistUse(use)
             await refresh()
         } catch is CancellationError { }
-        catch { if !Task.isCancelled { report("コピーできませんでした", error) } }
+        catch { if !Task.isCancelled { report(.copy, error) } }
     }
 
     /// Retries the completed copy's record, never the clipboard effect.
     func retryUsageRecording() async {
         guard !Task.isCancelled else { return }
-        for use in pendingUses { await persistUse(use) }
+        for pending in pendingUses { await persistUse(pending.use) }
         await refresh()
     }
 
     private func persistUse(_ use: SnippetUse) async {
-        guard recordingUses.insert(use.id).inserted else { return }
-        defer { recordingUses.remove(use.id) }
+        guard let index = pendingUses.firstIndex(where: { $0.use.id == use.id }) else { return }
+        if case .recording = pendingUses[index].state { return }
+        pendingUses[index].state = .recording
         do {
             try await usageRecorder.recordUse(use)
             mutationRevision += 1
-            pendingUses.removeAll { $0.id == use.id }
-            usageErrors[use.id] = nil
+            pendingUses.removeAll { $0.use.id == use.id }
         } catch StoreError.missing {
-            pendingUses.removeAll { $0.id == use.id }
-            usageErrors[use.id] = nil
-            operationFailure = Failure(title: "コピー済みですが、回数と日時を記録できませんでした",
-                                       message: "本文は貼り付けて使えます。項目が完全に削除されたため、コピー回数と日時は記録できません。「閉じる」でこの案内を閉じてください。",
-                                       recovery: .dismiss)
+            pendingUses.removeAll { $0.use.id == use.id }
+            operationFailure = Failure(operation: .recordUse, reason: .missing, recovery: .dismiss)
         } catch {
-            usageErrors[use.id] = recoveryMessage(error, retry: "")
+            if let index = pendingUses.firstIndex(where: { $0.use.id == use.id }) {
+                pendingUses[index].state = .failed(error as? StoreError ?? .database)
+            }
         }
     }
 
@@ -239,7 +248,7 @@ final class LibraryModel {
             mutationRevision += 1
             await refresh()
         }
-        catch { report("ピン留めを変更できませんでした", error) }
+        catch { report(.pin, error) }
     }
 
     func delete(_ id: UUID, context: NoticeContext? = nil) async {
@@ -249,9 +258,9 @@ final class LibraryModel {
         do {
             let result = try await store.mutate(.delete, id: id)
             mutationRevision += 1
-            announce("削除しました", subject: result.subject, undo: id, context: context)
+            announce(.deleted(result), context: context)
             await refresh()
-        } catch { report("削除できませんでした", error) }
+        } catch { report(.delete, error) }
     }
 
     func undoNotice(_ id: UUID, context: NoticeContext? = nil) async {
@@ -268,12 +277,10 @@ final class LibraryModel {
         do {
             let result = try await store.mutate(.restore, id: id)
             mutationRevision += 1
-            announce("元に戻しました", subject: result.subject, context: context)
+            announce(.restored(result), context: context)
             await refresh()
         } catch {
-            operationFailure = Failure(title: "復元できませんでした",
-                                       message: recoveryMessage(error, retry: error as? StoreError == .missing
-                                           ? "「一覧を再読み込み」を押してください。" : "「もう一度復元する」を押してください。"),
+            operationFailure = Failure(operation: .restore, reason: error as? StoreError ?? .database,
                                        recovery: error as? StoreError == .missing ? .reload : .retryRestore(id))
         }
     }
@@ -285,30 +292,22 @@ final class LibraryModel {
         do {
             let result = try await store.mutate(.permanentlyDelete, id: id)
             mutationRevision += 1
-            announce("完全に削除しました", subject: result.subject, context: context)
+            announce(.permanentlyDeleted(result), context: context)
             await refresh()
-        } catch { report("完全に削除できませんでした", error) }
+        } catch { report(.permanentlyDelete, error) }
     }
 
-    private func report(_ title: String, _ error: Error) {
-        operationFailure = Failure(title: title, message: recoveryMessage(error, retry: error as? StoreError == .missing
-                                       ? "「一覧を再読み込み」を押してください。" : "この案内を閉じて、もう一度操作してください。"),
+    private func report(_ operation: Failure.Operation, _ error: Error) {
+        operationFailure = Failure(operation: operation, reason: error as? StoreError ?? .database,
                                    recovery: error as? StoreError == .missing ? .reload : .dismiss)
     }
 
-    private func recoveryMessage(_ error: Error, retry: String) -> String {
-        if error as? StoreError == .newerVersion {
-            return "nibbleを最新バージョンに更新してから、もう一度操作してください。"
-        }
-        return ((error as? StoreError)?.localizedDescription ?? "保存データを読み書きできませんでした。") + retry
-    }
-
-    private func announce(_ text: String, subject: String? = nil, undo: UUID? = nil, context: NoticeContext) {
+    private func announce(_ result: Notice.Result, context: NoticeContext) {
         guard context == noticeContext, context.isPresented else { return }
-        let value = Notice(origin: noticeOrigin, message: text, subject: subject, undoID: undo)
+        let value = Notice(origin: surface.noticeOrigin, result: result)
         notice = value
         noticeDeadline = nil
         feedback += 1
-        effects.announce(value.announcement)
+        effects.announce(value)
     }
 }

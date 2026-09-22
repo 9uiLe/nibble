@@ -18,20 +18,47 @@ protocol KeyboardEffects: AnyObject {
 @MainActor @Observable
 final class KeyboardModel {
     enum Use { case insert, copy }
+    enum Action: Equatable { case load, insert, copy, preview, pin, reloadAfterPin, changed }
+    enum Reason: Equatable {
+        case store(StoreError), notPrepared, changed, unavailable
+        init(_ error: Error) {
+            if let error = error as? StoreError { self = .store(error) }
+            else if let error = error as? KeyboardReadError { self = error == .notPrepared ? .notPrepared : .changed }
+            else { self = .unavailable }
+        }
+    }
+    enum Message: Equatable {
+        case cancelled, requiresFullAccess(Action), inputChanged, inserted(UUID), copied, pinChanged(Bool)
+        case failed(Action, Reason, detailIsOpen: Bool)
+    }
     struct Detail: Equatable {
         let id: UUID
-        var item: SnippetSummary
+        let item: SnippetSummary
+        let body: String?
+        let error: Message?
+    }
+    private struct Selection {
+        let id = UUID()
+        let itemID: UUID
         var body: String?
-        var failure: String?
+        var error: Message?
     }
     struct Notice: Equatable {
         let id = UUID()
-        let message: String
-        let insertedID: UUID?
-        let expires: Bool
+        let result: Message
+        var insertedID: UUID? {
+            if case .inserted(let id) = result { return id }
+            return nil
+        }
+        var expires: Bool {
+            switch result {
+            case .inserted, .copied, .pinChanged: true
+            default: false
+            }
+        }
     }
     private enum LoadState: Equatable {
-        case inactive, pending, loading(UUID), ready, failed(String)
+        case inactive, pending, loading(UUID), ready, failed(Message)
     }
     private let reader: any KeyboardReading
     private weak var effects: (any KeyboardEffects)?
@@ -39,12 +66,16 @@ final class KeyboardModel {
     private(set) var loadID = UUID()
     private var loadState = LoadState.inactive
     private(set) var notice: Notice?
-    private(set) var detail: Detail?
-    var message: String? { notice?.message }
+    private var selection: Selection?
+    private var rows: [UUID: SnippetSummary] = [:]
+    var detail: Detail? {
+        guard let selection, let item = rows[selection.itemID] else { return nil }
+        return Detail(id: selection.id, item: item, body: selection.body, error: selection.error)
+    }
     private(set) var hasFullAccess = false
     private(set) var needsSwitchKey = false
     private var operation: UUID?
-    private var snapshot: (request: KeyboardRequest, page: KeyboardPage)?
+    private var snapshot: (request: KeyboardRequest, ids: [UUID], hasMore: Bool)?
 
     var isActive: Bool { loadState != .inactive }
     var loading: Bool {
@@ -53,11 +84,15 @@ final class KeyboardModel {
         case .ready, .failed: false
         }
     }
-    var failure: String? {
+    var loadFailure: Message? {
         if case .failed(let message) = loadState { return message }
         return nil
     }
-    var page: KeyboardPage? { snapshot?.page }
+    var page: KeyboardPage? {
+        snapshot.map { snapshot in
+            KeyboardPage(items: snapshot.ids.compactMap { rows[$0] }, hasMore: snapshot.hasMore)
+        }
+    }
     var isCurrent: Bool { snapshot?.request == request && loadState == .ready }
     var isUsing: Bool { operation != nil }
 
@@ -77,7 +112,8 @@ final class KeyboardModel {
         operation = nil
         snapshot = nil
         notice = nil
-        detail = nil
+        selection = nil
+        rows = [:]
     }
 
     func updateCapabilities(fullAccess: Bool, needsSwitchKey: Bool) {
@@ -107,7 +143,7 @@ final class KeyboardModel {
         loadID = UUID()
         if isActive { loadState = .pending }
         notice = nil
-        detail = nil
+        selection = nil
         operation = nil
     }
 
@@ -121,12 +157,12 @@ final class KeyboardModel {
             let page = try await reader.page(requested)
             try Task.checkCancellation()
             guard loadID == id, loadState == .loading(readID) else { return }
-            snapshot = (requested, page)
+            replacePage(page, for: requested)
             loadState = .ready
         } catch {
             guard loadID == id, loadState == .loading(readID) else { return }
             loadState = .failed(Task.isCancelled || error is CancellationError
-                ? "読み込みを中断しました。更新ボタンを押してください。" : "一覧を読み込めませんでした。" + recoveryMessage(error))
+                ? .cancelled : failure(for: .load, error: error))
         }
     }
 
@@ -134,7 +170,7 @@ final class KeyboardModel {
         guard isActive, isCurrent, operation == nil, !Task.isCancelled, let effects else { return }
         guard contains(item) else { return }
         if case .copy = use, !effects.canCopy {
-            notify(fullAccessMessage(for: "コピー"))
+            notify(.requiresFullAccess(.copy))
             return
         }
         let id = UUID()
@@ -146,39 +182,38 @@ final class KeyboardModel {
         do {
             let text = try await reader.body(for: item)
             try Task.checkCancellation()
-            guard isActive, loadID == generation, operation == id else { return }
+            guard isActive, loadID == generation, operation == id, contains(item) else { return }
             switch use {
             case .insert:
                 guard effects.destination == destination else {
-                    notify("入力位置が変わったため、本文を送っていません。入力先を確認して、項目をもう一度選んでください。")
+                    notify(.inputChanged)
                     return
                 }
                 effects.insert(text)
                 closeDetail()
-                notify("本文を送りました", insertedID: item.id, expires: true)
+                notify(.inserted(item.id))
             case .copy:
                 guard effects.canCopy else {
-                    notify(fullAccessMessage(for: "コピー"))
+                    notify(.requiresFullAccess(.copy))
                     return
                 }
                 effects.copy(text)
-                notify("コピーしました", expires: true)
+                notify(.copied)
             }
         } catch is CancellationError { }
         catch {
             guard isActive, loadID == generation, operation == id, !Task.isCancelled else { return }
-            let result = use == .copy ? "コピーできませんでした。" : "本文を送れませんでした。"
-            notify(result + recoveryMessage(error))
+            notify(failure(for: use == .copy ? .copy : .insert, error: error))
         }
     }
 
     func openDetail(_ item: SnippetSummary) {
         guard isCurrent, !isUsing, contains(item) else { return }
         notice = nil
-        detail = Detail(id: UUID(), item: item)
+        selection = Selection(itemID: item.id)
     }
 
-    func closeDetail() { detail = nil }
+    func closeDetail() { selection = nil }
 
     func loadDetail() async {
         guard let selected = detail, selected.body == nil else { return }
@@ -186,13 +221,16 @@ final class KeyboardModel {
         do {
             let body = try await reader.body(for: selected.item)
             try Task.checkCancellation()
-            guard isActive, loadID == generation, detail?.id == selected.id else { return }
-            detail?.body = body
+            guard isActive, loadID == generation, detail?.id == selected.id,
+                  detail?.item.revision == selected.item.revision else { return }
+            selection?.body = body
+            selection?.error = nil
         } catch is CancellationError { }
         catch {
-            guard isActive, loadID == generation, detail?.id == selected.id else { return }
-            let message = "本文を読み込めませんでした。" + recoveryMessage(error)
-            detail?.failure = message
+            guard isActive, loadID == generation, detail?.id == selected.id,
+                  detail?.item.revision == selected.item.revision else { return }
+            let message = failure(for: .preview, error: error)
+            selection?.error = message
         }
     }
 
@@ -200,7 +238,7 @@ final class KeyboardModel {
         guard isActive, isCurrent, !isUsing, !Task.isCancelled,
               let selected = detail, selected.body != nil, let effects else { return }
         guard effects.canCopy else {
-            notify(fullAccessMessage(for: "ピン留めの変更"))
+            notify(.requiresFullAccess(.pin))
             return
         }
         let id = UUID()
@@ -214,25 +252,35 @@ final class KeyboardModel {
             pinWasChanged = true
             // A committed write remains a success even if cancellation arrives after commit.
             guard isActive, loadID == generation, operation == id else { return }
-            if detail?.id == selected.id { detail?.item = updated }
-            if let snapshot {
-                let items = snapshot.page.items.compactMap { item -> SnippetSummary? in
-                    guard item.id == updated.id else { return item }
-                    return request.filter == .pinned && !updated.pinned ? nil : updated
-                }
-                self.snapshot = (snapshot.request, KeyboardPage(items: items, hasMore: snapshot.page.hasMore))
-            }
-            notify(updated.pinned ? "ピン留めしました" : "ピン留めを解除しました", expires: true)
+            rows[updated.id] = updated
+            if request.filter == .pinned && !updated.pinned { snapshot?.ids.removeAll { $0 == updated.id } }
+            notify(.pinChanged(updated.pinned))
             // Reconcile ordering and page boundaries without resetting the selected filter.
             let refreshed = try await reader.page(request)
             guard isActive, loadID == generation, operation == id else { return }
-            snapshot = (request, refreshed)
+            replacePage(refreshed, for: request)
         } catch is CancellationError { }
         catch {
             guard isActive, loadID == generation, operation == id else { return }
-            let result = pinWasChanged ? "ピン留めは変更しましたが、一覧を更新できませんでした。" : "ピン留めを変更できませんでした。"
-            notify(result + recoveryMessage(error))
+            notify(failure(for: pinWasChanged ? .reloadAfterPin : .pin, error: error))
         }
+    }
+
+    /// One value per item feeds both the list and the selected detail. A selected
+    /// item can remain outside the pinned page after unpinning, until detail closes.
+    private func replacePage(_ page: KeyboardPage, for request: KeyboardRequest) {
+        let selectedItem = selection.flatMap { rows[$0.itemID] }
+        rows = Dictionary(page.items.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        if let selectedItem {
+            if let current = rows[selectedItem.id] {
+                if current.revision != selectedItem.revision {
+                    let message = failure(for: .changed, error: KeyboardReadError.changed)
+                    selection?.body = nil
+                    selection?.error = message
+                }
+            } else { rows[selectedItem.id] = selectedItem }
+        }
+        snapshot = (request, page.items.map(\.id), page.hasMore)
     }
 
     func expireNotice(id: UUID) async {
@@ -247,23 +295,12 @@ final class KeyboardModel {
             || (detail?.item == item && detail?.body != nil)
     }
 
-    private func notify(_ message: String, insertedID: UUID? = nil, expires: Bool = false) {
-        notice = Notice(message: message, insertedID: insertedID, expires: expires)
+    private func notify(_ result: Message) {
+        notice = Notice(result: result)
     }
 
-    private func fullAccessMessage(for operation: String) -> String {
-        "\(operation)にはフルアクセスが必要です。nibbleの「設定」→「nibbleキーボード」で設定方法を確認してください。"
-    }
-
-    private func recoveryMessage(_ error: Error) -> String {
-        if error as? StoreError == .newerVersion {
-            return "nibbleを最新バージョンに更新してください。"
-        }
-        if case KeyboardReadError.notPrepared = error { return error.localizedDescription }
-        let reason = (error as? StoreError)?.localizedDescription
-            ?? (error is KeyboardReadError ? "項目が変更されています。" : "保存データを読み込めませんでした。")
-        let next = detail == nil ? "更新ボタンを押してください。" : "「一覧に戻る」を押してから、更新ボタンを押してください。"
-        return reason + next
+    private func failure(for action: Action, error: Error) -> Message {
+        .failed(action, Reason(error), detailIsOpen: selection != nil)
     }
 
     func dismiss() { effects?.dismiss() }

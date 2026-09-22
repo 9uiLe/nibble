@@ -27,9 +27,10 @@ class ObservationTests(unittest.TestCase):
     def test_source_hash_identifies_the_exact_bytes_parsed(self):
         source = self.save([{'value': 'original'}])
         raw = source.read_bytes()
-        with patch.object(Path, 'read_bytes', return_value=raw) as read:
+        changed = raw.replace(b'original', b'changed')
+        with patch.object(Path, 'read_bytes', side_effect=[raw, changed, changed]):
             report = summarize(source)
-        self.assertEqual(read.call_count, 1)
+        self.assertEqual(report['elements']['items'][0]['value'], 'original')
         self.assertEqual(report['source']['sha256'], hashlib.sha256(raw).hexdigest())
 
     def test_both_producer_formats_preserve_whitespace_and_unicode(self):

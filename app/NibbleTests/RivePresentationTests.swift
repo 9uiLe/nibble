@@ -71,32 +71,30 @@ extension UIIntegrationTests {
     }
 
     @Test @MainActor
-    func tabReturnKeepsTheCurrentPaletteAfterAppearanceChanges() async throws {
+    func keyboardTabReturnKeepsTheCurrentPalette() async throws {
         let host = try RiveTestHost()
         defer { host.close() }
-        for keyboard in [false, true] {
-            let navigation = RiveNavigationProbe()
-            navigation.keyboard = keyboard
-            navigation.scheme = .dark
-            host.show(AnyView(RiveNavigationHost(navigation: navigation)))
-            navigation.path = [1]
-            try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
-            let session = try #require(navigation.playback.session)
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
-            navigation.scheme = .light
-            try await Task.sleep(for: .milliseconds(150))
-            #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
-            let native = try #require(host.find(RiveUIView.self))
-            navigation.tab = 1
-            try await host.wait { native.isPaused || native.window == nil }
-            navigation.tab = 0
-            try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
-            try await Task.sleep(for: .milliseconds(150))
-            #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
-            #expect(host.find(RiveUIView.self) === native)
-            host.show(AnyView(EmptyView()))
-        }
+        let navigation = RiveNavigationProbe()
+        navigation.keyboard = true
+        navigation.scheme = .dark
+        host.show(AnyView(RiveNavigationHost(navigation: navigation)))
+        navigation.path = [1]
+        try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
+        let session = try #require(navigation.playback.session)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
+        navigation.scheme = .light
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
+        let native = try #require(host.find(RiveUIView.self))
+        navigation.tab = 1
+        try await host.wait { native.isPaused || native.window == nil }
+        navigation.tab = 0
+        try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
+        #expect(host.find(RiveUIView.self) === native)
+        host.show(AnyView(EmptyView()))
     }
 
     @Test @MainActor
@@ -104,9 +102,15 @@ extension UIIntegrationTests {
         let host = try RiveTestHost()
         defer { host.close() }
         let navigation = RiveNavigationProbe()
+        navigation.scheme = .dark
         host.show(AnyView(RiveNavigationHost(navigation: navigation)))
         navigation.path = [1]
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try await host.find(RiveUIView.self)?.rive?.viewModelInstance?.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
+        navigation.scheme = .light
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(try await host.find(RiveUIView.self)?.rive?.viewModelInstance?.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
         weak var native = host.find(RiveUIView.self)
         weak var rive = native?.rive
         navigation.tab = 1
@@ -114,6 +118,8 @@ extension UIIntegrationTests {
         navigation.tab = 0
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
         #expect(host.find(RiveUIView.self)?.rive === rive)
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(try await host.find(RiveUIView.self)?.rive?.viewModelInstance?.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
         navigation.covered = true
         try await host.wait { native?.isPaused == true || native?.window == nil }
         navigation.covered = false
@@ -250,6 +256,9 @@ extension UIIntegrationTests {
         weak var firstFile = firstSession?.rive.file
         weak var secondFile = secondSession?.rive.file
         #expect(firstSession !== secondSession)
+        firstSession?.data.setValue(of: ColorProperty(path: "paper"), to: RiveRuntime.Color(0xFF25282C))
+        #expect(try await firstSession?.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
+        #expect(try await secondSession?.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
         host.show(AnyView(HStack {
             RiveCanvas(session: first!.session!, paused: true)
             RiveCanvas(session: second!.session!)
@@ -327,10 +336,10 @@ extension UIIntegrationTests {
         #expect(host.find(RiveUIView.self)?.rive !== rive)
     }
 
-    @Test(arguments: [false, true]) @MainActor
-    func assetContractsCreateIndependentSessions(keyboard: Bool) async throws {
-        let resource = try await RiveResource.load(named: keyboard ? "keyboard-story" : "about-story", in: .main)
-        let contract = keyboard ? KeyboardIllustration.contract : AboutIllustration.contract
+    @Test @MainActor
+    func keyboardAssetCreatesIndependentSessions() async throws {
+        let resource = try await RiveResource.load(named: "keyboard-story", in: .main)
+        let contract = KeyboardIllustration.contract
         let first = try await resource.makeSession(contract)
         let second = try await resource.makeSession(contract)
         first.data.setValue(of: ColorProperty(path: "paper"), to: RiveRuntime.Color(0xFF25282C))

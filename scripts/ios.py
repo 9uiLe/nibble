@@ -36,6 +36,19 @@ class VerificationError(Exception):
     pass
 
 
+@contextmanager
+def simulator_lock(device):
+    # Shared across worktrees; only this user's nibble CLI invocations take this lock.
+    directory = Path(tempfile.gettempdir()) / f"nibble-ios-{os.getuid()}"
+    directory.mkdir(mode=0o700, exist_ok=True)
+    with (directory / f"{device}.lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise VerificationError("Another nibble verification command is using this Simulator")
+        yield
+
+
 def simulator_signing_arguments(config):
     """Local ad hoc signing enables Simulator entitlements without a Developer Team."""
     mode = config.get("simulator_signing", "disabled")
@@ -177,18 +190,6 @@ class Run:
             self.manifest["device"] = self.device
         self.save()
 
-    @contextmanager
-    def device_lock(self):
-        # Shared across worktrees; only this user's nibble CLI invocations take this lock.
-        directory = Path(tempfile.gettempdir()) / f"nibble-ios-{os.getuid()}"
-        directory.mkdir(mode=0o700, exist_ok=True)
-        with (directory / f"{self.args.device}.lock").open("w") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise VerificationError("Another nibble verification command is using this Simulator")
-            yield
-
     def boot(self):
         if getattr(self, "boot_ready", False):
             return
@@ -293,6 +294,29 @@ class Run:
         write_json(self.artifact_path(name, ".json"), result)
         return result["data"]
 
+    def wait_ui(self, name, predicate, *, attempts=20, interval=.25):
+        """Wait for a nonempty observed state; tool/process failures remain failures."""
+        for attempt in range(attempts):
+            data = self.ui(f"{name}-{attempt}", allow_empty=True)
+            if data.get("entries") and predicate(data):
+                return data
+            time.sleep(interval)
+        raise VerificationError("UI did not reach expected state: " + name)
+
+    def paste_text(self, text, target, reflected, *, name="paste"):
+        """Complete an observed native paste, then require the caller's input postcondition."""
+        self.command(["sim-use", "paste", "--via-menu", *target,
+                      "--device", self.args.device, text], name)
+        data = self.ui(name + "-menu-result")
+        if not reflected(data):
+            item = next((entry for entry in data["entries"]
+                         if entry.get("label") in ("ペースト", "Paste")), None)
+            if item is not None:
+                # sim-use can return while this runtime's native edit menu is still open.
+                self.command(["sim-use", "tap", "@" + str(item["aliases"]["at"]),
+                              "--device", self.args.device])
+        return self.wait_ui(name + "-applied", reflected)
+
     def tap(self, identifier):
         self.command(["sim-use", "tap", "--id", identifier, "--wait-timeout", "5", "--device", self.args.device])
 
@@ -356,9 +380,10 @@ class Run:
             self.tap("fixture.input")
             self.ui("focused")
             # Menu paste works even when Simulator's hardware keyboard is disconnected.
-            self.command(["sim-use", "paste", "--via-menu", "--target-id", "fixture.input",
-                          "--device", self.args.device, self.args.text], "paste", timeout=30)
-            self.ui("pasted")
+            self.paste_text(self.args.text, ["--target-id", "fixture.input"],
+                            lambda data: any(e.get("uniqueId") == "fixture.input"
+                                             and "".join(e.get("value", "").split()) == "".join(self.args.text.split())
+                                             for e in data["entries"]))
             self.tap("fixture.apply")
             result = self.ui("after")
             expect_text(result, "fixture.output", self.args.text)
@@ -383,7 +408,9 @@ class Run:
                 source_error = "Cannot verify final source identity: " + str(caught)
         self.manifest["media_sha256"] = media_hashes(self.path)
         original_error = error
-        error = error or source_error
+        error = error if error is not None else source_error
+        if error is not None:
+            error = str(error) or (type(error).__name__ if isinstance(error, BaseException) else "Unspecified failure")
         self.manifest.update(status="failed" if error else "passed",
                              finished_at=datetime.now(timezone.utc).isoformat())
         if error:
@@ -408,7 +435,7 @@ class Run:
             "finalize_seconds": round(time.monotonic() - finalizing, 6),
         }
         self.save()
-        if source_error and not original_error:
+        if source_error and original_error is None:
             raise VerificationError(source_error)
 
 
@@ -484,7 +511,7 @@ def main(argv=None):
         else:
             if not args.device:
                 raise VerificationError("Specify --device UDID explicitly")
-            with run.device_lock():
+            with simulator_lock(args.device):
                 if args.command == "boot":
                     run.boot()
                 elif args.command == "build":

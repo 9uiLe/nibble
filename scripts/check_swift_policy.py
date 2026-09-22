@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from swift_task_boundary import boundary_violations
 from swift_view_structure import structure_violations
+from swift_layers import check_layers
 import re
 
 
@@ -202,17 +203,20 @@ def swift_files(root):
 
 def check(root):
     count, errors = 0, []
+    sources = {}
     for path in swift_files(root):
         count += 1
         try:
             source = path.read_text()
             relative = path.relative_to(root)
+            sources[relative] = source
             findings = violations(source) + structure_violations(source, relative)
             errors.extend(f"{relative}:{line}:{column}: error: {message}" for line, column, message in findings)
         except (ValueError, UnicodeError) as error:
             errors.append(f"{path.relative_to(root)}: error: Cannot lint Swift source: {error}")
     if count == 0:
         errors.append("error: No Swift sources found; check the repository root.")
+    errors.extend(check_layers(sources, lambda source: SwiftLexer(source).scan()))
     return count, errors
 
 

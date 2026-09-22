@@ -2,21 +2,13 @@ import Foundation
 
 struct Snippet: Identifiable, Equatable, Sendable {
     let id: UUID
-    var title: String
-    var body: String
-    var pinned: Bool
-    var revision: Int
-    var updatedAt: Date
-    var deleted: Bool
-    var useCount = 0
-    var lastUsedAt: Date?
-
-    var displayTitle: String { Self.displayTitle(title: title, body: body) }
-
-    static func displayTitle(title: String, body: String) -> String {
-        let heading = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return heading.isEmpty ? String(body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60)) : heading
-    }
+    let title: String
+    let body: String
+    let pinned: Bool
+    let revision: Int
+    let updatedAt: Date
+    let deleted: Bool
+    let usage: SnippetUsage
 }
 
 struct SnippetSummary: Identifiable, Equatable, Sendable {
@@ -25,13 +17,27 @@ struct SnippetSummary: Identifiable, Equatable, Sendable {
     let preview: String
     let pinned: Bool
     let revision: Int
-    var useCount = 0
-    var lastUsedAt: Date?
-    var displayTitle: String { Snippet.displayTitle(title: title, body: preview) }
+    /// Keyboard projections deliberately do not read usage (including schema 1).
+    let usage: SnippetUsage?
+
+    init(id: UUID, title: String, preview: String, pinned: Bool, revision: Int, usage: SnippetUsage? = nil) {
+        self.id = id
+        self.title = title
+        self.preview = preview
+        self.pinned = pinned
+        self.revision = revision
+        self.usage = usage
+    }
+}
+
+struct SnippetUsage: Equatable, Sendable {
+    static let inactivityDays = 30
+    let count: Int
+    let lastUsedAt: Date?
 
     func isDeletionCandidate(at date: Date) -> Bool {
         guard let lastUsedAt else { return false }
-        return date.timeIntervalSince(lastUsedAt) >= 30 * 24 * 60 * 60
+        return date.timeIntervalSince(lastUsedAt) >= Double(Self.inactivityDays * 24 * 60 * 60)
     }
 }
 
@@ -44,12 +50,11 @@ struct SnippetUse: Equatable, Sendable {
 
 enum LibraryFilter: String, CaseIterable, Sendable {
     case all, pinned, drafts, trash
-    var title: String {
-        switch self {
-        case .all: "すべて"
-        case .pinned: "ピン留め"
-        case .drafts: "下書き"
-        case .trash: "削除した項目"
-        }
-    }
+
+    var ordering: SnippetOrdering { self == .trash ? .recentlyUpdated : .mostUsed }
+}
+
+/// Each entry chooses an ordering; storage translates it without sorting loaded bodies.
+enum SnippetOrdering {
+    case mostUsed, recentlyUpdated, pinnedFirst
 }

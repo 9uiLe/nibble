@@ -13,8 +13,10 @@
 | `verify.py` | 差分からの計画、工程の順序と中断、工程結果とrunの対応、証跡の整合性確認、保存済み状態の要約 |
 | 対象config・`ios_project.py` | Xcode project、scheme、bundle ID、署名方式、検証入力の選択 |
 | `runtime/rive/`・`rive_runtime.py` | ネイティブ描画基盤の固定入力・unsigned生成・キャッシュと完成物照合 |
-| `ios.py` | 端末の排他、環境確認、ビルド・テスト・インストール・起動・撮影、runの確定 |
-| 対象別UI driver | 利用者の操作、待機の終了条件、対象機能の期待結果 |
+| `verification_catalog.py` | 工程ID・コマンド・対象configの参照。scheme等をconfigから独立に定義しない |
+| `ios.py` | `simulator_lock`による端末の排他、環境確認、ビルド・テスト・インストール・起動・撮影、runの確定 |
+| `product_ui.py` | 本体エディターの入力・選択・ペーストと共通の画面要素識別 |
+| 対象別UI driver | 利用者の操作と対象機能の期待結果。画面遷移は`Run.wait_ui`へ到達条件を渡す |
 | `manifest.json` | runの開始・終了ソース、端末、コマンド、成否、媒体hash、所要時間 |
 | `inspect_ui.py` | 保存済みの画面要素の要約・差分と、PNGの閲覧用画像の作成 |
 | `review.json` | 確認者が実際に観測した内容、対象媒体、確認方法、未確認条件 |
@@ -44,7 +46,7 @@
 
 補助ツールはflakeとlock、製品依存は共有`Package.resolved`で固定する。Xcode・SDK・SimulatorはローカルMacのApple配布物を使い、NixのC toolchainでApple compilerを置き換えない。ツール、OS、runtimeのbuildをmanifestへ記録する。
 
-iOS実行は明示したiOS 26.5の専用UDIDとダミーデータを使う。UDIDは同名の端末を区別する識別子である。共通driverは同じUDIDへの同時実行をロックで拒否する。直接のsim-useやXcode操作はこのロックに参加しないため、利用者が同じ端末への操作を直列化する。既存端末の消去・削除は行わない。
+iOS実行は明示したiOS 26.5の専用UDIDとダミーデータを使う。UDIDは同名の端末を区別する識別子である。共通driverと保存層の測定は同じ`simulator_lock`で同一UDIDへの同時実行を拒否する。直接のsim-useやXcode操作はこのロックに参加しないため、利用者が同じ端末への操作を直列化する。既存端末の消去・削除は行わない。
 
 ビルド・実行管理・撮影はApple CLI、画面の読取・入力はNixのsim-useが担う。閲覧用画像の加工にはmacOS付属の`sips`を使う。一つのrun内では完了した端末起動確認を共有し、各runの開始時には端末の準備を確認する。
 
@@ -100,7 +102,7 @@ Simulatorの画面確認には、操作の状態、外観、時間変化に対�
 
 ## 証跡とレビューの境界
 
-runは開始・終了の検証入力と、確定した媒体のhashを持つ。入力が実行中に変わった場合は失敗とする。検証実行は自身が開始したrunだけを集め、ソース・媒体に加えてUDID・Release構成・scheme・コマンドが計画と一致することを照合する。
+runは開始・終了の検証入力と、確定した媒体のhashを持つ。入力が実行中に変わった場合は失敗とする。検証実行は自身が開始したrunだけを集め、ソース・媒体に加えてUDID・Release構成・対象configの全フィールド・コマンドが計画と一致することを照合する。
 
 指定revisionとの照合はコミット名ではなくファイル内容を使う。Gitのblobをまとめて読み出し、binaryと改行を保ってファイルごとのhashを比較する。これによりファイルごとのGit起動を避けながら、追加・削除を含む入力の一致を確認できる。照合対象と媒体の要件は[証跡手順](../review-evidence.md#runのソースと結果)に定義する。
 

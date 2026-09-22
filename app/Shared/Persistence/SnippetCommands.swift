@@ -30,22 +30,24 @@ enum SnippetCommands {
         }
     }
 
-    static func apply(_ mutation: SnippetMutation, id: UUID, to db: SQLiteDatabase) throws -> SnippetMutationResult {
+    static func apply(_ mutation: SnippetMutation, id: UUID, to db: SQLiteDatabase) throws -> SnippetSummary {
         try db.writeTransaction {
-            let subject = try SnippetQueries.summary(db, id: id).displayTitle
+            let item = try SnippetQueries.summary(db, id: id)
             switch mutation {
             case .delete: try setDeleted(true, id: id, in: db)
             case .restore: try setDeleted(false, id: id, in: db)
             case .permanentlyDelete: try remove(id, from: db)
             }
-            return SnippetMutationResult(subject: subject)
+            return item
         }
     }
 
-    static func setPinned(_ pinned: Bool, id: UUID, in db: SQLiteDatabase) throws {
-        try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND deleted=0",
-                       [.int(pinned ? 1 : 0), .text(id.uuidString)])
-        guard db.changes == 1 else { throw StoreError.missing }
+    static func setPinned(_ pinned: Bool, id: UUID, revision: Int? = nil, in db: SQLiteDatabase) throws {
+        let matching = revision == nil ? "" : " AND revision=?"
+        var values: [SQLValue] = [.int(pinned ? 1 : 0), .text(id.uuidString)]
+        if let revision { values.append(.int(revision)) }
+        try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND deleted=0\(matching)", values)
+        guard db.changes == 1 else { throw revision == nil ? StoreError.missing : StoreError.conflict }
     }
 
     static func setDeleted(_ deleted: Bool, id: UUID, in db: SQLiteDatabase) throws {

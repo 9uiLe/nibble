@@ -15,7 +15,7 @@ struct LibraryFilterBar: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
-                    ForEach([LibraryFilter.all, .pinned, .drafts], id: \.self) { filter in
+                    ForEach(LibrarySurface.collections, id: \.self) { filter in
                         Button { selection = filter } label: {
                             HStack(spacing: 7) {
                                 Text(filter.title).font(.footnote.weight(.semibold))

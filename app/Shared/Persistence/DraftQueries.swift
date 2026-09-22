@@ -30,7 +30,7 @@ enum DraftQueries {
     }
 
     static func drafts(_ db: SQLiteDatabase, limit: Int) throws -> [DraftSummary] {
-        try db.rows("SELECT id,substr(title,1,180),substr(body,1,180),updated FROM drafts ORDER BY updated DESC,id LIMIT ?",
+        try db.rows("SELECT id,substr(title,1,\(SnippetText.previewLength)),substr(body,1,\(SnippetText.previewLength)),updated FROM drafts ORDER BY updated DESC,id LIMIT ?",
                             [.int(max(1, limit))]) { row in
             DraftSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2),
                          updatedAt: Date(timeIntervalSince1970: row.double(3)))
@@ -49,23 +49,31 @@ enum DraftQueries {
     }
 
     static func updateDraft(_ draft: Draft, in db: SQLiteDatabase) throws {
-        // UPDATE only: a late queued write cannot resurrect a saved/discarded draft.
-        try db.execute("UPDATE drafts SET title=?,body=?,sequence=?,updated=? WHERE id=? AND sequence<?",
+        try db.writeTransaction {
+            guard let stored = try checkpoint(draft.id, in: db), draft.canAutosave(over: stored) else { return }
+            try writeDraft(draft, in: db)
+        }
+    }
+
+    private static func writeDraft(_ draft: Draft, in db: SQLiteDatabase) throws {
+        // The caller holds the write transaction that admitted this exact session.
+        try db.execute("UPDATE drafts SET title=?,body=?,sequence=?,updated=? WHERE id=?",
             [.text(draft.title), .text(draft.body), .int(draft.sequence), .real(Date().timeIntervalSince1970),
-             .text(draft.id.uuidString), .int(draft.sequence)])
+             .text(draft.id.uuidString)])
     }
 
     static func keepDraft(_ snapshot: Draft, in db: SQLiteDatabase) throws {
         try db.writeTransaction {
-            guard try canReplace(snapshot, in: db) else { throw StoreError.staleDraft }
+            let replacement = try replacement(snapshot, in: db)
+            guard replacement != .rejected else { throw StoreError.staleDraft }
             if snapshot.isDisposable { try removeDraft(snapshot.id, from: db) }
-            else { try updateDraft(snapshot, in: db) }
+            else if replacement == .newer { try writeDraft(snapshot, in: db) }
         }
     }
 
     static func discardDraft(_ snapshot: Draft, in db: SQLiteDatabase) throws {
         try db.writeTransaction {
-            guard try canReplace(snapshot, in: db) else { throw StoreError.staleDraft }
+            guard try replacement(snapshot, in: db) != .rejected else { throw StoreError.staleDraft }
             try removeDraft(snapshot.id, from: db)
         }
     }
@@ -81,7 +89,7 @@ enum DraftQueries {
         let key = SnippetText.searchKey(draft.title + "\n" + draft.body)
         try db.writeTransaction {
             let replacesDraft: Bool
-            do { replacesDraft = try canReplace(draft, in: db) }
+            do { replacesDraft = try replacement(draft, in: db) != .rejected }
             catch StoreError.missing where asNew { replacesDraft = false }
             guard asNew || replacesDraft else { throw StoreError.staleDraft }
             if draft.snippetID != nil && !asNew {
@@ -100,23 +108,25 @@ enum DraftQueries {
 
     /// Read content only for equal input sequences. Newer input needs identity metadata only.
     /// CASE keeps full text out of both SQLite result values and Swift strings on that path.
-    private static func canReplace(_ snapshot: Draft, in db: SQLiteDatabase) throws -> Bool {
+    private static func replacement(_ snapshot: Draft, in db: SQLiteDatabase) throws -> Draft.Replacement {
         let matches = try db.rows("""
             SELECT snippet_id,base_revision,sequence,
                    CASE WHEN sequence=? THEN title END,
                    CASE WHEN sequence=? THEN body END
             FROM drafts WHERE id=?
             """, [.int(snapshot.sequence), .int(snapshot.sequence), .text(snapshot.id.uuidString)]) { row in
-            let target = row.text(0)
-            let snippetID = target.isEmpty ? nil : try row.uuid(0)
-            guard snippetID == snapshot.snippetID,
-                  row.int(1) == snapshot.baseRevision else { return false }
-            let sequence = row.int(2)
-            return snapshot.sequence > sequence || (snapshot.sequence == sequence
-                && SnippetText.hasSameBytes(snapshot.title, row.text(3))
-                && SnippetText.hasSameBytes(snapshot.body, row.text(4)))
+            let stored = Draft.Checkpoint(id: snapshot.id, snippetID: row.text(0).isEmpty ? nil : try row.uuid(0),
+                                          baseRevision: row.int(1), sequence: row.int(2))
+            return snapshot.replacement(of: stored, title: row.text(3), body: row.text(4))
         }
         guard let match = matches.first else { throw StoreError.missing }
         return match
+    }
+
+    private static func checkpoint(_ id: UUID, in db: SQLiteDatabase) throws -> Draft.Checkpoint? {
+        try db.rows("SELECT snippet_id,base_revision,sequence FROM drafts WHERE id=?", [.text(id.uuidString)]) { row in
+            Draft.Checkpoint(id: id, snippetID: row.text(0).isEmpty ? nil : try row.uuid(0),
+                             baseRevision: row.int(1), sequence: row.int(2))
+        }.first
     }
 }

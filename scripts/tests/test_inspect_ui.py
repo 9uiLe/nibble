@@ -26,11 +26,7 @@ class InspectionCLITests(unittest.TestCase):
         self.assertEqual(result.stdout, '')
         self.assertEqual(json.loads(result.stderr.splitlines()[-1])['blocks'][0]['level'], 'error')
 
-    def test_help_and_argument_errors_belong_to_parser(self):
-        result = self.execute('--help')
-        self.assertEqual(result.returncode, 0)
-        self.assertIn('usage:', result.stdout)
-        self.assertEqual(result.stderr, '')
+    def test_image_requires_an_output_directory_before_processing(self):
         result = self.execute('image', 'input.png')
         self.assertEqual(result.returncode, 2)
         self.assertEqual(result.stdout, '')

@@ -12,6 +12,7 @@ import time
 import uuid
 
 from script_ui import ui
+from ios_project import load_project
 from verification_evidence import differences, working_hashes
 from verification_catalog import (STAGES, REGRESSION_STEPS, PERFORMANCE_STEPS,
                                   PRODUCT_STEPS, OFFLINE_STEPS, SCOPES)
@@ -19,7 +20,7 @@ from verification_catalog import (STAGES, REGRESSION_STEPS, PERFORMANCE_STEPS,
 ROOT = Path(__file__).resolve().parents[1]
 STATIC_SCRIPTS = {
     'scripts/check_docs.py', 'scripts/check_swift_policy.py', 'scripts/check_ui_design.py',
-    'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py',
+    'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py', 'scripts/swift_layers.py',
     'scripts/swift_task_boundary.py', 'scripts/swift_view_structure.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
 }
 
@@ -116,10 +117,10 @@ def command_for(name, device):
     if not device:
         raise ValueError('iOSの計画には専用Simulatorの --device UDID が必要です')
     stage = STAGES[name]
-    if stage.project:
-        return [sys.executable, 'scripts/ios.py', stage.command,
-                '--project-config', stage.project, '--configuration', 'Release', '--device', device]
-    return [sys.executable, 'scripts/' + stage.script, '--device', device, *stage.arguments]
+    if stage.script:
+        return [sys.executable, 'scripts/' + stage.script, '--device', device, *stage.arguments]
+    return [sys.executable, 'scripts/ios.py', stage.command,
+            '--project-config', stage.project, '--configuration', 'Release', '--device', device]
 
 
 def execute(argv, log, timeout, session=None):
@@ -227,7 +228,7 @@ def run_plan(selected, directory, device, timeout=1800):
                         if manifest.get('environment', {}).get('configuration') != 'Release':
                             raise ValueError('Evidence configuration differs from the plan')
                         stage = STAGES[step['id']]
-                        if manifest['project']['scheme'] != stage.scheme:
+                        if manifest['project'] != load_project(ROOT, stage.project):
                             raise ValueError('Evidence target differs from the plan')
                         if manifest['command'] != stage.command:
                             raise ValueError('Planned verification did not run')

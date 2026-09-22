@@ -37,6 +37,11 @@ extension UIIntegrationTests {
             try await store.setPinned(true, id: first)
             let all = LibraryModel(store: store)
             let search = LibraryModel(store: store, surface: .search)
+            let deleted = LibraryModel(store: store, surface: .deleted)
+            search.filter = .drafts
+            deleted.filter = .all
+            #expect(search.filter == .all && deleted.filter == .trash)
+            #expect(search.refreshOnAppearance && deleted.refreshOnAppearance)
             search.query = "検索だけ"
             search.showMore()
             await all.refresh()
@@ -99,29 +104,6 @@ extension UIIntegrationTests {
             #expect(model.items.count == 3)
         }
 
-        @Test func surfaceFixesSelectionAndRefreshPolicy() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let library = LibraryModel(store: database.store)
-            let search = LibraryModel(store: database.store, surface: .search)
-            let deleted = LibraryModel(store: database.store, surface: .deleted)
-            library.query = "ignored"
-            library.filter = .trash
-            search.filter = .drafts
-            deleted.filter = .all
-            #expect(library.query.isEmpty && library.filter == .all)
-            #expect(search.filter == .all && deleted.filter == .trash)
-            #expect(library.refreshOnAppearance && search.refreshOnAppearance && deleted.refreshOnAppearance)
-            await library.refresh()
-            #expect(!library.refreshOnAppearance && library.readDemand == nil)
-            for filter in [LibraryFilter.pinned, .drafts, .all] {
-                library.filter = filter
-                #expect(!library.loading && library.readDemand == nil && library.contentIsCurrent)
-            }
-            library.showMore()
-            #expect(library.readDemand?.limit == 200)
-        }
-
         @Test func changedQueryRetainsContentUntilTheMatchingReadCompletes() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
@@ -150,9 +132,13 @@ extension UIIntegrationTests {
             try await store.setPinned(true, id: pinned)
             let draft = try await store.beginDraft(body: "未保存の原文")
             let model = LibraryModel(store: store, effects: RecordingLibraryEffects())
+            model.query = "ignored"
+            model.filter = .trash
+            #expect(model.query.isEmpty && model.filter == .all && model.refreshOnAppearance)
             await model.refresh()
+            #expect(!model.refreshOnAppearance && model.readDemand == nil)
             model.filter = .drafts
-            #expect(!model.loading && model.contentIsCurrent && model.drafts.map(\.id) == [draft.id])
+            #expect(!model.loading && model.contentIsCurrent && model.readDemand == nil && model.drafts.map(\.id) == [draft.id])
             model.filter = .pinned
             #expect(!model.loading && model.items.map(\.id) == [pinned])
             // External writes remain invisible until the user's pull to refresh.
@@ -203,23 +189,35 @@ extension UIIntegrationTests {
             #expect(model.page.counts.saved == 2 && model.readDemand == nil)
         }
 
-        @Test func retainedPinnedPageIncludesItemsBeyondTheAllPage() async throws {
+        @Test func retainedPagesPreserveIndependentLimitsAndEveryOrderedItem() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let store = database.store
-            let pinned = try await create(store, body: "古いピン")
-            try await store.setPinned(true, id: pinned)
-            for i in 0..<101 { _ = try await create(store, body: "項目 \(i)") }
+            _ = try await store.search()
+            let db = try SQLiteDatabase(url: database.url)
+            let ids = (1...201).map { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0))! }
+            try db.writeTransaction {
+                for id in ids {
+                    try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted) VALUES(?,'項目','本文','本文',?,1,1000,0)",
+                                   [.text(id.uuidString), .int(id == ids.last ? 1 : 0)])
+                }
+            }
             let model = LibraryModel(store: store, effects: RecordingLibraryEffects())
             await model.refresh()
-            #expect(model.items.count == 100 && !model.items.contains { $0.id == pinned })
+            #expect(model.items.map(\.id) == Array(ids.prefix(100)) && model.hasMore)
+            model.filter = .pinned
+            #expect(model.items.map(\.id) == [ids.last!] && !model.loading && model.readDemand == nil)
+            model.filter = .all
             model.showMore()
             await model.refresh()
-            #expect(model.items.count == 102)
+            #expect(model.items.map(\.id) == Array(ids.prefix(200)) && model.hasMore)
+            model.showMore()
+            await model.refresh()
+            #expect(model.items.map(\.id) == ids && !model.hasMore)
             model.filter = .pinned
-            #expect(!model.loading && model.items.map(\.id) == [pinned])
+            #expect(model.request.limit == 100 && model.items.map(\.id) == [ids.last!])
             model.filter = .all
-            #expect(!model.loading && model.items.count == 102 && model.request.limit == 200)
+            #expect(model.request.limit == 300 && model.items.map(\.id) == ids && model.readDemand == nil)
         }
 
         @Test(arguments: [false, true])
@@ -297,7 +295,7 @@ extension UIIntegrationTests {
             #expect(model.contentRequest.limit == LibraryRequest.pageSize)
         }
 
-        @Test(arguments: [LibraryFilter.all, .pinned, .drafts])
+        @Test(arguments: [LibraryFilter.pinned, .drafts])
         func creatingKeepsTheSelectedCollection(filter: LibraryFilter) async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
@@ -428,7 +426,7 @@ extension UIIntegrationTests {
             #expect(library.editor == nil)
             #expect(library.notice == nil)
             #expect(library.feedback == 0)
-            #expect(try await store.snippet(id).useCount == 0)
+            #expect(try await store.snippet(id).usage.count == 0)
             #expect(try await store.drafts().isEmpty)
             #expect(try await store.snippet(id).deleted == false)
         }

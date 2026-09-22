@@ -2,6 +2,14 @@ import Foundation
 import Darwin
 
 enum SnippetText {
+    static let titleByteLimit = 512
+    static let bodyByteLimit = 1_000_000
+    static let previewLength = 180
+
+    static func hasBody(_ body: String) -> Bool {
+        !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Compare the original bytes, including canonically equivalent Unicode.
     /// Contiguous buffers avoid UTF8View's per-byte iteration on long input.
     static func hasSameBytes(_ lhs: String, _ rhs: String) -> Bool {
@@ -22,7 +30,7 @@ enum SnippetText {
     }
 
     static func validate(title: String, body: String) throws {
-        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw StoreError.empty }
-        guard title.utf8.count <= 512, body.utf8.count <= 1_000_000 else { throw StoreError.tooLarge }
+        guard hasBody(body) else { throw StoreError.empty }
+        guard title.utf8.count <= titleByteLimit, body.utf8.count <= bodyByteLimit else { throw StoreError.tooLarge }
     }
 }

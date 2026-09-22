@@ -17,11 +17,19 @@ SPMの直接依存はexact version、全依存は[共有lock](../app/Nibble.xcod
 
 Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/Resources/ThirdPartyNotices.txt)と各依存の条件を維持する。
 
+## Domain・Application・表示の依存
+
+概念ごとの正本と更新経路は[アーキテクチャ](architecture/README.md#概念ごとの正本と更新経路)に定める。DomainはFoundation/Darwinと自身の型だけに依存し、検証・不変条件・状態遷移・計算を所有する。ApplicationのContractsはDomainとFoundation、モデルはContracts・Domain・Observationを使う。PersistenceはContractsを実装し、Domainの検証を呼んで通信・保存形式へ変換する。具体的なStoreやUI型をモデルへ持ち込まない。
+
+モデルは操作・対象・理由を型で返す。資格と回復の判定を表示文字列から逆算せず、文言、日付、数値の整形は表示側のPresentationへ置く。キャッシュには正本、採用条件、再取得・無効化の入口を明記し、導出できる値を独立した可変状態へ複製しない。
+
+[依存検査](../scripts/swift_layers.py)はimport、所有する最上位型の参照、表示変換の持込みを検査する。[違反例](../scripts/tests/test_swift_policy.py)は内向きの依存を壊す参照とimportを拒否し、コメント・文字列を区別する。字句による検査は型aliasや拡張の完全な依存解析ではないため、Swiftの型チェックと責務のレビューを併用する。
+
 ## 操作APIと開始API
 
 モデルの操作はasyncとし、受理した処理と結果反映を完了まで待つ。呼出元は直接awaitした直後に状態・永続化を検査できなければならない。同期メソッド・initializer・setter・observerの内部や、完了前に戻るasync操作から隠れたタスクを開始しない。
 
-既存async処理は直接awaitし、親と寿命を共有する並行処理はasync let/task group、View/入力IDに結び付く処理はSwiftUI taskを使う。同期UIイベントだけが所有者のstartTaskを通して開始する。モデルへstoreや開始closureを渡さない。
+既存async処理は直接awaitし、親と寿命を共有する並行処理はasync let/task group、View/入力IDに結び付く処理はSwiftUI taskを使う。同期UIイベントだけが所有者のstartTaskを通して開始する。モデルへViewTaskStore・TaskSlotやタスク開始closureを渡さない。
 
 ViewTaskStoreを持てるのはView・UIViewController・MainActorの専用TaskOwner。Model/Observable型は所有者にしない。操作ID、寿命、重複方針、取消を要求する画面/sceneイベント、終了待ちを定義する。cancelExistingは停止要求であり、結果反映時の有効性確認を省略できない。
 
@@ -130,7 +138,7 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 比較はAppMacrosで生成し、手書き`==`、直接の`.equatable()`・`EquatableView`・`equatableBody`参照を使わない。データ型ではSwiftの標準Equatable合成とgenericなEquatable制約を使用できる。
 
-検査するのは、全Viewの比較宣言、表示値の変更・復元、同じ現在値を持つ別Bindingへの差し替え、操作先の更新、同じ入力での環境更新である。構文Lintとcompilerで宣言を検査し、マウント済みViewのテストと実操作で反映を確認する。各表示入力は一つずつ変更して元へ戻す。複数入力を同時に変えると、一方の比較漏れを他方が隠す。callbackの直接呼出しだけを、マウント済みViewの接続保証にしない。
+検査するのは、全Viewの比較宣言、表示値の変更・復元、同じ現在値を持つ別Bindingへの差し替え、操作先の更新、同じ入力での環境更新である。構文Lintとcompilerで宣言を検査し、マウント済みViewのテストと実操作で反映を確認する。各段階では一つの表示入力だけを変えて直前の表示と比較し、最後に初期状態へ戻して復元も確認する。複数入力を同時に変えると、一方の比較漏れを他方が隠す。callbackの直接呼出しだけを、マウント済みViewの接続保証にしない。
 
 `inputRevision`を持つViewは、親が構築し直した入力に対する比較による更新省略を行わない。この方式は接続先の整合性を優先する。描画・応答性能は比較宣言の数から判断せず、同条件の計測で評価する。フレームワークの比較と寿命の前提は、[Appleの比較API](https://developer.apple.com/documentation/swiftui/view/equatable())と[identity・寿命・依存関係](https://developer.apple.com/videos/play/wwdc2021/10022/)を参照する。
 
@@ -143,7 +151,7 @@ OSのsheet transactionとアプリ内部の変化は境界を分ける。Debug�
 
 ## Riveの表示境界
 
-RivePresentationのApple runtime APIとData Bindingを使い、Legacy API、Timer、DisplayLink、生Taskでフレームを進めない。ホストのtaskからロードとSession生成を直接awaitし、取消済みの結果を採用しない。業務状態と演出は独立させる。所有と停止中描画は[Package契約](../app/Packages/RivePresentation/README.md)、制作は[アセット手順](../app/Animations/README.md)に従う。
+RivePresentationのApple runtime APIとData Bindingを使い、RiveViewModel・RiveFile、Timer、DisplayLink、生Taskでフレームを進めない。ホストのtaskからロードとSession生成を直接awaitし、取消済みの結果を採用しない。業務状態と演出は独立させる。所有と停止中描画は[Package契約](../app/Packages/RivePresentation/README.md)、制作は[アセット手順](../app/Animations/README.md)に従う。
 
 ## Lintと禁止する直接使用
 
@@ -181,7 +189,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | 開始メソッドの使用 | 許可した開始境界からの直接呼出し。通常メソッドによるラップ、関数参照、別名化は不可 |
 | 所有者のテスト | `@Test`の本体でローカルstoreの直接構築と開始を許可。operation内の再開始やaliasは不可 |
 
-開始境界は`startTask`、Buttonのaction、`SnippetRow.perform`・`LibraryNotice.restore`の同期イベント、`onAppear`・`onDisappear`・`onChange`・`onOpenURL`、sheet/fullScreenCoverの`onDismiss`、UIViewControllerのoverride `viewDidLoad`・`viewDidAppear`・`viewWillAppear`、`@Test`の本体とする。Buttonのlabelやsheetのcontentなど、表示を構築するclosureは含めない。
+開始境界は`startTask`、Button・PinButtonのaction、`SnippetRow.perform`・`LibraryNotice.restore`の同期イベント、`onAppear`・`onDisappear`・`onChange`・`onOpenURL`、sheet/fullScreenCoverの`onDismiss`、UIViewControllerのoverride `viewDidLoad`・`viewDidAppear`・`viewWillAppear`、`@Test`の本体とする。Buttonのlabelやsheetのcontentなど、表示を構築するclosureは含めない。
 
 通常の同期/asyncメソッド、initializer、getter・setter・observer、任意のclosure、SwiftUI `.task`、Taskingのoperationからの開始を拒否する。ViewTaskStore.startをasyncで包む形も許可しない。予約名以外の任意の`.replace`はこの規則の対象外である。
 

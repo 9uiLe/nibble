@@ -9,13 +9,8 @@ struct EditorKeyboardAccessory: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button(action: showHelp) {
-                Text("入力と保存について")
-                    .font(.nibbleBody)
-                    .frame(minHeight: InterfaceMetrics.touchSize)
-                    .contentShape(.rect)
-            }
-            .accessibilityIdentifier("editor.keyboard.help")
+            EditorHelpButton(action: showHelp)
+                .accessibilityIdentifier("editor.keyboard.help")
             Spacer(minLength: 12)
             Button { focus.wrappedValue = nil } label: {
                 Label("キーボードを閉じる", systemImage: "keyboard.chevron.compact.down")

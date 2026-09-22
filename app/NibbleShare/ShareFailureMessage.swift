@@ -8,7 +8,7 @@ enum ShareFailureMessage {
         case StoreError.empty:
             "共有する文章が空です。共有元のアプリで、空白や改行以外の文字を選んで共有してください。"
         case StoreError.tooLarge:
-            "共有する文章が長すぎます。共有元のアプリで短くしてから、もう一度共有してください。本文の上限はUTF-8で1 MB（1,000,000バイト）です。"
+            "共有する文章が長すぎます。共有元のアプリで短くしてから、もう一度共有してください。本文の上限はUTF-8で\(SnippetInputLimits.body)です。"
         case StoreError.newerVersion:
             "nibbleを最新バージョンに更新してから、もう一度共有してください。"
         case is StoreError:

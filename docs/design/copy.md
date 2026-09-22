@@ -109,7 +109,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 下書き名はタイトル、本文先頭の順に求める。どちらも表示名に使えないときにも、編集途中の内容だと識別できる名前を用意する。
 
-実装：[Draft.swift](../../app/Shared/Domain/Draft.swift)。S01・C07。
+実装：[SnippetPresentation.swift](../../app/Shared/Interface/SnippetPresentation.swift)。S01・C07。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -123,7 +123,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 失敗の見出しには処理名を含める。本文は利用者が使える内容と次の行動を示し、再試行は画面にあるボタンへ対応させる。
 
-実装：[LibraryModel.swift](../../app/Nibble/Library/LibraryModel.swift)。S01・S02・S06・C17〜C19。
+実装：[LibraryPresentation.swift](../../app/Nibble/Library/LibraryPresentation.swift)。S01・S02・S06・C17〜C19。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -207,7 +207,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 エラー文は「失敗した操作＋入力の所在＋理由＋回復方法」で組み立てる。「この画面に残る」は現在の入力状態を示し、永続化の成功を意味しない。競合時の別項目保存とアプリ更新時の退避も、利用者が選ぶ操作として提示する。
 
-実装：[EditorModel.swift](../../app/Shared/Editing/EditorModel.swift)。S03・S07・C29・C30。
+実装：[EditorPresentation.swift](../../app/Shared/Editing/EditorPresentation.swift)。S03・S07・C29・C30。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -231,7 +231,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 保存層は対象の状態と入力制約を返し、画面側が操作に合う回復方法を添える。同じ保存エラーでも、編集画面と共有開始前では利用できる操作が異なる。
 
-実装：[Snippet.swift](../../app/Shared/Domain/Snippet.swift)、[StoreError.swift](../../app/Shared/Domain/StoreError.swift)。S01〜S03・S07・S09・C04・C17・C30・C42・C47。
+実装：[Snippet.swift](../../app/Shared/Domain/Snippet.swift)、[SnippetPresentation.swift](../../app/Shared/Interface/SnippetPresentation.swift)。S01〜S03・S07・S09・C04・C17・C30・C42・C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -310,7 +310,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 本体が共有保存領域を準備する。キーボードは準備されていない保存領域を作らず、本体での保存と一覧の更新へ案内する。
 
-実装：[KeyboardContracts.swift](../../app/Shared/Domain/KeyboardContracts.swift)。S09・C45〜C47。
+実装：[KeyboardContracts.swift](../../app/Shared/Application/Contracts/KeyboardContracts.swift)。S09・C45〜C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |
@@ -322,7 +322,7 @@ nibbleは、よく使う文章やURLを端末に保存し、コピーやキー�
 
 短い成功通知には期限を設ける。失敗と権限案内は自動で消さず、長文もスクロールして読める。ピン留めの保存後に一覧の取得だけが失敗した場合も、完了した書き込みを正しく伝える。
 
-実装：[KeyboardModel.swift](../../app/Shared/Keyboard/KeyboardModel.swift)。S09・C46・C47。
+実装：[KeyboardPresentation.swift](../../app/Shared/Interface/KeyboardPresentation.swift)。S09・C46・C47。
 
 | 文言 | 役割と設計理由 |
 | --- | --- |

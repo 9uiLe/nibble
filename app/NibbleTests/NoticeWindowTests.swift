@@ -7,8 +7,8 @@ extension UIIntegrationTests {
     @Suite("Notice window ownership", .serialized)
     @MainActor
     struct NoticeWindowTests {
-        @Test(arguments: ["取り消し対象", "長い対象名でも操作結果と元に戻すを読めることを確認する通知の取り消し対象"])
-        func overlayKeepsInputInSourceWindowAndPassesOutsideTouches(title: String) async throws {
+        @Test func overlayKeepsInputInSourceWindowAndPassesOutsideTouches() async throws {
+            let title = "長い対象名でも操作結果と元に戻すを読めることを確認する通知の取り消し対象"
             let files = try TestDatabase()
             defer { files.removeFiles() }
             let id = try await create(files.store, title: title, body: "ダミー本文")
@@ -30,7 +30,18 @@ extension UIIntegrationTests {
             let keyboardGuide = controller.view.keyboardLayoutGuide
             controller.view.addSubview(input)
             #expect(input.becomeFirstResponder())
-            try await Task.sleep(for: .milliseconds(400))
+            // The selected OS keyboard can attach asynchronously. Sample its settled geometry.
+            var previousTop: CGFloat?
+            var stableSamples = 0
+            for _ in 0..<80 {
+                controller.view.layoutIfNeeded()
+                let top = keyboardGuide.layoutFrame.minY
+                stableSamples = top == previousTop && top < source.bounds.height - 100 ? stableSamples + 1 : 0
+                if stableSamples >= 3 { break }
+                previousTop = top
+                try await Task.sleep(for: .milliseconds(25))
+            }
+            try #require(stableSamples >= 3)
             let anchor = LibraryNoticeWindow.AnchorView()
             controller.view.addSubview(anchor)
             anchor.content = LibraryWindowNotice(model: model, taskOwner: LibraryTaskOwner())

@@ -60,7 +60,7 @@ extension UIIntegrationTests {
             await owner.waitForIdle()
             #expect(model.notice == nil && model.feedback == 0)
             #expect(effects.events == [.copy("コピーは完了する")])
-            #expect(try await files.store.snippet(id).useCount == 1)
+            #expect(try await files.store.snippet(id).usage.count == 1)
         }
 
         @Test(arguments: [false, true])
@@ -253,7 +253,7 @@ private final class PausedNoticeStorage: LibraryStorage {
         if pausesBody { try await gate.pause() }
         return try await store.savedBody(id)
     }
-    func mutate(_ mutation: SnippetMutation, id: UUID) async throws -> SnippetMutationResult {
+    func mutate(_ mutation: SnippetMutation, id: UUID) async throws -> SnippetSummary {
         if case .restore = mutation { restoreCalls += 1 }
         if pausesMutation { try await gate.pause() }
         return try await store.mutate(mutation, id: id)
