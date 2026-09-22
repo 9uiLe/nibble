@@ -6,7 +6,7 @@ struct LibraryList: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: LibraryModel
     @SkipEquatable let taskOwner: LibraryTaskOwner
-    let surface: LibrarySurface
+    private var surface: LibrarySurface { model.surface }
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     @Binding var permanentDeletion: SnippetSummary?
 
@@ -62,7 +62,8 @@ struct LibraryList: View {
             .listRowBackground(Color.clear)
         }
         .id(model.contentRequest.filter)
-        .modifier(LibraryListStyle(tracksTabBar: surface.isRoot))
+        .modifier(LibraryListStyle())
+        .refreshable { await model.reload() }
         .scrollDismissesKeyboard(.interactively)
     }
     private var searchPrompt: Bool {

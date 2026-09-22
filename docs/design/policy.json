@@ -20,6 +20,13 @@
       ]
     },
     {
+      "path": "runtime/rive",
+      "kind": "tree",
+      "exclude_files": [
+        "*.md"
+      ]
+    },
+    {
       "path": "docs/design",
       "kind": "tree",
       "exclude_directories": [

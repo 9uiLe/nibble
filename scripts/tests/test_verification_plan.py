@@ -17,6 +17,12 @@ class SelectionTests(unittest.TestCase):
     def selected(self, paths, scope='auto'):
         return {step['id'] for step in verify.plan(paths, scope)['steps']}
 
+    def test_runtime_definition_changes_require_the_complete_regression(self):
+        for path in ['runtime/rive/Package.swift', 'runtime/rive/build.json',
+                     'runtime/rive/dependency.lua', 'runtime/rive/drawable-acquisition.patch']:
+            with self.subTest(path=path):
+                self.assertEqual(self.selected([path]), set(verify.REGRESSION_STEPS))
+
     def test_docs_do_not_start_simulators(self):
         self.assertEqual(self.selected(['docs/ios-verification.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
 
@@ -132,6 +138,15 @@ class SelectionTests(unittest.TestCase):
 
 
 class ExecutionTests(unittest.TestCase):
+    def test_command_result_and_diagnostics_stay_in_separate_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'command.log'
+            # Use repr for a standalone Python program; no shell is involved.
+            code = 'import sys; print(' + repr('{"result": true}') + '); print("diagnostic", file=sys.stderr)'
+            self.assertEqual(verify.execute([sys.executable, '-c', code], log, 5), 0)
+            self.assertEqual(json.loads(log.read_text()), {'result': True})
+            self.assertEqual(log.with_suffix('.stderr.log').read_text(), 'diagnostic\n')
+
     def test_status_preserves_failed_and_pending_work_without_reusing_success(self):
         report = {'status': 'failed', 'source_start': {'a': 'old'},
                   'source_end': {'a': 'new'}, 'error': 'Sources changed during verification',

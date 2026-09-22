@@ -26,15 +26,7 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 
 タブはアプリ内の領域へ移動するための部品であり、実行操作の入口として扱わない。領域の状態を保ち、短いラベルを付け、空の領域でも入口を消さないことを勧めている。
 
-2026-09-21に[SwiftUI tabBarMinimizeBehavior](https://developer.apple.com/documentation/swiftui/view/tabbarminimizebehavior(_:))と[UIKit onScrollDown](https://developer.apple.com/documentation/uikit/uitabbarcontroller/minimizebehavior/onscrolldown)の公開仕様を確認した。iOS 26.0以上のiPhoneでは、下方向のスクロールで縮小し、上方向で展開する標準動作を指定できる。個別アプリの操作到達性は実行で確認する。
-
-### R21 スクロールに連動するナビゲーション
-
-参照するAPI：[ScrollGeometry](https://developer.apple.com/documentation/swiftui/view/onscrollgeometrychange(for:of:action:))、[scaleEffect](https://developer.apple.com/documentation/swiftui/view/scaleeffect(_:anchor:))、[glassEffect](https://developer.apple.com/documentation/swiftui/view/glasseffect(_:in:))。
-
-C01は、閲覧中の占有面積を小さくしながら一覧・検索・設定の入口をすべて残す製品判断である。TabViewが各領域の状態を保持し、アプリがスクロール方向と移動量からバーの表示寸法を決める。固定した確保領域内で素材・選択背景・操作領域を一緒に拡縮し、検索や通知による内容の再配置を利用者のスクロールと取り違えない。
-
-通常24pt・縮小20ptの記号、通常36pt・縮小32ptの操作領域の高さ、記号の左右各16ptの余白、方向反転時の連続性を受入条件とする。APIの存在は見た目や応答品質の証明にはならない。C01と[操作・識別・回復](rationale/library-actions.md)に従って実画面を確認する。
+nibbleは`tabBarMinimizeBehavior(.never)`を指定し、スクロール中も入口の大きさを保つ。OS標準の記号・文字ラベル・選択表示と、タップ・バー上のドラッグ選択を利用する。APIの指定だけで到達性を保証せず、C01の操作・状態保持を実画面で確認する。
 
 ### R02 検索
 
@@ -170,7 +162,7 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 
 ### R20 Riveの停止と復帰
 
-出典：rive-ios 6.27.0の[RiveController](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveController.swift)、[RiveUIView](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveUIView.swift)、[DisplayLink](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/Utilities/DisplayLink.swift)。2026-09-20に共有lockとcheckoutのrevisionを照合し、advance、pause、寸法変更、離脱、run loop modeの実装を確認した。
+出典：rive-ios 6.27.0の[RiveController](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveController.swift)、[RiveUIView](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/View/RiveUIView.swift)、[DisplayLink](https://github.com/rive-app/rive-ios/blob/4c42e5839167a06a56d336e80813578bac018dde/Source/Concurrency/Utilities/DisplayLink.swift)。flake.lockで固定したApple runtimeのソースで、advance、pause、寸法変更、離脱、run loop modeの実装を確認した。
 
 画面外の描画省略だけでは未収束のState Machineは進む。明示pauseはcontrollerとDisplayLinkへ伝播し、時間差をリセットする。DisplayLinkはcommon modeに登録され、スクロール中もruntimeの時計を動かせる。初回・寸法変更の単発描画は、周期的なフレーム進行とは別に行われる。
 

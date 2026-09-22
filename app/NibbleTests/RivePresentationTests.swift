@@ -11,6 +11,37 @@ import Observation
 
 extension UIIntegrationTests {
     @Test @MainActor
+    func drawingCoalescesUntilAcquisitionReturnsAndDoesNotResumeDismissedView() async throws {
+        let resource = try await RiveResource.load(named: "about-story", in: .main)
+        let session = try await resource.makeSession(AboutIllustration.contract)
+        let log = RivePlaybackLog()
+        let previous = RiveLog.logger
+        RiveLog.logger = log
+        defer { RiveLog.logger = previous }
+        let host = try RiveTestHost()
+        defer { host.close() }
+        host.show(AnyView(RiveCanvas(session: session, paused: true).frame(width: 300, height: 200)))
+        try await host.wait { !log.advances.isEmpty }
+        try await Task.sleep(for: .milliseconds(500))
+        let metal = try #require(host.find(MTKView.self))
+        weak var native: RiveUIView? = try #require(host.find(RiveUIView.self))
+        // Wake a settled controller without changing its drawable dimensions.
+        session.rive.backgroundColor = RiveRuntime.Color(0x01000000)
+        try await Task.sleep(for: .milliseconds(50))
+        native?.isPaused = false
+        log.reset()
+        // The main actor cannot receive the asynchronous acquisition result
+        // until this synchronous burst returns. Keep only one pending frame.
+        for _ in 0..<32 { native?.draw(in: metal) }
+        #expect(log.advances.count == 1, "Pending acquisition must coalesce further frame requests")
+        let advancesBeforeDismissal = log.advances.count
+        host.show(AnyView(EmptyView()))
+        try await host.wait { native?.rive == nil }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(log.advances.count == advancesBeforeDismissal, "A result arriving after dismissal must not restart the clock")
+    }
+
+    @Test @MainActor
     func loadingUsesTheAppearanceAtCompletion() async throws {
         let host = try RiveTestHost()
         defer { host.close() }

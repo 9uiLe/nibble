@@ -9,13 +9,11 @@ struct EditorToolbar: ToolbarContent {
             EditorFinishButton(title: "閉じる", systemImage: "xmark", operation: .keep, model: model, taskOwner: taskOwner)
                 .accessibilityIdentifier("editor.close")
         }
-        .sharedBackgroundVisibility(.hidden)
         ToolbarItem(placement: .confirmationAction) {
             EditorFinishButton(title: "保存", systemImage: "checkmark", prominent: true,
                                operation: .save, model: model, taskOwner: taskOwner)
                 .disabled(!model.canSave)
                 .accessibilityIdentifier("editor.save")
         }
-        .sharedBackgroundVisibility(.hidden)
     }
 }

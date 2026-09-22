@@ -10,6 +10,10 @@ struct EditorHelpView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 8) {
+                        Text("Markdownで入力").font(.nibbleTitle)
+                        Text("見出し・太字・斜体・コードなどは、入力中に見た目へ反映されます。Markdownの記号も、空白や改行と一緒にそのまま保存・コピーされます。")
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("入力の上限").font(.nibbleTitle)
                         Text("タイトルは任意で512バイトまで、本文は1 MB（1,000,000バイト）まで入力できます。")
                             .accessibilityIdentifier("editor.lengthLimit")
@@ -34,13 +38,11 @@ struct EditorHelpView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button { dismiss() } label: {
                         Label("編集に戻る", systemImage: "xmark")
-                            .modifier(IconControlStyle())
                     }
-                    .buttonStyle(.plain)
+                    .labelStyle(.iconOnly)
                     .accessibilityLabel("編集に戻る")
                     .accessibilityIdentifier("editor.help.close")
                 }
-                .sharedBackgroundVisibility(.hidden)
             }
         }
         .tint(.nibbleAccent)

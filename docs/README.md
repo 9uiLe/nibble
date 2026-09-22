@@ -14,6 +14,7 @@ nibbleは、端末内に保存した文章やURLを探し、コピーまたは�
 | [architecture](architecture/README.md) | 構成、責務、依存、OSと保存層の境界 |
 | [design](design/README.md) | 画面、部品、文字・色・配置・通知、評価課題 |
 | [library-policy.md](library-policy.md) | Swift、タスク所有、View比較、ライブラリの規約 |
+| [Rive描画基盤](../runtime/rive/README.md) | ネイティブ描画のスレッド・寿命、固定入力とビルド |
 | [testing.md](testing.md) | 保証を置く場所、回帰の選択、未確認条件 |
 | [ios-verification.md](ios-verification.md) | ローカルでビルド・テスト・実操作するコマンド |
 | [review-evidence.md](review-evidence.md) | ソース・実行・画像・録画・レビューの照合 |

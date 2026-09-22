@@ -148,6 +148,14 @@ python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
 
 ## ビルド・テスト・動作確認
 
+製品のビルド前に、CLIがRive描画基盤を準備する。初回はローカルMacでiOS・Simulator向けにコンパイルし、以後は入力と完成物のhashが一致する場合に再利用する。Xcodeから直接開く場合は、先に次を実行する。認証情報と署名は使用しない。
+
+```sh
+nix develop --command env NIBBLE_UI_FORMAT=json python3 scripts/rive_runtime.py prepare
+```
+
+生成先と更新条件は[描画先の取得](architecture/presentation.md#描画先の取得)を参照する。
+
 個別コマンドは特定工程の調査や明示的な再検査に使う。計画に従って合格した工程を、追加の変更や懸念なしに繰り返す必要はない。次は製品のNibbleをReleaseで検証する例である。
 
 ```sh
@@ -187,7 +195,7 @@ python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_S
 python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。編集では44pt以上の操作領域、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。
+`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。標準タブのドラッグ選択、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
 
 設定末尾の区切り線がないこと、アイコンの外観、キーボード上の8ptの間隔、背景の連続性、案内文のまとまりは保存した画像を全体と細部で確認する。標準幅と狭幅の専用Simulatorで実行し、AXの成功だけで外観を確認済みにしない。
 

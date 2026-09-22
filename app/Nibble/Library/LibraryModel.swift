@@ -42,34 +42,22 @@ final class LibraryModel {
         let recovery: Recovery
     }
 
-    private(set) var request = LibraryRequest()
-    struct Snapshot {
-        let request: LibraryRequest
-        let page: LibraryPage
-    }
-
-    private(set) var snapshot: Snapshot?
-    private enum ReadOutcome { case loaded, cancelled, failed(Failure) }
-    private var completedRead: (request: LibraryRequest, outcome: ReadOutcome)?
-    private var activeRefresh: UUID?
+    private var content: LibraryReadState
+    let surface: LibrarySurface
     private let libraryReader: any LibraryReading
     private let libraryOpener: any LibraryOpening
+    var request: LibraryRequest { content.request }
+    var snapshot: LibraryReadState.Snapshot? { content.snapshot }
     var page: LibraryPage { snapshot?.page ?? LibraryPage() }
-    var contentRequest: LibraryRequest { snapshot?.request ?? request }
-    var contentIsCurrent: Bool {
-        guard let snapshot else { return false }
-        return snapshot.request.filter == request.filter
-            && snapshot.request.query == request.query
-    }
-    // Selection changes synchronously invalidate completion, before the UI starts its task.
-    var loading: Bool { activeRefresh != nil || completedRead?.request != request }
-    var loadingInterrupted: Bool {
-        guard !loading, completedRead?.request == request,
-              case .cancelled = completedRead?.outcome else { return false }
-        return true
-    }
+    var contentRequest: LibraryRequest { content.contentRequest }
+    var contentIsCurrent: Bool { content.contentIsCurrent }
+    var loading: Bool { content.loading }
+    var loadingInterrupted: Bool { content.interrupted }
+    var readDemand: LibraryRequest? { content.demand }
+    var refreshOnAppearance: Bool { content.refreshOnAppearance }
     private(set) var notice: Notice?
     private(set) var feedback = 0
+    private(set) var mutationRevision = 0
     private var operationFailure: Failure?
     var failure: Failure? {
         if let operationFailure { return operationFailure }
@@ -78,48 +66,47 @@ final class LibraryModel {
                            message: "本文は貼り付けて使えます。下のボタンで、コピー回数と最後にコピーした日時の記録だけをやり直せます。\n" + (usageErrors[pending.id] ?? ""),
                            recovery: .retryUsage)
         }
-        if completedRead?.request == request, case .failed(let failure) = completedRead?.outcome { return failure }
-        return nil
+        guard let error = content.error else { return nil }
+        return Failure(title: "一覧を読み込めませんでした",
+                       message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload)
     }
     var editor: Draft?
     private var opening: UUID?
 
     var query: String {
         get { request.query }
-        set {
-            guard !SnippetText.hasSameBytes(newValue, request.query) else { return }
-            request = LibraryRequest(query: newValue, filter: request.filter)
-        }
+        set { content.search(newValue) }
     }
     var filter: LibraryFilter {
         get { request.filter }
-        set {
-            guard newValue != request.filter else { return }
-            request = LibraryRequest(query: request.query, filter: newValue)
-        }
+        set { content.select(newValue) }
     }
     var items: [SnippetSummary] { page.items }
     var drafts: [DraftSummary] { page.drafts }
     var hasMore: Bool { contentIsCurrent && page.hasMore }
 
-    func showMore() { request = request.expanded }
+    func showMore() { content.showMore() }
     func dismissFailure() { operationFailure = nil }
 
-    init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all,
+    init(store: any LibraryStorage, effects: any LibraryEffects, surface: LibrarySurface = .library,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
          usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init,
-         noticeOrigin: Notice.Origin = .library,
          noticeSleep: @escaping (ContinuousClock.Instant) async throws -> Void = { try await ContinuousClock().sleep(until: $0) }) {
         self.store = store
+        self.surface = surface
+        content = LibraryReadState(surface: surface)
         self.effects = effects
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
         self.usageRecorder = usageRecorder ?? store
         self.now = now
-        self.noticeOrigin = filter == .trash ? .trash : noticeOrigin
+        self.noticeOrigin = switch surface {
+        case .library: .library
+        case .search: .search
+        case .deleted: .trash
+        }
         self.noticeSleep = noticeSleep
         evaluatedAt = now()
-        request = LibraryRequest(filter: filter)
     }
 
     func clearNotice() {
@@ -156,23 +143,15 @@ final class LibraryModel {
 
     func refresh() async {
         guard !Task.isCancelled else { return }
-        let token = UUID()
-        activeRefresh = token
-        let requested = request
-        defer { if activeRefresh == token { activeRefresh = nil } }
+        let read = content.begin()
+        defer { content.end(read) }
         do {
-            let page = try await libraryReader.library(requested)
+            let pages = try await libraryReader.libraries(read.requests)
             try Task.checkCancellation()
-            guard activeRefresh == token, request == requested else { return }
-            snapshot = Snapshot(request: requested, page: page)
-            evaluatedAt = now()
-            completedRead = (requested, .loaded)
+            if try content.accept(pages, from: read) { evaluatedAt = now() }
         } catch {
-            guard activeRefresh == token, request == requested else { return }
-            let outcome: ReadOutcome = Task.isCancelled || error is CancellationError ? .cancelled
-                : .failed(Failure(title: "一覧を読み込めませんでした",
-                                  message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload))
-            completedRead = (requested, outcome)
+            let outcome: LibraryReadState.Outcome = Task.isCancelled || error is CancellationError ? .cancelled : .failed(error)
+            content.complete(outcome, from: read)
         }
     }
 
@@ -199,7 +178,6 @@ final class LibraryModel {
                 if case .new = source { try? await store.keepDraft(draft) }
                 return
             }
-            if case .new = source { filter = .all }
             setNoticePresentation(false)
             editor = draft
         } catch is CancellationError { }
@@ -239,6 +217,7 @@ final class LibraryModel {
         defer { recordingUses.remove(use.id) }
         do {
             try await usageRecorder.recordUse(use)
+            mutationRevision += 1
             pendingUses.removeAll { $0.id == use.id }
             usageErrors[use.id] = nil
         } catch StoreError.missing {
@@ -255,7 +234,11 @@ final class LibraryModel {
     func pin(_ item: SnippetSummary) async {
         guard !Task.isCancelled else { return }
         operationFailure = nil
-        do { try await store.setPinned(!item.pinned, id: item.id); await refresh() }
+        do {
+            try await store.setPinned(!item.pinned, id: item.id)
+            mutationRevision += 1
+            await refresh()
+        }
         catch { report("ピン留めを変更できませんでした", error) }
     }
 
@@ -265,6 +248,7 @@ final class LibraryModel {
         operationFailure = nil
         do {
             let result = try await store.mutate(.delete, id: id)
+            mutationRevision += 1
             announce("削除しました", subject: result.subject, undo: id, context: context)
             await refresh()
         } catch { report("削除できませんでした", error) }
@@ -283,6 +267,7 @@ final class LibraryModel {
         operationFailure = nil
         do {
             let result = try await store.mutate(.restore, id: id)
+            mutationRevision += 1
             announce("元に戻しました", subject: result.subject, context: context)
             await refresh()
         } catch {
@@ -299,6 +284,7 @@ final class LibraryModel {
         operationFailure = nil
         do {
             let result = try await store.mutate(.permanentlyDelete, id: id)
+            mutationRevision += 1
             announce("完全に削除しました", subject: result.subject, context: context)
             await refresh()
         } catch { report("完全に削除できませんでした", error) }

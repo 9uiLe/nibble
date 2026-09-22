@@ -12,9 +12,12 @@ struct CreateSnippetButton: View {
             taskOwner.startTask(.open(.new), on: model)
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 24, weight: .regular))
-                .frame(width: 44, height: 44)
-                .contentShape(.rect)
+                .resizable()
+                .scaledToFit()
+                .frame(width: InterfaceMetrics.creationSymbolSize, height: InterfaceMetrics.creationSymbolSize)
+                .frame(width: InterfaceMetrics.creationSize, height: InterfaceMetrics.creationSize)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .contentShape(.circle)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)

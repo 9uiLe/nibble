@@ -9,9 +9,11 @@ struct EditorKeyboardAccessory: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button { showHelp() } label: {
-                Label("入力の上限と保存について", systemImage: "info")
-                    .modifier(IconControlStyle())
+            Button(action: showHelp) {
+                Text("入力と保存について")
+                    .font(.nibbleBody)
+                    .frame(minHeight: InterfaceMetrics.touchSize)
+                    .contentShape(.rect)
             }
             .accessibilityIdentifier("editor.keyboard.help")
             Spacer(minLength: 12)
@@ -30,5 +32,6 @@ struct EditorKeyboardAccessory: View {
         .padding(.horizontal, 16)
         .padding(.vertical, InterfaceMetrics.keyboardSpacing)
         .frame(maxWidth: .infinity)
+        .background(Color.nibbleCanvas)
     }
 }

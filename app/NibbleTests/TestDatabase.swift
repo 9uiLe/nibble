@@ -32,8 +32,8 @@ final class RecordingLibraryEffects: LibraryEffects {
 
 extension LibraryModel {
     /// Test composition never reads or writes the process pasteboard by default.
-    convenience init(store: SnippetStore, filter: LibraryFilter = .all,
+    convenience init(store: SnippetStore, surface: LibrarySurface = .library,
                      libraryReader: (any LibraryReading)? = nil) {
-        self.init(store: store, effects: RecordingLibraryEffects(), filter: filter, libraryReader: libraryReader)
+        self.init(store: store, effects: RecordingLibraryEffects(), surface: surface, libraryReader: libraryReader)
     }
 }

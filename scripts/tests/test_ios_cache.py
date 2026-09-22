@@ -26,6 +26,7 @@ class BuildCacheTests(unittest.TestCase):
             patcher = patch.object(self.run, name)
             patcher.start()
             self.addCleanup(patcher.stop)
+        self.run.command.return_value = '{}'
         patcher = patch.object(ios, 'ARTIFACTS', self.root)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -58,6 +59,15 @@ class BuildCacheTests(unittest.TestCase):
         self.assertEqual(argv[-1], 'build')
         self.assertIn('ONLY_ACTIVE_ARCH=YES', argv)
         self.assertIn('-disableAutomaticPackageResolution', argv)
+        first = self.run.command.call_args_list[0]
+        self.assertEqual(first.args[1], 'prepare-rive-runtime')
+        self.assertEqual(first.args[0][-2:], [ios.ROOT / 'scripts/rive_runtime.py', 'prepare'])
+
+    def test_runtime_preparation_failure_stops_before_xcodebuild(self):
+        self.run.command.side_effect = ios.VerificationError('runtime build failed')
+        with self.assertRaisesRegex(ios.VerificationError, 'runtime build failed'):
+            self.build()
+        self.assertEqual(self.run.command.call_count, 1)
 
     def test_incomplete_or_wrong_products_never_reach_install(self):
         self.build()

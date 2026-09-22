@@ -1,0 +1,8 @@
+{
+  "version": "6.27.0",
+  "premake_version": "5.0.0-beta8",
+  "platforms": [
+    {"name": "ios_sim", "destination": "iOS Simulator"},
+    {"name": "ios", "destination": "iOS"}
+  ]
+}

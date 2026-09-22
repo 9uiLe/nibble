@@ -47,7 +47,7 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 
 ## 開発ツールの管理
 
-補助ツールは[flake.nix](flake.nix)と[flake.lock](flake.lock)、アプリの依存はexact versionと[共有Package.resolved](app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。ローカルとCIは同じlockを使い、Homebrew・pip・別の仮想環境を開発手順の前提にしない。flakeの入力はGit追跡対象とする。
+補助ツールは[flake.nix](flake.nix)と[flake.lock](flake.lock)、Swift Packageの依存はexact versionと[共有Package.resolved](app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。Rive描画基盤は[runtime/rive](runtime/rive/README.md)の実行定義とflake.lockのソースからビルドする。ローカルとCIは同じlockを使い、Homebrew・pip・別の仮想環境を開発手順の前提にしない。flakeの入力はGit追跡対象とする。
 
 Xcode・Apple Swift・SDK・Simulator・署名情報はローカルMacで管理する。Nixは`mkShellNoCC`でAppleのcompilerを置き換えない。対応CPUとセットアップはREADME、Swift依存とmacroの条件は実装規約を参照する。
 

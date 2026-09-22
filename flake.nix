@@ -13,6 +13,44 @@
     flake = false;
   };
 
+  # Rive rendering foundation sources; build definitions live in runtime/rive.
+  inputs.rive-ios-source = {
+    url = "github:rive-app/rive-ios/4c42e5839167a06a56d336e80813578bac018dde";
+    flake = false;
+  };
+  inputs.rive-core-source = {
+    url = "github:rive-app/rive-runtime/1af8ccbefdf906ea5c33e80845360c62b43bafb3";
+    flake = false;
+  };
+  inputs.rive-harfbuzz = {
+    url = "github:rive-app/harfbuzz/rive_13.1.1";
+    flake = false;
+  };
+  inputs.rive-sheenbidi = {
+    url = "github:Tehreer/SheenBidi/v2.6";
+    flake = false;
+  };
+  inputs.rive-yoga = {
+    url = "github:rive-app/yoga/rive_changes_v2_0_1_3_grid";
+    flake = false;
+  };
+  inputs.rive-miniaudio = {
+    url = "github:rive-app/miniaudio/rive_changes_5";
+    flake = false;
+  };
+  inputs.rive-luau = {
+    url = "github:luigi-rosso/luau/rive_0_734";
+    flake = false;
+  };
+  inputs.rive-libhydrogen = {
+    url = "github:luigi-rosso/libhydrogen/rive_0_2";
+    flake = false;
+  };
+  inputs.rive-ply = {
+    url = "github:dabeaz/ply/3.11";
+    flake = false;
+  };
+
   outputs =
     {
       nixpkgs,
@@ -20,7 +58,7 @@
       rive-cli,
       hamio,
       ...
-    }:
+    }@inputs:
     let
       systems = [
         "aarch64-darwin"
@@ -90,6 +128,7 @@
           pkgs.shellcheck
           pkgs.gh
           pkgs.git
+          pkgs.premake5
         ]
         ++ hamioFor pkgs
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ]
@@ -99,6 +138,44 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShellNoCC {
           packages = toolsFor pkgs;
+          NIBBLE_RIVE_SOURCES = pkgs.linkFarm "nibble-rive-sources" [
+            {
+              name = "rive-ios";
+              path = inputs.rive-ios-source;
+            }
+            {
+              name = "rive-runtime";
+              path = inputs.rive-core-source;
+            }
+            {
+              name = "rive-app_harfbuzz_rive_13.1.1";
+              path = inputs.rive-harfbuzz;
+            }
+            {
+              name = "Tehreer_SheenBidi_v2.6";
+              path = inputs.rive-sheenbidi;
+            }
+            {
+              name = "rive-app_yoga_rive_changes_v2_0_1_3_grid";
+              path = inputs.rive-yoga;
+            }
+            {
+              name = "rive-app_miniaudio_rive_changes_5";
+              path = inputs.rive-miniaudio;
+            }
+            {
+              name = "luigi-rosso_luau_rive_0_734";
+              path = inputs.rive-luau;
+            }
+            {
+              name = "luigi-rosso_libhydrogen_rive_0_2";
+              path = inputs.rive-libhydrogen;
+            }
+            {
+              name = "dabeaz_ply_3.11";
+              path = inputs.rive-ply;
+            }
+          ];
         };
       });
 

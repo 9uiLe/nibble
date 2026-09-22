@@ -21,23 +21,30 @@ actor SnippetStore: LibraryStorage, DraftEditing {
         return db
     }
 
-    func library(_ request: LibraryRequest) throws -> LibraryPage {
+    /// All retained filters and their counts describe one database snapshot.
+    func libraries(_ requests: [LibraryRequest]) throws -> [LibraryPage] {
         try Task.checkCancellation()
         let db = try database()
         return try db.readTransaction {
             let counts = try libraryCounts(db)
-            if request.filter == .drafts {
-                let values = try drafts(limit: request.limit + 1)
-                return LibraryPage(drafts: Array(values.prefix(request.limit)), hasMore: values.count > request.limit,
-                                   counts: counts)
+            return try requests.map { request in
+                try libraryPage(request, counts: counts)
             }
-            let values = try search(request.query, filter: request.filter, limit: request.limit + 1)
-            let drafts = request.filter == .all ? try drafts(limit: LibraryRequest.draftPreviewLimit + 1) : []
-            return LibraryPage(items: Array(values.prefix(request.limit)),
-                               drafts: Array(drafts.prefix(LibraryRequest.draftPreviewLimit)),
-                               hasMore: values.count > request.limit,
-                               hasMoreDrafts: drafts.count > LibraryRequest.draftPreviewLimit, counts: counts)
         }
+    }
+
+    private func libraryPage(_ request: LibraryRequest, counts: LibraryCounts) throws -> LibraryPage {
+        if request.filter == .drafts {
+            let values = try drafts(limit: request.limit + 1)
+            return LibraryPage(drafts: Array(values.prefix(request.limit)), hasMore: values.count > request.limit,
+                               counts: counts)
+        }
+        let values = try search(request.query, filter: request.filter, limit: request.limit + 1)
+        let drafts = request.filter == .all ? try drafts(limit: LibraryRequest.draftPreviewLimit + 1) : []
+        return LibraryPage(items: Array(values.prefix(request.limit)),
+                           drafts: Array(drafts.prefix(LibraryRequest.draftPreviewLimit)),
+                           hasMore: values.count > request.limit,
+                           hasMoreDrafts: drafts.count > LibraryRequest.draftPreviewLimit, counts: counts)
     }
 
     private func libraryCounts(_ db: SQLiteDatabase) throws -> LibraryCounts {

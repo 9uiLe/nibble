@@ -5,7 +5,6 @@ struct GuidePageStyle: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(TabBarScrollTracking())
             .background(Color.nibbleCanvas)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)

@@ -11,7 +11,7 @@
 | View比較の生成 | AppMacrosの@Equatable / EquatableBodyView |
 | RMLの表示 | ローカルPackageのRivePresentation経由でrive-iosのApple runtime API |
 
-直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
+SPMの直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。RiveRuntimeは[Rive描画基盤](../runtime/rive/README.md)のローカルPackageとし、ソース・間接依存をflake.lockで固定してビルドする。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
 
 製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#4-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 
@@ -67,7 +67,7 @@ struct ExampleView: View {
 
 Viewは表示値、選択、フォーカス、シート、可視性など表示に必要な状態を扱う。保存・検索の取得・競合判定・共有入力の変換・OSへの作用はモデルまたは専用の境界へ渡す。UIイベントからの非同期処理はタスク所有者の`startTask`で開始する。共通の外観と表示観測はModifier、内容と入力のまとまりはView、寸法は用途別の値として定義する。
 
-レイアウトは親の提案サイズ、内容の自然なサイズ、Stackの整列、伸長・折返し・スクロール、safe areaの制約から組み立てる。画面サイズを読み取った絶対座標で部品を配置しない。SwiftUIとUIKitの接続に必要な座標変換とAuto Layoutは接続型へ閉じ込める。固定寸法は記号・操作領域・占有領域など仕様に意味のある値に限る。`InterfaceMetrics`は操作と通知、`TabBarMetrics`はバーの拡縮関係を所有する。
+レイアウトは親の提案サイズ、内容の自然なサイズ、Stackの整列、伸長・折返し・スクロール、safe areaの制約から組み立てる。画面サイズを読み取った絶対座標で部品を配置しない。SwiftUIとUIKitの接続に必要な座標変換とAuto Layoutは接続型へ閉じ込める。固定寸法は記号・操作領域・占有領域など仕様に意味のある値に限る。`InterfaceMetrics`は操作と通知の寸法を所有する。タブバーの寸法は標準TabViewに任せる。
 
 [構成検査](../scripts/swift_view_structure.py)は製品ソースのView型とファイル名、明示したView結果型、`@ViewBuilder`宣言をASTで検査する。[違反例の回帰](../scripts/tests/test_view_structure.py)はコメント・文字列・protocol必須実装との区別も確認する。これは構文契約であり、型aliasの解決や業務ロジックの妥当性はSwiftコンパイラーとレビューの責務である。Viewの分割自体を高速化の根拠にせず、比較境界と実行時の更新を確認する。
 
@@ -109,7 +109,7 @@ struct CaptionContent: @MainActor EquatableBodyView {
 
 Bindingの現在値が同じでも、その書込先は異なり得る。操作closureも、表示値を変えずに異なる項目やモデルを参照できる。AppMacrosはDynamicPropertyと直接記載されたclosureを比較から除外するため、これらの接続先の違いを表示値の比較だけでは判定できない。
 
-親入力を持つ通常のViewは、最初の格納プロパティに`private let inputRevision = UUID()`を置く。UUIDはView値の生成時に作り、生成された等価比較に含める。View値をコピーするとUUIDも引き継ぎ、新しく構築すると別のUUIDになる。親が渡し直したBinding・操作・参照・contentを、以前の接続と同じものとして省略しないための契約である。
+親入力を持つ通常のViewは、最初の格納プロパティに`private let inputRevision = UUID()`を置く。UUIDはView値の生成時に作り、生成された等価比較に含める。View値をコピーするとUUIDも引き継ぎ、新しく構築すると別のUUIDになる。親が渡し直したBinding・操作・参照・contentを、別の接続へ更新する必要を見落とさないための契約である。
 
 比較できないモデル参照やgenericなcontentは、不変の`let`に限り`@SkipEquatable`で除外できる。除外した入力を持つViewには、同じstruct内で比較される`inputRevision`が必須である。`let`が固定するのは格納された参照や値であり、参照先モデルの内部状態が不変になるわけではない。
 

@@ -18,8 +18,10 @@ struct EditorBottomBar: View {
                 }
             } else {
                 Button(action: showHelp) {
-                    Label("入力の上限と保存について", systemImage: "info")
-                        .modifier(IconControlStyle())
+                    Text("入力と保存について")
+                        .font(.nibbleBody)
+                        .frame(minHeight: InterfaceMetrics.touchSize)
+                        .contentShape(.rect)
                 }
                 .accessibilityIdentifier("editor.help")
             }

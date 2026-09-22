@@ -67,7 +67,7 @@ def inputs(hashes, project):
     project_path = Path(project['project'])
     if project_path.is_absolute() or '..' in project_path.parts or project_path.parts[0] not in {'app', 'validation'}:
         raise ValueError('Expected a project under app/ or validation/')
-    prefixes = (project_path.parts[0] + '/', 'scripts/')
+    prefixes = (project_path.parts[0] + '/', 'scripts/', 'runtime/')
     return {name: value for name, value in hashes.items()
             if not name.endswith('.md') and (name.startswith(prefixes) or name in {'flake.nix', 'flake.lock'})}
 

@@ -124,8 +124,8 @@ def command_for(name, device):
 
 def execute(argv, log, timeout, session=None):
     """Interrupt the whole command group and wait for cleanup before the next step."""
-    with log.open('wb') as stream:
-        process = subprocess.Popen(argv, cwd=ROOT, stdout=stream, stderr=stream, start_new_session=True,
+    with log.open('wb') as stream, log.with_suffix('.stderr.log').open('wb') as diagnostic:
+        process = subprocess.Popen(argv, cwd=ROOT, stdout=stream, stderr=diagnostic, start_new_session=True,
                                    env={**os.environ, 'NIBBLE_UI_FORMAT': 'json', 'NIBBLE_VERIFICATION_SESSION': session or ''})
         try:
             return process.wait(timeout=timeout)
@@ -168,7 +168,7 @@ def summarize_report(report, path, current):
     return {
         'result': str(path), 'status': report['status'],
         'elapsed_seconds': report.get('elapsed_seconds'), 'error': report.get('error'),
-        'steps': [{key: step[key] for key in ('id', 'status', 'seconds', 'log', 'runs', 'integrity')
+        'steps': [{key: step[key] for key in ('id', 'status', 'seconds', 'log', 'stderr', 'runs', 'integrity')
                    if key in step} for step in report['steps']],
         'source_stable': end == report['source_start'] if end is not None else None,
         'source_matches_current': end == current if end is not None else None,
@@ -197,13 +197,14 @@ def run_plan(selected, directory, device, timeout=1800):
                 raise ValueError('計画中にソースが変更されました。新しいrunで再計画してください')
             step_start = time.monotonic()
             before = set((ROOT / 'artifacts/ios').glob('*/manifest.json'))
-            step.update(status='running', log=step['id'] + '.log')
+            step.update(status='running', log=step['id'] + '.log', stderr=step['id'] + '.stderr.log')
             save()
             try:
                 with ui.step(step['id']):
                     step['exit_code'] = execute(step['argv'], directory / step['log'], timeout, session=str(directory.resolve()))
                     if step['exit_code']:
-                        raise ValueError(step['id'] + ' failed; inspect ' + str(directory / step['log']))
+                        raise ValueError(step['id'] + ' failed; inspect ' + str(directory / step['log'])
+                                         + ' and ' + str(directory / step['stderr']))
                 step['status'] = 'passed'
             finally:
                 step['seconds'] = round(time.monotonic() - step_start, 6)

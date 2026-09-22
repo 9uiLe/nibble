@@ -339,7 +339,7 @@ class DeploymentTests(Fixture):
 
     def test_dry_run_exports_only_and_keeps_secrets_out_of_summary_and_manifest(self):
         run, calls, output = self.execute_fake(True)
-        self.assertEqual([stage for stage, _ in calls], ['checks', 'resolve', 'archive', 'export'])
+        self.assertEqual([stage for stage, _ in calls], ['checks', 'prepare-rive-runtime', 'resolve', 'archive', 'export'])
         options = plistlib.loads((run.logs / 'ExportOptions.plist').read_bytes())
         self.assertEqual(options['destination'], 'export')
         self.assertTrue(options['testFlightInternalTestingOnly'])
@@ -348,6 +348,10 @@ class DeploymentTests(Fixture):
             self.assertNotIn(value, output + json.dumps(run.manifest))
         self.assertTrue(run.manifest['completed'])
         archive_command = dict(calls)['archive']
+        preparation = dict(calls)['prepare-rive-runtime']
+        self.assertEqual(preparation[-2:], ['scripts/rive_runtime.py', 'prepare'])
+        for value in self.values.values():
+            self.assertNotIn(value, ' '.join(preparation))
         self.assertNotIn('-skipMacroValidation', archive_command)
         self.assertIn('-onlyUsePackageVersionsFromResolvedFile', archive_command)
         self.assertIn('CURRENT_PROJECT_VERSION=1', archive_command)

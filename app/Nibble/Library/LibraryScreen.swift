@@ -8,7 +8,7 @@ struct LibraryScreen: View {
     private let inputRevision = UUID()
 
     @SkipEquatable let model: LibraryModel
-    let surface: LibrarySurface
+    private var surface: LibrarySurface { model.surface }
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     @Environment(\.scenePhase) private var scenePhase
     @State private var taskOwner = LibraryTaskOwner()
@@ -26,7 +26,7 @@ struct LibraryScreen: View {
                 LibraryFilterBar(selection: $library.filter, counts: model.snapshot?.page.counts)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            LibraryList(model: model, taskOwner: taskOwner, surface: surface, searchFocused: searchFocused,
+            LibraryList(model: model, taskOwner: taskOwner, searchFocused: searchFocused,
                         permanentDeletion: $permanentDeletion)
         }
         .background(Color.nibbleCanvas)
@@ -48,11 +48,13 @@ struct LibraryScreen: View {
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
         .onAppear {
-            taskOwner.startTask(.refresh, on: model)
+            if model.refreshOnAppearance { taskOwner.startTask(.refresh, on: model) }
         }
-        .onChange(of: model.request) { taskOwner.startTask(.refresh, on: model) }
+        .onChange(of: model.readDemand) {
+            if model.readDemand != nil { taskOwner.startTask(.refresh, on: model) }
+        }
         .onChange(of: scenePhase) {
-            if scenePhase == .active { taskOwner.startTask(.refresh, on: model) }
+            if scenePhase == .active && model.refreshOnAppearance { taskOwner.startTask(.refresh, on: model) }
             else if scenePhase == .background { taskOwner.endScreen() }
         }
         .onDisappear {

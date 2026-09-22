@@ -8,18 +8,17 @@ struct EditorBodyField: View {
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
 
     var body: some View {
-        @Bindable var editor = model
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("本文").font(.nibbleTitle).foregroundStyle(.secondary)
                 Spacer()
-                HStack(spacing: 8) {
+                VStack(alignment: .trailing, spacing: 4) {
                     Text("末尾にペースト").font(.caption).foregroundStyle(.secondary)
                     PasteButton(payloadType: String.self) { texts in
                         if let text = texts.first { model.body += text }
                     }
                     .labelStyle(.iconOnly)
-                    .controlSize(.small)
+                    .controlSize(.large)
                     .buttonBorderShape(.circle)
                     .frame(width: InterfaceMetrics.controlSize, height: InterfaceMetrics.controlSize)
                     .frame(minWidth: InterfaceMetrics.touchSize, minHeight: InterfaceMetrics.touchSize)
@@ -27,20 +26,15 @@ struct EditorBodyField: View {
                     .accessibilityIdentifier("editor.paste")
                 }
             }
+            Text("ペーストは、テキストをコピーすると使えます。")
+                .font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("editor.pasteGuidance")
             if !model.hasBody {
                 Text("本文を入力すると保存できます。空白や改行だけでは保存できません。")
                     .font(.nibbleBody).foregroundStyle(.secondary)
                     .accessibilityIdentifier("editor.bodyRequirement")
             }
-            // A growing native multiline field lets the entire page scroll on small screens.
-            TextField("保存したい文章やURLを入力", text: $editor.body, axis: .vertical)
-                .font(.nibbleBody)
-                .lineLimit(10...)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused(focus, equals: .body)
-                .accessibilityIdentifier("editor.body")
-                .accessibilityLabel("本文")
+            MarkdownEditor(model: model, focus: focus)
         }
     }
 }

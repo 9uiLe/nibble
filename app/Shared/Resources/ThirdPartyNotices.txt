@@ -35,6 +35,7 @@ SOFTWARE.
 RiveRuntime 6.27.0 (Nibble app)
 https://github.com/rive-app/rive-ios
 Includes Rive core and renderer.
+Locally patched to acquire Metal drawables off the main thread.
 
 MIT License
 

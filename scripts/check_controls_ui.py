@@ -35,18 +35,29 @@ def main():
         for entry in data['entries']:
             if entry.get('uniqueId') in expected:
                 frame = entry['frame']
-                if entry['uniqueId'].startswith('navigation.tab.'):
-                    if abs(frame['width'] - 56) > 1 or abs(frame['height'] - 36) > 1:
-                        raise VerificationError('Expanded tab target must be 56×36pt: ' + str(entry))
-                elif frame['width'] < 44 or frame['height'] < 44:
+                # Native navigation items expose their 36pt visual bounds in AX;
+                # UIKit owns the surrounding hit area. Exercise each actual action.
+                native = entry['uniqueId'] in ('editor.close', 'editor.save', 'editor.help.close', 'library.trash.close')
+                creation = entry['uniqueId'] == 'library.add'
+                minimum = 36 if native or creation else 44
+                if frame['width'] < minimum or frame['height'] < minimum:
                     raise VerificationError('Control is smaller than its touch target: ' + str(entry))
+                if creation and any(abs(frame[axis] - 36) > .5 for axis in ('width', 'height')):
+                    raise VerificationError('Creation button must be 36 by 36 points: ' + str(entry))
 
     try:
         run.setup()
         with run.device_lock():
             run.launch()
-            wait('root', lambda d: 'navigation.tab.search' in identifiers(d))
+            root = wait('root', lambda d: 'navigation.tab.search' in identifiers(d))
             with run.recording():
+                tabs = {e.get('uniqueId'): e['frame'] for e in root['entries']
+                        if e.get('uniqueId', '').startswith('navigation.tab.')}
+                start, end = tabs['navigation.tab.library'], tabs['navigation.tab.settings']
+                run.command(['sim-use', 'swipe', '--from', f"{start['x'] + start['width']/2},{start['y'] + start['height']/2}",
+                             '--to', f"{end['x'] + end['width']/2},{end['y'] + end['height']/2}",
+                             '--duration', '0.6', '--device', args.device])
+                wait('native-tab-drag', lambda d: 'settings.version' in identifiers(d))
                 run.tap('navigation.tab.search')
                 wait('search', lambda d: any(e.get('uniqueId') == 'navigation.title' and e.get('label') == '検索'
                                              for e in d['entries']))
@@ -87,15 +98,34 @@ def main():
                 run.screenshot('editor-guidance')
                 run.tap('editor.close')
                 wait('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
+                run.tap('navigation.tab.library')
+                wait('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
+                for collection, headings in (
+                    ('pinned', {'ピン留めした項目', 'ピン留めした項目はありません'}),
+                    ('drafts', {'タップして、編集を再開', '下書きはありません'}),
+                ):
+                    def collection_visible(data):
+                        return ('editor.body' not in identifiers(data)
+                                and any(e.get('label') in headings for e in data['entries']))
+                    run.tap('library.filter.' + collection)
+                    wait(collection + '-selected', collection_visible)
+                    run.tap('library.add')
+                    wait(collection + '-new-editor', lambda d: 'editor.body' in identifiers(d))
+                    run.tap('editor.close')
+                    wait(collection + '-creation-returned', collection_visible)
+                    run.screenshot('creation-returns-to-' + collection)
+                run.tap('library.filter.all')
                 run.manifest['assertions'] = {
                     'search_does_not_focus_on_entry': True,
                     'settings_version_matches_bundle': expected,
                     'settings_deleted_returns': True,
-                    'expanded_tab_targets_56_by_36pt': True,
-                    'non_tab_action_targets_at_least_44pt': True,
+                    'native_tab_targets_at_least_44pt': True,
+                    'native_tab_drag_selects_destination': True,
+                    'native_toolbar_and_custom_action_bounds': True,
                     'keyboard_and_screen_actions_exclusive': True,
                     'help_restores_focus': True,
                     'empty_editor_returns_to_caller': True,
+                    'creation_preserves_collection': True,
                 }
     except BaseException as exc:
         error = str(exc)

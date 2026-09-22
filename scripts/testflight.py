@@ -250,6 +250,9 @@ class Deployment:
         sdk = subprocess.check_output(['/usr/bin/xcrun', '--sdk', 'iphoneos', '--show-sdk-version'],
                                       env=apple_environment(), stderr=subprocess.DEVNULL, text=True).strip()
         require(sdk == '26.5', 'iPhoneOS 26.5 SDKを選択してください。')
+        self.native('prepare-rive-runtime', [nix, 'develop', '--command',
+                    'python3', 'scripts/rive_runtime.py', 'prepare'], 3600)
+        self.unchanged()
         cache = self.root / 'artifacts/SourcePackages'
         self.native('resolve', ['/usr/bin/xcodebuild', '-resolvePackageDependencies',
                     '-project', 'app/Nibble.xcodeproj', '-scheme', 'Nibble',

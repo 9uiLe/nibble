@@ -12,6 +12,7 @@
 | --- | --- |
 | `verify.py` | 差分からの計画、工程の順序と中断、工程結果とrunの対応、証跡の整合性確認、保存済み状態の要約 |
 | 対象config・`ios_project.py` | Xcode project、scheme、bundle ID、署名方式、検証入力の選択 |
+| `runtime/rive/`・`rive_runtime.py` | ネイティブ描画基盤の固定入力・unsigned生成・キャッシュと完成物照合 |
 | `ios.py` | 端末の排他、環境確認、ビルド・テスト・インストール・起動・撮影、runの確定 |
 | 対象別UI driver | 利用者の操作、待機の終了条件、対象機能の期待結果 |
 | `manifest.json` | runの開始・終了ソース、端末、コマンド、成否、媒体hash、所要時間 |
@@ -21,7 +22,7 @@
 | `benchmark_verification.py` | 明示したコマンド列の反復測定、工程時間・ばらつき・完了数の集計 |
 | `check_pr.py`・Ubuntu CI | PR本文と全コミット、変更範囲、最終headのCI、共通静的検査 |
 
-CLIが入力・結果データ・終了コードを管理し、工程や成否の表示は`script_ui`の表示Adapterを通してhamioへ渡す。入出力と表示障害の扱いは[スクリプト設計](../script-tooling.md)に定義する。
+各工程のstdoutは`<工程>.log`、stderrは`<工程>.stderr.log`へ分けて保存し、resultの`log`と`stderr`で参照する。CLIが入力・結果データ・終了コードを管理し、工程や成否の表示は`script_ui`の表示Adapterを通してhamioへ渡す。入出力と表示障害の扱いは[スクリプト設計](../script-tooling.md)に定義する。
 
 ## 検証範囲と工程の順序
 
@@ -63,6 +64,8 @@ DerivedDataはXcodeの中間生成物と増分ビルド情報を保存するキ�
 標準の検証計画はReleaseを使う。テスト時だけ`ENABLE_TESTABILITY=YES`を追加し、UI実行の最適化は対象projectのRelease設定に従う。architectureは実行Macに限定する。テストとUIで中間生成物を分離すると、構成を交互に使う際の依存再コンパイルを避けられる一方、構成ごとの初回ビルドと保存容量が必要になる。
 
 すべてのbuild・test・launchで`xcodebuild`を実行する。ソース、Xcode project、依存lockの変更はXcodeが増分検査し、必要な再ビルドまたは失敗を返す。lockにない依存版の自動解決は許可しない。ビルド成功後にbundle IDとapp内の実行ファイルを確認してからインストールする。
+
+Rive描画基盤は各ビルド前に同じ`prepare`で照合する。証跡の入力には対象target・scripts・runtime・flake/lockを含め、基盤定義の変更もiOS検証の結果を無効にする。
 
 キャッシュの存在、インストール済みアプリ、別runの成功は実行ソースの証明には使わない。証跡の根拠は同じrun内の対象scheme・UDIDへの成功したbuildまたはtestと、そのrunのソース照合である。
 
