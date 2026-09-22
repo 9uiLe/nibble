@@ -145,6 +145,15 @@ def main():
             target = focus_target()
         run.command(["sim-use", "paste", "--via-menu", *target,
                      "--device", args.device, text])
+        observed = run.ui(identifier + "-paste-menu-result")
+        if not reflected(observed):
+            paste_item = next((entry for entry in observed["entries"]
+                               if entry.get("label") in ("ペースト", "Paste")), None)
+            if paste_item is not None:
+                # The runtime can leave the native menu open after sim-use returns.
+                # Confirm only the observed pending action, then assert the field value.
+                run.command(["sim-use", "tap", "@" + str(paste_item["aliases"]["at"]),
+                             "--device", args.device])
         wait_ui(identifier + "-pasted", reflected)
 
     def identifiers(data):
@@ -183,7 +192,7 @@ def main():
         with run.device_lock():
             run.launch()
             before = wait_ui("before", lambda data: data.get("appPackage") == run.config["bundle_id"]
-                             and "navigation.title" in identifiers(data))
+                             and {"navigation.title", "navigation.tab.library", "navigation.tab.search", "navigation.tab.settings"} <= identifiers(data))
             library_heading = check_navigation_title(before, "一覧")
             if "navigation.subtitle" not in identifiers(before):
                 raise VerificationError("Library heading must expose its count subtitle")

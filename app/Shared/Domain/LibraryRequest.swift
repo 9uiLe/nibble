@@ -3,6 +3,15 @@ import Foundation
 /// A read completes with one request's database snapshot; it never starts background work.
 protocol LibraryReading: Sendable {
     func library(_ request: LibraryRequest) async throws -> LibraryPage
+    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage]
+}
+
+extension LibraryReading {
+    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage] {
+        var pages: [LibraryPage] = []
+        for request in requests { pages.append(try await library(request)) }
+        return pages
+    }
 }
 
 struct LibraryRequest: Equatable, Sendable {

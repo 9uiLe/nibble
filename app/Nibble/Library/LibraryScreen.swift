@@ -48,11 +48,15 @@ struct LibraryScreen: View {
         // Keep native presentation transactions outside app content; local scopes own its animation.
         .animationBarrier(warnsOnLeaks: false)
         .onAppear {
-            taskOwner.startTask(.refresh, on: model)
+            if !model.retainsFilters || model.snapshot == nil { taskOwner.startTask(.refresh, on: model) }
         }
-        .onChange(of: model.request) { taskOwner.startTask(.refresh, on: model) }
+        .onChange(of: model.request) { old, new in
+            if !model.retainsFilters || old.query != new.query || old.filter == new.filter {
+                taskOwner.startTask(.refresh, on: model)
+            }
+        }
         .onChange(of: scenePhase) {
-            if scenePhase == .active { taskOwner.startTask(.refresh, on: model) }
+            if scenePhase == .active && !model.retainsFilters { taskOwner.startTask(.refresh, on: model) }
             else if scenePhase == .background { taskOwner.endScreen() }
         }
         .onDisappear {

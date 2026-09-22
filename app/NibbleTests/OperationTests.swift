@@ -179,6 +179,82 @@ extension UIIntegrationTests {
             #expect(!model.loading && model.items.isEmpty)
         }
 
+        @Test func retainedFiltersSwitchImmediatelyAndRefreshAllCollections() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let pinned = try await create(store, body: "ピン留めの原文")
+            try await store.setPinned(true, id: pinned)
+            let draft = try await store.beginDraft(body: "未保存の原文")
+            let model = LibraryModel(store: store, effects: RecordingLibraryEffects(), retainsFilters: true)
+            await model.refresh()
+            model.filter = .drafts
+            #expect(!model.loading && model.contentIsCurrent && model.drafts.map(\.id) == [draft.id])
+            model.filter = .pinned
+            #expect(!model.loading && model.items.map(\.id) == [pinned])
+            // External writes remain invisible until the user's pull to refresh.
+            let external = try await create(store, body: "共有拡張で保存")
+            model.filter = .all
+            #expect(!model.loading && model.items.map(\.id) == [pinned])
+            await model.reload()
+            #expect(Set(model.items.map(\.id)) == [pinned, external])
+            let item = try #require(model.items.first { $0.id == external })
+            await model.pin(item)
+            model.filter = .pinned
+            #expect(!model.loading && Set(model.items.map(\.id)) == [pinned, external])
+            await model.delete(pinned)
+            model.filter = .all
+            #expect(model.items.map(\.id) == [external])
+            model.filter = .drafts
+            #expect(!model.loading && model.drafts.map(\.id) == [draft.id])
+        }
+
+        @Test func retainedBatchFollowsSelectionAndDoesNotPublishPartialFailure() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let reader = ControlledLibraryReader()
+            let model = LibraryModel(store: database.store, effects: RecordingLibraryEffects(),
+                                     retainsFilters: true, libraryReader: reader)
+            let owner = LibraryTaskOwner()
+            owner.startTask(.refresh, on: model)
+            for index in 0..<3 {
+                await reader.waitForRequests(index + 1)
+                if index == 1 { model.filter = .pinned }
+                reader.finish(index, with: .success(LibraryPage(counts: LibraryCounts(saved: 2, pinned: 1))))
+            }
+            await owner.waitForIdle()
+            #expect(!model.loading && model.contentRequest.filter == .pinned && model.page.counts.saved == 2)
+            owner.startTask(.refresh, on: model)
+            await reader.waitForRequests(4)
+            reader.finish(3, with: .success(LibraryPage(counts: LibraryCounts(saved: 99))))
+            await reader.waitForRequests(5)
+            model.filter = .drafts
+            reader.finish(4, with: .failure(StoreError.unavailable))
+            await owner.waitForIdle()
+            #expect(!model.loading && model.failure != nil && model.page.counts.saved == 2)
+            model.filter = .all
+            #expect(!model.loading && model.contentIsCurrent && model.page.counts.saved == 2)
+        }
+
+        @Test func retainedPinnedPageIncludesItemsBeyondTheAllPage() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let store = database.store
+            let pinned = try await create(store, body: "古いピン")
+            try await store.setPinned(true, id: pinned)
+            for i in 0..<101 { _ = try await create(store, body: "項目 \(i)") }
+            let model = LibraryModel(store: store, effects: RecordingLibraryEffects(), retainsFilters: true)
+            await model.refresh()
+            #expect(model.items.count == 100 && !model.items.contains { $0.id == pinned })
+            model.showMore()
+            await model.refresh()
+            #expect(model.items.count == 102)
+            model.filter = .pinned
+            #expect(!model.loading && model.items.map(\.id) == [pinned])
+            model.filter = .all
+            #expect(!model.loading && model.items.count == 102 && model.request.limit == 200)
+        }
+
         @Test(arguments: [false, true])
         func staleReadCannotFinishTheNextSelection(fails: Bool) async throws {
             let database = try TestDatabase()

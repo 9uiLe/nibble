@@ -16,7 +16,8 @@ struct CreateSnippetButton: View {
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
         .foregroundStyle(.primary)
         .accessibilityLabel("新規作成")
         .accessibilityHint("編集画面を開きます")

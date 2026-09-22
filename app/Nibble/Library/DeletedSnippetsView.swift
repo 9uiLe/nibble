@@ -24,12 +24,10 @@ struct DeletedSnippetsView: View {
                     ToolbarItem(placement: .cancellationAction) {
                         Button { dismiss() } label: {
                             Label("閉じる", systemImage: "xmark")
-                                .modifier(IconControlStyle())
                         }
-                        .buttonStyle(.plain)
+                        .labelStyle(.iconOnly)
                         .accessibilityIdentifier("library.trash.close")
                     }
-                    .sharedBackgroundVisibility(.hidden)
                 }
         }
         .searchable(text: $library.query, prompt: "削除した項目を検索")

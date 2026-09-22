@@ -62,7 +62,8 @@ struct LibraryList: View {
             .listRowBackground(Color.clear)
         }
         .id(model.contentRequest.filter)
-        .modifier(LibraryListStyle(tracksTabBar: surface.isRoot))
+        .modifier(LibraryListStyle())
+        .refreshable { await model.reload() }
         .scrollDismissesKeyboard(.interactively)
     }
     private var searchPrompt: Bool {

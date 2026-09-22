@@ -7,7 +7,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | 配置 | 責務と主な型 |
 | --- | --- |
 | `app/Nibble/NibbleApp.swift` | 本体の依存生成とsceneの入口 |
-| `app/Nibble/Navigation/` | `AppRootView`のタブ・シート・scene、`AppRoute`、共通見出し、`AppTab`の領域定義、`FloatingTabBar`・`TabBarMetrics`とスクロール状態 |
+| `app/Nibble/Navigation/` | `AppRootView`のタブ・シート・scene、`AppRoute`、共通見出し、`AppTab`の領域定義、標準TabViewの表示 |
 | `app/Nibble/Library/` | `LibrarySurface`による一覧・検索・削除一覧の表示種別、操作モデル、タスク所有者、行と通知 |
 | `app/Nibble/Settings/` | 設定、製品情報、キーボード利用案内 |
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
@@ -52,7 +52,7 @@ flowchart TD
 
 一覧・検索・設定は`RootScreenHeading`が見出しと右上の作成操作を配置する。文字表示は`ScreenHeading(title:subtitle:)`が担い、指定した場合だけ補足行と間隔を表示する。フォントは`Font.nibbleScreenTitle`、操作との間隔と外側の余白はコンテナが所有する。本文、項目名、補足、通知などは[F03](../design/foundations.md#f03-文字と図記号)の役割で指定する。
 
-本体・共有拡張・キーボード・表示PackageのViewは、責務ごとの型とファイルへ分けている。入力と更新境界をView型で表し、Viewを返す補助関数・算出プロパティを作らない。`body`・`equatableBody`、Modifier・Style・representableの必須メソッドは各protocolの定義として保持する。`LibrarySurface`が一覧・検索・削除一覧の有効な表示構成を表し、`LibraryScreen`は画面の状態と寿命、`LibraryList`は読込状態とリスト、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。共通のリスト外観は`LibraryListStyle`、スクロールの観測は`TabBarScrollTracking`が担う。
+本体・共有拡張・キーボード・表示PackageのViewは、責務ごとの型とファイルへ分けている。入力と更新境界をView型で表し、Viewを返す補助関数・算出プロパティを作らない。`body`・`equatableBody`、Modifier・Style・representableの必須メソッドは各protocolの定義として保持する。`LibrarySurface`が一覧・検索・削除一覧の有効な表示構成を表し、`LibraryScreen`は画面の状態と寿命、`LibraryList`は読込状態とリスト、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。共通のリスト外観は`LibraryListStyle`が担う。タブの表示・ドラッグ選択・safe areaは標準TabViewが所有する。
 
 設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景・標準見出し・スクロール観測を共通化する。説明内容と各ページの余白はページに残す。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 

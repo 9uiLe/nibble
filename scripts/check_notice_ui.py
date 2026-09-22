@@ -101,9 +101,21 @@ def main():
 
     def create_item(title, data):
         run.tap("library.add" if "library.add" in ids(data) else "library.createFirst")
-        wait("editor", lambda data: "editor.body" in ids(data))
-        run.command(["sim-use", "paste", "--via-menu", "--target-id", "editor.title",
+        data = wait("editor", lambda data: "editor.body" in ids(data))
+        frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "editor.title")
+        target = ["--target-x", str(frame["x"] + frame["width"] / 2),
+                  "--target-y", str(frame["y"] + frame["height"] / 2)]
+        run.command(["sim-use", "tap", "--point", f"{frame['x'] + frame['width'] / 2},{frame['y'] + frame['height'] / 2}",
+                     "--device", args.device])
+        run.command(["sim-use", "paste", "--via-menu", *target,
                      "--device", args.device, title])
+        data = run.ui("title-paste-result")
+        if not any(e.get("uniqueId") == "editor.title" and e.get("value") == title for e in data["entries"]):
+            item = next((e for e in data["entries"] if e.get("label") in ("ペースト", "Paste")), None)
+            if item is not None:
+                run.command(["sim-use", "tap", "@" + str(item["aliases"]["at"]), "--device", args.device])
+        wait("title-pasted", lambda data: any(e.get("uniqueId") == "editor.title" and e.get("value") == title
+                                             for e in data["entries"]))
         run.command(["python3", "-c", "import subprocess,sys; subprocess.run(['/usr/bin/xcrun','simctl','pbcopy',sys.argv[1]], input=sys.argv[2].encode(), check=True)",
                      args.device, "通知を確認するダミー本文"])
         label("本文の末尾にペースト")
@@ -253,7 +265,7 @@ def main():
                     return (data.get("appPackage") == run.config["bundle_id"]
                             and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "一覧" for e in data["entries"])
                             and any(e.get("uniqueId") == "navigation.tab.library"
-                                    and e.get("value") == "選択中" for e in data["entries"])
+                                    and "selected" in e.get("states", []) for e in data["entries"])
                             and ("library.add" in ids(data) or "library.createFirst" in ids(data)))
                 wait("foreground-root", library_is_active)
                 time.sleep(0.3)

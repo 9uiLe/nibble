@@ -49,6 +49,8 @@ final class LibraryModel {
     }
 
     private(set) var snapshot: Snapshot?
+    let retainsFilters: Bool
+    private var filterSnapshots: [LibraryFilter: Snapshot] = [:]
     private enum ReadOutcome { case loaded, cancelled, failed(Failure) }
     private var completedRead: (request: LibraryRequest, outcome: ReadOutcome)?
     private var activeRefresh: UUID?
@@ -70,6 +72,7 @@ final class LibraryModel {
     }
     private(set) var notice: Notice?
     private(set) var feedback = 0
+    private(set) var mutationRevision = 0
     private var operationFailure: Failure?
     var failure: Failure? {
         if let operationFailure { return operationFailure }
@@ -95,7 +98,13 @@ final class LibraryModel {
         get { request.filter }
         set {
             guard newValue != request.filter else { return }
-            request = LibraryRequest(query: request.query, filter: newValue)
+            if retainsFilters, let retained = filterSnapshots[newValue], retained.request.query == request.query {
+                request = retained.request
+                snapshot = retained
+                completedRead = (request, .loaded)
+            } else {
+                request = LibraryRequest(query: request.query, filter: newValue)
+            }
         }
     }
     var items: [SnippetSummary] { page.items }
@@ -105,12 +114,13 @@ final class LibraryModel {
     func showMore() { request = request.expanded }
     func dismissFailure() { operationFailure = nil }
 
-    init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all,
+    init(store: any LibraryStorage, effects: any LibraryEffects, filter: LibraryFilter = .all, retainsFilters: Bool = false,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
          usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init,
          noticeOrigin: Notice.Origin = .library,
          noticeSleep: @escaping (ContinuousClock.Instant) async throws -> Void = { try await ContinuousClock().sleep(until: $0) }) {
         self.store = store
+        self.retainsFilters = retainsFilters
         self.effects = effects
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
@@ -161,19 +171,40 @@ final class LibraryModel {
         let requested = request
         defer { if activeRefresh == token { activeRefresh = nil } }
         do {
-            let page = try await libraryReader.library(requested)
+            let requests: [LibraryRequest]
+            if retainsFilters && requested.filter != .trash {
+                requests = [LibraryFilter.all, .pinned, .drafts].map { filter in
+                    LibraryRequest(query: requested.query, filter: filter,
+                                   limit: filter == requested.filter ? requested.limit
+                                       : filterSnapshots[filter]?.request.limit ?? LibraryRequest.pageSize)
+                }
+            } else { requests = [requested] }
+            let pages = try await libraryReader.libraries(requests)
             try Task.checkCancellation()
-            guard activeRefresh == token, request == requested else { return }
-            snapshot = Snapshot(request: requested, page: page)
+            guard activeRefresh == token, canAdoptRead(requested) else { return }
+            guard pages.count == requests.count else { throw StoreError.unavailable }
+            let snapshots = zip(requests, pages).map { Snapshot(request: $0, page: $1) }
+            if retainsFilters {
+                filterSnapshots = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.request.filter, $0) })
+            }
+            snapshot = snapshots.first { $0.request.filter == request.filter }
             evaluatedAt = now()
-            completedRead = (requested, .loaded)
+            completedRead = (request, .loaded)
         } catch {
-            guard activeRefresh == token, request == requested else { return }
+            guard activeRefresh == token, canAdoptRead(requested) else { return }
             let outcome: ReadOutcome = Task.isCancelled || error is CancellationError ? .cancelled
                 : .failed(Failure(title: "一覧を読み込めませんでした",
                                   message: recoveryMessage(error, retry: "「一覧を再読み込み」を押してください。"), recovery: .reload))
-            completedRead = (requested, outcome)
+            completedRead = (request, outcome)
         }
+    }
+
+    private func canAdoptRead(_ requested: LibraryRequest) -> Bool {
+        if retainsFilters && requested.filter != .trash && request.filter != .trash {
+            return request.query == requested.query
+                && (request.filter != requested.filter || request.limit == requested.limit)
+        }
+        return request == requested
     }
 
     /// Invalidates only this owner's presentation request, without cancelling accepted writes.
@@ -239,6 +270,7 @@ final class LibraryModel {
         defer { recordingUses.remove(use.id) }
         do {
             try await usageRecorder.recordUse(use)
+            mutationRevision += 1
             pendingUses.removeAll { $0.id == use.id }
             usageErrors[use.id] = nil
         } catch StoreError.missing {
@@ -255,7 +287,11 @@ final class LibraryModel {
     func pin(_ item: SnippetSummary) async {
         guard !Task.isCancelled else { return }
         operationFailure = nil
-        do { try await store.setPinned(!item.pinned, id: item.id); await refresh() }
+        do {
+            try await store.setPinned(!item.pinned, id: item.id)
+            mutationRevision += 1
+            await refresh()
+        }
         catch { report("ピン留めを変更できませんでした", error) }
     }
 
@@ -265,6 +301,7 @@ final class LibraryModel {
         operationFailure = nil
         do {
             let result = try await store.mutate(.delete, id: id)
+            mutationRevision += 1
             announce("削除しました", subject: result.subject, undo: id, context: context)
             await refresh()
         } catch { report("削除できませんでした", error) }
@@ -283,6 +320,7 @@ final class LibraryModel {
         operationFailure = nil
         do {
             let result = try await store.mutate(.restore, id: id)
+            mutationRevision += 1
             announce("元に戻しました", subject: result.subject, context: context)
             await refresh()
         } catch {
@@ -299,6 +337,7 @@ final class LibraryModel {
         operationFailure = nil
         do {
             let result = try await store.mutate(.permanentlyDelete, id: id)
+            mutationRevision += 1
             announce("完全に削除しました", subject: result.subject, context: context)
             await refresh()
         } catch { report("完全に削除できませんでした", error) }
