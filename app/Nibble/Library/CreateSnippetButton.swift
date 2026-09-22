@@ -5,22 +5,24 @@ import SwiftUI
 struct CreateSnippetButton: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: LibraryModel
+    var prominent = false
     @State private var taskOwner = LibraryTaskOwner()
 
     var body: some View {
         Button {
             taskOwner.startTask(.open(.new), on: model)
         } label: {
-            Image(systemName: "plus")
-                .resizable()
-                .scaledToFit()
-                .frame(width: InterfaceMetrics.creationSymbolSize, height: InterfaceMetrics.creationSymbolSize)
-                .frame(width: InterfaceMetrics.creationSize, height: InterfaceMetrics.creationSize)
-                .glassEffect(.regular.interactive(), in: .circle)
-                .contentShape(.circle)
+            HStack(spacing: 8) {
+                Image(systemName: "plus").font(.system(size: 18, weight: .medium))
+                if prominent { Text("新規作成").font(.system(size: 15, weight: .semibold)) }
+            }
+            .frame(maxWidth: prominent ? .infinity : nil)
+            .frame(minWidth: 44, minHeight: prominent ? 48 : 44)
+            .foregroundStyle(prominent ? Color.nibbleCanvas : Color.primary)
+            .background(prominent ? Color.nibbleAccent : Color.clear, in: .rect(cornerRadius: 12))
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.primary)
         .accessibilityLabel("新規作成")
         .accessibilityHint("編集画面を開きます")
         .accessibilityIdentifier("library.add")

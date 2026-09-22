@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from ios import simulator_lock, VerificationError
 
 
-from product_ui import ProductRun as Run, native_tabs, identifiers
+from product_ui import ProductRun as Run, identifiers
 
 
 def main():
@@ -25,44 +25,34 @@ def main():
         if not set(expected) <= present or set(absent) & present:
             raise VerificationError('Unexpected controls: ' + str(present))
         entries = {entry.get('uniqueId'): entry for entry in data['entries'] if entry.get('uniqueId')}
-        entries.update(native_tabs(data))
         for identifier, entry in entries.items():
             if identifier in expected:
                 frame = entry['frame']
                 # Native navigation items expose their 36pt visual bounds in AX;
                 # UIKit owns the surrounding hit area. Exercise each actual action.
                 native = identifier in ('editor.close', 'editor.save', 'editor.help.close', 'library.trash.close')
-                creation = identifier == 'library.add'
-                minimum = 36 if native or creation else 44
+                minimum = 36 if native else 44
                 if frame['width'] < minimum or frame['height'] < minimum:
                     raise VerificationError('Control is smaller than its touch target: ' + str(entry))
-                if creation and any(abs(frame[axis] - 36) > .5 for axis in ('width', 'height')):
-                    raise VerificationError('Creation button must be 36 by 36 points: ' + str(entry))
+
 
     try:
         run.setup()
         with simulator_lock(args.device):
             run.launch()
-            root = run.wait_ui('root', lambda d: 'navigation.tab.search' in identifiers(d))
+            root = run.wait_ui('root', lambda d: 'navigation.settings' in identifiers(d))
             with run.recording():
-                tabs = {selector: entry['frame'] for selector, entry in native_tabs(root).items()}
-                start, end = tabs['navigation.tab.library'], tabs['navigation.tab.settings']
-                run.command(['sim-use', 'swipe', '--from', f"{start['x'] + start['width']/2},{start['y'] + start['height']/2}",
-                             '--to', f"{end['x'] + end['width']/2},{end['y'] + end['height']/2}",
-                             '--duration', '0.6', '--device', args.device])
-                run.wait_ui('native-tab-drag', lambda d: 'settings.version' in identifiers(d))
-                run.tap('navigation.tab.search')
-                run.wait_ui('search', lambda d: any(e.get('uniqueId') == 'navigation.title' and e.get('label') == '検索'
-                                             for e in d['entries']))
                 # Observe beyond presentation completion to catch delayed auto-focus.
                 time.sleep(.5)
                 data = run.ui('search-idle')
-                controls(data, ('navigation.tab.library', 'navigation.tab.search', 'navigation.tab.settings', 'library.add'),
+                controls(data, ('navigation.settings', 'library.add'),
                          ('search.done', 'Search'))
                 run.screenshot('search-without-keyboard')
-                run.tap('navigation.tab.settings')
+                run.open_settings()
                 data = run.wait_ui('settings', lambda d: 'settings.version' in identifiers(d))
                 info = plistlib.loads((run.derived / 'Build/Products/Release-iphonesimulator/Nibble.app/Info.plist').read_bytes())
+                if info['UISupportedInterfaceOrientations'] != ['UIInterfaceOrientationPortrait']:
+                    raise VerificationError('The application must support portrait only')
                 expected = f"バージョン {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})"
                 version = next(e for e in data['entries'] if e.get('uniqueId') == 'settings.version')
                 if version['label'] != expected:
@@ -108,16 +98,16 @@ def main():
                 data = run.wait_ui('editor-unfocused', lambda d: 'editor.help' in identifiers(d) and 'editor.keyboard.dismiss' not in identifiers(d))
                 controls(data, ('editor.close', 'editor.save', 'editor.help', 'editor.more'),
                          ('editor.keyboard.help', 'editor.keyboard.dismiss'))
-                if not any(e.get('label') == '空白や改行は、そのまま保存されます。' for e in data['entries']):
+                if not any(e.get('label', '').startswith('閉じると下書き') for e in data['entries']):
                     raise VerificationError('Preservation guidance must explain save and close')
                 run.screenshot('editor-guidance')
                 run.tap('editor.close')
                 run.wait_ui('caller-preserved', lambda d: 'settings.version' in identifiers(d) and 'editor.body' not in identifiers(d))
-                run.tap('navigation.tab.library')
+                run.workspace()
                 run.wait_ui('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
                 for collection, headings in (
                     ('pinned', {'ピン留めした項目', 'ピン留めした項目はありません'}),
-                    ('drafts', {'タップして、編集を再開', '下書きはありません'}),
+                    ('drafts', {'編集中の項目', '下書きはありません'}),
                 ):
                     def collection_visible(data):
                         return ('editor.body' not in identifiers(data)
@@ -134,8 +124,8 @@ def main():
                     'search_does_not_focus_on_entry': True,
                     'settings_version_matches_bundle': expected,
                     'settings_deleted_returns': True,
-                    'native_tab_targets_at_least_44pt': True,
-                    'native_tab_drag_selects_destination': True,
+                    'workspace_controls_at_least_44pt': True,
+                    'settings_hierarchical_navigation': True,
                     'native_toolbar_and_custom_action_bounds': True,
                     'keyboard_and_screen_actions_exclusive': True,
                     'help_restores_focus': True,
@@ -143,6 +133,7 @@ def main():
                     'help_preserves_title_and_body': True,
                     'markdown_preview_hides_syntax_and_restores_source': True,
                     'creation_preserves_collection': True,
+                    'portrait_only_bundle': True,
                 }
     except (Exception, KeyboardInterrupt) as exc:
         error = exc

@@ -10,12 +10,13 @@ struct SettingsView: View {
     let showTrash: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            RootScreenHeading(title: "設定", model: library)
-            SettingsList(version: .current, showTrash: showTrash)
-        }
+        SettingsList(version: .current, showTrash: showTrash)
         .background(Color.nibbleCanvas)
         .navigationTitle("設定")
-        .toolbar(.hidden, for: .navigationBar)
+        .toolbarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { CreateSnippetButton(model: library) }
+        }
     }
 }

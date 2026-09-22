@@ -31,8 +31,8 @@ struct LibrarySearchBar: View {
             .padding(.leading, 16)
             .padding(.trailing, model.query.isEmpty ? 16 : 4)
             .frame(minHeight: 48)
-            .background(Color.primary.opacity(0.06), in: .capsule)
-            .contentShape(.capsule)
+            .background(Color.primary.opacity(0.045), in: .rect(cornerRadius: 10))
+            .contentShape(.rect)
             .onTapGesture { searchFocused.wrappedValue = true }
             if searchFocused.wrappedValue {
                 Button { searchFocused.wrappedValue = false } label: {
@@ -43,8 +43,8 @@ struct LibrarySearchBar: View {
                 .accessibilityIdentifier("search.done")
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
         .animationBarrier()
     }
 }

@@ -13,7 +13,7 @@ struct MarkdownStyle: Equatable, Sendable {
     var link = false
 
     var pointSize: CGFloat {
-        heading.map { [26.0, 22, 19, 17, 15, 13][min(5, max(0, $0 - 1))] } ?? 13
+        heading.map { [26.0, 22, 20, 18, 16, 15][min(5, max(0, $0 - 1))] } ?? 15
     }
 
     func applying(_ inline: InlinePresentationIntent, link: Bool) -> Self {

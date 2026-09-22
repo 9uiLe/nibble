@@ -195,7 +195,7 @@ python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_S
 python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。標準タブのドラッグ選択、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。標準幅と狭幅の専用Simulatorで同じコマンドを実行し、タイトルから本文への移動、Markdownの見出し・太字と記号を隠したプレビュー、原文への復帰を確認する。入力例は`validation/EditorMarkdown.txt`を使う。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
+`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。設定との階層移動と縦向きのみのbundle設定、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。標準幅と狭幅の専用Simulatorで同じコマンドを実行し、タイトルから本文への移動、Markdownの見出し・太字と記号を隠したプレビュー、原文への復帰を確認する。入力例は`validation/EditorMarkdown.txt`を使う。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
 
 設定末尾の区切り線がないこと、アイコンの外観、キーボード上の8ptの間隔、背景の連続性、案内文のまとまりは保存した画像を全体と細部で確認する。標準幅と狭幅の専用Simulatorで実行し、AXの成功だけで外観を確認済みにしない。
 
@@ -205,7 +205,7 @@ python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
 python3 scripts/check_notice_ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-起動直後のコピー、連続操作による通知の置換、削除と取り消し、検索入力中のフォーカス、期限、タブ・シート・背景への離脱を確認する。表示前・表示中・消去後のタブと作成ボタンに1ptを超える変化があれば失敗する。`--geometry-only`は起動直後のコピーと配置に絞り、`--scroll`は8件を追加して末尾行の位置保持も確認する。`--appearance dark`でダークを選ぶ。表示・録画・読み上げ・実機の触覚は別々の検証範囲として記録する。
+起動直後のコピー、連続操作による通知の置換、削除と取り消し、検索入力中のフォーカス、期限、設定・シート・背景への離脱を確認する。表示前・表示中・消去後の検索欄・集合選択・作成ボタンに1ptを超える変化があれば失敗する。`--geometry-only`は起動直後のコピーと配置に絞り、`--scroll`は8件を追加して末尾行の位置保持も確認する。`--appearance dark`でダークを選ぶ。表示・録画・読み上げ・実機の触覚は別々の検証範囲として記録する。
 
 ### 説明イラストの検証
 
@@ -216,7 +216,7 @@ python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story about --i
 python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
 ```
 
-実アセットの複数周期、本文末尾、ライト／ダーク、背景復帰、表示中のReduce Motion切替を録画する。`--interruptions`はタブ往復と可視境界のスクロール、`--stress`は反復と30秒の背景滞在、`--reduce-motion enabled`は初期から有効な条件を選ぶ。driverは設定を復元する。
+実アセットの複数周期、本文末尾、ライト／ダーク、背景復帰、表示中のReduce Motion切替を録画する。`--interruptions`は作業画面から説明画面への往復と可視境界のスクロール、`--stress`は反復と30秒の背景滞在、`--reduce-motion enabled`は初期から有効な条件を選ぶ。driverは設定を復元する。
 
 `--fault-retry`はインストール済みアセットのhashを照合し、一時的な破損・代替表示・元のバイト列の復元・実ボタンでの回復を確認する。制作ソースや配布物は変更しない。図の意味・動きは録画と時刻付き抽出画像を開いて確認し、全編再生と抽出確認を区別する。可視率、複合停止理由、全面シート、Session解放はhostedテスト、描画時間は[性能測定](performance-verification.md)が担当する。
 

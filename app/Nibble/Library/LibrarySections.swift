@@ -11,25 +11,25 @@ struct LibrarySections: View {
     @Binding var permanentDeletion: SnippetSummary?
 
     var body: some View {
-        if displaysDrafts && model.contentRequest.filter == .all, let draft = model.drafts.first {
+        if model.includesDrafts && model.contentRequest.filter == .all, let draft = model.drafts.first {
             DraftResumeRow(model: model, taskOwner: taskOwner, draft: draft)
                 .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 15, leading: 22, bottom: 4, trailing: 22))
-        } else if displaysDrafts && !model.drafts.isEmpty {
+                .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
+        } else if model.includesDrafts && !model.drafts.isEmpty {
             Section {
                 ForEach(model.drafts) { draft in
                     DraftListRow(model: model, taskOwner: taskOwner, draft: draft)
                 }
             } header: {
-                Text("タップして、編集を再開")
-                    .font(.nibbleBody).textCase(nil).padding(.vertical, 8)
+                Text("編集中の項目")
+                    .font(.caption.weight(.semibold)).textCase(nil).padding(.vertical, 6)
             } footer: {
-                Text("下書きは、編集画面で「保存」すると一覧やキーボードから使えます。")
-                    .font(.nibbleBody).padding(.vertical, 16)
+                Text("保存すると、コピーやキーボード入力に使えます。")
+                    .font(.nibbleBody).foregroundStyle(.secondary).padding(.vertical, 8)
             }
         }
-        if model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil {
-            LibraryEmptyState(model: model, taskOwner: taskOwner, showsFilters: showsFilters, showsCreationCTA: showsCreationCTA)
+        if model.showsEmptyState {
+            LibraryEmptyState(model: model)
         } else if model.contentRequest.filter != .drafts {
             Section {
                 ForEach(model.items) { item in LibrarySnippetRow(model: model, taskOwner: taskOwner, item: item, searchFocused: searchFocused, permanentDeletion: $permanentDeletion) }
@@ -38,9 +38,9 @@ struct LibrarySections: View {
                     HStack {
                         Text(sectionTitle).fontWeight(.semibold)
                         Spacer()
-                        Label("使用回数順", systemImage: "arrow.down")
+                        Text("コピー回数順")
                     }
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .textCase(nil)
                     .padding(.vertical, 6)
@@ -51,12 +51,6 @@ struct LibrarySections: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
-    }
-    private var displaysDrafts: Bool { showsFilters && (model.contentRequest.filter == .all || model.contentRequest.filter == .drafts) }
-    private var contentIsEmpty: Bool { model.items.isEmpty && (!displaysDrafts || model.drafts.isEmpty) }
-    private var showsCreationCTA: Bool {
-        showsFilters && (model.filter == .all || model.filter == .drafts)
-            && model.contentIsCurrent && contentIsEmpty && !model.loading && !model.loadingInterrupted && model.failure == nil
     }
     private var sectionTitle: String {
         if model.contentRequest.filter == .trash { return "削除した項目" }

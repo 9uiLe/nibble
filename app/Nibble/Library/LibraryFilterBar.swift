@@ -14,7 +14,7 @@ struct LibraryFilterBar: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     ForEach(LibrarySurface.collections, id: \.self) { filter in
                         Button { selection = filter } label: {
                             HStack(spacing: 7) {
@@ -25,11 +25,11 @@ struct LibraryFilterBar: View {
                                 }
                             }
                             .fixedSize()
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, 12)
                             .frame(minHeight: 44)
                             .foregroundStyle(selection == filter ? Color.nibbleOnSelection : Color.secondary)
                             .background(selection == filter ? Color.nibbleSelection : Color.clear,
-                                        in: .rect(cornerRadius: 14))
+                                        in: .rect(cornerRadius: 8))
                             .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
@@ -41,7 +41,7 @@ struct LibraryFilterBar: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.bottom, 14)
+                .padding(.bottom, 12)
             }
             .scrollIndicators(.hidden)
             .background(Color.nibbleCanvas)

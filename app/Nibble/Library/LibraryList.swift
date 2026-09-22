@@ -23,39 +23,23 @@ struct LibraryList: View {
                     }
                     .accessibilityIdentifier("library.resumeLoading")
                 }
-                if searchPrompt {
-                    if model.loading { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
-                    ContentUnavailableView {
-                        Label {
-                            Text("保存した項目を検索").font(.nibbleTitle)
-                        } icon: {
-                            Image(systemName: "magnifyingglass")
-                        }
-                    } description: {
-                        Text("タイトルや本文の言葉で探せます。")
-                            .font(.nibbleBody)
-                    }
-                        .accessibilityIdentifier("search.prompt")
-                        .listRowSeparator(.hidden)
-                } else {
-                    if model.loading && !model.contentIsCurrent { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
-                    if model.contentIsCurrent || model.loading || model.loadingInterrupted {
-                        LibrarySections(model: model, taskOwner: taskOwner, showsFilters: surface.showsFilters, searchFocused: searchFocused, permanentDeletion: $permanentDeletion)
-                            .disabled(!model.contentIsCurrent)
-                    }
-                    if model.contentIsCurrent && (model.hasMore || model.loading) {
-                        Section {
-                            if model.hasMore {
-                                Button { model.showMore() } label: {
-                                    Text("さらに表示")
-                                        .font(.nibbleTitle)
-                                        .frame(maxWidth: .infinity, minHeight: 44)
-                                        .contentShape(.rect)
-                                }
-                                    .accessibilityIdentifier("library.loadMore")
+                if model.loading && !model.contentIsCurrent { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
+                if model.contentIsCurrent || model.loading || model.loadingInterrupted {
+                    LibrarySections(model: model, taskOwner: taskOwner, showsFilters: surface.showsFilters, searchFocused: searchFocused, permanentDeletion: $permanentDeletion)
+                        .disabled(!model.contentIsCurrent)
+                }
+                if model.contentIsCurrent && (model.hasMore || model.loading) {
+                    Section {
+                        if model.hasMore {
+                            Button { model.showMore() } label: {
+                                Text("さらに表示")
+                                    .font(.nibbleTitle)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .contentShape(.rect)
                             }
-                            if model.loading { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
+                                .accessibilityIdentifier("library.loadMore")
                         }
+                        if model.loading { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
                     }
                 }
             }
@@ -65,8 +49,5 @@ struct LibraryList: View {
         .modifier(LibraryListStyle())
         .refreshable { await model.reload() }
         .scrollDismissesKeyboard(.interactively)
-    }
-    private var searchPrompt: Bool {
-        surface.showsSearchPrompt && model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }

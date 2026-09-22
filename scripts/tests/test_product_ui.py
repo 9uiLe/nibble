@@ -7,10 +7,10 @@ from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from ios import VerificationError
-from product_ui import ProductRun, editor_mode_target, editor_viewport, identifiers, input_point, native_tabs
+from product_ui import ProductRun, editor_mode_target, editor_viewport, identifiers, input_point
 
 
-class NativeTabTests(unittest.TestCase):
+class ProductNavigationTests(unittest.TestCase):
     def test_editor_modes_use_native_roles_and_reject_text_or_ambiguity(self):
         group = {'uniqueId': 'editor.mode', 'role': 'TabGroup'}
         self.assertEqual(editor_mode_target({'entries': [group]}, 'プレビュー'), (group, .75))
@@ -60,40 +60,27 @@ class NativeTabTests(unittest.TestCase):
             {'uniqueId': 'editor.keyboard.help', 'frame': {'y': 355, 'height': 44}},
         ]}
         self.assertEqual(editor_viewport(data), (100, 355))
+        data['entries'].append({'role': 'StaticText', 'label': '閉じると下書きに残り、保存すると使えます。',
+                                'frame': {'y': 110, 'height': 16}})
+        self.assertEqual(editor_viewport(data), (136, 355))
 
-    def screen(self):
-        return {'appPackage': 'nibble.9uiLe.com', 'entries': [
-            {'role': 'Heading', 'label': '一覧'},
-            {'role': 'RadioButton', 'label': '一覧', 'states': ['selected'],
-             'frame': {'x': 20, 'y': 600, 'width': 100, 'height': 54}},
-            {'role': 'RadioButton', 'label': '検索', 'frame': {'x': 120, 'y': 600, 'width': 100, 'height': 54}},
-        ]}
-
-    def test_missing_native_ids_resolve_without_rewriting_raw_observation(self):
-        data = self.screen()
-        original = copy.deepcopy(data)
-        self.assertEqual(set(native_tabs(data)), {'navigation.tab.library', 'navigation.tab.search'})
-        self.assertIn('navigation.tab.search', identifiers(data))
-        self.assertNotIn('navigation.tab.settings', identifiers(data))
+    def test_workspace_routes_back_and_clears_only_when_requested(self):
+        root = {'entries': [{'uniqueId': 'navigation.settings'}, {'uniqueId': 'search.clear'}]}
         run = object.__new__(ProductRun)
-        run.args = SimpleNamespace(device='selected')
-        run.ui = Mock(return_value=data)
-        run.command = Mock()
-        run.tap('navigation.tab.search')
-        run.command.assert_called_once_with(['sim-use', 'tap', '-x', '170.0', '-y', '627.0', '--device', 'selected'])
-        self.assertEqual(data, original)
+        run.ui = Mock(return_value={'entries': [{'uniqueId': 'BackButton'}]})
+        run.tap = Mock()
+        run.wait_ui = Mock(return_value=root)
+        run.workspace(clear_query=True)
+        self.assertEqual([call.args[0] for call in run.tap.call_args_list], ['BackButton', 'search.clear'])
+        run.tap.reset_mock()
+        run.ui.return_value = root
+        run.workspace()
+        run.tap.assert_not_called()
 
-    def test_hidden_ambiguous_and_other_app_tabs_are_not_actionable(self):
-        data = self.screen()
-        data['appPackage'] = 'com.apple.Preferences'
-        self.assertEqual(native_tabs(data), {})
-        data = self.screen()
-        data['entries'].append(copy.deepcopy(data['entries'][1]))
-        with self.assertRaises(VerificationError):
-            native_tabs(data)
+    def test_missing_workspace_route_fails_without_tapping_an_invented_target(self):
         run = object.__new__(ProductRun)
-        run.ui = Mock(return_value=self.screen())
-        run.command = Mock()
+        run.ui = Mock(return_value={'entries': []})
+        run.tap = Mock()
         with self.assertRaises(VerificationError):
-            run.tap('navigation.tab.settings')
-        run.command.assert_not_called()
+            run.workspace()
+        run.tap.assert_not_called()

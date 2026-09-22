@@ -7,7 +7,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | 配置 | 責務と主な型 |
 | --- | --- |
 | `app/Nibble/NibbleApp.swift` | 本体の依存生成とsceneの入口 |
-| `app/Nibble/Navigation/` | `AppRootView`のタブ・シート・scene、`AppRoute`、共通見出し、`AppTab`の領域定義、標準TabViewの表示 |
+| `app/Nibble/Navigation/` | `AppRootView`の設定階層・編集シート・scene、`AppRoute`、作業画面の見出し |
 | `app/Nibble/Library/` | 画面・行・通知、タスク所有者、`LibraryPresentation`による文言、`SystemLibraryEffects`によるOS作用 |
 | `app/Nibble/Settings/` | 設定、製品情報、キーボード利用案内 |
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
@@ -45,7 +45,7 @@ flowchart TD
 
 モデルのasync APIは受理した処理と状態反映まで待つ。Viewはタスクの開始・寿命・重複を、モデルは要求と結果の整合性を、actorは接続とtransactionを所有する。SQL実行中にawaitしない。本体のコピーと読み上げは`LibraryEffects`、Keyboardの挿入・コピー・終了は`KeyboardEffects`へ分離する。OSの作用とDBの確定は同じtransactionにはできないため、コピー完了と使用記録の失敗を別の結果にする。
 
-`LibraryReading.libraries(_:)`は要求順のページを一つのDB読取transactionから返す。単一ページの`library(_:)`もこの入口を使う。本体一覧はすべて・ピン留め・下書きの3ページを`LibraryReadState`が保持し、選択とページ上限、読込のID、完了状態を管理する。検索・削除一覧はそれぞれ一つの要求を持つ。`LibraryModel`の画面種別が有効な検索・フィルターと通知元を決め、`LibraryScreen`は同じ種別を参照する。
+`LibraryReading.libraries(_:)`は要求順のページを一つのDB読取transactionから返す。単一ページの`library(_:)`もこの入口を使う。統合された本体の`LibraryReadState`は、選択集合、原文の検索語、集合ごとの取得上限、検索の取得上限を正本とし、要求を導出する。閲覧の3集合と検索結果は別の読取snapshotであり、検索だけの読込は閲覧結果を置換しない。検索語を消すと元の集合と取得上限へ戻る。コピー等の変更後と明示更新では閲覧の3集合と必要な検索を同時に取得する。検索結果の採否と集合更新の採否は分ける。変更後の読取中に検索を消しても、最新の集合読取は保持先へ反映する。古い検索結果を現在画面へ出さず、後発の集合読取がある場合は先発の結果で上書きしない。
 
 表示は選択した要求に対応する`LibraryPage`を使う。選択中のページを別の可変状態へ複製せず、保持辞書から導出する。保存層で絞った結果をUIでピン別に再分割せず、使用回数順とsnapshotの意味を保つ。削除・復元・完全削除は`mutate(_:id:)`が対象の要約取得と変更を同じtransactionへ収め、項目名の整形は表示側が担う。
 
@@ -64,7 +64,7 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 | 一覧の意味と並び順 | `LibraryFilter`・`SnippetOrdering`。本体は使用回数順、削除一覧は更新順、Keyboardはピン優先を要求する | SQLは要求された順序をクエリーへ変換する。Viewで再び並べ替えない |
 | 操作結果と失敗回復 | Applicationの型付き結果。`StoreError`と操作を受けて回復経路を決める | 文言は`LibraryPresentation`・`EditorPresentation`・`KeyboardPresentation`・`SnippetPresentation`。モデル内に文言と判定を重複させない |
 | 使用記録の再試行 | `LibraryModel.PendingUse`ごとのpending / recording / failed | 記録中IDと失敗を別集合へ同期しない。コピー作用は再実行せず、確定後に一覧・検索を更新する |
-| 一覧の取得結果・選択 | `LibraryReadState.collections`とrequest。各3ページを同じ読取transactionから置換する | 件数・hasMoreは同じsnapshotのSQL結果。画面間のsnapshotは独立した取得キャッシュで、操作・編集終了・明示更新が再取得の入口。フィルター切替自体では取得しない |
+| 一覧の取得結果・選択 | `LibraryReadState`のselection・query・取得上限と、collections・searchSnapshot | Requestは入力状態から導出し、検索結果で閲覧の集合を上書きしない。件数・hasMoreは同じsnapshotのSQL結果。操作・編集終了・明示更新で集合と検索を更新する。Viewは検索対象の決定や結果の再抽出をしない |
 | Keyboardの一覧・詳細 | `KeyboardModel.rows`がUUIDごとの要約を一つだけ保持する | ページはID列、詳細は選択IDと本文読込状態。ピン変更は一つの要約を更新し、一覧と詳細へ導出する。詳細中のピン解除は選択を維持する。revision更新時は取得済み本文を無効にし、旧revisionの遅延結果を拒否する。使用状況を取得しない投影はnilで表し、0回と混同しない |
 | 項目名・ピン操作の表示 | `SnippetTextPresentation`、`SnippetHeading`、`PinButton` | 本文代替名・明示タイトルの判定を共通化する。本体とKeyboardの字級・行数・ピン位置は明示的なstyleとして保持する。保存可否や操作資格は共通Viewに持ち込まない |
 
@@ -72,11 +72,11 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 
 ## 表示と状態の所有
 
-`AppRootView`は一覧・検索それぞれのモデル、選択タブ、検索フォーカス、編集シートを保持する。scene・タブ・シートの状態が通知の表示資格を決める。通知は成功イベントと対応し、Viewの再生成では成功を発火しない。[通知の契約](../design/rationale/result-notices.md)に表示と振動の寿命を定める。
+`AppRootView`は一つのLibraryModel、設定とシートの提示状態、検索フォーカスを保持する。scene・設定・シートの状態が通知の表示資格を決める。通知は成功イベントと対応し、Viewの再生成では成功を発火しない。[通知の契約](../design/rationale/result-notices.md)に表示と振動の寿命を定める。
 
-一覧・検索・設定は`RootScreenHeading`が見出しと右上の作成操作を配置する。文字表示は`ScreenHeading(title:subtitle:)`が担い、指定した場合だけ補足行と間隔を表示する。フォントは`Font.nibbleScreenTitle`、操作との間隔と外側の余白はコンテナが所有する。本文、項目名、補足、通知などは[F03](../design/foundations.md#f03-文字と図記号)の役割で指定する。
+`RootScreenHeading`は作業画面の製品名と設定への入口を配置する。文字表示は`ScreenHeading`、作成は下部の`CreateSnippetButton`が担う。本文、項目名、補足、通知などは[F03](../design/foundations.md#f03-文字と図記号)の役割で指定する。
 
-本体・共有拡張・キーボード・表示PackageのViewは、責務ごとの型とファイルへ分けている。入力と更新境界をView型で表し、Viewを返す補助関数・算出プロパティを作らない。`body`・`equatableBody`、Modifier・Style・representableの必須メソッドは各protocolの定義として保持する。`LibrarySurface`が一覧・検索・削除一覧の有効な表示構成を表し、`LibraryScreen`は画面の状態と寿命、`LibraryList`は読込状態とリスト、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。共通のリスト外観は`LibraryListStyle`が担う。タブの表示・ドラッグ選択・safe areaは標準TabViewが所有する。
+本体・共有拡張・キーボード・表示PackageのViewは責務ごとの型とファイルへ分ける。Viewを返す補助関数・算出プロパティを作らず、入力と更新境界をView型で表す。`LibraryScreen`は表示と寿命、`LibraryList`は状態に対応する描画、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。空状態の成立、検索範囲、下書きの対象資格はApplicationから受け取る。標準NavigationStackを使い、設定を階層、編集と削除一覧をシートで開く。
 
 設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景と標準見出しを共通化する。説明内容と各ページの余白はページに残し、各イラストが自身の可視性を観測する。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 

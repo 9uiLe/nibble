@@ -13,15 +13,15 @@ struct DraftResumeRow: View {
             Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("下書きを再開").font(.footnote.weight(.medium))
-                        Text(draft.displayTitle).font(.caption2).lineLimit(1)
+                        Text("下書きを再開").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        Text(draft.displayTitle).font(.nibbleTitle).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                     if !model.page.hasMoreDrafts {
                         Image(systemName: "chevron.right").font(.caption2)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
@@ -39,8 +39,8 @@ struct DraftResumeRow: View {
                 .accessibilityIdentifier("library.allDrafts")
             }
         }
-        .foregroundStyle(Color.nibbleAccent)
+        .foregroundStyle(.primary)
         .padding(.horizontal, 12)
-        .background(Color.nibbleSoft, in: .rect(cornerRadius: 12))
+        .background(Color.primary.opacity(0.035), in: .rect(cornerRadius: 8))
     }
 }

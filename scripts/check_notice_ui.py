@@ -7,13 +7,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from ios import simulator_lock, XCRUN, VerificationError
-from product_ui import ProductRun as Run, native_tabs, identifiers
+from product_ui import ProductRun as Run, identifiers
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
-    parser.add_argument("--geometry-only", action="store_true", help="Check tab and create-button stability during one copy notice")
+    parser.add_argument("--geometry-only", action="store_true", help="Check workspace and create-button stability during one copy notice")
     parser.add_argument("--scroll", action="store_true", help="Also seed a scrollable list and check its final row")
     parser.add_argument("--appearance", choices=("light", "dark"), default="light")
     parser.add_argument("--cold-launches", type=int, choices=range(1, 21), default=1,
@@ -30,26 +30,28 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", role,
                      "--wait-timeout", "5", "--device", args.device])
 
-    def tab(text):
-        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[text])
+    def navigate(text):
+        if text == "設定":
+            run.open_settings()
+        else:
+            run.workspace(clear_query=text == "一覧")
 
     def assert_no_notice(name):
         return run.wait_ui(name, lambda data: "library.notice" not in identifiers(data) and "library.undo" not in identifiers(data))
 
     def navigation_frames(data):
-        frames = {e["label"]: e["frame"] for e in native_tabs(data).values()}
-        frames.update({"library.add": e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.add"})
-        frames.update({e["uniqueId"]: e["frame"] for e in data["entries"]
-                       if e.get("uniqueId", "").startswith("library.filter.")})
-        if not {"一覧", "設定", "検索", "library.add"}.issubset(frames):
-            raise VerificationError("Navigation controls are missing")
+        frames = {e["uniqueId"]: e["frame"] for e in data["entries"]
+                  if e.get("uniqueId") in ("navigation.settings", "search.field", "library.add")
+                  or e.get("uniqueId", "").startswith("library.filter.")}
+        if not {"navigation.settings", "search.field", "library.add"}.issubset(frames):
+            raise VerificationError("Workspace controls are missing")
         return frames
 
     def tap_row(identifier):
         for attempt in range(12):
             data = run.ui(f"reveal-{attempt}")
             bottom = min((e["frame"]["y"] for e in data["entries"]
-                          if e in native_tabs(data).values() or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
+                          if e.get("uniqueId") == "library.add" or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
             top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
                        if e.get("role") in ("Heading", "TextField") and e["frame"]["y"] < 250), default=126) + 8
             entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
@@ -165,7 +167,7 @@ def main():
                 undo()
                 run.screenshot("notice-restored")
                 run.wait_ui("restored-row", lambda data: "snippet." + snippet in identifiers(data))
-                tab("検索")
+                navigate("検索")
                 data = run.wait_ui("search-field", lambda data: any(e.get("role") == "TextField" for e in data["entries"]))
                 field = next(e for e in data["entries"] if e.get("role") == "TextField")
                 frame = field["frame"]
@@ -195,15 +197,15 @@ def main():
                                     for e in data["entries"]))
                 run.screenshot("search-restored-keyboard")
                 run.tap("search.done")
-                run.wait_ui("search-input-ended", lambda d: "navigation.tab.library" in identifiers(d))
-                tab("一覧")
+                run.wait_ui("search-input-ended", lambda d: "library.add" in identifiers(d))
+                navigate("一覧")
                 run.wait_ui("library-restored", lambda data: "snippet." + snippet in identifiers(data))
                 delete(snippet)
-                tab("設定")
-                assert_no_notice("other-tab")
-                tab("一覧")
-                assert_no_notice("returned-tab")
-                tab("設定")
+                navigate("設定")
+                assert_no_notice("settings-left-workspace")
+                navigate("一覧")
+                assert_no_notice("returned-workspace")
+                navigate("設定")
                 run.tap("library.trash")
                 data = run.wait_ui("trash", lambda data: "more." + snippet in identifiers(data))
                 close_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
@@ -219,7 +221,7 @@ def main():
                 run.screenshot("trash-restored")
                 run.tap("library.trash.close")
                 assert_no_notice("sheet-dismissed")
-                tab("一覧")
+                navigate("一覧")
                 run.wait_ui("restored-from-trash", lambda data: "snippet." + snippet in identifiers(data))
                 tap_row("copy." + snippet)
                 run.tap("library.add")
@@ -234,8 +236,8 @@ def main():
                 run.command([XCRUN, "simctl", "launch", args.device, run.config["bundle_id"]])
                 def library_is_active(data):
                     return (data.get("appPackage") == run.config["bundle_id"]
-                            and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "一覧" for e in data["entries"])
-                            and "selected" in native_tabs(data).get("navigation.tab.library", {}).get("states", [])
+                            and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "nibble" for e in data["entries"])
+                            and "navigation.settings" in identifiers(data)
                             and ("library.add" in identifiers(data) or "library.createFirst" in identifiers(data)))
                 run.wait_ui("foreground-root", library_is_active)
                 time.sleep(0.3)
@@ -252,9 +254,9 @@ def main():
                     previous = None
                     for attempt in range(12):
                         data = run.ui(f"scroll-{attempt}")
-                        tab_top = min(e["frame"]["y"] for e in native_tabs(data).values())
+                        controls_top = next(e["frame"]["y"] for e in data["entries"] if e.get("uniqueId") == "library.add")
                         controls = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")
-                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= tab_top]
+                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= controls_top]
                         signature = [(e["uniqueId"], round(e["frame"]["y"])) for e in controls]
                         if signature and signature == previous:
                             break

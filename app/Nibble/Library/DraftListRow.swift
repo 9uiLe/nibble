@@ -31,6 +31,7 @@ struct DraftListRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
         .accessibilityLabel("下書き、\(draft.displayTitle)")
         .accessibilityValue(!draft.textPresentation.hasExplicitTitle
             ? Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
