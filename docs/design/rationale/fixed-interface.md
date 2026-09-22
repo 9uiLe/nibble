@@ -10,7 +10,7 @@ Dynamic Typeはlarge、文字の太さの環境はregular、contrastはnormalに
 
 ## OSが所有する表示と操作
 
-標準keyboard、編集メニュー、共有先、system sheet内部などOS所有部分の内部表現はOSへ委ねる。VoiceOverの意味・ラベル・順序・操作は維持する。固定modifierの試験を音声操作や可読性の利用者評価で代用しない。
+標準keyboard、編集メニュー、共有先、system sheet内部などOS所有部分の内部表現はOSへ委ねる。既存のOS操作は共通modifierの設定値によって変更しない。
 
 ## 理由と制約
 
@@ -20,4 +20,4 @@ Dynamic Typeはlarge、文字の太さの環境はregular、contrastはnormalに
 
 全画面の適用漏れは標準設定と最大文字＋高contrastを比較する。modifier単体はhostedテストで小さい文字入力も固定されることを確認する。値比較Viewの環境更新試験と製品入口の固定試験は別の保証である。
 
-ライト/ダーク、狭幅、長文、Reduce Motion下の演出、OS所有表示、VoiceOverを[製品の検証手順](../../ios-verification.md)で評価する。主要操作への到達や可読性が満たせない場合は共通方針として見直す。
+ライト/ダーク、狭幅、長文、OS所有表示を[製品の検証手順](../../ios-verification.md)で評価する。主要操作への到達や可読性が満たせない場合は共通方針として見直す。

@@ -6,7 +6,6 @@ struct LibraryList: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: LibraryModel
     @SkipEquatable let taskOwner: LibraryTaskOwner
-    private var surface: LibrarySurface { model.surface }
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     @Binding var permanentDeletion: SnippetSummary?
 
@@ -23,9 +22,9 @@ struct LibraryList: View {
                     }
                     .accessibilityIdentifier("library.resumeLoading")
                 }
-                if model.loading && !model.contentIsCurrent { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
+                if model.loading && !model.contentIsCurrent { LibraryLoadingRow(title: model.loadingTitle) }
                 if model.contentIsCurrent || model.loading || model.loadingInterrupted {
-                    LibrarySections(model: model, taskOwner: taskOwner, showsFilters: surface.showsFilters, searchFocused: searchFocused, permanentDeletion: $permanentDeletion)
+                    LibrarySections(model: model, taskOwner: taskOwner, searchFocused: searchFocused, permanentDeletion: $permanentDeletion)
                         .disabled(!model.contentIsCurrent)
                 }
                 if model.contentIsCurrent && (model.hasMore || model.loading) {
@@ -39,7 +38,7 @@ struct LibraryList: View {
                             }
                                 .accessibilityIdentifier("library.loadMore")
                         }
-                        if model.loading { LibraryLoadingRow(title: surface.showsFilters ? "\(model.filter.title)を読み込み中" : "読み込み中") }
+                        if model.loading { LibraryLoadingRow(title: model.loadingTitle) }
                     }
                 }
             }

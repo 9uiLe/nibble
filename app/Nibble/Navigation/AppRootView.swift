@@ -56,8 +56,7 @@ struct AppRootView: View {
             showsTrash = false
             showsSettings = false
             searchFocused = false
-            library.query = ""
-            library.filter = .all
+            library.showAll()
             library.setNoticePresentation(noticesPresented)
             if route == .create { routeOwner.startTask(.open(.new), on: library) }
         }

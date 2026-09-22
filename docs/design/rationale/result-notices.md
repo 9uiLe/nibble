@@ -58,7 +58,7 @@ flowchart TD
 | `NoticeOverlayWindow` | key windowにならず、通知カードの矩形内だけでタッチを受け付ける |
 | `LibraryWindowNotice` | 通知ウィンドウのSwiftUI root。固定表示・配色を適用し、取り消しを画面のタスク所有者へ接続する |
 | `LibraryNotice` | 現在の結果と消去用の直前の表示値を描画し、表示の出入りだけを補間する。通知IDごとの期限処理をawaitする |
-| `LibraryResultFeedback` / `LibraryEffects` | 常設のView modifierで成功イベントの触覚を観測する / 成功時の読み上げを実行する |
+| `AppRootView`・`DeletedSnippetsView` / `LibraryEffects` | 常設の`sensoryFeedback`で成功イベントの触覚を観測する / 成功時の読み上げを実行する |
 
 `AppRootView`は通知の有無によらず同じNavigationStack構造と接続Viewを保持する。検索語、フォーカス、スクロール、編集中の状態の寿命は、それぞれの画面とモデルのidentityに従う。通知の表示だけで画面を作り直さない。
 
@@ -106,4 +106,4 @@ flowchart TD
 
 Simulatorでは、コピー・連続コピー・削除取り消し・検索入力・設定への移動・シート開閉・背景復帰を操作し、表示前・中・消去後の配置を比較する。小画面、長い対象名、ライトとダーク、末尾までスクロールした一覧で、結果と取り消しの可読性および通知外の操作を確認する。残る評価課題は[G13](../audit.md#g13-b--検索入力中の通知配置)・[G14](../audit.md#g14-b--一時通知による操作領域の再配置)に対応付ける。
 
-最低対応OSはiOS 26.0、実行検証はiOS 26.5のみとする。コンパイル、AX、画像、抽出フレーム、動画の全編再生は保証する範囲が異なる。VoiceOver音声、触覚の体感、実機性能をSimulatorの結果から推定しない。操作の実行は[製品の検証手順](../../ios-verification.md#操作完了通知の検証)、未確認条件は[検証範囲](../../testing.md#検証範囲と制約)に従い、観測は対象ソースを持つrunへ記録する。
+最低対応OSはiOS 26.0、実行検証はiOS 26.5のみとする。コンパイル、AX、画像、抽出フレーム、動画の全編再生は保証する範囲が異なる。触覚の体感と実機性能をSimulatorの結果から推定しない。操作の実行は[製品の検証手順](../../ios-verification.md#操作完了通知の検証)、未確認条件は[検証範囲](../../testing.md#検証範囲と制約)に従い、観測は対象ソースを持つrunへ記録する。

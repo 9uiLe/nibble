@@ -6,7 +6,6 @@ struct LibrarySections: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: LibraryModel
     @SkipEquatable let taskOwner: LibraryTaskOwner
-    let showsFilters: Bool
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     @Binding var permanentDeletion: SnippetSummary?
 
@@ -52,8 +51,5 @@ struct LibrarySections: View {
             }
         }
     }
-    private var sectionTitle: String {
-        if model.contentRequest.filter == .trash { return "削除した項目" }
-        return model.contentRequest.query.isEmpty ? (model.contentRequest.filter == .pinned ? "ピン留めした項目" : "保存した項目") : "検索結果"
-    }
+    private var sectionTitle: String { model.contentRequest.sectionTitle }
 }

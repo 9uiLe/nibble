@@ -2,7 +2,7 @@ import AppMacros
 import SwiftUI
 
 
-/// These controls change the contents of one library, while the tab bar changes screens.
+/// Selects a retained collection within the library workspace.
 @Equatable
 struct LibraryFilterBar: View {
     // Refresh parent-owned inputs even when the macro excludes their values.

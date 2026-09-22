@@ -64,6 +64,13 @@ struct LibraryReadState {
         }
     }
 
+    mutating func showAll() {
+        guard surface == .library else { return }
+        select(.all)
+        // Whitespace is not an active search, but an explicit route still clears the field.
+        if !query.isEmpty { search("") }
+    }
+
     mutating func search(_ query: String) {
         guard !SnippetText.hasSameBytes(query, self.query) else { return }
         let previous = request

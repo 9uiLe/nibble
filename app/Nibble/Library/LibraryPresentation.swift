@@ -12,6 +12,18 @@ extension LibrarySurface {
     var isRoot: Bool { self != .deleted }
 }
 
+extension LibraryRequest {
+    var sectionTitle: String {
+        if filter == .trash { return "削除した項目" }
+        if !query.isEmpty { return "検索結果" }
+        return filter == .pinned ? "ピン留めした項目" : "保存した項目"
+    }
+}
+
+extension LibraryModel {
+    var loadingTitle: String { surface.showsFilters ? "\(filter.title)を読み込み中" : "読み込み中" }
+}
+
 extension LibraryModel.Notice {
     var message: String {
         switch result {

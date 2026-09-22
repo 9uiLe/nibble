@@ -18,7 +18,7 @@ struct LibraryEmptyState: View {
                 .font(.nibbleBody)
         } actions: {
             if model.canShowAll {
-                Button("すべてを見る") { model.filter = .all }
+                Button("すべてを見る") { model.showAll() }
                     .font(.nibbleTitle)
                     .buttonStyle(.bordered)
                     .controlSize(.regular)

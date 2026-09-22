@@ -195,7 +195,7 @@ python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_S
 python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
 ```
 
-`controls-ui`は検索への移動だけでは入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。設定との階層移動と縦向きのみのbundle設定、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。標準幅と狭幅の専用Simulatorで同じコマンドを実行し、タイトルから本文への移動、Markdownの見出し・太字と記号を隠したプレビュー、原文への復帰を確認する。入力例は`validation/EditorMarkdown.txt`を使う。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
+`controls-ui`は作業画面の検索欄が初期状態で入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定からの新規作成と呼出元への復帰を確認する。設定との階層移動と縦向きのみのbundle設定、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。標準幅と狭幅の専用Simulatorで同じコマンドを実行し、タイトルから本文への移動、Markdownの見出し・太字と記号を隠したプレビュー、原文への復帰を確認する。入力例は`validation/EditorMarkdown.txt`を使う。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
 
 設定末尾の区切り線がないこと、アイコンの外観、キーボード上の8ptの間隔、背景の連続性、案内文のまとまりは保存した画像を全体と細部で確認する。標準幅と狭幅の専用Simulatorで実行し、AXの成功だけで外観を確認済みにしない。
 

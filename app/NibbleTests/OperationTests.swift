@@ -178,6 +178,33 @@ extension UIIntegrationTests {
             #expect(model.items.map(\.id) == [pinned] && model.readDemand == nil && !model.loading)
         }
 
+        @Test func showAllRestoresTheRetainedCollectionWithoutClearingItsPageLimit() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let saved = try await create(database.store, body: "一覧へ戻す本文")
+            let model = LibraryModel(store: database.store)
+            await model.refresh()
+            model.showMore()
+            await model.refresh()
+            model.filter = .drafts
+            model.query = "一致しない検索語"
+            await model.refresh()
+            #expect(model.items.isEmpty && model.isSearching)
+            model.showAll()
+            #expect(model.filter == .all && model.query.isEmpty)
+            #expect(model.request.limit == 200 && model.items.map(\.id) == [saved])
+            #expect(model.readDemand == nil && !model.loading)
+
+            model.query = "  "
+            model.showAll()
+            #expect(model.query.isEmpty && model.request.limit == 200 && model.readDemand == nil)
+
+            let deleted = LibraryModel(store: database.store, surface: .deleted)
+            deleted.query = "削除済み"
+            deleted.showAll()
+            #expect(deleted.request.filter == .trash && deleted.query == "削除済み")
+        }
+
         @Test func mutationsDuringSearchUpdateCollectionsBeforeSearchIsCleared() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }

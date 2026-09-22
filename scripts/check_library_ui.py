@@ -25,12 +25,6 @@ def main():
         run.command(["sim-use", "tap", "--label", text, "--element-type", "Button",
                      "--wait-timeout", "5", "--device", args.device])
 
-    def navigate(text):
-        if text == "設定":
-            run.open_settings()
-        else:
-            run.workspace(clear_query=text == "一覧")
-
     def check_navigation_title(data, title):
         headings = [e["frame"] for e in data["entries"]
                     if e.get("uniqueId") == "navigation.title"
@@ -150,17 +144,17 @@ def main():
                     raise VerificationError("Saved draft remains in the Drafts filter")
                 run.tap("library.filter.all")
                 run.wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
-                navigate("検索")
+                run.workspace()
                 opened = run.wait_ui("search-opened", lambda data: "search.field" in identifiers(data))
                 time.sleep(0.5)
                 opened = run.ui("search-no-autofocus")
                 if "search.done" in identifiers(opened) or "Search" in identifiers(opened):
-                    raise VerificationError("Entering Search must not activate the keyboard")
+                    raise VerificationError("The idle workspace search field must not activate the keyboard")
                 run.tap("search.field")
                 focused = run.wait_ui("search-focused", lambda data: "Search" in identifiers(data))
                 search_heading = check_navigation_title(focused, "nibble")
                 if abs(search_heading["height"] - library_heading["height"]) > 1:
-                    raise VerificationError("Search and Library must share their heading typography")
+                    raise VerificationError("Search focus must preserve the workspace heading typography")
                 if not any(e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
                     raise VerificationError("Focusing empty search must preserve the browsed collection")
                 field = search_fields(focused)[0]["frame"]
@@ -208,12 +202,12 @@ def main():
                 label("ピン留め")
                 run.wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
-                navigate("検索")
+                run.workspace()
                 reselected = run.wait_ui("search-reselected", lambda data: "search.field" in identifiers(data))
                 if "Search" in identifiers(reselected) or "search.done" in identifiers(reselected):
                     raise VerificationError("Reselecting Search must not activate the keyboard")
                 close_search()
-                navigate("一覧")
+                run.workspace(clear_query=True)
                 library = run.wait_ui("returned-library", lambda data: row in identifiers(data))
                 if len(search_fields(library)) != 1:
                     raise VerificationError("Search must remain available in the workspace")
@@ -227,7 +221,7 @@ def main():
                 menu(row, "unpin-filter-menu")
                 label("ピン留めを解除")
                 run.wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
-                navigate("検索")
+                run.workspace()
                 run.wait_ui("independent-search-opened", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
                 run.wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
@@ -240,16 +234,16 @@ def main():
                 label("ピン留め")
                 run.wait_ui("repinned-filter", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
-                navigate("一覧")
+                run.workspace(clear_query=True)
                 run.wait_ui("pinned-filter-returned", lambda data: row in identifiers(data))
                 run.tap("library.filter.all")
                 run.wait_ui("all-filter-restored", lambda data: row in identifiers(data))
-                navigate("設定")
+                run.open_settings()
                 settings = run.wait_ui("settings", lambda data: "settings.about" in identifiers(data))
                 if "BackButton" not in identifiers(settings):
                     raise VerificationError("Settings must have a route back to the workspace")
                 run.screenshot("settings")
-                navigate("一覧")
+                run.workspace(clear_query=True)
                 library = run.wait_ui("trailing-actions", lambda data: row in identifiers(data))
                 check_actions(library, snippet_id)
                 run.screenshot("trailing-actions")
@@ -266,7 +260,7 @@ def main():
                 restarted = run.wait_ui("actions-after-restart", lambda data: row in identifiers(data))
                 check_actions(restarted, snippet_id)
                 run.screenshot("actions-after-restart")
-                navigate("検索")
+                run.workspace()
                 run.wait_ui("search-opened-again", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
                 run.wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
@@ -294,7 +288,7 @@ def main():
                     e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 run.screenshot("search-empty")
                 close_search()
-                navigate("一覧")
+                run.workspace(clear_query=True)
                 finished = run.wait_ui("finished", lambda data: row in identifiers(data)
                                    and "library.filter.all" in identifiers(data))
                 if any(entry.get("uniqueId", "").startswith("draft.")
@@ -303,7 +297,7 @@ def main():
                 menu(row, "trash-delete-menu")
                 run.tap("delete." + snippet_id)
                 run.wait_ui("trash-deleted", lambda data: row not in identifiers(data))
-                navigate("設定")
+                run.open_settings()
                 run.wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
                 run.tap("library.trash")
                 run.wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
@@ -329,7 +323,7 @@ def main():
                 run.tap("library.trash.close")
                 run.wait_ui("trash-returned", lambda data: "settings.about" in identifiers(data)
                         and "library.trash.close" not in identifiers(data))
-                navigate("一覧")
+                run.workspace(clear_query=True)
                 run.wait_ui("restored-in-library", lambda data: row in identifiers(data))
                 run.tap("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "trash-restored-copy") != edited_body:

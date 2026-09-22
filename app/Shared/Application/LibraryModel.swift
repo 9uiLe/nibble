@@ -108,6 +108,7 @@ final class LibraryModel {
     }
 
     func showMore() { content.showMore() }
+    func showAll() { content.showAll() }
     func dismissFailure() { operationFailure = nil }
 
     init(store: any LibraryStorage, effects: any LibraryEffects, surface: LibrarySurface = .library,
