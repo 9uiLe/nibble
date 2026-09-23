@@ -4,7 +4,7 @@ import Observation
 
 @MainActor @Observable
 final class ProSubscription {
-    static let productIDs = ["nibble.pro.monthly", "nibble.pro.yearly"]
+    static let productIDs = ["nibble.pro.subscription.monthly", "nibble.pro.subscription.yearly"]
     private(set) var isActive = ProAccess.isActive()
     private(set) var checked = false
 

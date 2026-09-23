@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "無料30件とProの導線をS03・S04・C51へ対応させた。保存失敗時の下書き保持と共有拡張の案内を確認した。ASC商品未登録時の再読み込み画面をSimulatorで確認し、価格・購入・復元は商品登録後のSandbox検証条件として残した。",
+  "summary": "ASCの自動更新サブスクリプションに合わせて月額・年額の商品IDを更新した。無料枠とPro導線の構成は維持し、価格と地域はASCの商品設定から取得する。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
@@ -63,7 +63,7 @@
     "app/Nibble/Navigation/SceneInterfaceDefaults.swift": "e11fa7f069adcb05e7f6b816963f352cc86637c73589eb19e9033059ada72593",
     "app/Nibble/Navigation/ScreenHeading.swift": "9c368749b8fbf088692fe252a54278f3bbaaf6052b9c33e37748f42744e05e08",
     "app/Nibble/Nibble.entitlements": "d8ac075b30113d562981437e6f63626915a9082005d1a0a88cf131a19e3a5a5c",
-    "app/Nibble/NibbleApp.swift": "fbd0f14801aa10972d8f6c88435a13d07c58684a232402a52ef009b7d077a69f",
+    "app/Nibble/NibbleApp.swift": "68ecb9164cd283c8ecf2dd48f9df817fe9f909328f97d16a531529f371d41b87",
     "app/Nibble/Presentation/AboutIllustration.swift": "4c2a958f5b2ff273caf154d67eac0a732bafbea9f427719c6f857f766486fa65",
     "app/Nibble/Presentation/IllustrationPlayback.swift": "25d6899ea64a777d61c6b07894ec7bca7bcc4a8300f2ce886da680968aaa6c65",
     "app/Nibble/Presentation/KeyboardIllustration.swift": "18897a91eb291fa4d0f48e1c410b8625898ab2619fa0577d2145ba612f825226",
@@ -184,7 +184,7 @@
     "docs/design/rationale/result-notices.md": "e7f1e3f561b7c95c529a3d714defbdb8311b0c5ec5e286421b2793dfdfc0cb26",
     "docs/design/rationale/usage-order.md": "520ff063d0a25d5aec2fd42ce61a76c02f6f08f1e6e820241417e245680e93b5",
     "docs/design/screens.md": "dda0c7cc8e1091ffca970e130dbde7107b5866de5964bb5d45780c7467e31e61",
-    "docs/product-specification.md": "bb97878f24331b4295d26a22fa83ea58ef12a6a5ea44dff706c7c9fa3e1536e4",
+    "docs/product-specification.md": "52a48ceea1fa92636c462163b9917b2fc8981dbb59ffe9f763e379657b68cae5",
     "flake.lock": "bd00578fee737c4bd912989f05d7a46e10d9202673c675b3ba971719e0f6e23c",
     "runtime/rive/Package.swift": "313c567ba8365ca0d8fafe70c7a5d2e12cb9173f4b7119c3fa47d6aca74fba93",
     "runtime/rive/build.json": "3b02a9d5017cfc0cf299e25cb868f8935431e83a207b5114bee5f9d2ee43e837",
