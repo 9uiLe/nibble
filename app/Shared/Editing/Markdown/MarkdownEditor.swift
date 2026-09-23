@@ -22,7 +22,7 @@ struct MarkdownEditor: View {
             ZStack(alignment: .topLeading) {
                 if model.body.isEmpty && mode == .input {
                     Text("保存したい文章やURLを入力。Markdownも使えます。")
-                        .font(.nibbleBody).foregroundStyle(.tertiary)
+                        .font(MarkdownStyle().previewFont).foregroundStyle(.tertiary)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }

@@ -51,6 +51,9 @@ final class EditorModel {
     var hasBody: Bool { SnippetText.hasBody(draft.body) }
     var canSave: Bool { phase == .editing && hasBody }
 
+    /// Pasting uses the same editing gate and input sequence as typed text.
+    func appendToBody(_ text: String) { body += text }
+
     func persist(_ snapshot: Draft) async {
         guard phase == .editing, snapshot.id == draft.id else { return }
         // An admitted write completes after cancellation. SQL ignores older and removed snapshots.

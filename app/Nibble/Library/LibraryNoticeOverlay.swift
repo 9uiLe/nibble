@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The content window supplies a bottom edge that already accounts for tabs and the keyboard.
+/// The content window supplies a bottom edge that already accounts for the creation action and keyboard.
 struct LibraryNoticeOverlay: ViewModifier {
     let model: LibraryModel
     let taskOwner: LibraryTaskOwner

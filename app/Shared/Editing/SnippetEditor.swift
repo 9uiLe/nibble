@@ -26,16 +26,16 @@ struct SnippetEditor: View {
     var body: some View {
         let snapshot = model.draft
         NavigationStack {
-            ScrollView {
-                EditorForm(model: model, focus: $focus, taskOwner: taskOwner, isShared: complete != nil)
+            VStack(spacing: 0) {
+                EditorExitGuidance(isShared: complete != nil)
+                ScrollView {
+                    EditorForm(model: model, focus: $focus, taskOwner: taskOwner, isShared: complete != nil)
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if focus == nil {
-                    VStack(spacing: 0) {
-                        EditorExitGuidance(isShared: complete != nil)
-                        EditorBottomBar(model: model, confirmsDiscard: $confirmsDiscard, showHelp: showHelp)
-                    }
+                    EditorBottomBar(model: model, confirmsDiscard: $confirmsDiscard, showHelp: showHelp)
                 } else {
                     EditorKeyboardAccessory(focus: $focus, showHelp: showHelp)
                 }

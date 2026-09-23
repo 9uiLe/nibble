@@ -34,7 +34,7 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
                 .accessibilityIdentifier("snippet.unused")
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
         .contentShape(.rect)
     }
 }

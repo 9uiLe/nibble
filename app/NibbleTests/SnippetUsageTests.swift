@@ -185,7 +185,7 @@ struct SnippetUsageTests {
         try await files.store.recordUse(SnippetUse(id: UUID(), snippetID: id, completedAt: instant.addingTimeInterval(-720 * 3600)))
         let effects = RecordingLibraryEffects()
         let all = LibraryModel(store: files.store, effects: effects, now: { instant })
-        let search = LibraryModel(store: files.store, effects: effects, surface: .search, now: { instant })
+        let search = LibraryModel(store: files.store, effects: effects, now: { instant })
         search.query = "検索"
         await all.refresh()
         #expect(all.unusedSince(for: all.items[0]) != nil)

@@ -12,13 +12,13 @@ struct EditorBodyField: View {
             HStack {
                 Text("本文").font(.nibbleTitle).foregroundStyle(.secondary)
                 Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 6) {
                     Text("末尾にペースト").font(.caption).foregroundStyle(.secondary)
                     PasteButton(payloadType: String.self) { texts in
-                        if let text = texts.first { model.body += text }
+                        if let text = texts.first { model.appendToBody(text) }
                     }
                     .labelStyle(.iconOnly)
-                    .controlSize(.large)
+                    .controlSize(.small)
                     .buttonBorderShape(.circle)
                     .frame(width: InterfaceMetrics.controlSize, height: InterfaceMetrics.controlSize)
                     .frame(minWidth: InterfaceMetrics.touchSize, minHeight: InterfaceMetrics.touchSize)
@@ -26,9 +26,6 @@ struct EditorBodyField: View {
                     .accessibilityIdentifier("editor.paste")
                 }
             }
-            Text("ペーストは、テキストをコピーすると使えます。")
-                .font(.caption).foregroundStyle(.secondary)
-                .accessibilityIdentifier("editor.pasteGuidance")
             if !model.hasBody {
                 Text("本文を入力すると保存できます。空白や改行だけでは保存できません。")
                     .font(.nibbleBody).foregroundStyle(.secondary)

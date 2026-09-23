@@ -2,23 +2,7 @@
 from ios import Run, VerificationError
 
 
-TAB_LABELS = {'navigation.tab.library': '一覧', 'navigation.tab.search': '検索', 'navigation.tab.settings': '設定'}
 EDITOR_MODES = ('入力', 'プレビュー')
-
-
-def native_tabs(data):
-    """Resolve logical selectors without altering the raw accessibility observation."""
-    if data.get('appPackage') != 'nibble.9uiLe.com':
-        return {}
-    resolved = {}
-    for selector, label in TAB_LABELS.items():
-        matches = [entry for entry in data['entries']
-                   if entry.get('label') == label
-                   and (entry.get('uniqueId') == selector or entry.get('role') == 'RadioButton')]
-        entry = unique_entry(matches, 'native tab: ' + label)
-        if entry is not None:
-            resolved[selector] = entry
-    return resolved
 
 
 def unique_entry(entries, description):
@@ -28,14 +12,18 @@ def unique_entry(entries, description):
 
 
 def identifiers(data):
-    return {entry.get('uniqueId', '') for entry in data['entries']} | native_tabs(data).keys()
+    return {entry.get('uniqueId', '') for entry in data['entries']}
 
 
 def editor_viewport(data):
     entries = data['entries']
     top = max((entry['frame']['y'] + entry['frame']['height'] for entry in entries
-               if entry.get('role') == 'Group' and entry.get('uniqueId') in
-               ('新規作成', '項目を編集', '共有から保存')), default=0)
+               if entry.get('uniqueId') == 'editor.exitGuidance' or (entry.get('role') == 'Group'
+               and entry.get('uniqueId') in ('新規作成', '項目を編集', '共有から保存'))), default=0)
+    # SwiftUI exposes the guidance's text, not its containing group's identifier.
+    # Include its bottom padding so a partially clipped field is revealed first.
+    top = max(top, max((entry['frame']['y'] + entry['frame']['height'] + 10 for entry in entries
+                        if entry.get('label', '').startswith('閉じると下書き')), default=0))
     bottom = min((entry['frame']['y'] for entry in entries
                   if entry.get('uniqueId') in ('editor.keyboard.help', 'editor.help')), default=data['screen']['height'])
     return top, bottom
@@ -70,13 +58,26 @@ def editor_mode_target(data, label):
 
 
 class ProductRun(Run):
-    def tap(self, identifier):
-        if identifier not in TAB_LABELS:
-            return super().tap(identifier)
-        entry = native_tabs(self.ui('resolve-' + identifier)).get(identifier)
-        if entry is None:
-            raise VerificationError('Native tab is not visible: ' + identifier)
-        self._tap_frame(entry['frame'])
+    def workspace(self, *, clear_query=False):
+        data = self.ui('workspace-route')
+        for _ in range(3):
+            if 'navigation.settings' in identifiers(data):
+                break
+            if 'BackButton' not in identifiers(data):
+                raise VerificationError('No visible route back to the workspace')
+            self.tap('BackButton')
+            data = self.wait_ui('workspace-back', lambda d: 'navigation.settings' in identifiers(d)
+                                or 'settings.about' in identifiers(d))
+        else:
+            raise VerificationError('Workspace route did not finish')
+        if clear_query and 'search.clear' in identifiers(data):
+            self.tap('search.clear')
+            self.wait_ui('workspace-query-cleared', lambda d: 'search.clear' not in identifiers(d))
+
+    def open_settings(self):
+        self.workspace()
+        self.tap('navigation.settings')
+        self.wait_ui('settings-route', lambda d: 'settings.about' in identifiers(d))
 
     def _tap_frame(self, frame, fraction=.5):
         self.command(['sim-use', 'tap', '-x', str(frame['x'] + frame['width'] * fraction),

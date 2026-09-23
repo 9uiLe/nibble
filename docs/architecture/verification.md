@@ -15,7 +15,7 @@
 | `runtime/rive/`・`rive_runtime.py` | ネイティブ描画基盤の固定入力・unsigned生成・キャッシュと完成物照合 |
 | `verification_catalog.py` | 工程ID・コマンド・対象configの参照。scheme等をconfigから独立に定義しない |
 | `ios.py` | `simulator_lock`による端末の排他、環境確認、ビルド・テスト・インストール・起動・撮影、runの確定 |
-| `product_ui.py` | 本体・共有エディターの入力・表示切替・置換と標準タブの識別 |
+| `product_ui.py` | 作業画面への復帰、本体・共有エディターの入力位置と表示切替の識別 |
 | 対象別UI driver | 利用者の操作と対象機能の期待結果。画面遷移は`Run.wait_ui`へ到達条件を渡す |
 | `manifest.json` | runの開始・終了ソース、端末、コマンド、成否、媒体hash、所要時間 |
 | `inspect_ui.py` | 保存済みの画面要素の要約・差分と、PNGの閲覧用画像の作成 |

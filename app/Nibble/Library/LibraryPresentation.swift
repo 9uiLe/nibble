@@ -4,14 +4,24 @@ extension LibrarySurface {
     var title: String {
         switch self {
         case .library: "一覧"
-        case .search: "検索"
         case .deleted: "削除した項目"
         }
     }
 
     var showsFilters: Bool { self == .library }
-    var showsSearchPrompt: Bool { self == .search }
     var isRoot: Bool { self != .deleted }
+}
+
+extension LibraryRequest {
+    var sectionTitle: String {
+        if filter == .trash { return "削除した項目" }
+        if !query.isEmpty { return "検索結果" }
+        return filter == .pinned ? "ピン留めした項目" : "保存した項目"
+    }
+}
+
+extension LibraryModel {
+    var loadingTitle: String { surface.showsFilters ? "\(filter.title)を読み込み中" : "読み込み中" }
 }
 
 extension LibraryModel.Notice {
@@ -66,5 +76,23 @@ extension LibraryModel.Failure {
             return "nibbleを最新バージョンに更新してから、もう一度操作してください。"
         }
         return reason.localizedDescription + retry
+    }
+}
+
+extension LibraryModel {
+    var emptyContent: (title: String, symbol: String, message: String) {
+        if isSearching {
+            return ("見つかりませんでした", "magnifyingglass", "別の言葉や、短い言葉で検索してください。")
+        }
+        if filter == .trash {
+            return ("削除した項目はありません", "trash", "削除した項目はここに表示されます。復元すると、一覧からまた使えます。")
+        }
+        if filter == .drafts {
+            return ("下書きはありません", "square.and.pencil", "編集画面で「閉じる」を押すと、入力した内容が下書きに残ります。ここから編集を再開できます。")
+        }
+        if filter == .pinned {
+            return ("ピン留めした項目はありません", "pin", "項目の「その他」からピン留めできます。")
+        }
+        return ("保存した項目はありません", "text.quote", "よく使う文章やURLを保存すると、\nいつでもコピーして使えます。")
     }
 }

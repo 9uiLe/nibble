@@ -15,6 +15,6 @@ struct EditorFinishButton: View {
         Button(role: prominent ? .confirm : .cancel) { taskOwner.startTask(operation, on: model) } label: {
             Label(title, systemImage: systemImage)
         }
-        .labelStyle(.iconOnly)
+        .labelStyle(.titleOnly)
     }
 }

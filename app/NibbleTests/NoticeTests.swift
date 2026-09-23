@@ -13,11 +13,11 @@ extension UIIntegrationTests {
             let first = try await create(files.store, title: "一つ目", body: "本文1")
             let second = try await create(files.store, title: "二つ目", body: "本文2")
             let effects = RecordingLibraryEffects()
-            let model = LibraryModel(store: files.store, effects: effects, surface: .search)
+            let model = LibraryModel(store: files.store, effects: effects)
             model.query = "本文"
             await model.delete(first)
             let deleted = try #require(model.notice)
-            #expect(deleted.origin == .search)
+            #expect(deleted.origin == .library)
             #expect(deleted.subject == "一つ目" && deleted.undoID == first)
             await model.copy(second)
             let copied = try #require(model.notice)

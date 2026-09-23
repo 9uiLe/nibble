@@ -11,7 +11,7 @@ struct EditorForm: View {
     let isShared: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 16) {
             if isShared { EditorSharedContentHeader() }
             EditorTitleField(model: model, focus: focus)
             Divider()
@@ -20,7 +20,7 @@ struct EditorForm: View {
                 EditorFailureView(model: model, taskOwner: taskOwner, failure: failure)
             }
         }
-        .padding(24)
+        .padding(20)
         .animationBarrier()
     }
 }

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from ios import simulator_lock, XCRUN, VerificationError
-from product_ui import ProductRun as Run, native_tabs, identifiers
+from product_ui import ProductRun as Run, identifiers
 
 
 def main():
@@ -24,9 +24,6 @@ def main():
     def label(text):
         run.command(["sim-use", "tap", "--label", text, "--element-type", "Button",
                      "--wait-timeout", "5", "--device", args.device])
-
-    def tab(text):
-        run.tap("navigation.tab." + {"一覧": "library", "検索": "search", "設定": "settings"}[text])
 
     def check_navigation_title(data, title):
         headings = [e["frame"] for e in data["entries"]
@@ -45,8 +42,8 @@ def main():
         trailing = copy["x"] >= row["x"] + row["width"] - 1
         if not trailing or min(copy["width"], copy["height"]) < 44:
             raise VerificationError("Copy must stay trailing with a minimum 44pt target")
-        if any(abs(add[axis] - 36) > 0.5 for axis in ("width", "height")):
-            raise VerificationError("Create must retain a 36pt target")
+        if add["height"] < 48 or add["width"] < data["screen"]["width"] - 48:
+            raise VerificationError("Create must remain a full-width bottom action")
 
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
@@ -76,7 +73,7 @@ def main():
         data = run.ui("before-search-done")
         if "search.done" in identifiers(data):
             run.tap("search.done")
-        run.wait_ui("search-closed", lambda d: "navigation.tab.search" in identifiers(d) and "Search" not in identifiers(d))
+        run.wait_ui("search-closed", lambda d: "library.add" in identifiers(d) and "Search" not in identifiers(d))
 
     def menu(row, name):
         run.tap("more." + row.removeprefix("snippet."))
@@ -103,27 +100,19 @@ def main():
         with simulator_lock(args.device):
             run.launch()
             before = run.wait_ui("before", lambda data: data.get("appPackage") == run.config["bundle_id"]
-                             and {"navigation.title", "navigation.tab.library", "navigation.tab.search", "navigation.tab.settings"} <= identifiers(data))
-            library_heading = check_navigation_title(before, "一覧")
-            if "navigation.subtitle" not in identifiers(before):
-                raise VerificationError("Library heading must expose its count subtitle")
+                             and {"navigation.title", "search.field", "navigation.settings", "library.add"} <= identifiers(data))
+            library_heading = check_navigation_title(before, "nibble")
             filters = {e.get("uniqueId") for e in before["entries"]
                        if e.get("uniqueId", "").startswith("library.filter.")}
             if filters != {"library.filter.all", "library.filter.pinned", "library.filter.drafts"}:
                 raise VerificationError("Expected All, Pinned and Drafts filters above the library")
             run.screenshot("before")
-            tabs = {e.get("label"): e for e in native_tabs(before).values()}
-            if set(tabs) != {"一覧", "設定", "検索"} or search_fields(before):
-                raise VerificationError("Expected Library, Settings and Search tabs with no search field in Library")
-            create_id = "library.add" if "library.add" in identifiers(before) else "library.createFirst"
-            if create_id == "library.add":
-                add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
-                if any(abs(add[axis] - 36) > 0.5 for axis in ("width", "height")):
-                    raise VerificationError("Create must retain a 36pt target")
-                if add["x"] < before["screen"]["width"] * 0.7 or add["y"] >= 150:
-                    raise VerificationError("Create must remain at the top trailing corner")
-            else:
-                raise VerificationError("Creation must remain visible in the heading")
+            if len(search_fields(before)) != 1 or 'search.done' in identifiers(before):
+                raise VerificationError("Workspace must expose search without opening the keyboard")
+            create_id = "library.add"
+            add = next(e["frame"] for e in before["entries"] if e.get("uniqueId") == create_id)
+            if add["height"] < 48 or add["width"] < before["screen"]["width"] - 48 or add["y"] < before["screen"]["height"] * .7:
+                raise VerificationError("Creation must remain full-width at the bottom")
             with run.recording():
                 run.tap(create_id)
                 run.wait_ui("new-editor", lambda data: "editor.body" in identifiers(data)
@@ -155,20 +144,19 @@ def main():
                     raise VerificationError("Saved draft remains in the Drafts filter")
                 run.tap("library.filter.all")
                 run.wait_ui("all-filter", lambda data: any(e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
-                tab("検索")
+                run.workspace()
                 opened = run.wait_ui("search-opened", lambda data: "search.field" in identifiers(data))
                 time.sleep(0.5)
                 opened = run.ui("search-no-autofocus")
                 if "search.done" in identifiers(opened) or "Search" in identifiers(opened):
-                    raise VerificationError("Entering Search must not activate the keyboard")
+                    raise VerificationError("The idle workspace search field must not activate the keyboard")
                 run.tap("search.field")
                 focused = run.wait_ui("search-focused", lambda data: "Search" in identifiers(data))
-                search_heading = check_navigation_title(focused, "検索")
+                search_heading = check_navigation_title(focused, "nibble")
                 if abs(search_heading["height"] - library_heading["height"]) > 1:
-                    raise VerificationError("Search and Library must share their heading typography")
-                if "search.prompt" not in identifiers(focused) or any(
-                        e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
-                    raise VerificationError("Empty search must show guidance instead of saved rows")
+                    raise VerificationError("Search focus must preserve the workspace heading typography")
+                if not any(e.get("uniqueId", "").startswith("snippet.") for e in focused["entries"]):
+                    raise VerificationError("Focusing empty search must preserve the browsed collection")
                 field = search_fields(focused)[0]["frame"]
                 if field["y"] + field["height"] > focused["screen"]["height"] * 0.3:
                     raise VerificationError("Search field must remain at the top of the screen")
@@ -214,15 +202,15 @@ def main():
                 label("ピン留め")
                 run.wait_ui("pinned", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
-                tab("検索")
+                run.workspace()
                 reselected = run.wait_ui("search-reselected", lambda data: "search.field" in identifiers(data))
                 if "Search" in identifiers(reselected) or "search.done" in identifiers(reselected):
                     raise VerificationError("Reselecting Search must not activate the keyboard")
                 close_search()
-                tab("一覧")
+                run.workspace(clear_query=True)
                 library = run.wait_ui("returned-library", lambda data: row in identifiers(data))
-                if search_fields(library):
-                    raise VerificationError("Library must remain separate from Search")
+                if len(search_fields(library)) != 1:
+                    raise VerificationError("Search must remain available in the workspace")
                 run.screenshot("pinned")
                 run.tap("library.filter.pinned")
                 pins = run.wait_ui("pinned-filter", lambda data: row in identifiers(data)
@@ -233,7 +221,7 @@ def main():
                 menu(row, "unpin-filter-menu")
                 label("ピン留めを解除")
                 run.wait_ui("unpinned-filter", lambda data: row not in identifiers(data))
-                tab("検索")
+                run.workspace()
                 run.wait_ui("independent-search-opened", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
                 run.wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
@@ -246,19 +234,16 @@ def main():
                 label("ピン留め")
                 run.wait_ui("repinned-filter", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
                 close_search()
-                tab("一覧")
+                run.workspace(clear_query=True)
                 run.wait_ui("pinned-filter-returned", lambda data: row in identifiers(data))
                 run.tap("library.filter.all")
                 run.wait_ui("all-filter-restored", lambda data: row in identifiers(data))
-                tab("設定")
+                run.open_settings()
                 settings = run.wait_ui("settings", lambda data: "settings.about" in identifiers(data))
-                settings_heading = check_navigation_title(settings, "設定")
-                if abs(settings_heading["height"] - library_heading["height"]) > 1:
-                    raise VerificationError("Settings and Library must share their heading typography")
-                if "navigation.subtitle" in identifiers(settings):
-                    raise VerificationError("Settings must omit the optional heading subtitle")
+                if "BackButton" not in identifiers(settings):
+                    raise VerificationError("Settings must have a route back to the workspace")
                 run.screenshot("settings")
-                tab("一覧")
+                run.workspace(clear_query=True)
                 library = run.wait_ui("trailing-actions", lambda data: row in identifiers(data))
                 check_actions(library, snippet_id)
                 run.screenshot("trailing-actions")
@@ -275,7 +260,7 @@ def main():
                 restarted = run.wait_ui("actions-after-restart", lambda data: row in identifiers(data))
                 check_actions(restarted, snippet_id)
                 run.screenshot("actions-after-restart")
-                tab("検索")
+                run.workspace()
                 run.wait_ui("search-opened-again", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
                 run.wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
@@ -303,16 +288,16 @@ def main():
                     e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 run.screenshot("search-empty")
                 close_search()
-                tab("一覧")
+                run.workspace(clear_query=True)
                 finished = run.wait_ui("finished", lambda data: row in identifiers(data)
-                                   and not search_fields(data))
+                                   and "library.filter.all" in identifiers(data))
                 if any(entry.get("uniqueId", "").startswith("draft.")
                        and entry.get("label", "").endswith(edited_title) for entry in finished["entries"]):
                     raise VerificationError("Discarded draft is still listed")
                 menu(row, "trash-delete-menu")
                 run.tap("delete." + snippet_id)
                 run.wait_ui("trash-deleted", lambda data: row not in identifiers(data))
-                tab("設定")
+                run.open_settings()
                 run.wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
                 run.tap("library.trash")
                 run.wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
@@ -338,7 +323,7 @@ def main():
                 run.tap("library.trash.close")
                 run.wait_ui("trash-returned", lambda data: "settings.about" in identifiers(data)
                         and "library.trash.close" not in identifiers(data))
-                tab("一覧")
+                run.workspace(clear_query=True)
                 run.wait_ui("restored-in-library", lambda data: row in identifiers(data))
                 run.tap("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "trash-restored-copy") != edited_body:
@@ -350,13 +335,13 @@ def main():
                 "edited_title": edited_title, "edit_same_id": True, "edited_copy_utf8_exact": True,
                 "visible_row_menu": True, "pin": True,
                 "kept_draft_resumed": True, "discard_absent": True, "discard_preserves_saved_utf8": True,
-                "three_destination_navigation_bar": True, "search_tab_does_not_autofocus": True, "shared_root_heading_typography": True,
-                "optional_heading_subtitle": True, "create_at_top_trailing": True, "search_field_at_top": True,
+                "unified_workspace": True, "search_does_not_autofocus": True, "stable_workspace_heading": True,
+                "create_full_width_at_bottom": True, "search_field_at_top": True,
                 "create_hidden_while_searching": True, "search_title_visible_during_input": True,
-                "empty_search_guidance": True, "top_filters": True,
+                "empty_query_preserves_collection": True, "top_filters": True,
                 "draft_filter_resume_and_save": True, "pinned_filter_unpin_and_search_independent": True,
                 "settings_navigation": True, "trailing_actions": True, "actions_after_restart": True,
-                "empty_search_does_not_filter_all": True,
+                "no_match_search_is_empty": True,
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,
                 "data": "Dummy text only; existing snippets are retained",
             })

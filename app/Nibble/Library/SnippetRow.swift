@@ -18,8 +18,8 @@ struct SnippetRow: View {
             SnippetRowMainContent(item: item, isTrash: isTrash, unusedSince: unusedSince, perform: perform)
             SnippetRowActions(item: item, isTrash: isTrash, perform: perform)
         }
-        .padding(.vertical, 14)
-        .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 16))
+        .padding(.vertical, isTrash ? 14 : 10)
+        .listRowInsets(EdgeInsets(top: 0, leading: isTrash ? 22 : 20, bottom: 0, trailing: isTrash ? 16 : 12))
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         .contextMenu { SnippetRowMenu(item: item, isTrash: isTrash, perform: perform) }
         .swipeActions(edge: .trailing, allowsFullSwipe: !isTrash) {

@@ -10,6 +10,8 @@ struct LibraryScreen: View {
     @SkipEquatable let model: LibraryModel
     private var surface: LibrarySurface { model.surface }
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
+    var noticesPresented = false
+    var openSettings: () -> Void = {}
     @Environment(\.scenePhase) private var scenePhase
     @State private var taskOwner = LibraryTaskOwner()
     @State private var permanentDeletion: SnippetSummary?
@@ -18,16 +20,25 @@ struct LibraryScreen: View {
         @Bindable var library = model
         VStack(spacing: 0) {
             if surface.isRoot {
-                RootScreenHeading(title: surface.title, subtitle: subtitle, model: model,
-                               showsCreation: !searchFocused.wrappedValue)
+                RootScreenHeading(openSettings: openSettings)
             }
-            if surface.showsSearchPrompt { LibrarySearchBar(model: model, searchFocused: searchFocused) }
-            if surface.showsFilters {
+            if surface.isRoot { LibrarySearchBar(model: model, searchFocused: searchFocused) }
+            if surface.showsFilters && !model.isSearching {
                 LibraryFilterBar(selection: $library.filter, counts: model.snapshot?.page.counts)
                     .fixedSize(horizontal: false, vertical: true)
             }
             LibraryList(model: model, taskOwner: taskOwner, searchFocused: searchFocused,
                         permanentDeletion: $permanentDeletion)
+                .modifier(LibraryNoticeOverlay(model: model, taskOwner: taskOwner,
+                                               isPresented: noticesPresented))
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if surface.isRoot && !searchFocused.wrappedValue {
+                CreateSnippetButton(model: model, prominent: true)
+                    .padding(.horizontal, 20).padding(.vertical, 12)
+                    .background(Color.nibbleCanvas)
+                    .overlay(alignment: .top) { Divider() }
+            }
         }
         .background(Color.nibbleCanvas)
         .navigationTitle(surface.title)
@@ -62,10 +73,4 @@ struct LibraryScreen: View {
         }
     }
 
-    private var subtitle: String {
-        if surface.showsFilters, let counts = model.snapshot?.page.counts {
-            return "保存した項目 \(counts.saved)件"
-        }
-        return surface.showsFilters ? "保存した文章やURL" : "タイトルや本文の言葉で探す"
-    }
 }

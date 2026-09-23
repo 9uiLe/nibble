@@ -93,7 +93,7 @@ extension UIIntegrationTests {
             #expect(MarkdownPreviewBlock.styledText(heading).runs.first?.font == .system(size: 26, weight: .bold, design: .default))
             let paragraph = try #require(parsed.previewBlocks.dropFirst().first)
             let styled = MarkdownPreviewBlock.styledText(paragraph)
-            #expect(styled.runs.first?.font == .system(size: 13, weight: .bold, design: .default))
+            #expect(styled.runs.first?.font == .system(size: 15, weight: .bold, design: .default))
             #expect(parsed.previewBlocks[2].listMarker == "•" && parsed.previewBlocks[3].listMarker == "•")
             #expect(parsed.previewBlocks[4].style.quote && parsed.previewBlocks[5].style.code)
             #expect(parsed.previewBlocks.last?.text.runs.first?.link == URL(string: "https://example.com"))
@@ -119,6 +119,10 @@ extension UIIntegrationTests {
             #expect(titleFont.pointSize == 26)
             let boldFont = try #require(view.textStorage.attribute(.font, at: bold.range.location, effectiveRange: nil) as? UIFont)
             #expect(boldFont.fontDescriptor.symbolicTraits.contains(.traitBold))
+            let paragraph = try #require(view.textStorage.attribute(.paragraphStyle, at: bold.range.location,
+                                                                    effectiveRange: nil) as? NSParagraphStyle)
+            #expect(paragraph.lineSpacing == 4)
+            #expect((MarkdownStyle().inputAttributes[.paragraphStyle] as? NSParagraphStyle)?.lineSpacing == 4)
             view.setMarkedText("にほん", selectedRange: NSRange(location: 3, length: 0))
             let composed = view.text
             let markedRange = view.markedTextRange

@@ -1,6 +1,6 @@
 # UI要素と画面構成の設計根拠
 
-この資料は、nibbleの情報構造、操作、入力、外観、アクセシビリティを設計するための一次資料台帳である。R番号で根拠を識別し、[UI設計](README.md)から参照する。各項目には出典、閲読範囲、要約、製品への示唆または適用限界を記す。
+この資料は、nibbleの情報構造、操作、入力、外観を設計するための一次資料台帳である。R番号で根拠を識別し、[UI設計](README.md)から参照する。各項目には出典、閲読範囲、要約、製品への示唆または適用限界を記す。
 
 ## 対象と確認方法
 
@@ -19,14 +19,6 @@ HIGは継続更新され、確認日の内容には2026年の改訂を含む。�
 指針の要約は外部の根拠であり、製品仕様ではない。採用理由と代替案は[UI設計](README.md)、未確認条件は[評価課題](audit.md)に置く。APIのavailabilityと実画面は別に確認する。
 
 ## 情報構造とナビゲーション
-
-### R01 タブバー
-
-出典：[Apple HIG — Tab bars](https://developer.apple.com/design/human-interface-guidelines/tab-bars)。閲読範囲：導入、Best practices、iOS/iPadOS。
-
-タブはアプリ内の領域へ移動するための部品であり、実行操作の入口として扱わない。領域の状態を保ち、短いラベルを付け、空の領域でも入口を消さないことを勧めている。
-
-nibbleは`tabBarMinimizeBehavior(.never)`を指定し、スクロール中も入口の大きさを保つ。OS標準の記号・文字ラベル・選択表示と、タップ・バー上のドラッグ選択を利用する。APIの指定だけで到達性を保証せず、C01の操作・状態保持を実画面で確認する。
 
 ### R02 検索
 
@@ -114,7 +106,7 @@ C12は検索対象・入力・結果を上から読む構成とし、上部に�
 
 nibbleの語彙、文体、表記と優先順位は[文言とデータの原則（F09）](foundations.md#f09-文言とデータ)に定める。具体的な文言は[文言設計](copy.md)、理解度と読み上げの評価は[評価課題](audit.md)で扱い、実際の観測は対象ソースを持つrunへ記録する。
 
-## 外観とアクセシビリティ
+## 外観
 
 ### R14 文字
 
@@ -128,29 +120,13 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 
 色の意味を一貫させ、light/darkで判読できるようにする。Liquid Glassは内容の上にある操作・ナビゲーションの層として使い、本文への過剰な適用を避ける。
 
-### R16 アクセシビリティ
-
-出典：[Apple HIG — Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)。閲読範囲：Vision、Hearing、Mobility、motionへの対応。
-
-色以外の手掛かり、文字拡大、VoiceOver、単純な操作とジェスチャーの代替を提供する。Reduce Motion等のシステム設定へ対応し、支援技術で確認する。
-
-**数値の注意**：確認日のiOS/iPadOS control size表にはdefault 44×44 pt、minimum 28×28 ptがある。R07の一般則と併記し、nibbleの操作領域はF05を基準とする。タブにはC01の寸法契約を適用する。44 ptを全OS・全状況の絶対最小値とは説明しない。
-
-### R17 コントラストと色依存
-
-出典：W3C WCAG 2.2 Understandingの[1.4.3 Contrast (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)、[1.4.11 Non-text Contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)、[1.4.1 Use of Color](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html)。閲読範囲：成功基準、intent、適用対象・例外。
-
-通常の文字4.5:1、大きな文字3:1、識別に必要な操作部品・状態の非テキスト表現3:1という基準を比較の参考にする。色だけで状態や操作を伝えない。
-
-**適用限界**：Webの基準であり、iOSアプリの認証・法令適合の宣言には使わない。本文の目標は保守的に4.5:1とし、大きい文字の緩和に頼らない。透明素材と背景が変わる組み合わせは別に測る。[Target Size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html)の24 CSS pxをiOSの24 ptへ読み替えない。
-
 ## ネイティブ実装への接続
 
 ### R18 iOS 26の設計体系
 
 出典：[Apple WWDC25 — Get to know the new design system](https://developer.apple.com/videos/play/wwdc2025/356/)。閲読範囲：公式transcriptのbars、navigation、visual effects。
 
-機能層と内容を分け、バーの項目は機能と頻度でまとめる。タブのaccessoryは持続する機能向けで、個別画面の操作と混在させないことを説明している。
+機能層と内容を分け、バーの項目は機能と頻度でまとめる。作業画面の管理入口と項目ごとの操作を異なる位置へ置く判断に使う。
 
 ### R19 SwiftUIでの実装
 
@@ -166,4 +142,4 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 
 画面外の描画省略だけでは未収束のState Machineは進む。明示pauseはcontrollerとDisplayLinkへ伝播し、時間差をリセットする。DisplayLinkはcommon modeに登録され、スクロール中もruntimeの時計を動かせる。初回・寸法変更の単発描画は、周期的なフレーム進行とは別に行われる。
 
-**適用限界**：固定revisionの実装上の根拠であり、hitch、表示完了時間、GPU・電力の実測値ではない。ホストの可視性・scene・タブ・sheetの接続と資源解放は実Canvasおよび製品導線で評価する。
+**適用限界**：固定revisionの実装上の根拠であり、hitch、表示完了時間、GPU・電力の実測値ではない。ホストの可視性・scene・sheetの接続と資源解放は実Canvasおよび製品導線で評価する。

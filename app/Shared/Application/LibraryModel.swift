@@ -31,7 +31,7 @@ final class LibraryModel {
     private(set) var restoringIDs: Set<UUID> = []
 
     struct Notice: Identifiable, Equatable {
-        enum Origin: Equatable { case library, search, trash }
+        enum Origin: Equatable { case library, trash }
         let id = UUID()
         let origin: Origin
         enum Result: Equatable {
@@ -83,16 +83,23 @@ final class LibraryModel {
     private var opening: UUID?
 
     var query: String {
-        get { request.query }
+        get { content.query }
         set { content.search(newValue) }
     }
     var filter: LibraryFilter {
-        get { request.filter }
+        get { content.selection }
         set { content.select(newValue) }
     }
     var items: [SnippetSummary] { page.items }
     var drafts: [DraftSummary] { page.drafts }
     var hasMore: Bool { contentIsCurrent && page.hasMore }
+    var isSearching: Bool { content.isSearching }
+    var includesDrafts: Bool {
+        surface == .library && !isSearching && contentRequest.includesDrafts
+    }
+    var canShowAll: Bool { !isSearching && surface == .library && filter == .pinned }
+    var contentIsEmpty: Bool { items.isEmpty && (!includesDrafts || drafts.isEmpty) }
+    var showsEmptyState: Bool { contentIsCurrent && contentIsEmpty && !loading && !loadingInterrupted && failure == nil }
 
     func unusedSince(for item: SnippetSummary) -> Date? {
         guard contentRequest.filter != .trash,
@@ -101,6 +108,7 @@ final class LibraryModel {
     }
 
     func showMore() { content.showMore() }
+    func showAll() { content.showAll() }
     func dismissFailure() { operationFailure = nil }
 
     init(store: any LibraryStorage, effects: any LibraryEffects, surface: LibrarySurface = .library,
@@ -148,12 +156,12 @@ final class LibraryModel {
     func reload() async {
         guard !Task.isCancelled else { return }
         operationFailure = nil
-        await refresh()
+        await refresh(includingCollections: true)
     }
 
-    func refresh() async {
+    func refresh(includingCollections: Bool = false) async {
         guard !Task.isCancelled else { return }
-        let read = content.begin()
+        let read = content.begin(includingCollections: includingCollections)
         defer { content.end(read) }
         do {
             let pages = try await libraryReader.libraries(read.requests)
@@ -210,7 +218,7 @@ final class LibraryModel {
             announce(.copied, context: context)
             pendingUses.append(PendingUse(use: use))
             await persistUse(use)
-            await refresh()
+            await refresh(includingCollections: true)
         } catch is CancellationError { }
         catch { if !Task.isCancelled { report(.copy, error) } }
     }
@@ -219,7 +227,7 @@ final class LibraryModel {
     func retryUsageRecording() async {
         guard !Task.isCancelled else { return }
         for pending in pendingUses { await persistUse(pending.use) }
-        await refresh()
+        await refresh(includingCollections: true)
     }
 
     private func persistUse(_ use: SnippetUse) async {
@@ -246,7 +254,7 @@ final class LibraryModel {
         do {
             try await store.setPinned(!item.pinned, id: item.id)
             mutationRevision += 1
-            await refresh()
+            await refresh(includingCollections: true)
         }
         catch { report(.pin, error) }
     }
@@ -259,7 +267,7 @@ final class LibraryModel {
             let result = try await store.mutate(.delete, id: id)
             mutationRevision += 1
             announce(.deleted(result), context: context)
-            await refresh()
+            await refresh(includingCollections: true)
         } catch { report(.delete, error) }
     }
 
@@ -278,7 +286,7 @@ final class LibraryModel {
             let result = try await store.mutate(.restore, id: id)
             mutationRevision += 1
             announce(.restored(result), context: context)
-            await refresh()
+            await refresh(includingCollections: true)
         } catch {
             operationFailure = Failure(operation: .restore, reason: error as? StoreError ?? .database,
                                        recovery: error as? StoreError == .missing ? .reload : .retryRestore(id))
@@ -293,7 +301,7 @@ final class LibraryModel {
             let result = try await store.mutate(.permanentlyDelete, id: id)
             mutationRevision += 1
             announce(.permanentlyDeleted(result), context: context)
-            await refresh()
+            await refresh(includingCollections: true)
         } catch { report(.permanentlyDelete, error) }
     }
 

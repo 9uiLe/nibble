@@ -40,7 +40,7 @@ actor SnippetStore: LibraryStorage, DraftEditing {
                                counts: counts)
         }
         let values = try search(request.query, filter: request.filter, limit: request.limit + 1)
-        let drafts = request.filter == .all ? try drafts(limit: LibraryRequest.draftPreviewLimit + 1) : []
+        let drafts = request.includesDrafts ? try drafts(limit: LibraryRequest.draftPreviewLimit + 1) : []
         return LibraryPage(items: Array(values.prefix(request.limit)),
                            drafts: Array(drafts.prefix(LibraryRequest.draftPreviewLimit)),
                            hasMore: values.count > request.limit,

@@ -21,6 +21,10 @@ struct LibraryRequest: Equatable, Sendable {
     let filter: LibraryFilter
     let limit: Int
 
+    var includesDrafts: Bool {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (filter == .all || filter == .drafts)
+    }
+
     init(query: String = "", filter: LibraryFilter = .all, limit: Int = LibraryRequest.pageSize) {
         self.query = query
         self.filter = filter

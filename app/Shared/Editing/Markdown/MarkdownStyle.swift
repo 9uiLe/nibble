@@ -13,7 +13,7 @@ struct MarkdownStyle: Equatable, Sendable {
     var link = false
 
     var pointSize: CGFloat {
-        heading.map { [26.0, 22, 19, 17, 15, 13][min(5, max(0, $0 - 1))] } ?? 13
+        heading.map { [26.0, 22, 20, 18, 16, 15][min(5, max(0, $0 - 1))] } ?? 15
     }
 
     func applying(_ inline: InlinePresentationIntent, link: Bool) -> Self {
@@ -33,7 +33,13 @@ struct MarkdownStyle: Equatable, Sendable {
         if italic, let descriptor = font.fontDescriptor.withSymbolicTraits(font.fontDescriptor.symbolicTraits.union(.traitItalic)) {
             font = UIFont(descriptor: descriptor, size: pointSize)
         }
-        var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: quote ? UIColor.secondaryLabel : UIColor.label]
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 4
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: quote ? UIColor.secondaryLabel : UIColor.label,
+            .paragraphStyle: paragraph,
+        ]
         if link { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
         if strike { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
         if code { attributes[.backgroundColor] = UIColor.secondarySystemFill }

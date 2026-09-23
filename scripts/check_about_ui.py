@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 from types import SimpleNamespace
 from ios import simulator_lock, ROOT, XCRUN, VerificationError
-from product_ui import ProductRun as Run, native_tabs
+from product_ui import ProductRun as Run
 
 
 def element(data, identifier):
@@ -81,7 +81,7 @@ class AboutCheck:
 
     def open_about(self):
         self.run.ui()
-        self.run.tap("navigation.tab.settings")
+        self.run.open_settings()
         for _ in range(5):
             data = self.run.ui()
             if element(data, "settings." + self.story):
@@ -183,13 +183,12 @@ class AboutCheck:
         self.run.screenshot("reduce-motion-off")
 
     def interruptions(self, stress=False):
-        # Both tabs remain alive. Returning must use the same viewport/session;
-        # the mounted tests assert identity, while this recording shows continuity.
-        self.run.tap("navigation.tab.library")
+        # Leaving the hierarchy ends this explanation's session; reentry loads it again.
+        self.run.workspace()
         time.sleep(1)
-        self.run.tap("navigation.tab.settings")
-        self.check_illustration("after-tab")
-        self.run.screenshot("after-tab")
+        self.open_about()
+        self.check_illustration("after-navigation")
+        self.run.screenshot("after-navigation")
         # Deceleration, visibility boundaries and an offscreen background return.
         repetitions = 3 if stress else 1
         for _ in range(repetitions):
@@ -224,8 +223,7 @@ class AboutCheck:
             paragraph = element(data, "about.privacy" if self.story == "about" else "keyboard.guide.limits")
             if paragraph:
                 frame = paragraph["frame"]
-                bar_top = min((entry["frame"]["y"] for entry in native_tabs(data).values()),
-                              default=data["screen"]["height"] - 62)
+                bar_top = data["screen"]["height"] - 34
                 if 75 <= frame["y"] and frame["y"] + frame["height"] <= bar_top - 8:
                     break
             self.scroll(data)
@@ -248,7 +246,7 @@ def main():
     parser.add_argument("--device", required=True)
     parser.add_argument("--reduce-motion", choices=("enabled", "disabled"), default="disabled")
     parser.add_argument("--story", choices=("about", "keyboard"), default="about")
-    parser.add_argument("--interruptions", action="store_true", help="Record representative tab, scroll and offscreen background returns")
+    parser.add_argument("--interruptions", action="store_true", help="Record representative navigation, scroll and offscreen background returns")
     parser.add_argument("--stress", action="store_true", help="Repeat visibility crossings and use a 30-second background interval")
     parser.add_argument("--fault-retry", action="store_true", help="Temporarily corrupt the installed asset, restore it and tap retry")
     args = parser.parse_args()
