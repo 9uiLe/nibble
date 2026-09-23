@@ -36,4 +36,4 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: nix develop --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH" --complete-if-ready
+        run: nix develop --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH"

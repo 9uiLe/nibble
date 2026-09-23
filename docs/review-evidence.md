@@ -146,10 +146,10 @@ nix develop --command python3 scripts/check_pr.py commits --base origin/main \
 
 ```sh
 nix develop --command python3 scripts/check_pr.py local \
-  --base origin/main --body-file artifacts/pr-body.md --complete
+  --base origin/main --body-file artifacts/pr-body.md
 ```
 
-作業ツリーに未コミット変更がある場合は拒否する。本文の表には、base以降の全コミットを重複なく記載する。`--complete`は未完了チェック項目も拒否する。必要な検証が未完了のPRは、マージ前にその条件を解決する。
+作業ツリーに未コミット変更がある場合は拒否する。本文の表には、base以降の全コミットを重複なく記載する。`--complete`を加えると未完了チェック項目も拒否する。未解決事項を記載したPRもレビューできるが、完了条件の確認はマージ前に別途行う。
 
 ### 3. PRを作成・更新する
 
@@ -162,13 +162,13 @@ GitHubへの作成・更新は`gh pr create/edit --body-file`で行う。作成�
 ```sh
 export NIBBLE_PR='対象PR番号'
 nix develop --command python3 scripts/check_pr.py remote \
-  --repo 9uiLe/nibble --number "$NIBBLE_PR" --complete --check-ci \
+  --repo 9uiLe/nibble --number "$NIBBLE_PR" --check-ci \
   --snapshot-out artifacts/pr-check.json
 ```
 
-全コミットと変更ファイルをGitHub APIからページングして取得し、件数不足や取得中のhead・本文変更を拒否する。`--check-ci`は取得したheadのcheck runが1件以上あり、すべて成功していることを確認する。検査コマンドはGitHubを読み取るだけで、PRを作成・編集・マージしない。
+全コミットと変更ファイルをGitHub APIからページングして取得し、件数不足や取得中のhead・本文変更を拒否する。`--check-ci`は取得したheadのcheck runが1件以上あり、すべて成功していることを確認する。マージ前には同じコマンドへ`--complete`を追加し、レビュー前の確認に未完了項目がないことを照合する。検査コマンドはGitHubを読み取るだけで、PRを作成・編集・マージしない。
 
-GitHub ActionsはUbuntuでNixの共通検査を実行し、PRイベントでは本文を`--complete-if-ready`で検査する。ドラフトでは必須欄・コミット・証跡の整合を確認し、レビュー可能なPRでは未完了チェック項目も拒否する。PR作成、push、再開、本文編集、ドラフトへの変換、レビュー可能への変更で再実行する。実行中のCIから自身の完了を待つ`--check-ci`は呼ばない。共通検査そのものはGitHub認証やPRを必要としない。初回のNix依存取得にはネットワークが必要になる。
+GitHub ActionsはUbuntuでNixの共通検査を実行し、PRイベントでは本文の必須欄・コミット・証跡の整合を検査する。未完了項目は本文に残せるため、CI成功は作業完了やマージ可能性を意味しない。PR作成、push、再開、本文編集、ドラフトへの変換、レビュー可能への変更で再実行する。実行中のCIから自身の完了を待つ`--check-ci`は呼ばない。共通検査そのものはGitHub認証やPRを必要としない。初回のNix依存取得にはネットワークが必要になる。
 
 ## GitHubの必須チェック
 
