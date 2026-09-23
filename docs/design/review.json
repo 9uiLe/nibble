@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "キーボード全文で対象名と権限案内の文字階層と間隔を整え、本文への読み順を保った。",
+  "summary": "設定の区切りをアイコンの左端に揃え、先頭と末尾には置かず項目間だけにした。S04とF04の読み順・区切りに対応する。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
@@ -76,7 +76,7 @@
     "app/Nibble/Settings/KeyboardGuideSection.swift": "b951a99eb17337818b1e552664658f1110ab8452f6975118bb9ae37634d049ae",
     "app/Nibble/Settings/KeyboardGuideView.swift": "050a9128625135676f69fddd9bb6bcca4963c99d95406130696835117848a20d",
     "app/Nibble/Settings/SettingsDisclosureLabel.swift": "b565930c5b98116a2c7df020043871e0c6826da94c611045cf5a4fb1737609fb",
-    "app/Nibble/Settings/SettingsList.swift": "87cb42328449b0b43b478df17c9d5c80ff5401c5ce768e5cc2d111a1a374dfd8",
+    "app/Nibble/Settings/SettingsList.swift": "592780cf66fd7ca2b148049f12d49e10de6cb9e0f7791d267f57c11b18b1c46e",
     "app/Nibble/Settings/SettingsView.swift": "c85eba3d6dfc816df5424e4501d6300c187bccb611b8bdd30b10347c1ffed652",
     "app/NibbleKeyboard/Info.plist": "34655e3be06e791c6d9c6a5b6fe10b33c995860b2b6d49751ad793cbfd2a155e",
     "app/NibbleKeyboard/KeyboardBrowseView.swift": "fe515e79137c6045670e876a28eb636fe4dc88de0c4a2c1eb30f0ecc4078643b",
