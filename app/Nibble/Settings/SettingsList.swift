@@ -9,41 +9,37 @@ struct SettingsList: View {
 
     var body: some View {
         List {
-            Group {
-                Section {
-                    Button(action: showTrash) {
-                        SettingsDisclosureLabel(title: "削除した項目", systemImage: "trash")
-                    }
-                    .accessibilityIdentifier("library.trash")
+            Section {
+                NavigationLink {
+                    KeyboardGuideView()
+                } label: {
+                    SettingsDisclosureLabel(title: "nibbleキーボード", detail: "追加・使い方・フルアクセス",
+                                            systemImage: "keyboard", showsChevron: false)
                 }
-                Section {
-                    NavigationLink {
-                        KeyboardGuideView()
-                    } label: {
-                        Label("nibbleキーボード", systemImage: "keyboard")
-                    }
-                    .accessibilityIdentifier("settings.keyboard")
+                .accessibilityIdentifier("settings.keyboard")
+                Button(action: showTrash) {
+                    SettingsDisclosureLabel(title: "削除した項目", detail: "復元・完全削除",
+                                            systemImage: "trash", showsChevron: true)
                 }
-                Section {
-                    NavigationLink {
-                        AboutView()
-                    } label: {
-                        Label("nibbleについて", systemImage: "info.circle")
-                    }
-                    .accessibilityIdentifier("settings.about")
-                    .listRowSeparator(.hidden, edges: .bottom)
-                } footer: {
-                    Text("バージョン \(version.display)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 16)
-                        .accessibilityIdentifier("settings.version")
+                .accessibilityIdentifier("library.trash")
+                NavigationLink {
+                    AboutView()
+                } label: {
+                    SettingsDisclosureLabel(title: "nibbleについて", detail: "操作とデータについて",
+                                            systemImage: "info.circle", showsChevron: false)
                 }
-                .listSectionSeparator(.hidden, edges: .bottom)
+                .accessibilityIdentifier("settings.about")
+                .listRowSeparator(.hidden, edges: .bottom)
+            } footer: {
+                Text("バージョン \(version.display)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 16)
+                    .accessibilityIdentifier("settings.version")
             }
-            .font(.nibbleTitle)
             .listRowBackground(Color.clear)
+            .listSectionSeparator(.hidden, edges: .bottom)
         }
         .modifier(LibraryListStyle())
     }
