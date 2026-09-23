@@ -13,12 +13,13 @@ struct KeyboardDetailView: View {
         VStack(spacing: 0) {
             KeyboardDetailHeader(detail: detail, model: model, taskOwner: taskOwner, focus: focus)
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(detail.item.displayTitle).font(.headline)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(detail.item.displayTitle).font(.nibbleTitle)
                         .accessibilityAddTraits(.isHeader)
                     if let notice = model.notice, !notice.expires {
-                        KeyboardStatusMessage(notice: notice).font(.nibbleBody)
-                        Divider()
+                        KeyboardStatusMessage(notice: notice)
+                            .font(.nibbleBody)
+                            .foregroundStyle(.secondary)
                     }
                     if let body = detail.body {
                         Text(verbatim: body).font(.body)

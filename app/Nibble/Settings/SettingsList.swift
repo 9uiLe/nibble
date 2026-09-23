@@ -17,11 +17,14 @@ struct SettingsList: View {
                                             systemImage: "keyboard", showsChevron: false)
                 }
                 .accessibilityIdentifier("settings.keyboard")
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                .listRowSeparator(.hidden, edges: .top)
                 Button(action: showTrash) {
                     SettingsDisclosureLabel(title: "削除した項目", detail: "復元・完全削除",
                                             systemImage: "trash", showsChevron: true)
                 }
                 .accessibilityIdentifier("library.trash")
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 NavigationLink {
                     AboutView()
                 } label: {
@@ -29,6 +32,7 @@ struct SettingsList: View {
                                             systemImage: "info.circle", showsChevron: false)
                 }
                 .accessibilityIdentifier("settings.about")
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 .listRowSeparator(.hidden, edges: .bottom)
             } footer: {
                 Text("バージョン \(version.display)")
@@ -39,7 +43,7 @@ struct SettingsList: View {
                     .accessibilityIdentifier("settings.version")
             }
             .listRowBackground(Color.clear)
-            .listSectionSeparator(.hidden, edges: .bottom)
+            .listSectionSeparator(.hidden)
         }
         .modifier(LibraryListStyle())
     }
