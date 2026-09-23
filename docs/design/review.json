@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "設定の目的順と用途補足、キーボードの短い結果と長文案内の配置を実装・仕様に対応付けた。",
+  "summary": "キーボード全文で対象名と権限案内の文字階層と間隔を整え、本文への読み順を保った。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
@@ -84,7 +84,7 @@
     "app/NibbleKeyboard/KeyboardControls.swift": "09ea9d6e17dc11a97f63d4ad7439a5bfe7d5eb6e8b4dbbf1323cbcf1f81e4e04",
     "app/NibbleKeyboard/KeyboardDetailActions.swift": "12212bbb593cf75d1295e03300a265f927e48266a5ea9b729feb5159398472f2",
     "app/NibbleKeyboard/KeyboardDetailHeader.swift": "e0af98c366623d21a7e4f01196d70da8dd98542b3f1f776825f8b7015ae2b9e7",
-    "app/NibbleKeyboard/KeyboardDetailView.swift": "3ca8b1bbbfaa84cb5016d0558d09a6a714b79f3a39514231cf25ca3439f73979",
+    "app/NibbleKeyboard/KeyboardDetailView.swift": "c49e172b9c1aa67bce0d9b25358d7846eed60d1e3ffdadf985099884d4c13d0c",
     "app/NibbleKeyboard/KeyboardFilterBar.swift": "d7a3bf7c43466eeb5e5b4d1e82dbd8c2ff562577614de033db835fd0f40bbf89",
     "app/NibbleKeyboard/KeyboardFilterSegments.swift": "7164d75863de48bc1bc1090e40be1662f6da5ae04bb88f665c742e1a40662617",
     "app/NibbleKeyboard/KeyboardInputModeButton.swift": "44480f4b522edabad6fab6518821bc79fa4b0123fbb3ecd7f3d8a8e1f28d4d45",
