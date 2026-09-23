@@ -168,6 +168,33 @@ struct KeyboardOperationTests {
         #expect(!model.isUsing)
     }
 
+    @Test func variableInputWaitsForConfirmationAndRejectsChangedDestination() async {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        await prepare(model, reader: reader)
+        async let first: Void = model.use(item, as: .insert)
+        await reader.bodies.waitForRequests(1)
+        reader.bodies.finish(0, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
+        await first
+        #expect(effects.events.isEmpty && model.variableUse?.template.names == ["宛名"])
+        effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
+        async let rejected: Void = model.completeVariableUse(values: ["宛名": "山田"])
+        await reader.bodies.waitForRequests(2)
+        reader.bodies.finish(1, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
+        await rejected
+        #expect(effects.events.isEmpty && model.message != nil)
+        async let second: Void = model.use(item, as: .insert)
+        await reader.bodies.waitForRequests(3)
+        reader.bodies.finish(2, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
+        await second
+        async let accepted: Void = model.completeVariableUse(values: ["宛名": "山田"])
+        await reader.bodies.waitForRequests(4)
+        reader.bodies.finish(3, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
+        await accepted
+        #expect(effects.events == [.insert("こんにちは、山田さん。山田さん。")])
+    }
+
     @Test(arguments: [false, true], [false, true])
     func lateReadCannotReplaceCurrentPage(changesRequest: Bool, fails: Bool) async {
         let reader = KeyboardGateReader()

@@ -23,10 +23,12 @@ struct ProView: View {
                     .font(.nibbleTitle)
                     .accessibilityIdentifier("pro.manage")
             } else {
-                Text("無料では保存済み項目を30件まで作成できます。Proでは件数の上限を解除します。既存項目の閲覧・編集・コピー・キーボード挿入は、登録終了後も利用できます。")
+                Text("保存件数の上限はありません。差し替える項目を含む本文も、現在は無料で利用できます。nibble Proの新しい提供内容は準備中です。")
                     .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding()
             }
-            if loadingProducts {
+            if !FeatureAccess.subscriptionsOffered {
+                Spacer()
+            } else if loadingProducts {
                 ProgressView("商品を読み込み中")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if products.count == ProSubscription.productIDs.count {
@@ -48,6 +50,7 @@ struct ProView: View {
         .navigationTitle("nibble Pro")
         .toolbarTitleDisplayMode(.inline)
         .task(id: reloadID) {
+            guard FeatureAccess.subscriptionsOffered else { return }
             loadingProducts = true
             await subscription.refresh()
             do {

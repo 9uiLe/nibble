@@ -5,29 +5,36 @@ import SQLite3
 
 @Suite("Snippet persistence and recovery")
 struct SnippetTests {
-    @Test func freeLimitIsAtomicAndPreservesDraftsAndExistingUse() async throws {
+    @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
+        let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
+        let template = SnippetVariables(original)
+        #expect(template.names == ["宛名", "日付"])
+        #expect(template.filled(with: ["宛名": "山田", "日付": "9月24日"]) ==
+            "山田さん\r\n山田へ 👩🏽‍💻 9月24日 / {{ }} / {{未完")
+        #expect(template.filled(with: ["宛名": "山田"]) == nil)
+        #expect(template.body.utf8.elementsEqual(original.utf8))
+        #expect(SnippetVariables("普通の本文").filled(with: [:]) == "普通の本文")
+    }
+
+    @Test func freePlanCanSaveBeyondThirtyAndPreservesDraftsAndExistingUse() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }
         let free = SnippetStore(location: database.url, hasProAccess: { false })
-        let pro = SnippetStore(location: database.url, hasProAccess: { true })
         var ids: [UUID] = []
         for number in 0..<ProAccess.freeLimit {
             ids.append(try await create(free, body: "item \(number)"))
         }
         var draft = try await free.beginDraft(body: "next item")
         draft.title = "continued"
-        await #expect(throws: StoreError.freeLimit) { try await free.save(draft) }
-        #expect(try await free.draft(draft.id).body == "next item")
+        try await free.save(draft)
         var edit = try await free.editingDraft(for: ids[0])
         edit.body = "edited"
         try await free.save(edit)
         #expect(try await free.savedBody(ids[0]) == "edited")
         try await free.mutate(.delete, id: ids[0])
-        try await free.save(draft)
         try await free.mutate(.restore, id: ids[0])
         let overflow = try await free.beginDraft(body: "overflow")
-        await #expect(throws: StoreError.freeLimit) { try await free.save(overflow) }
-        try await pro.save(overflow)
+        try await free.save(overflow)
         #expect(try await free.search().count == ProAccess.freeLimit + 2)
     }
 

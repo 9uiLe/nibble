@@ -10,7 +10,8 @@ final class LibraryTaskOwner {
     private var openingID: UUID?
 
     enum Action {
-        case refresh, reload, retryUsage, open(LibraryModel.EditorSource), copy(UUID), pin(SnippetSummary)
+        case refresh, reload, retryUsage, open(LibraryModel.EditorSource), copy(UUID)
+        case completeVariableCopy(UUID, [String: String]), pin(SnippetSummary)
         case delete(UUID), restore(UUID), undoNotice(UUID), permanentlyDelete(UUID)
 
         var id: ActionID {
@@ -18,6 +19,7 @@ final class LibraryTaskOwner {
             case .refresh, .reload: "library.refresh"
             case .open: "library.open"
             case .copy: "library.copy"
+            case .completeVariableCopy: "library.variableCopy"
             case .retryUsage: "library.usage.retry"
             case .pin(let item): ActionID("library.pin.\(item.id)")
             case .delete(let id): ActionID("library.delete.\(id)")
@@ -56,6 +58,7 @@ final class LibraryTaskOwner {
                 self?.openingID = requestID
                 await model.open(source, requestID: requestID)
             case .copy(let id): await model.copy(id, context: noticeContext)
+            case .completeVariableCopy(let id, let values): await model.completeVariableCopy(id: id, values: values)
             case .retryUsage: await model.retryUsageRecording()
             case .pin(let item): await model.pin(item)
             case .delete(let id): await model.delete(id, context: noticeContext)

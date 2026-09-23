@@ -17,7 +17,16 @@ protocol KeyboardEffects: AnyObject {
 
 @MainActor @Observable
 final class KeyboardModel {
-    enum Use { case insert, copy }
+    enum Use: Equatable { case insert, copy }
+    struct VariableUse: Identifiable {
+        let id = UUID()
+        let item: SnippetSummary
+        let mode: Use
+        let template: SnippetVariables
+        let destination: KeyboardDestination
+        let generation: UUID
+        let available: Bool
+    }
     enum Action: Equatable { case load, insert, copy, preview, pin, reloadAfterPin, changed }
     enum Reason: Equatable {
         case store(StoreError), notPrepared, changed, unavailable
@@ -66,6 +75,7 @@ final class KeyboardModel {
     private(set) var loadID = UUID()
     private var loadState = LoadState.inactive
     private(set) var notice: Notice?
+    private(set) var variableUse: VariableUse?
     private var selection: Selection?
     private var rows: [UUID: SnippetSummary] = [:]
     var detail: Detail? {
@@ -112,6 +122,7 @@ final class KeyboardModel {
         operation = nil
         snapshot = nil
         notice = nil
+        variableUse = nil
         selection = nil
         rows = [:]
     }
@@ -143,6 +154,7 @@ final class KeyboardModel {
         loadID = UUID()
         if isActive { loadState = .pending }
         notice = nil
+        variableUse = nil
         selection = nil
         operation = nil
     }
@@ -183,6 +195,13 @@ final class KeyboardModel {
             let text = try await reader.body(for: item)
             try Task.checkCancellation()
             guard isActive, loadID == generation, operation == id, contains(item) else { return }
+            let template = SnippetVariables(text)
+            if !template.names.isEmpty {
+                variableUse = VariableUse(item: item, mode: use, template: template,
+                    destination: destination, generation: generation,
+                    available: FeatureAccess.allows(.variableReplacement, pro: ProAccess.isActive()))
+                return
+            }
             switch use {
             case .insert:
                 guard effects.destination == destination else {
@@ -204,6 +223,45 @@ final class KeyboardModel {
         catch {
             guard isActive, loadID == generation, operation == id, !Task.isCancelled else { return }
             notify(failure(for: use == .copy ? .copy : .insert, error: error))
+        }
+    }
+
+    func cancelVariableUse() { variableUse = nil }
+
+    func completeVariableUse(values: [String: String]) async {
+        guard let pending = variableUse, pending.available,
+              let text = pending.template.filled(with: values), isActive, isCurrent,
+              loadID == pending.generation, contains(pending.item), operation == nil,
+              let effects else { return }
+        let id = UUID()
+        operation = id
+        defer { if operation == id { operation = nil } }
+        do {
+            let current = try await reader.body(for: pending.item)
+            try Task.checkCancellation()
+            guard isActive, isCurrent, loadID == pending.generation, operation == id,
+                  variableUse?.id == pending.id, contains(pending.item) else { return }
+            variableUse = nil
+            guard current.utf8.elementsEqual(pending.template.body.utf8) else {
+                notify(failure(for: .changed, error: KeyboardReadError.changed))
+                return
+            }
+            switch pending.mode {
+            case .insert:
+                guard effects.destination == pending.destination else { notify(.inputChanged); return }
+                effects.insert(text)
+                closeDetail()
+                notify(.inserted(pending.item.id))
+            case .copy:
+                guard effects.canCopy else { notify(.requiresFullAccess(.copy)); return }
+                effects.copy(text)
+                notify(.copied)
+            }
+        } catch is CancellationError { }
+        catch {
+            guard isActive, loadID == pending.generation, operation == id else { return }
+            variableUse = nil
+            notify(failure(for: pending.mode == .copy ? .copy : .insert, error: error))
         }
     }
 

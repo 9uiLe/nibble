@@ -14,7 +14,7 @@ struct SettingsList: View {
                 NavigationLink {
                     ProView(subscription: subscription)
                 } label: {
-                    SettingsDisclosureLabel(title: "nibble Pro", detail: !subscription.checked ? "登録状態を確認中" : subscription.isActive ? "利用中・登録を管理" : "保存件数の上限を解除",
+                    SettingsDisclosureLabel(title: "nibble Pro", detail: !subscription.checked ? "登録状態を確認中" : subscription.isActive ? "利用中・登録を管理" : "新機能を準備中",
                                             systemImage: "star", showsChevron: false)
                 }
                 .accessibilityIdentifier("settings.pro")

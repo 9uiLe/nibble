@@ -3,6 +3,13 @@ import Observation
 
 @MainActor @Observable
 final class LibraryModel {
+    struct VariableCopy: Identifiable {
+        let id = UUID()
+        let snippetID: UUID
+        let template: SnippetVariables
+        let context: NoticeContext
+        let available: Bool
+    }
     private let store: any LibraryStorage
     private let effects: any LibraryEffects
     private let usageRecorder: any SnippetUsageRecording
@@ -67,6 +74,7 @@ final class LibraryModel {
     var readDemand: LibraryRequest? { content.demand }
     var refreshOnAppearance: Bool { content.refreshOnAppearance }
     private(set) var notice: Notice?
+    private(set) var variableCopy: VariableCopy?
     private(set) var feedback = 0
     private(set) var mutationRevision = 0
     private var operationFailure: Failure?
@@ -213,14 +221,39 @@ final class LibraryModel {
             try Task.checkCancellation()
             let body = try await store.savedBody(id)
             try Task.checkCancellation()
-            effects.copy(body)
-            let use = SnippetUse(id: UUID(), snippetID: id, completedAt: now())
-            announce(.copied, context: context)
-            pendingUses.append(PendingUse(use: use))
-            await persistUse(use)
-            await refresh(includingCollections: true)
+            let template = SnippetVariables(body)
+            if !template.names.isEmpty {
+                variableCopy = VariableCopy(snippetID: id, template: template, context: context,
+                    available: FeatureAccess.allows(.variableReplacement, pro: ProAccess.isActive()))
+                return
+            }
+            await completeCopy(body, snippetID: id, context: context)
         } catch is CancellationError { }
         catch { if !Task.isCancelled { report(.copy, error) } }
+    }
+
+    func cancelVariableCopy() { variableCopy = nil }
+
+    func completeVariableCopy(id: UUID, values: [String: String]) async {
+        guard let pending = variableCopy, pending.id == id, pending.available,
+              let filled = pending.template.filled(with: values) else { return }
+        variableCopy = nil
+        do {
+            let current = try await store.savedBody(pending.snippetID)
+            guard current.utf8.elementsEqual(pending.template.body.utf8) else { throw StoreError.conflict }
+            try Task.checkCancellation()
+            await completeCopy(filled, snippetID: pending.snippetID, context: pending.context)
+        } catch is CancellationError { }
+        catch { if !Task.isCancelled { report(.copy, error) } }
+    }
+
+    private func completeCopy(_ text: String, snippetID: UUID, context: NoticeContext) async {
+        effects.copy(text)
+        let use = SnippetUse(id: UUID(), snippetID: snippetID, completedAt: now())
+        announce(.copied, context: context)
+        pendingUses.append(PendingUse(use: use))
+        await persistUse(use)
+        await refresh(includingCollections: true)
     }
 
     /// Retries the completed copy's record, never the clipboard effect.

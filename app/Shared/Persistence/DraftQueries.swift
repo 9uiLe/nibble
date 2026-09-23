@@ -98,7 +98,7 @@ enum DraftQueries {
                     [.text(draft.title), .text(draft.body), .text(key), .real(Date().timeIntervalSince1970), .text(id.uuidString), .int(draft.baseRevision)])
                 guard db.changes == 1 else { throw StoreError.conflict }
             } else {
-                if !hasProAccess() {
+                if !FeatureAccess.allows(.unlimitedSavedItems, pro: hasProAccess()) {
                     let saved = try db.rows("SELECT count(*) FROM snippets WHERE deleted=0", []) { $0.int(0) }.first ?? 0
                     guard saved < ProAccess.freeLimit else { throw StoreError.freeLimit }
                 }

@@ -1,25 +1,6 @@
 import Foundation
 import OSLog
 
-/// A short, shared entitlement snapshot lets the Share extension enforce the same save limit.
-/// The containing app refreshes this from verified StoreKit transactions.
-enum ProAccess {
-    static let freeLimit = 30
-    private static let group = "group.nibble.9uiLe.com"
-    private static let expirationKey = "pro.entitlementExpiration"
-
-    static func isActive() -> Bool {
-        guard let expiration = UserDefaults(suiteName: group)?.object(forKey: expirationKey) as? Date else { return false }
-        return expiration > Date()
-    }
-
-    static func update(expiration: Date?) {
-        let defaults = UserDefaults(suiteName: group)
-        if let expiration { defaults?.set(expiration, forKey: expirationKey) }
-        else { defaults?.removeObject(forKey: expirationKey) }
-    }
-}
-
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
 actor SnippetStore: LibraryStorage, DraftEditing {
     private let location: @Sendable () throws -> URL
