@@ -10,11 +10,15 @@ struct KeyboardControls: View {
     var body: some View {
         HStack(spacing: 0) {
             if model.needsSwitchKey { KeyboardInputModeButton(button: globe).frame(width: 44, height: 44) }
-            KeyboardStatusMessage(notice: model.notice)
-                .font(.caption)
-                .foregroundStyle(model.message == nil ? Color.secondary : Color.primary)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("keyboard.status")
+            if let notice = model.notice, notice.expires {
+                KeyboardStatusMessage(notice: notice)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .padding(.leading, 6)
+            } else {
+                Spacer(minLength: 0)
+            }
             if model.detail == nil, model.request.offset > 0 || model.page?.hasMore == true {
                 Button("前のページ", systemImage: "chevron.left") { model.movePage(forward: false) }
                     .disabled(!model.isCurrent || model.isUsing || model.request.offset == 0)

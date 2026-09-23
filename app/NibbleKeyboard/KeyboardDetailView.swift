@@ -16,6 +16,10 @@ struct KeyboardDetailView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(detail.item.displayTitle).font(.headline)
                         .accessibilityAddTraits(.isHeader)
+                    if let notice = model.notice, !notice.expires {
+                        KeyboardStatusMessage(notice: notice).font(.nibbleBody)
+                        Divider()
+                    }
                     if let body = detail.body {
                         Text(verbatim: body).font(.body)
                             .fixedSize(horizontal: false, vertical: true)
