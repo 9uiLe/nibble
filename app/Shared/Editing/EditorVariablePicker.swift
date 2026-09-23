@@ -23,12 +23,8 @@ struct EditorVariablePicker: View {
                                     addExisting(variable)
                                     dismiss()
                                 } label: {
-                                    HStack {
-                                        Text(verbatim: variable)
-                                        Spacer()
-                                        Image(systemName: "plus")
-                                    }
-                                    .frame(minHeight: 44)
+                                    Text(verbatim: variable)
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                     .contentShape(.rect)
                                 }
                                 .buttonStyle(.plain)

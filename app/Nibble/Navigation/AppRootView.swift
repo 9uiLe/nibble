@@ -62,7 +62,7 @@ struct AppRootView: View {
                              availability: pending.availability, cancel: { library.cancelVariableCopy() },
                              complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
                 .id(pending.id)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.height(CGFloat(min(420, 120 + pending.template.names.count * 70))), .large])
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }

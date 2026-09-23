@@ -22,7 +22,9 @@ struct EditorBodyField: View {
                     }
                     .labelStyle(.iconOnly)
                     .controlSize(.small)
-                    .buttonBorderShape(.circle)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .opacity(0.55)
                     .frame(width: InterfaceMetrics.controlSize, height: InterfaceMetrics.controlSize)
                     .frame(minWidth: InterfaceMetrics.touchSize, minHeight: InterfaceMetrics.touchSize)
                     .accessibilityLabel("本文の末尾にペースト")
@@ -49,16 +51,17 @@ struct EditorBodyField: View {
                 }
             }
             .font(.subheadline)
+            .tint(Color(uiColor: .secondaryLabel))
             .frame(minHeight: InterfaceMetrics.touchSize)
-            if availability == .included {
-                Text("{{宛名}}は使用時に差し替えます。保存した本文は変わりません。")
-                    .font(.nibbleBody).foregroundStyle(.secondary)
-            }
             MarkdownEditor(model: model, focus: focus)
             if !model.hasBody {
                 Text("本文を入力すると保存できます。空白や改行だけでは保存できません。")
                     .font(.nibbleBody).foregroundStyle(.secondary)
                     .accessibilityIdentifier("editor.bodyRequirement")
+            }
+            if availability == .included {
+                Text("{{宛名}}は使用時に差し替えます。保存した本文は変わりません。")
+                    .font(.nibbleBody).foregroundStyle(.secondary)
             }
         }
         .sheet(isPresented: $showsVariablePicker, onDismiss: { focus.wrappedValue = focusBeforeVariables }) {
