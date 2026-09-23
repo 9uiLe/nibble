@@ -91,6 +91,10 @@ class SwiftPolicyTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertTrue(violations(source))
 
+    def test_storekit_transaction_does_not_match_animation_transaction(self):
+        self.assertFalse(violations('for await result in StoreKit.Transaction.currentEntitlements {}'))
+        self.assertTrue(violations('SwiftUI.Transaction(animation: .default)'))
+
     def test_owned_actions_structured_work_and_scoped_animation_are_allowed(self):
         source = '''
         import Tasking

@@ -34,6 +34,7 @@ extension EditorModel.Failure {
         case .correctInput: recovery = ""
         case .updateApplication: recovery = "入力をコピーして別の場所に控えてから、nibbleを更新してください。"
         case .retry: recovery = retry
+        case .upgrade: recovery = "Proに登録するか、保存済み項目を減らしてから保存してください。"
         }
         return title + "入力はこの画面に残っています。\n" + reason + recovery
     }

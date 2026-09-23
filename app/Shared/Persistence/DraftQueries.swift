@@ -83,7 +83,8 @@ enum DraftQueries {
     }
 
     @discardableResult
-    static func save(_ draft: Draft, asNew: Bool, in db: SQLiteDatabase) throws -> UUID {
+    static func save(_ draft: Draft, asNew: Bool, in db: SQLiteDatabase,
+                     hasProAccess: () -> Bool = { false }) throws -> UUID {
         try SnippetText.validate(title: draft.title, body: draft.body)
         let id = asNew ? UUID() : (draft.snippetID ?? UUID())
         let key = SnippetText.searchKey(draft.title + "\n" + draft.body)
@@ -97,6 +98,10 @@ enum DraftQueries {
                     [.text(draft.title), .text(draft.body), .text(key), .real(Date().timeIntervalSince1970), .text(id.uuidString), .int(draft.baseRevision)])
                 guard db.changes == 1 else { throw StoreError.conflict }
             } else {
+                if !hasProAccess() {
+                    let saved = try db.rows("SELECT count(*) FROM snippets WHERE deleted=0", []) { $0.int(0) }.first ?? 0
+                    guard saved < ProAccess.freeLimit else { throw StoreError.freeLimit }
+                }
                 try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted) VALUES(?,?,?,?,0,1,?,0)",
                     [.text(id.uuidString), .text(draft.title), .text(draft.body), .text(key), .real(Date().timeIntervalSince1970)])
             }

@@ -5,6 +5,32 @@ import SQLite3
 
 @Suite("Snippet persistence and recovery")
 struct SnippetTests {
+    @Test func freeLimitIsAtomicAndPreservesDraftsAndExistingUse() async throws {
+        let database = try TestDatabase()
+        defer { database.removeFiles() }
+        let free = SnippetStore(location: database.url, hasProAccess: { false })
+        let pro = SnippetStore(location: database.url, hasProAccess: { true })
+        var ids: [UUID] = []
+        for number in 0..<ProAccess.freeLimit {
+            ids.append(try await create(free, body: "item \(number)"))
+        }
+        var draft = try await free.beginDraft(body: "next item")
+        draft.title = "continued"
+        await #expect(throws: StoreError.freeLimit) { try await free.save(draft) }
+        #expect(try await free.draft(draft.id).body == "next item")
+        var edit = try await free.editingDraft(for: ids[0])
+        edit.body = "edited"
+        try await free.save(edit)
+        #expect(try await free.savedBody(ids[0]) == "edited")
+        try await free.mutate(.delete, id: ids[0])
+        try await free.save(draft)
+        try await free.mutate(.restore, id: ids[0])
+        let overflow = try await free.beginDraft(body: "overflow")
+        await #expect(throws: StoreError.freeLimit) { try await free.save(overflow) }
+        try await pro.save(overflow)
+        #expect(try await free.search().count == ProAccess.freeLimit + 2)
+    }
+
     @Test func exactTextSurvivesReopenAndEdit() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }
@@ -185,4 +211,3 @@ struct SnippetTests {
         #expect(try await store.snippet(id).body == "saved")
     }
 }
-

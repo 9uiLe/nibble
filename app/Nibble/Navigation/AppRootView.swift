@@ -9,6 +9,7 @@ struct AppRootView: View {
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
     @State private var routeOwner = LibraryTaskOwner()
+    @State private var subscription = ProSubscription()
     @State private var showsSettings = false
     @State private var showsTrash = false
     @FocusState private var searchFocused: Bool
@@ -29,7 +30,7 @@ struct AppRootView: View {
                 showsSettings = true
             })
             .navigationDestination(isPresented: $showsSettings) {
-                SettingsView(showTrash: { showsTrash = true })
+                SettingsView(subscription: subscription, showTrash: { showsTrash = true })
                     .environment(\.illustrationPlaybackAllowed,
                                  showsSettings && !showsTrash && library.editor == nil)
             }
@@ -46,7 +47,9 @@ struct AppRootView: View {
         .sheet(item: $libraryBinding.editor, onDismiss: {
             routeOwner.startTask(.reload, on: library)
         }) { draft in
-            SnippetEditor(draft: draft, store: store)
+            SnippetEditor(draft: draft, store: store, proInformation: {
+                AnyView(NavigationStack { ProView(subscription: subscription) })
+            })
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }
@@ -63,6 +66,10 @@ struct AppRootView: View {
         .onChange(of: scenePhase) {
             if scenePhase == .background { routeOwner.endScreen() }
         }
+        .task(id: scenePhase) {
+            if scenePhase == .active { await subscription.refresh() }
+        }
+        .task { await subscription.watchUpdates() }
         .privacySensitive()
         .overlay {
             if scenePhase != .active {

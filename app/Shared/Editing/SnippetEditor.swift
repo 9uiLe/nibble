@@ -10,6 +10,7 @@ struct SnippetEditor: View {
     @State private var model: EditorModel
     @State private var confirmsDiscard = false
     @State private var showsHelp = false
+    @State private var showsPro = false
     @State private var focusBeforeHelp: EditorField?
     @State private var hasSetInitialFocus = false
     @State private var taskOwner = EditorTaskOwner()
@@ -17,9 +18,12 @@ struct SnippetEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     private let complete: (@MainActor () -> Void)?
+    @SkipEquatable private let proInformation: (@MainActor () -> AnyView)?
 
-    init(draft: Draft, store: any DraftEditing, complete: (@MainActor () -> Void)? = nil) {
+    init(draft: Draft, store: any DraftEditing, proInformation: (@MainActor () -> AnyView)? = nil,
+         complete: (@MainActor () -> Void)? = nil) {
         _model = State(initialValue: EditorModel(draft: draft, store: store))
+        self.proInformation = proInformation
         self.complete = complete
     }
 
@@ -29,7 +33,8 @@ struct SnippetEditor: View {
             VStack(spacing: 0) {
                 EditorExitGuidance(isShared: complete != nil)
                 ScrollView {
-                    EditorForm(model: model, focus: $focus, taskOwner: taskOwner, isShared: complete != nil)
+                    EditorForm(model: model, focus: $focus, taskOwner: taskOwner, isShared: complete != nil,
+                               showPro: proInformation == nil ? nil : { focus = nil; showsPro = true })
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -55,6 +60,9 @@ struct SnippetEditor: View {
             } message: { Text("この下書きの内容は元に戻せません。保存済みの項目は変わりません。") }
             .sheet(isPresented: $showsHelp, onDismiss: { focus = focusBeforeHelp }) {
                 EditorHelpView()
+            }
+            .sheet(isPresented: $showsPro) {
+                if let proInformation { proInformation() }
             }
         }
         .presentationBackground(Color.nibbleCanvas)

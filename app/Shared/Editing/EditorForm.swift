@@ -9,6 +9,7 @@ struct EditorForm: View {
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
     @SkipEquatable let taskOwner: EditorTaskOwner
     let isShared: Bool
+    @SkipEquatable let showPro: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -17,7 +18,7 @@ struct EditorForm: View {
             Divider()
             EditorBodyField(model: model, focus: focus)
             if let failure = model.failure {
-                EditorFailureView(model: model, taskOwner: taskOwner, failure: failure)
+                EditorFailureView(model: model, taskOwner: taskOwner, failure: failure, showPro: showPro)
             }
         }
         .padding(20)

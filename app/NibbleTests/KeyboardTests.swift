@@ -32,13 +32,14 @@ struct KeyboardStorageTests {
     @Test func savedPagesExcludeDraftsAndTrashAndRemainBounded() async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
+        let proWriter = SnippetStore(location: files.url, hasProAccess: { true })
         var ids: Set<UUID> = []
-        for number in 0..<51 { ids.insert(try await create(files.store, body: "本文 \(number)")) }
+        for number in 0..<51 { ids.insert(try await create(proWriter, body: "本文 \(number)")) }
         let pinned = try #require(ids.first)
-        try await files.store.setPinned(true, id: pinned)
-        let deleted = try await create(files.store, body: "削除済み")
-        try await files.store.mutate(.delete, id: deleted)
-        _ = try await files.store.beginDraft(body: "下書き")
+        try await proWriter.setPinned(true, id: pinned)
+        let deleted = try await create(proWriter, body: "削除済み")
+        try await proWriter.mutate(.delete, id: deleted)
+        _ = try await proWriter.beginDraft(body: "下書き")
         let reader = KeyboardReader(location: { files.url })
         let first = try await reader.page(KeyboardRequest())
         let second = try await reader.page(KeyboardRequest(offset: 50))

@@ -7,6 +7,7 @@ struct EditorFailureView: View {
     @SkipEquatable let model: EditorModel
     @SkipEquatable let taskOwner: EditorTaskOwner
     let failure: EditorModel.Failure
+    @SkipEquatable let showPro: (() -> Void)?
 
     var body: some View {
         Label(failure.message, systemImage: "exclamationmark.circle")
@@ -18,6 +19,12 @@ struct EditorFailureView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
                 .accessibilityIdentifier("editor.saveAsNew")
+        }
+        if failure.reason == .freeLimit, let showPro {
+            Button("nibble Proを見る", action: showPro)
+                .font(.nibbleTitle)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("editor.showPro")
         }
     }
 }

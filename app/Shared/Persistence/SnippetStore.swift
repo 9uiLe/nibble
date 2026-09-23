@@ -1,14 +1,41 @@
 import Foundation
 import OSLog
 
+/// A short, shared entitlement snapshot lets the Share extension enforce the same save limit.
+/// The containing app refreshes this from verified StoreKit transactions.
+enum ProAccess {
+    static let freeLimit = 30
+    private static let group = "group.nibble.9uiLe.com"
+    private static let expirationKey = "pro.entitlementExpiration"
+
+    static func isActive() -> Bool {
+        guard let expiration = UserDefaults(suiteName: group)?.object(forKey: expirationKey) as? Date else { return false }
+        return expiration > Date()
+    }
+
+    static func update(expiration: Date?) {
+        let defaults = UserDefaults(suiteName: group)
+        if let expiration { defaults?.set(expiration, forKey: expirationKey) }
+        else { defaults?.removeObject(forKey: expirationKey) }
+    }
+}
+
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
 actor SnippetStore: LibraryStorage, DraftEditing {
     private let location: @Sendable () throws -> URL
+    private let hasProAccess: @Sendable () -> Bool
     private var connection: SQLiteDatabase?
     private let signposter = OSSignposter(subsystem: "nibble.9uiLe.com", category: "Store")
 
-    init(location: URL) { self.location = { location } }
-    init(location: @escaping @Sendable () throws -> URL) { self.location = location }
+    init(location: URL, hasProAccess: @escaping @Sendable () -> Bool = ProAccess.isActive) {
+        self.location = { location }
+        self.hasProAccess = hasProAccess
+    }
+    init(location: @escaping @Sendable () throws -> URL,
+         hasProAccess: @escaping @Sendable () -> Bool = ProAccess.isActive) {
+        self.location = location
+        self.hasProAccess = hasProAccess
+    }
 
     private func database() throws -> SQLiteDatabase {
         if let connection { return connection }
@@ -95,7 +122,7 @@ actor SnippetStore: LibraryStorage, DraftEditing {
     func save(_ draft: Draft, asNew: Bool = false) throws -> UUID {
         let interval = signposter.beginInterval("Save")
         defer { signposter.endInterval("Save", interval) }
-        return try DraftQueries.save(draft, asNew: asNew, in: database())
+        return try DraftQueries.save(draft, asNew: asNew, in: database(), hasProAccess: hasProAccess)
     }
 
     func savedBody(_ id: UUID) throws -> String { try SnippetQueries.savedBody(database(), id: id) }
