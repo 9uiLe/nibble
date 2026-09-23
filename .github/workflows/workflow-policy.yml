@@ -2,7 +2,7 @@ name: Workflow policy
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, ready_for_review]
+    types: [opened, synchronize, reopened, edited, ready_for_review, converted_to_draft]
   push:
     branches: [main]
   workflow_dispatch:
@@ -36,4 +36,4 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: nix develop --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH" --complete
+        run: nix develop --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH" --complete-if-ready

@@ -168,7 +168,7 @@ nix develop --command python3 scripts/check_pr.py remote \
 
 全コミットと変更ファイルをGitHub APIからページングして取得し、件数不足や取得中のhead・本文変更を拒否する。`--check-ci`は取得したheadのcheck runが1件以上あり、すべて成功していることを確認する。検査コマンドはGitHubを読み取るだけで、PRを作成・編集・マージしない。
 
-GitHub ActionsはUbuntuでNixの共通検査を実行し、PRイベントでは本文を`--complete`で検査する。PR作成、push、再開、本文編集、draft解除で再実行する。実行中のCIから自身の完了を待つ`--check-ci`は呼ばない。共通検査そのものはGitHub認証やPRを必要としない。初回のNix依存取得にはネットワークが必要になる。
+GitHub ActionsはUbuntuでNixの共通検査を実行し、PRイベントでは本文を`--complete-if-ready`で検査する。ドラフトでは必須欄・コミット・証跡の整合を確認し、レビュー可能なPRでは未完了チェック項目も拒否する。PR作成、push、再開、本文編集、ドラフトへの変換、レビュー可能への変更で再実行する。実行中のCIから自身の完了を待つ`--check-ci`は呼ばない。共通検査そのものはGitHub認証やPRを必要としない。初回のNix依存取得にはネットワークが必要になる。
 
 ## GitHubの必須チェック
 

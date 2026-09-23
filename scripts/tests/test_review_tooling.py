@@ -72,6 +72,19 @@ class PRTests(unittest.TestCase):
         snapshot['checks'] = [{'status': 'completed', 'conclusion': 'failure'}]
         self.assertTrue(check_pr.check(snapshot, check_ci=True))
 
+    def test_ci_requires_completed_checklist_only_when_pr_is_ready(self):
+        snapshot = self.snapshot(BODY.replace('[x]', '[ ]'))
+        for draft, expected in [(True, 0), (False, 1)]:
+            snapshot['draft'] = draft
+            with self.subTest(draft=draft), patch.object(check_pr, 'remote_snapshot', return_value=snapshot), \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(check_pr.main(['remote', '--repo', 'example/repo', '--number', '1',
+                                                '--complete-if-ready']), expected)
+        snapshot['draft'] = True
+        with patch.object(check_pr, 'remote_snapshot', return_value=snapshot), redirect_stdout(io.StringIO()):
+            self.assertEqual(check_pr.main(['remote', '--repo', 'example/repo', '--number', '1',
+                                            '--complete']), 1)
+
     def test_ui_cannot_declare_out_of_scope_and_tests_can(self):
         for path in ['app/Shared/LibraryModel.swift', 'app/Nibble/View.swift', 'app/Nibble.xcodeproj/project.pbxproj',
                      'validation/VerificationApp/App.swift']:
@@ -96,13 +109,17 @@ class PRTests(unittest.TestCase):
                 self.assertTrue(check_pr.check(altered))
 
     def test_remote_snapshot_rejects_api_truncation_and_racing_push(self):
-        pr = {'head': {'sha': SHA}, 'body': BODY, 'commits': 1, 'changed_files': 1}
+        pr = {'head': {'sha': SHA}, 'body': BODY, 'draft': True, 'commits': 1, 'changed_files': 1}
         rows = [{'filename': 'docs/guide.md'}]
         with patch.object(check_pr, 'api', side_effect=[pr, [], rows]):
             with self.assertRaisesRegex(ValueError, 'Incomplete'):
                 check_pr.remote_snapshot('example/repo', 1)
         changed = {**pr, 'head': {'sha': 'b' * 40}}
         with patch.object(check_pr, 'api', side_effect=[pr, [{'sha': SHA}], rows, changed]):
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                check_pr.remote_snapshot('example/repo', 1)
+        ready = {**pr, 'draft': False}
+        with patch.object(check_pr, 'api', side_effect=[pr, [{'sha': SHA}], rows, ready]):
             with self.assertRaisesRegex(ValueError, 'changed'):
                 check_pr.remote_snapshot('example/repo', 1)
 

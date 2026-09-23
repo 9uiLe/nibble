@@ -142,14 +142,16 @@ def remote_snapshot(repo, number, ci=False):
     # GitHub limits these REST endpoints; fail rather than certify a partial list.
     if len(commits) != pr['commits'] or len(files) != pr['changed_files']:
         raise ValueError('Incomplete GitHub commit/file listing; split the PR or inspect API limits')
-    snapshot = {'head': pr['head']['sha'], 'body': pr['body'], 'commits': [c['sha'] for c in commits],
+    snapshot = {'head': pr['head']['sha'], 'body': pr['body'], 'draft': pr['draft'],
+                'commits': [c['sha'] for c in commits],
                 'files': [name for row in files for name in [row['filename'], row.get('previous_filename')] if name]}
     if ci:
         pages = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/commits/{snapshot["head"]}/check-runs?per_page=100', '--paginate', '--slurp'], text=True))
         snapshot['checks'] = [row for page in pages for row in page['check_runs']]
     # Detect edits or pushes while assembling the read-only snapshot.
     current = api(endpoint)
-    if current['head']['sha'] != pr['head']['sha'] or current['body'] != pr['body']:
+    if (current['head']['sha'] != pr['head']['sha'] or current['body'] != pr['body']
+            or current['draft'] != pr['draft']):
         raise ValueError('PR changed during collection; rerun')
     return snapshot
 
@@ -170,6 +172,8 @@ def main(argv=None):
     remote.add_argument('--event', type=Path, help='GitHub pull_request event; repo/number/head are read as data')
     remote.add_argument('--expected-head')
     remote.add_argument('--complete', action='store_true')
+    remote.add_argument('--complete-if-ready', action='store_true',
+                        help='Require a completed checklist only when the live PR is ready for review')
     remote.add_argument('--check-ci', action='store_true', help='Final read-only check; do not use inside the running CI job')
     remote.add_argument('--snapshot-out', type=Path)
     args = cli.parse_args(argv)
@@ -194,7 +198,8 @@ def main(argv=None):
             snapshot = remote_snapshot(args.repo, args.number, args.check_ci)
             if args.snapshot_out:
                 args.snapshot_out.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + '\n')
-        errors = check(snapshot, args.complete, getattr(args, 'expected_head', None), getattr(args, 'check_ci', False))
+        complete = args.complete or (getattr(args, 'complete_if_ready', False) and not snapshot['draft'])
+        errors = check(snapshot, complete, getattr(args, 'expected_head', None), getattr(args, 'check_ci', False))
         ui.check('PR policy', errors, f'{len(snapshot["commits"])} commits; body and evidence structure checked')
         return int(bool(errors))
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
