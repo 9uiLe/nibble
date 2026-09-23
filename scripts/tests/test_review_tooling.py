@@ -45,8 +45,21 @@ class PRTests(unittest.TestCase):
 
     def test_document_only_pr_and_current_ci(self):
         snapshot = self.snapshot()
-        snapshot['checks'] = [{'status': 'completed', 'conclusion': 'success'}]
+        snapshot['checks'] = [{'id': 2, 'name': 'workflow-policy', 'app': {'slug': 'github-actions'},
+                               'status': 'completed', 'conclusion': 'success'}]
         self.assertEqual(check_pr.check(snapshot, complete=True, expected_head=SHA, check_ci=True), [])
+
+    def test_ci_uses_latest_run_for_each_check_name(self):
+        older = {'id': 1, 'name': 'workflow-policy', 'app': {'slug': 'github-actions'},
+                 'status': 'completed', 'conclusion': 'cancelled'}
+        newer = {**older, 'id': 2, 'conclusion': 'success'}
+        snapshot = self.snapshot()
+        snapshot['checks'] = [newer, older]
+        self.assertEqual(check_pr.check(snapshot, check_ci=True), [])
+        snapshot['checks'] = [older, {**newer, 'conclusion': 'failure'}]
+        self.assertTrue(check_pr.check(snapshot, check_ci=True))
+        snapshot['checks'] = [newer, {**newer, 'id': 3, 'name': 'another-check', 'conclusion': 'failure'}]
+        self.assertTrue(check_pr.check(snapshot, check_ci=True))
 
     def test_commit_addition_removal_duplicate_and_abbreviation_rejected(self):
         cases = [self.snapshot(BODY.replace(f'`{SHA}`', '`aaaaaaa`')),
@@ -69,7 +82,8 @@ class PRTests(unittest.TestCase):
         self.assertTrue(check_pr.check(self.snapshot(), check_ci=True))
         self.assertTrue(check_pr.check(self.snapshot(BODY.replace('[x]', '[ ]')), complete=True))
         snapshot = self.snapshot()
-        snapshot['checks'] = [{'status': 'completed', 'conclusion': 'failure'}]
+        snapshot['checks'] = [{'id': 1, 'name': 'workflow-policy', 'app': {'slug': 'github-actions'},
+                               'status': 'completed', 'conclusion': 'failure'}]
         self.assertTrue(check_pr.check(snapshot, check_ci=True))
 
     def test_ci_checks_structure_while_merge_review_requires_completed_checklist(self):

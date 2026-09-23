@@ -108,7 +108,16 @@ def check(snapshot, complete=False, expected_head=None, check_ci=False):
         errors.append('Review checklist is missing')
     if check_ci:
         checks = snapshot.get('checks', [])
-        if not checks or any(row.get('status') != 'completed' or row.get('conclusion') != 'success' for row in checks):
+        latest = {}
+        for row in checks:
+            key = ((row.get('app') or {}).get('slug'), row.get('name'))
+            if not isinstance(row.get('id'), int) or not all(key):
+                errors.append('Current-head check run is missing its identity')
+                break
+            if key not in latest or row['id'] > latest[key]['id']:
+                latest[key] = row
+        if not latest or any(row.get('status') != 'completed' or row.get('conclusion') != 'success'
+                             for row in latest.values()):
             errors.append('All checks on the current PR head must succeed')
     return errors
 
