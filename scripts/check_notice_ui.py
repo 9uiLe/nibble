@@ -88,12 +88,8 @@ def main():
         run.tap("library.add" if "library.add" in identifiers(data) else "library.createFirst")
         data = run.wait_ui("editor", lambda data: "editor.body" in identifiers(data))
         run.paste_editor("editor.title", title)
-        run.command(["python3", "-c", "import subprocess,sys; subprocess.run(['/usr/bin/xcrun','simctl','pbcopy',sys.argv[1]], input=sys.argv[2].encode(), check=True)",
-                     args.device, "通知を確認するダミー本文"])
-        label("本文の末尾にペースト")
-        run.wait_ui("body-pasted", lambda data: any(e.get("uniqueId") == "editor.body" and e.get("value") == "通知を確認するダミー本文" for e in data["entries"]))
+        run.paste_editor("editor.body", "通知を確認するダミー本文")
         run.tap("editor.keyboard.dismiss")
-        run.wait_ui("paste-keyboard-dismissed", lambda data: "editor.keyboard.dismiss" not in identifiers(data))
         run.tap("editor.save")
         run.wait_ui("created-list", lambda data: "library.add" in identifiers(data) and "editor.body" not in identifiers(data))
         for attempt in range(15):

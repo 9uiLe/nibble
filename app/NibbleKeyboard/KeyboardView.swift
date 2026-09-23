@@ -21,7 +21,7 @@ struct KeyboardView: View {
                 if let pending = model.variableUse {
                     VariableFillView(template: pending.template,
                         actionTitle: pending.mode == .copy ? "完成文をコピー" : "完成文を入力",
-                        compact: true, available: pending.available,
+                        compact: true, availability: pending.availability,
                         cancel: model.cancelVariableUse,
                         complete: { variableCompletion = VariableCompletion(values: $0) })
                         .id(pending.id)

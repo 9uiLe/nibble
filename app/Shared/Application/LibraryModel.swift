@@ -8,7 +8,7 @@ final class LibraryModel {
         let snippetID: UUID
         let template: SnippetVariables
         let context: NoticeContext
-        let available: Bool
+        let availability: FeatureAvailability
     }
     private let store: any LibraryStorage
     private let effects: any LibraryEffects
@@ -224,7 +224,7 @@ final class LibraryModel {
             let template = SnippetVariables(body)
             if !template.names.isEmpty {
                 variableCopy = VariableCopy(snippetID: id, template: template, context: context,
-                    available: FeatureAccess.allows(.variableReplacement, pro: ProAccess.isActive()))
+                    availability: FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive()))
                 return
             }
             await completeCopy(body, snippetID: id, context: context)
@@ -235,7 +235,7 @@ final class LibraryModel {
     func cancelVariableCopy() { variableCopy = nil }
 
     func completeVariableCopy(id: UUID, values: [String: String]) async {
-        guard let pending = variableCopy, pending.id == id, pending.available,
+        guard let pending = variableCopy, pending.id == id, pending.availability.isAvailable,
               let filled = pending.template.filled(with: values) else { return }
         variableCopy = nil
         do {

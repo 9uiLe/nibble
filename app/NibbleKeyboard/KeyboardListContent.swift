@@ -37,7 +37,7 @@ struct KeyboardListContent: View {
                         Text(model.request.filter == .pinned ? "ピン留めした項目はありません" : "保存した項目はありません")
                             .font(.subheadline.weight(.semibold))
                         Text(model.request.filter == .pinned
-                            ? "「すべて」で項目の「…」を開くと、ピン留めできます。"
+                            ? "「すべて」で項目の「全文」を開くと、ピン留めできます。"
                             : "nibbleで文章やURLを保存すると、ここから入力できます。")
                             .font(.footnote).foregroundStyle(.secondary)
                     }

@@ -16,6 +16,8 @@ struct EditorTitleField: View {
                 .focused(focus, equals: .title)
                 .accessibilityIdentifier("editor.title")
                 .accessibilityLabel("タイトル（任意）")
+            Text("一覧で見つけるための名前です。")
+                .font(.nibbleBody).foregroundStyle(.secondary)
         }
     }
 }

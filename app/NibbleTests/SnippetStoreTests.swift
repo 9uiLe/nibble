@@ -5,6 +5,16 @@ import SQLite3
 
 @Suite("Snippet persistence and recovery")
 struct SnippetTests {
+    @Test func featureAvailabilityMatchesReleaseAndFutureProStates() {
+        #expect(FeatureAccess.availability(.variableReplacement, pro: false) == .included)
+        let future = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: true)
+        #expect(future.availability(.variableReplacement, pro: false) == .requiresPro)
+        #expect(future.availability(.variableReplacement, pro: true) == .included)
+        #expect(future.availability(.unlimitedSavedItems, pro: false) == .included)
+        let withheld = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: false)
+        #expect(withheld.availability(.variableReplacement, pro: false) == .unavailable)
+    }
+
     @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
         let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
         let template = SnippetVariables(original)

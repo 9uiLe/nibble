@@ -59,7 +59,7 @@ struct AppRootView: View {
         }
         .sheet(item: Binding(get: { library.variableCopy }, set: { if $0 == nil { library.cancelVariableCopy() } })) { pending in
             VariableFillView(template: pending.template, actionTitle: "完成文をコピー", compact: false,
-                             available: pending.available, cancel: { library.cancelVariableCopy() },
+                             availability: pending.availability, cancel: { library.cancelVariableCopy() },
                              complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
                 .id(pending.id)
                 .presentationDetents([.medium, .large])

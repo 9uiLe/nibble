@@ -14,9 +14,9 @@ struct EditorForm: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             if isShared { EditorSharedContentHeader() }
+            EditorBodyField(model: model, focus: focus, showPro: showPro)
+            Divider().padding(.top, 4)
             EditorTitleField(model: model, focus: focus)
-            Divider()
-            EditorBodyField(model: model, focus: focus)
             if let failure = model.failure {
                 EditorFailureView(model: model, taskOwner: taskOwner, failure: failure, showPro: showPro)
             }

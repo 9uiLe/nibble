@@ -1,7 +1,23 @@
 import Foundation
 
-enum ProductFeature: Sendable {
+enum ProductFeature: Hashable, Sendable {
     case unlimitedSavedItems, variableReplacement, adFree
+}
+
+enum FeatureAvailability: Equatable, Sendable {
+    case included, requiresPro, unavailable
+
+    var isAvailable: Bool { self == .included }
+}
+
+struct FeaturePolicy: Sendable {
+    let proFeatures: Set<ProductFeature>
+    let subscriptionsOffered: Bool
+
+    func availability(_ feature: ProductFeature, pro: Bool) -> FeatureAvailability {
+        if !proFeatures.contains(feature) || pro { return .included }
+        return subscriptionsOffered ? .requiresPro : .unavailable
+    }
 }
 
 /// The containing app refreshes this snapshot from verified StoreKit transactions.
@@ -25,13 +41,17 @@ enum ProAccess {
 /// The release policy is shared by the app and its extensions. Changing a feature's
 /// audience must not change the stored snippets or the meaning of a verified Pro grant.
 enum FeatureAccess {
-    static let subscriptionsOffered = false
+    // A future Pro release changes the audience here, while every surface reads
+    // the same presentation state and keeps saved template text intact.
+    static let policy = FeaturePolicy(proFeatures: [.adFree], subscriptionsOffered: false)
+    static var subscriptionsOffered: Bool { policy.subscriptionsOffered }
+
+    static func availability(_ feature: ProductFeature, pro: Bool) -> FeatureAvailability {
+        policy.availability(feature, pro: pro)
+    }
 
     static func allows(_ feature: ProductFeature, pro: Bool) -> Bool {
-        switch feature {
-        case .unlimitedSavedItems, .variableReplacement: true
-        case .adFree: pro
-        }
+        availability(feature, pro: pro).isAvailable
     }
 }
 

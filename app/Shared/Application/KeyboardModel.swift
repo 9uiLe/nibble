@@ -25,7 +25,7 @@ final class KeyboardModel {
         let template: SnippetVariables
         let destination: KeyboardDestination
         let generation: UUID
-        let available: Bool
+        let availability: FeatureAvailability
     }
     enum Action: Equatable { case load, insert, copy, preview, pin, reloadAfterPin, changed }
     enum Reason: Equatable {
@@ -199,7 +199,7 @@ final class KeyboardModel {
             if !template.names.isEmpty {
                 variableUse = VariableUse(item: item, mode: use, template: template,
                     destination: destination, generation: generation,
-                    available: FeatureAccess.allows(.variableReplacement, pro: ProAccess.isActive()))
+                    availability: FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive()))
                 return
             }
             switch use {
@@ -229,7 +229,7 @@ final class KeyboardModel {
     func cancelVariableUse() { variableUse = nil }
 
     func completeVariableUse(values: [String: String]) async {
-        guard let pending = variableUse, pending.available,
+        guard let pending = variableUse, pending.availability.isAvailable,
               let text = pending.template.filled(with: values), isActive, isCurrent,
               loadID == pending.generation, contains(pending.item), operation == nil,
               let effects else { return }

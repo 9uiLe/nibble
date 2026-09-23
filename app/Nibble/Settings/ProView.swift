@@ -23,7 +23,7 @@ struct ProView: View {
                     .font(.nibbleTitle)
                     .accessibilityIdentifier("pro.manage")
             } else {
-                Text("保存件数の上限はありません。差し替える項目を含む本文も、現在は無料で利用できます。nibble Proの新しい提供内容は準備中です。")
+                Text(proDescription)
                     .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding()
             }
             if !FeatureAccess.subscriptionsOffered {
@@ -62,5 +62,16 @@ struct ProView: View {
             loadingProducts = false
         }
         .manageSubscriptionsSheet(isPresented: $showsManageSubscriptions)
+    }
+
+    private var proDescription: String {
+        switch FeatureAccess.availability(.variableReplacement, pro: false) {
+        case .included:
+            "保存件数の上限はありません。差し替える項目を含む本文も、現在は無料で利用できます。nibble Proの新しい提供内容は準備中です。"
+        case .requiresPro:
+            "保存件数の上限はありません。変数の差し替えはnibble Proで利用できます。"
+        case .unavailable:
+            "保存件数の上限はありません。変数の差し替えは準備中です。"
+        }
     }
 }
