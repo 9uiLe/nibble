@@ -128,6 +128,7 @@
           pkgs.shellcheck
           pkgs.gh
           pkgs.git
+          pkgs.firebase-tools
           pkgs.premake5
         ]
         ++ hamioFor pkgs
