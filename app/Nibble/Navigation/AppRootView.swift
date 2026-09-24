@@ -63,12 +63,13 @@ struct AppRootView: View {
             })
         }
         .sheet(item: Binding(get: { library.variableCopy }, set: { if $0 == nil { library.cancelVariableCopy() } })) { pending in
-            VariableFillView(template: pending.template, actionTitle: "完成文をコピー", compact: false,
+            VariableFillView(template: pending.template, title: pending.title,
+                             actionTitle: "完成文をコピー", compact: false,
                              availability: pending.availability, cancel: { library.cancelVariableCopy() },
                              valueEdited: {},
                              complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
                 .id(pending.id)
-                .presentationDetents([.height(CGFloat(min(470, 300 + pending.template.names.count * 90))), .large])
+                .presentationDetents([.height(CGFloat(min(520, 380 + pending.template.names.count * 90))), .large])
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }

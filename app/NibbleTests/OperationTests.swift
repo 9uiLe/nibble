@@ -8,6 +8,23 @@ extension UIIntegrationTests {
     @Suite("Awaitable operations", .serialized)
     @MainActor
     struct AwaitableOperationTests {
+        @Test func variableCopyKeepsSelectedTitleAndWaitsForConfirmation() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let id = try await create(database.store, title: "送信用", body: "{{宛名}}さんへ")
+            let effects = RecordingLibraryEffects()
+            let library = LibraryModel(store: database.store, effects: effects)
+            await library.refresh()
+
+            await library.copy(id)
+            let pending = try #require(library.variableCopy)
+            #expect(pending.title == "送信用")
+            #expect(effects.events.isEmpty)
+            await library.completeVariableCopy(id: pending.id, values: ["宛名": "山田"])
+            #expect(effects.events.contains(.copy("山田さんへ")))
+            #expect(try await database.store.snippet(id).body == "{{宛名}}さんへ")
+        }
+
         @Test func directAwaitCopiesSavedTextToTheSystemPasteboard() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }

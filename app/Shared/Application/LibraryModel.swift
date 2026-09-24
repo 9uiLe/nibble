@@ -6,6 +6,7 @@ final class LibraryModel {
     struct VariableCopy: Identifiable {
         let id = UUID()
         let snippetID: UUID
+        let title: String
         let template: SnippetVariables
         let context: NoticeContext
         let availability: FeatureAvailability
@@ -223,7 +224,9 @@ final class LibraryModel {
             try Task.checkCancellation()
             let template = SnippetVariables(body)
             if !template.names.isEmpty {
-                variableCopy = VariableCopy(snippetID: id, template: template, context: context,
+                variableCopy = VariableCopy(snippetID: id,
+                    title: items.first(where: { $0.id == id })?.title ?? "",
+                    template: template, context: context,
                     availability: FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive()))
                 return
             }
