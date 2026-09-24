@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "summary": "機能別の提供状態、広告の表示条件、変数入力時に元の入力文書へ送る操作を製品仕様と画面設計に照合した",
+  "summary": "機能別の提供状態、広告の表示条件、変数入力時に元の入力文書へ送る操作、および変数入力画面の視覚階層、操作領域、初期シート高さを製品仕様と画面設計に照合した",
   "references": [
     "docs/product-specification.md",
     "docs/design/screens.md",
     "docs/design/components.md",
+    "docs/design/foundations.md",
     "docs/architecture/keyboard.md",
     "docs/architecture/monetization.md"
   ],
@@ -58,7 +59,7 @@
     "app/Nibble/Library/SystemLibraryEffects.swift": "7ee4f073fd96e94ecacd05564fe600e6c25113495e772b3d04bbb891429b86d8",
     "app/Nibble/Monetization/AdvertisingContent.swift": "d0c8f0869711af0d57c7bfc2d47bc69595f1fe63d3c85869c762d491ce35173b",
     "app/Nibble/Monetization/ProSubscription.swift": "f94ea1d592a801e11e9d57732bf4b58c0acc716132f2f6861381022d7b59d3fc",
-    "app/Nibble/Navigation/AppRootView.swift": "2beadb7596b3091dcc9a6db4e6eaefd1526d9f322c4b94669f87b0d728c9cc31",
+    "app/Nibble/Navigation/AppRootView.swift": "484b7b232cb8d3174645fa0553c0d05a3abf31b378bec7c78f208acb4e122db5",
     "app/Nibble/Navigation/AppRoute.swift": "8bd94bd896e4c6a15cccce9251903779aab8226a78e6d6ddbf84806556698772",
     "app/Nibble/Navigation/RootScreenHeading.swift": "62ceeed9d37cd764ab23cc279da5dd2d2cdd083a5e00e2fe450b57f1b781aed4",
     "app/Nibble/Navigation/SceneInterfaceDefaults.swift": "e11fa7f069adcb05e7f6b816963f352cc86637c73589eb19e9033059ada72593",
@@ -161,7 +162,7 @@
     "app/Shared/Interface/PinButton.swift": "1b1f0c52b1db04e4a81071e06796940ac4380b7166e89d11705f546478169885",
     "app/Shared/Interface/SnippetHeading.swift": "6a76023f22d2b55277e90a01304babdfe1e6590907ed2e6c624f6660ec7ced20",
     "app/Shared/Interface/SnippetPresentation.swift": "6236ea065bbc271c1eff491344ed9f80eea7c8e4274bb2c43ded210dd895a461",
-    "app/Shared/Interface/VariableFillView.swift": "20a978405c0c48d40a7bb54864ba67c137f6e26c2e7b81998dcfebe92e3fd4cb",
+    "app/Shared/Interface/VariableFillView.swift": "2816970954d9fcc9ec79cd8468b28a0d6c24e158130dce53ed4f94c938bb0231",
     "app/Shared/Persistence/DraftQueries.swift": "f5cb52f5d6ef408b4b3c311b449e37d54a62165bbe735497a8614e64740daad6",
     "app/Shared/Persistence/KeyboardReader.swift": "0cd26f8aa1c81ee91cbec898de877aa2a53c5cf6d26c4d865e0a156f994b767a",
     "app/Shared/Persistence/SQLiteDatabase.swift": "77850aa274abe4ae061a9735f52fc0d82cf3af0b23a740f2b56a7fd36b481ef3",

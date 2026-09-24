@@ -17,7 +17,7 @@ struct VariableFillView: View {
         VStack(spacing: 0) {
             HStack {
                 Text(availability == .included ? "値を入力" : "変数を利用")
-                    .font(.nibbleTitle)
+                    .font(.headline)
                 Spacer(minLength: 8)
                 Button("戻る", action: cancel)
                     .font(.subheadline)
@@ -28,22 +28,24 @@ struct VariableFillView: View {
             Divider()
             if availability == .included {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: compact ? 10 : 16) {
+                    VStack(alignment: .leading, spacing: compact ? 12 : 20) {
                         ForEach(template.names, id: \.self) { name in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(name).font(.subheadline.weight(.semibold))
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(name).font(.nibbleTitle)
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
                                     set: { values[name] = $0; valueEdited() }
                                 ))
                                 .textFieldStyle(.roundedBorder)
+                                .font(.body)
+                                .frame(minHeight: 44)
                                 .accessibilityLabel(name)
                             }
                         }
                         if let preview = template.filled(with: values) {
                             Divider()
                             Text("完成文").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            Text(verbatim: preview).font(.nibbleBody)
+                            Text(verbatim: preview).font(.subheadline)
                                 .accessibilityIdentifier("variables.preview")
                         }
                     }
@@ -51,10 +53,12 @@ struct VariableFillView: View {
                     .padding(.horizontal, compact ? 12 : 20)
                     .padding(.vertical, compact ? 8 : 16)
                 }
-                Button(actionTitle) { complete(values) }
+                Button { complete(values) } label: {
+                    Text(actionTitle)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
                     .buttonStyle(.borderedProminent)
                     .disabled(template.filled(with: values) == nil)
-                    .frame(maxWidth: .infinity, minHeight: 44)
                     .accessibilityIdentifier("variables.complete")
                     .padding(.horizontal, compact ? 12 : 20)
                     .padding(.bottom, compact ? 4 : 12)
