@@ -9,6 +9,7 @@ struct MarkdownSourceInput: UIViewRepresentable {
     private let inputRevision = UUID()
     @Binding var text: String
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
+    @Binding var selection: NSRange?
     let document: MarkdownDocument
 
     func makeUIView(context: Context) -> MarkdownSourceTextView {
@@ -38,9 +39,14 @@ struct MarkdownSourceInput: UIViewRepresentable {
         if view.isEditable != context.environment.isEnabled { view.isEditable = context.environment.isEnabled }
         if view.markedTextRange == nil {
             if !SnippetText.hasSameBytes(view.text, text) {
-                let selection = view.selectedRange
+                let desiredSelection = selection ?? view.selectedRange
                 view.text = text
-                view.selectedRange = NSRange(location: min(selection.location, view.textStorage.length), length: 0)
+                let start = min(desiredSelection.location, view.textStorage.length)
+                view.selectedRange = NSRange(location: start,
+                                             length: min(desiredSelection.length, view.textStorage.length - start))
+            } else if let selection, view.selectedRange != selection,
+                      NSMaxRange(selection) <= view.textStorage.length {
+                view.selectedRange = selection
             }
             view.apply(document)
         }
@@ -71,6 +77,9 @@ struct MarkdownSourceInput: UIViewRepresentable {
             (textView as? MarkdownSourceTextView)?.invalidateStyling()
             parent.text = textView.text
             textView.invalidateIntrinsicContentSize()
+        }
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            if textView.markedTextRange == nil { parent.selection = textView.selectedRange }
         }
     }
 }

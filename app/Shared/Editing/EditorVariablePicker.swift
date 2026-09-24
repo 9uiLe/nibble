@@ -41,7 +41,7 @@ struct EditorVariablePicker: View {
                             Text("この名前は既にあります。上の一覧から選んでください。")
                                 .font(.nibbleBody).foregroundStyle(.secondary)
                         } else {
-                            Text("名前は40文字以内。本文の末尾に印を追加します。")
+                            Text("名前は40文字以内。本文のカーソル位置に印を追加します。文字を選択中なら置き換えます。")
                                 .font(.nibbleBody).foregroundStyle(.secondary)
                         }
                         Button("作成して追加") {

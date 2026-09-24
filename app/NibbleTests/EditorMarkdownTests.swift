@@ -7,6 +7,22 @@ import UIKit
 extension UIIntegrationTests {
     @Suite("Markdown editing and preview", .serialized)
     @MainActor struct EditorMarkdownTests {
+        @Test func variableMarkerReplacesTheSelectedUTF16Range() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
+            model.body = "👩🏽‍💻前後"
+            let selection = (model.body as NSString).range(of: "前")
+
+            let caret = model.insertIntoBody("{{宛名}}", replacing: selection)
+
+            #expect(model.body == "👩🏽‍💻{{宛名}}後")
+            #expect(caret == NSRange(location: selection.location + "{{宛名}}".utf16.count, length: 0))
+            let unchanged = model.body
+            #expect(model.insertIntoBody("{{宛名}}", replacing: NSRange(location: 100, length: 0)) == nil)
+            #expect(model.body == unchanged)
+        }
+
         @Test func bodyParsingIdentityTracksBytesIndependentlyOfTitle() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
