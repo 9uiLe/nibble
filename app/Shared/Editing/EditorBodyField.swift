@@ -73,15 +73,11 @@ struct EditorBodyField: View {
             focus.wrappedValue = insertedVariable ? .body : focusBeforeVariables
         }) {
             EditorVariablePicker(existing: SnippetVariables(model.body).names,
-                appendVariable: { name in
-                    let marker = "{{\(name)}}"
-                    let range = insertionSelection ?? NSRange(location: model.body.utf16.count, length: 0)
-                    let caret = model.insertIntoBody(marker, replacing: range)
-                        ?? model.insertIntoBody(marker, replacing: NSRange(location: model.body.utf16.count, length: 0))
-                    if let caret {
-                        bodySelection = caret
-                        insertedVariable = true
-                    }
+                insertVariable: { name in
+                    guard let caret = model.insertVariable(named: name, at: insertionSelection) else { return false }
+                    bodySelection = caret
+                    insertedVariable = true
+                    return true
                 })
         }
     }

@@ -45,6 +45,16 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(self.selected(['scripts/product_ui.py']),
                          {'static'} | (verify.PRODUCT_STEPS - {'product-test'}))
 
+    def test_variable_sources_require_real_editor_and_use_review(self):
+        for path in ('app/Shared/Editing/EditorBodyField.swift',
+                     'app/Shared/Domain/SnippetVariables.swift',
+                     'app/Shared/Interface/VariableFillView.swift'):
+            with self.subTest(path=path):
+                selected = verify.plan([path])
+                self.assertIn('product-test', {step['id'] for step in selected['steps']})
+                self.assertIn('docs/ios-verification.md#変数の編集と利用を確認する',
+                              ' '.join(selected['manual_review']))
+
     def test_saved_observation_tool_does_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/ui_observation.py']), {'static'})
         for path in ('scripts/inspect_ui.py', 'scripts/ui_preview.py', 'scripts/tests/macos/test_ui_preview_native.py'):

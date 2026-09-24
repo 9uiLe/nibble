@@ -30,13 +30,14 @@ extension UIIntegrationTests {
             let keyboardGuide = controller.view.keyboardLayoutGuide
             controller.view.addSubview(input)
             #expect(input.becomeFirstResponder())
-            // The selected OS keyboard can attach asynchronously. Sample its settled geometry.
+            // The keyboard guide settles asynchronously and may remain at the screen edge
+            // when the simulator uses a hardware keyboard.
             var previousTop: CGFloat?
             var stableSamples = 0
             for _ in 0..<80 {
                 controller.view.layoutIfNeeded()
                 let top = keyboardGuide.layoutFrame.minY
-                stableSamples = top == previousTop && top < source.bounds.height - 100 ? stableSamples + 1 : 0
+                stableSamples = top == previousTop ? stableSamples + 1 : 0
                 if stableSamples >= 3 { break }
                 previousTop = top
                 try await Task.sleep(for: .milliseconds(25))

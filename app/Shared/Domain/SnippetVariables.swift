@@ -52,4 +52,8 @@ struct SnippetVariables: Sendable, Equatable {
         !name.isEmpty && name.count <= 40 && !name.contains("{") && !name.contains("}")
             && !name.contains("\n") && !name.contains("\r")
     }
+
+    static func marker(for name: String) -> String? {
+        valid(name) ? "{{\(name)}}" : nil
+    }
 }

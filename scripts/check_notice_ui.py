@@ -173,24 +173,24 @@ def main():
                                       "--target-y", str(frame["y"] + frame["height"] / 2)],
                                lambda d: any(e.get("role") == "TextField" and e.get("value") == term
                                              for e in d["entries"]), name="search-query")
-                data = run.wait_ui("search-result", lambda data: "copy." + snippet in identifiers(data) and "Search" in identifiers(data))
+                data = run.wait_ui("search-result", lambda data: "copy." + snippet in identifiers(data) and "search.done" in identifiers(data))
                 search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
                 run.screenshot("search-before")
                 tap_row("copy." + snippet)
-                run.wait_ui("search-notice", lambda data: "library.notice" in identifiers(data) and "Search" in identifiers(data))
+                run.wait_ui("search-notice", lambda data: "library.notice" in identifiers(data) and "search.done" in identifiers(data))
                 run.screenshot("search-copy-keyboard")
                 time.sleep(2.3)
                 data = assert_no_notice("search-expired")
                 if not any(e.get("role") == "TextField" and e.get("value") == term for e in data["entries"]):
                     raise VerificationError("Search query was lost on notification expiry")
                 field_after = next(e for e in data["entries"] if e.get("role") == "TextField")
-                if "Search" not in identifiers(data) or any(abs(field_after["frame"][key] - search_frame[key]) > 1 for key in ("x", "y", "width", "height")):
+                if "search.done" not in identifiers(data) or any(abs(field_after["frame"][key] - search_frame[key]) > 1 for key in ("x", "y", "width", "height")):
                     raise VerificationError("Search keyboard or field placement changed on expiry")
                 run.screenshot("search-after")
                 delete(snippet)
                 run.screenshot("search-delete-keyboard")
                 undo()
-                data = run.wait_ui("search-undo-input-preserved", lambda data: "Search" in identifiers(data)
+                data = run.wait_ui("search-undo-input-preserved", lambda data: "search.done" in identifiers(data)
                             and any(e.get("role") == "TextField" and e.get("value") == term
                                     for e in data["entries"]))
                 run.screenshot("search-restored-keyboard")

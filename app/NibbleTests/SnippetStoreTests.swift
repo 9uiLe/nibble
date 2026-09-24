@@ -15,6 +15,8 @@ struct SnippetTests {
     }
 
     @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
+        #expect(SnippetVariables.marker(for: "宛名") == "{{宛名}}")
+        #expect(SnippetVariables.marker(for: "") == nil)
         let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
         let template = SnippetVariables(original)
         #expect(template.names == ["宛名", "日付"])

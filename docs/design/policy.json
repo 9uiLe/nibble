@@ -53,6 +53,11 @@
       "references": true
     },
     {
+      "path": "docs/architecture/variables.md",
+      "kind": "file",
+      "references": true
+    },
+    {
       "path": "docs/architecture/presentation.md",
       "kind": "file",
       "references": true

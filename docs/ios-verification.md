@@ -199,6 +199,23 @@ python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
 
 設定末尾の区切り線がないこと、アイコンの外観、キーボード上の8ptの間隔、背景の連続性、案内文のまとまりは保存した画像を全体と細部で確認する。標準幅と狭幅の専用Simulatorで実行し、AXの成功だけで外観を確認済みにしない。
 
+### 変数の編集と利用を確認する
+
+`product-test`は印の生成・展開・選択範囲と、コピー・Keyboardの確定境界を検査する。画面上のカーソル、シート、文章確認は専用iOS 26.5 Simulatorで次の順に確認する。ダミーの新規項目を使い、既存の端末や保存済みデータを消去しない。
+
+```sh
+python3 scripts/ios.py run --project-config app/project.json \
+  --configuration Release --device "$NIBBLE_SIMULATOR"
+sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw
+```
+
+1. 新規作成で本文に `前 後` を入力し、両語の間へカーソルを置く。「変数を追加」で `宛名` を作り、本文が `前 {{宛名}}後` のように**選んだ位置**へ変わることを確認する。印の直後で文字を入力し、カーソルもその位置にあることを確認する。文字を選択した状態では、その範囲だけが印に置き換わることを確認する。
+2. 同じ名前の印を本文の別位置へ加えて保存する。一覧からコピーを選び、対象の項目名、初出順で一つだけの入力欄、値を入れる前の原文を確認する。値を入れた後は完成文と確定操作を確認し、長い文章では「全文を確認」を開く。
+3. 値を確定する前に戻り、コピー通知と使用記録が増えないことを確認する。再度開いて値を確定し、保存済み本文の印を変えずに、出力だけで同名の全箇所が置き換わることを確認する。
+4. Keyboardの変数付き項目も値の確認後に一度だけ挿入する。入力先の変更と利用不可の状態は[Keyboardの操作検証](#キーボードの操作検証)と[変数の設計](architecture/variables.md)に従い、未実施の条件を成功扱いにしない。
+
+保存したAX結果で `editor.body`、`editor.addVariable`、`variables.itemTitle`、`variables.preview`、`variables.complete` の値と順序を確認する。外観はスクリーンショットの全体と文章末尾を開いて確認し、実行ソースと媒体を[証跡手順](review-evidence.md)へ対応付ける。
+
 ### 操作完了通知の検証
 
 ```sh
