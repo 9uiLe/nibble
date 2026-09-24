@@ -6,6 +6,9 @@ struct EditorBodyField: View {
     private let inputRevision = UUID()
     @State private var showsVariablePicker = false
     @State private var focusBeforeVariables: EditorField?
+    @State private var bodySelection: NSRange?
+    @State private var insertionSelection: NSRange?
+    @State private var insertedVariable = false
     @SkipEquatable let model: EditorModel
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
     @SkipEquatable let showPro: (() -> Void)?
@@ -35,6 +38,8 @@ struct EditorBodyField: View {
                 case .included:
                     Button("変数を追加", systemImage: "curlybraces") {
                         focusBeforeVariables = focus.wrappedValue
+                        insertionSelection = bodySelection
+                        insertedVariable = false
                         focus.wrappedValue = nil
                         showsVariablePicker = true
                     }
@@ -53,7 +58,7 @@ struct EditorBodyField: View {
             .font(.subheadline)
             .tint(Color(uiColor: .secondaryLabel))
             .frame(minHeight: InterfaceMetrics.touchSize)
-            MarkdownEditor(model: model, focus: focus)
+            MarkdownEditor(model: model, focus: focus, selection: $bodySelection)
             if !model.hasBody {
                 Text("本文を入力すると保存できます。空白や改行だけでは保存できません。")
                     .font(.nibbleBody).foregroundStyle(.secondary)
@@ -64,9 +69,16 @@ struct EditorBodyField: View {
                     .font(.nibbleBody).foregroundStyle(.secondary)
             }
         }
-        .sheet(isPresented: $showsVariablePicker, onDismiss: { focus.wrappedValue = focusBeforeVariables }) {
+        .sheet(isPresented: $showsVariablePicker, onDismiss: {
+            focus.wrappedValue = insertedVariable ? .body : focusBeforeVariables
+        }) {
             EditorVariablePicker(existing: SnippetVariables(model.body).names,
-                appendVariable: { model.appendToBody("{{\($0)}}") })
+                insertVariable: { name in
+                    guard let caret = model.insertVariable(named: name, at: insertionSelection) else { return false }
+                    bodySelection = caret
+                    insertedVariable = true
+                    return true
+                })
         }
     }
 }

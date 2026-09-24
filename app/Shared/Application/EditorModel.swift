@@ -54,6 +54,17 @@ final class EditorModel {
     /// Pasting uses the same editing gate and input sequence as typed text.
     func appendToBody(_ text: String) { body += text }
 
+    /// A nil selection means the body has no insertion position. A stale position never changes the body.
+    func insertVariable(named name: String, at selection: NSRange?) -> NSRange? {
+        guard phase == .editing, let marker = SnippetVariables.marker(for: name) else { return nil }
+        let target = selection ?? NSRange(location: body.utf16.count, length: 0)
+        guard let range = Range(target, in: body) else { return nil }
+        var updated = body
+        updated.replaceSubrange(range, with: marker)
+        body = updated
+        return NSRange(location: target.location + marker.utf16.count, length: 0)
+    }
+
     func persist(_ snapshot: Draft) async {
         guard phase == .editing, snapshot.id == draft.id else { return }
         // An admitted write completes after cancellation. SQL ignores older and removed snapshots.

@@ -19,7 +19,7 @@ struct KeyboardView: View {
         VStack(spacing: 0) {
             ZStack {
                 if let pending = model.variableUse {
-                    VariableFillView(template: pending.template,
+                    VariableFillView(template: pending.template, title: pending.item.title,
                         actionTitle: pending.mode == .copy ? "完成文をコピー" : "完成文を入力",
                         compact: true, availability: pending.availability,
                         cancel: model.cancelVariableUse, valueEdited: model.noteVariableValueEditing,

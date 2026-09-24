@@ -7,6 +7,7 @@ struct MarkdownEditor: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: EditorModel
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
+    @Binding var selection: NSRange?
     @State private var document = MarkdownDocument()
     @State private var mode = MarkdownEditorMode.input
 
@@ -27,7 +28,7 @@ struct MarkdownEditor: View {
                         .accessibilityHidden(true)
                 }
                 // Keep the same text view mounted so selection and undo survive previewing.
-                MarkdownSourceInput(text: $editor.body, focus: focus, document: document)
+                MarkdownSourceInput(text: $editor.body, focus: focus, selection: $selection, document: document)
                     .frame(height: mode == .preview ? 0 : nil)
                     .opacity(mode == .preview ? 0 : 1)
                     .allowsHitTesting(mode == .input)

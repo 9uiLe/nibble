@@ -13,6 +13,7 @@ nibbleは、端末内に保存した文章やURLを探し、コピーまたは�
 | [製品仕様](product-specification.md) | 目的、要件、原文・保存・操作・回復の契約 |
 | [architecture](architecture/README.md) | 構成、責務、依存、OSと保存層の境界 |
 | [編集とMarkdown](architecture/editing.md) | 原文・表示用データ・フォーカス・保存の責務と寿命 |
+| [変数の編集と利用](architecture/variables.md) | 印の挿入、値の入力、原文と完成文、確定の状態 |
 | [収益と機能アクセス](architecture/monetization.md) | 無料/Proの機能判定、権利、広告と計測の境界 |
 | [design](design/README.md) | 画面、部品、文字・色・配置・通知、評価課題 |
 | [library-policy.md](library-policy.md) | Swift、タスク所有、View比較、ライブラリの規約 |

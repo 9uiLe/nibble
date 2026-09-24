@@ -4,6 +4,19 @@ from ios_project import FIXTURE_CONFIG, PERFORMANCE_CONFIG, PRODUCT_CONFIG
 
 
 PRODUCT_UI_INPUTS = frozenset({'validation/EditorMarkdown.txt', 'validation/ShareHost.html'})
+VARIABLE_WORKFLOW_SOURCES = frozenset({
+    'app/Shared/Domain/SnippetVariables.swift',
+    'app/Shared/Application/EditorModel.swift',
+    'app/Shared/Application/LibraryModel.swift',
+    'app/Shared/Application/KeyboardModel.swift',
+    'app/Shared/Editing/EditorBodyField.swift',
+    'app/Shared/Editing/EditorVariablePicker.swift',
+    'app/Shared/Editing/Markdown/MarkdownEditor.swift',
+    'app/Shared/Editing/Markdown/MarkdownSourceInput.swift',
+    'app/Shared/Interface/VariableFillView.swift',
+    'app/Nibble/Navigation/AppRootView.swift',
+    'app/NibbleKeyboard/KeyboardView.swift',
+})
 
 
 @dataclass(frozen=True)

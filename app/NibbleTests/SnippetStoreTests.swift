@@ -15,6 +15,8 @@ struct SnippetTests {
     }
 
     @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
+        #expect(SnippetVariables.marker(for: "宛名") == "{{宛名}}")
+        #expect(SnippetVariables.marker(for: "") == nil)
         let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
         let template = SnippetVariables(original)
         #expect(template.names == ["宛名", "日付"])
@@ -23,6 +25,15 @@ struct SnippetTests {
         #expect(template.filled(with: ["宛名": "山田"]) == nil)
         #expect(template.body.utf8.elementsEqual(original.utf8))
         #expect(SnippetVariables("普通の本文").filled(with: [:]) == "普通の本文")
+    }
+
+    @Test func largeVariableBodyKeepsEveryByteOutsideMarkers() {
+        let text = String(repeating: "本文👩🏽‍💻\r\n", count: 40_000)
+        let original = "先頭{{ 宛名 }}" + text + "{{宛名}}末尾"
+        let template = SnippetVariables(original)
+        #expect(template.names == ["宛名"])
+        #expect(template.filled(with: ["宛名": "山田"]) == "先頭山田" + text + "山田末尾")
+        #expect(template.body == original)
     }
 
     @Test func savingHasNoPlanBasedCountLimitAndPreservesDraftsAndExistingUse() async throws {

@@ -1,0 +1,28 @@
+# 変数の編集と利用
+
+変数は保存済み本文に含まれる `{{宛名}}` のような印である。利用者は編集時に印の位置と名前を決め、コピーまたはキーボード入力の直前に値を指定する。保存する本文と、値を当てはめた出力は別のデータとして扱う。名前・値・取消の製品契約は[製品仕様](../product-specification.md#無料機能とnibble-pro)が定める。
+
+## 編集から利用まで
+
+1. 本文のカーソル位置または選択範囲を決め、「変数を追加」で既存名の再利用か新規名の作成を選ぶ。選択中の文字は印に置き換わる。本文に位置がない場合は末尾に加え、追加後のカーソルは印の直後へ置く。
+2. 保存時は印を含む原文を保持する。同じ名前の印が複数あっても、利用時の入力欄は一つにする。
+3. コピーまたはキーボード入力を選ぶと、対象の項目名、名前ごとの入力欄、原文を示す。値が全て揃うと原文表示を完成文に切り替える。省いた文章は「全文を確認」で開ける。
+4. 確定操作は入力欄・文章と別の下部位置に保つ。確定前の取消ではコピー、挿入、使用記録を行わない。確定後の出力だけに値を適用し、保存済み本文は変えない。
+
+本体とKeyboardは[VariableFillView](../../app/Shared/Interface/VariableFillView.swift)を共有する。本体はシート、Keyboardは入力面内に表示する。表示可能な高さが異なるため、入力欄と文章はスクロールし、確定操作は画面下部に置く。本文が160文字または4行の表示範囲を超える場合は短く示し、全文への入口を付ける。項目名と原文を先に示すことで、利用者が差し替え先を確かめてから値を確定できる。
+
+## 責務と状態
+
+| 所有者 | 正本と役割 |
+| --- | --- |
+| [SnippetVariables](../../app/Shared/Domain/SnippetVariables.swift) | 印の名前の検証・生成、原文からの初出順の名前抽出、全出現箇所の展開。展開結果を保存データへ書き戻さない |
+| [EditorBodyField](../../app/Shared/Editing/EditorBodyField.swift) と [MarkdownSourceInput](../../app/Shared/Editing/Markdown/MarkdownSourceInput.swift) | `UITextView` のUTF-16選択範囲をシート表示前に保持し、挿入後のカーソルを反映する。シート取消では本文を変えない |
+| [EditorModel](../../app/Shared/Application/EditorModel.swift) | 下書きの編集状態を確認し、選択範囲を印で置換する。位置が未設定なら末尾を使い、無効な位置では本文を変更しない |
+| [LibraryModel](../../app/Shared/Application/LibraryModel.swift) と [KeyboardModel](../../app/Shared/Application/KeyboardModel.swift) | 保存済み原文を読み、利用対象と権限を固定し、確定時に原文・対象・入力先を再確認して外部作用を実行する |
+| `VariableFillView` | 項目名、入力、原文または完成文、全文確認、確定中と利用不可の表示。コピー・挿入・記録の成否は各モデルに委ねる |
+
+変数入力は、対象を開いた初期状態、値の編集中、全値が揃った状態、確定中、利用不可の状態を持つ。読み込みと処理失敗は各入口のモデルが扱い、表示に仮の完成文を作らない。Keyboardでは入力先の文書が変わった場合に挿入を拒否する。利用資格の判定は[収益と機能アクセス](monetization.md)、入力先の寿命は[Keyboard設計](keyboard.md)が所有する。
+
+## 検証
+
+[EditorMarkdownTests](../../app/NibbleTests/EditorMarkdownTests.swift)はUTF-16選択範囲、絵文字、末尾への追加と無効な位置を検査する。[SnippetStoreTests](../../app/NibbleTests/SnippetStoreTests.swift)は名前と原文を保持した展開、[OperationTests](../../app/NibbleTests/OperationTests.swift)はコピーの確定境界、[KeyboardTests](../../app/NibbleTests/KeyboardTests.swift)は入力先の変更を検査する。シートと実際のカーソルの往復、原文と完成文、取消と利用不可の表示は[iOS操作手順](../ios-verification.md#変数の編集と利用を確認する)でiOS 26.5 Simulator上で確認する。

@@ -10,7 +10,7 @@
 | `MarkdownDocument.parse` | 一つの原文から、原文を装飾するUTF-16範囲と、記号を含まない段落・見出し・リスト等のブロックを生成する |
 | `MarkdownStyle` | 構文の意味を表す文字スタイル。入力用のUIKit属性とプレビュー用のSwiftUI書式に同じサイズ・太さを適用する |
 | `MarkdownEditor` | 本文の解析要求・結果採否と`MarkdownEditorMode`。表示状態は編集画面の寿命に閉じる |
-| `MarkdownSourceInput` / `MarkdownSourceTextView` | 原文Binding、UIKitのfirst responder、IME・選択・Undo、文字属性と自然な高さ |
+| `MarkdownSourceInput` / `MarkdownSourceTextView` | 原文と選択範囲のBinding、UIKitのfirst responder、IME・選択・Undo、文字属性と自然な高さ |
 | `MarkdownPreview` / `MarkdownPreviewBlock` | ブロックをネイティブTextへ表示し、見出しを読み上げ上も区別する |
 | `SnippetEditor` / `EditorTaskOwner` | フォーカス・補足シート・終了操作の開始と取消。終了成功を受けて呼出元へ戻る |
 
@@ -44,6 +44,8 @@ Foundationの行・UTF-8列位置は、原文を変更せずUTF-16範囲へ変�
 入力Viewは表示切替で作り直さず、プレビュー中は高さ・可視性・操作・アクセシビリティを抑える。同じUITextViewを保つことで選択とUndoの履歴を維持する。IMEの未確定文字がある間は原文の置換や属性の更新を行わない。装飾更新はtextStorageの属性だけを変え、原文・選択を保つ。
 
 フォーカス要求は`FocusState<EditorField?>`で共有する。SwiftUIのfocused指定はスクロール上の入力対象を表し、UIKit接続は実際のfirst responderを変更する。本文を更新するたびにフォーカスを取り返さず、要求が変わったときに反映する。入力のスクロールは外側のScrollViewに統一し、下部操作とキーボード補助行はsafeAreaInsetで配置する。
+
+変数選択のシートを開く前に本文のUTF-16選択範囲を保持する。印の追加はその範囲を置き換え、本文の入力位置がまだないときだけ末尾へ追加する。シートを閉じたら印の直後にカーソルを戻す。末尾ペーストは独立した操作であり、本文の選択位置にかかわらず末尾に追記する。変数の入力と展開の責務は[変数の編集と利用](variables.md)に定める。
 
 プレビューでは入力フォーカスを外し、「入力」へ戻ると本文へ復帰する。補足シートは開く前の入力先を保持し、閉じたときに戻す。保存・閉じる・破棄は表示モードにかかわらず最新の原文を対象とし、永続化が失敗したら入力を残す。
 

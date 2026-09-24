@@ -48,6 +48,20 @@ def main():
     def search_fields(data):
         return [entry for entry in data["entries"] if entry.get("role") == "TextField"]
 
+    def search_active(data):
+        return "search.done" in identifiers(data) or "Search" in identifiers(data)
+
+    def submit_search():
+        data = run.ui("before-search-submit")
+        if "search.done" in identifiers(data):
+            run.tap("search.done")
+        elif "Search" in identifiers(data):
+            run.tap("Search")
+        else:
+            # Native search has no app-owned dismiss button. Return also works
+            # when the simulator hides the software keyboard.
+            run.command(["sim-use", "ios", "key", "40", "--device", args.device])
+
     def paste_search(text):
         data = run.wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
         if "search.clear" in identifiers(data):
@@ -55,10 +69,17 @@ def main():
             data = run.wait_ui("query-cleared-for-paste", lambda d: "search.clear" not in identifiers(d))
         # Resolve the live AX frame for both app search and the trash sheet's native field.
         frame = search_fields(data)[0]["frame"]
-        run.command(["sim-use", "paste", "--via-menu",
-                     "--target-x", str(frame["x"] + frame["width"] / 2),
-                     "--target-y", str(frame["y"] + frame["height"] / 2),
-                     "--device", args.device, text])
+        x, y = frame["x"] + frame["width"] / 2, frame["y"] + frame["height"] / 2
+        run.command(["sim-use", "tap", "--point", f"{x},{y}", "--device", args.device])
+        run.command(["sim-use", "paste", "--device", args.device, text])
+        for _ in range(3):
+            applied = run.ui("search-paste-applied")
+            if any(text in (field.get("value") or "") for field in search_fields(applied)):
+                return
+            time.sleep(0.15)
+        # A simulator without a connected hardware keyboard drops Cmd+V.
+        run.command(["sim-use", "paste", "--via-menu", "--target-x", str(x),
+                     "--target-y", str(y), "--device", args.device, text])
 
     def clear_search():
         data = run.ui("before-clear-search")
@@ -73,7 +94,7 @@ def main():
         data = run.ui("before-search-done")
         if "search.done" in identifiers(data):
             run.tap("search.done")
-        run.wait_ui("search-closed", lambda d: "library.add" in identifiers(d) and "Search" not in identifiers(d))
+        run.wait_ui("search-closed", lambda d: "library.add" in identifiers(d) and not search_active(d))
 
     def menu(row, name):
         run.tap("more." + row.removeprefix("snippet."))
@@ -148,10 +169,10 @@ def main():
                 opened = run.wait_ui("search-opened", lambda data: "search.field" in identifiers(data))
                 time.sleep(0.5)
                 opened = run.ui("search-no-autofocus")
-                if "search.done" in identifiers(opened) or "Search" in identifiers(opened):
+                if search_active(opened):
                     raise VerificationError("The idle workspace search field must not activate the keyboard")
                 run.tap("search.field")
-                focused = run.wait_ui("search-focused", lambda data: "Search" in identifiers(data))
+                focused = run.wait_ui("search-focused", search_active)
                 search_heading = check_navigation_title(focused, "nibble")
                 if abs(search_heading["height"] - library_heading["height"]) > 1:
                     raise VerificationError("Search focus must preserve the workspace heading typography")
@@ -180,9 +201,9 @@ def main():
                 if copied != body:
                     raise VerificationError("Copied UTF-8 text differs from input")
                 run.screenshot("search-keyboard")
-                run.tap("Search")
+                submit_search()
                 run.wait_ui("search-dismissed", lambda data: row in identifiers(data)
-                        and "Search" not in identifiers(data) and "library.add" in identifiers(data))
+                        and not search_active(data) and "library.add" in identifiers(data))
                 time.sleep(0.35)
                 run.tap(row)
                 run.wait_ui("reopened", lambda data: "editor.close" in identifiers(data))
@@ -204,7 +225,7 @@ def main():
                 close_search()
                 run.workspace()
                 reselected = run.wait_ui("search-reselected", lambda data: "search.field" in identifiers(data))
-                if "Search" in identifiers(reselected) or "search.done" in identifiers(reselected):
+                if search_active(reselected):
                     raise VerificationError("Reselecting Search must not activate the keyboard")
                 close_search()
                 run.workspace(clear_query=True)
@@ -224,12 +245,12 @@ def main():
                 run.workspace()
                 run.wait_ui("independent-search-opened", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
-                run.wait_ui("independent-search-focused", lambda data: "Search" in identifiers(data))
+                run.wait_ui("independent-search-focused", search_active)
                 # The query remains independent from the library's pinned filter.
                 paste_search(title)
                 run.wait_ui("independent-search", lambda data: row in identifiers(data))
-                run.tap("Search")
-                run.wait_ui("independent-search-submitted", lambda data: "Search" not in identifiers(data))
+                submit_search()
+                run.wait_ui("independent-search-submitted", lambda data: not search_active(data))
                 menu(row, "repin-filter-menu")
                 label("ピン留め")
                 run.wait_ui("repinned-filter", lambda data: any(e.get("uniqueId") == row and "ピン留め" in e.get("label", "") for e in data["entries"]))
@@ -263,11 +284,11 @@ def main():
                 run.workspace()
                 run.wait_ui("search-opened-again", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
-                run.wait_ui("search-refocused", lambda data: "Search" in identifiers(data))
+                run.wait_ui("search-refocused", search_active)
                 paste_search(title)
                 run.wait_ui("pin-search-result", lambda data: row in identifiers(data))
-                run.tap("Search")
-                run.wait_ui("pin-search-submitted", lambda data: "Search" not in identifiers(data))
+                submit_search()
+                run.wait_ui("pin-search-submitted", lambda data: not search_active(data))
                 run.screenshot("library")
                 run.tap(row)
                 run.wait_ui("editor", lambda data: "editor.body" in identifiers(data))
@@ -307,7 +328,7 @@ def main():
                 clear_search()
                 paste_search(title)
                 run.wait_ui("trash-search-result", lambda data: "restore." + snippet_id in identifiers(data))
-                run.tap("Search")
+                submit_search()
                 run.wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))
                 run.screenshot("trash-search")
                 run.tap("restore." + snippet_id)
