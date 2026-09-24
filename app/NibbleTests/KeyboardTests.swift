@@ -32,14 +32,14 @@ struct KeyboardStorageTests {
     @Test func savedPagesExcludeDraftsAndTrashAndRemainBounded() async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
-        let proWriter = SnippetStore(location: files.url, hasProAccess: { true })
+        let writer = SnippetStore(location: files.url)
         var ids: Set<UUID> = []
-        for number in 0..<51 { ids.insert(try await create(proWriter, body: "本文 \(number)")) }
+        for number in 0..<51 { ids.insert(try await create(writer, body: "本文 \(number)")) }
         let pinned = try #require(ids.first)
-        try await proWriter.setPinned(true, id: pinned)
-        let deleted = try await create(proWriter, body: "削除済み")
-        try await proWriter.mutate(.delete, id: deleted)
-        _ = try await proWriter.beginDraft(body: "下書き")
+        try await writer.setPinned(true, id: pinned)
+        let deleted = try await create(writer, body: "削除済み")
+        try await writer.mutate(.delete, id: deleted)
+        _ = try await writer.beginDraft(body: "下書き")
         let reader = KeyboardReader(location: { files.url })
         let first = try await reader.page(KeyboardRequest())
         let second = try await reader.page(KeyboardRequest(offset: 50))
@@ -178,21 +178,25 @@ struct KeyboardOperationTests {
         reader.bodies.finish(0, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await first
         #expect(effects.events.isEmpty && model.variableUse?.template.names == ["宛名"])
+        #expect(effects.holdsInputDocument)
         effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
         async let rejected: Void = model.completeVariableUse(values: ["宛名": "山田"])
         await reader.bodies.waitForRequests(2)
         reader.bodies.finish(1, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await rejected
         #expect(effects.events.isEmpty && model.message != nil)
+        #expect(!effects.holdsInputDocument)
         async let second: Void = model.use(item, as: .insert)
         await reader.bodies.waitForRequests(3)
         reader.bodies.finish(2, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await second
+        effects.destination = KeyboardDestination(document: effects.destination.document, revision: UUID())
         async let accepted: Void = model.completeVariableUse(values: ["宛名": "山田"])
         await reader.bodies.waitForRequests(4)
         reader.bodies.finish(3, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await accepted
         #expect(effects.events == [.insert("こんにちは、山田さん。山田さん。")])
+        #expect(!effects.holdsInputDocument)
     }
 
     @Test(arguments: [false, true], [false, true])
@@ -428,6 +432,10 @@ struct KeyboardOperationTests {
     var destination = KeyboardDestination(document: UUID(), revision: UUID())
     var canCopy = true
     var events: [Event] = []
+    var holdsInputDocument = false
+    func holdInputDocument() { holdsInputDocument = true }
+    func noteVariableValueEditing() { }
+    func releaseInputDocument() { holdsInputDocument = false }
     func insert(_ text: String) { events.append(.insert(text)) }
     func copy(_ text: String) { events.append(.copy(text)) }
     func dismiss() { }

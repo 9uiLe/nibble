@@ -13,6 +13,7 @@ struct AppRootView: View {
     @State private var library: LibraryModel
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
+    @SkipEquatable private let advertising: any AdvertisingContent
     @State private var routeOwner = LibraryTaskOwner()
     @State private var subscription = ProSubscription()
     @State private var showsSettings = false
@@ -21,9 +22,11 @@ struct AppRootView: View {
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
+    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects,
+         advertising: any AdvertisingContent = UnconfiguredAdvertising()) {
         self.store = store
         self.effects = effects
+        self.advertising = advertising
         _library = State(initialValue: LibraryModel(store: store, effects: effects))
     }
 
@@ -31,7 +34,9 @@ struct AppRootView: View {
         @Bindable var libraryBinding = library
         NavigationStack {
             LibraryScreen(model: library, searchFocused: $searchFocused,
-                          noticesPresented: noticesPresented, openSettings: {
+                          noticesPresented: noticesPresented,
+                          advertisement: showsLibraryAd ? advertising.libraryBanner() : nil,
+                          openSettings: {
                 searchFocused = false
                 showsSettings = true
             })
@@ -60,6 +65,7 @@ struct AppRootView: View {
         .sheet(item: Binding(get: { library.variableCopy }, set: { if $0 == nil { library.cancelVariableCopy() } })) { pending in
             VariableFillView(template: pending.template, actionTitle: "完成文をコピー", compact: false,
                              availability: pending.availability, cancel: { library.cancelVariableCopy() },
+                             valueEdited: {},
                              complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
                 .id(pending.id)
                 .presentationDetents([.height(CGFloat(min(420, 120 + pending.template.names.count * 70))), .large])
@@ -102,5 +108,10 @@ struct AppRootView: View {
 
     private var noticesPresented: Bool {
         scenePhase == .active && !showsSettings && !showsTrash && library.editor == nil
+    }
+
+    private var showsLibraryAd: Bool {
+        noticesPresented && library.variableCopy == nil && !searchFocused && !library.isSearching
+            && !FeatureAccess.availability(.adFree, pro: subscription.isActive).isAvailable
     }
 }

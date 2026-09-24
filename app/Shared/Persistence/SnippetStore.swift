@@ -4,18 +4,14 @@ import OSLog
 /// All connections and prepared statements stay on this actor. Transactions never suspend.
 actor SnippetStore: LibraryStorage, DraftEditing {
     private let location: @Sendable () throws -> URL
-    private let hasProAccess: @Sendable () -> Bool
     private var connection: SQLiteDatabase?
     private let signposter = OSSignposter(subsystem: "nibble.9uiLe.com", category: "Store")
 
-    init(location: URL, hasProAccess: @escaping @Sendable () -> Bool = ProAccess.isActive) {
+    init(location: URL) {
         self.location = { location }
-        self.hasProAccess = hasProAccess
     }
-    init(location: @escaping @Sendable () throws -> URL,
-         hasProAccess: @escaping @Sendable () -> Bool = ProAccess.isActive) {
+    init(location: @escaping @Sendable () throws -> URL) {
         self.location = location
-        self.hasProAccess = hasProAccess
     }
 
     private func database() throws -> SQLiteDatabase {
@@ -103,7 +99,7 @@ actor SnippetStore: LibraryStorage, DraftEditing {
     func save(_ draft: Draft, asNew: Bool = false) throws -> UUID {
         let interval = signposter.beginInterval("Save")
         defer { signposter.endInterval("Save", interval) }
-        return try DraftQueries.save(draft, asNew: asNew, in: database(), hasProAccess: hasProAccess)
+        return try DraftQueries.save(draft, asNew: asNew, in: database())
     }
 
     func savedBody(_ id: UUID) throws -> String { try SnippetQueries.savedBody(database(), id: id) }

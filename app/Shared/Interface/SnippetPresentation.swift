@@ -60,7 +60,6 @@ extension StoreError: LocalizedError {
         case .missing: "この項目は削除されたか、見つからなくなりました。"
         case .empty: "本文を入力してください。空白や改行だけでは保存できません。"
         case .tooLarge: "タイトルか本文が長すぎます。短くしてから保存してください。上限はタイトル\(SnippetInputLimits.title)、本文\(SnippetInputLimits.body)です。どちらもUTF-8で数えます。"
-        case .freeLimit: "無料プランで保存できる項目は30件までです。入力は下書きに残せます。nibble Proへの登録は本体の設定から行えます。"
         }
     }
 }

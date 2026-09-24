@@ -9,6 +9,7 @@ struct VariableFillView: View {
     let compact: Bool
     let availability: FeatureAvailability
     @SkipEquatable let cancel: () -> Void
+    @SkipEquatable let valueEdited: () -> Void
     @SkipEquatable let complete: ([String: String]) -> Void
     @State private var values: [String: String] = [:]
 
@@ -33,7 +34,7 @@ struct VariableFillView: View {
                                 Text(name).font(.subheadline.weight(.semibold))
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
-                                    set: { values[name] = $0 }
+                                    set: { values[name] = $0; valueEdited() }
                                 ))
                                 .textFieldStyle(.roundedBorder)
                                 .accessibilityLabel(name)

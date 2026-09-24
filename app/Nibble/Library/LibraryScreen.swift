@@ -11,6 +11,7 @@ struct LibraryScreen: View {
     private var surface: LibrarySurface { model.surface }
     @SkipEquatable let searchFocused: FocusState<Bool>.Binding
     var noticesPresented = false
+    @SkipEquatable let advertisement: AnyView?
     var openSettings: () -> Void = {}
     @Environment(\.scenePhase) private var scenePhase
     @State private var taskOwner = LibraryTaskOwner()
@@ -34,10 +35,13 @@ struct LibraryScreen: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if surface.isRoot && !searchFocused.wrappedValue {
-                CreateSnippetButton(model: model, prominent: true)
-                    .padding(.horizontal, 20).padding(.vertical, 12)
-                    .background(Color.nibbleCanvas)
-                    .overlay(alignment: .top) { Divider() }
+                VStack(spacing: 0) {
+                    if let advertisement { advertisement }
+                    CreateSnippetButton(model: model, prominent: true)
+                        .padding(.horizontal, 20).padding(.vertical, 12)
+                        .overlay(alignment: .top) { Divider() }
+                }
+                .background(Color.nibbleCanvas)
             }
         }
         .background(Color.nibbleCanvas)

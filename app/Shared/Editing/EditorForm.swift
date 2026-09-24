@@ -18,7 +18,7 @@ struct EditorForm: View {
             Divider().padding(.top, 4)
             EditorTitleField(model: model, focus: focus)
             if let failure = model.failure {
-                EditorFailureView(model: model, taskOwner: taskOwner, failure: failure, showPro: showPro)
+                EditorFailureView(model: model, taskOwner: taskOwner, failure: failure)
             }
         }
         .padding(20)

@@ -67,7 +67,7 @@ struct ProView: View {
     private var proDescription: String {
         switch FeatureAccess.availability(.variableReplacement, pro: false) {
         case .included:
-            "保存件数の上限はありません。差し替える項目を含む本文も、現在は無料で利用できます。nibble Proの新しい提供内容は準備中です。"
+            "保存件数の上限はありません。変数の差し替えも無料で利用できます。nibble Proの提供内容は準備中です。"
         case .requiresPro:
             "保存件数の上限はありません。変数の差し替えはnibble Proで利用できます。"
         case .unavailable:

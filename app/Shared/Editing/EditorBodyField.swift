@@ -66,8 +66,7 @@ struct EditorBodyField: View {
         }
         .sheet(isPresented: $showsVariablePicker, onDismiss: { focus.wrappedValue = focusBeforeVariables }) {
             EditorVariablePicker(existing: SnippetVariables(model.body).names,
-                addExisting: { model.appendToBody("{{\($0)}}") },
-                addNew: { model.appendToBody("{{\($0)}}") })
+                appendVariable: { model.appendToBody("{{\($0)}}") })
         }
     }
 }

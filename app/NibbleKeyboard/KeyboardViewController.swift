@@ -7,9 +7,16 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
     private lazy var model = KeyboardModel(reader: KeyboardReader(), effects: self)
     private var selectionRevision = UUID()
     private var keyboardHeight: NSLayoutConstraint?
+    // The value field changes UIKit's current document; retain the host proxy for insertion.
+    private var heldInputDocument: (proxy: any UITextDocumentProxy, id: UUID, editingID: UUID)?
 
     var destination: KeyboardDestination {
-        KeyboardDestination(document: textDocumentProxy.documentIdentifier, revision: selectionRevision)
+        if let heldInputDocument {
+            let currentID = heldInputDocument.proxy.documentIdentifier
+            return KeyboardDestination(document: currentID == heldInputDocument.editingID ? heldInputDocument.id : currentID,
+                                       revision: selectionRevision)
+        }
+        return KeyboardDestination(document: textDocumentProxy.documentIdentifier, revision: selectionRevision)
     }
     var canCopy: Bool { hasFullAccess }
 
@@ -79,7 +86,18 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
         model.updateCapabilities(fullAccess: hasFullAccess, needsSwitchKey: needsInputModeSwitchKey)
     }
 
-    func insert(_ text: String) { textDocumentProxy.insertText(text) }
+    func holdInputDocument() {
+        let proxy = textDocumentProxy
+        let id = proxy.documentIdentifier
+        heldInputDocument = (proxy, id, id)
+    }
+    func noteVariableValueEditing() {
+        guard var held = heldInputDocument else { return }
+        held.editingID = held.proxy.documentIdentifier
+        heldInputDocument = held
+    }
+    func releaseInputDocument() { heldInputDocument = nil }
+    func insert(_ text: String) { (heldInputDocument?.proxy ?? textDocumentProxy).insertText(text) }
     func copy(_ text: String) {
         UIPasteboard.general.setItems([["public.utf8-plain-text": text]], options: [.localOnly: true])
     }

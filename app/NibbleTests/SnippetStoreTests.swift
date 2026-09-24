@@ -5,12 +5,11 @@ import SQLite3
 
 @Suite("Snippet persistence and recovery")
 struct SnippetTests {
-    @Test func featureAvailabilityMatchesReleaseAndFutureProStates() {
+    @Test func featureAvailabilityMatchesTheConfiguredAudience() {
         #expect(FeatureAccess.availability(.variableReplacement, pro: false) == .included)
-        let future = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: true)
-        #expect(future.availability(.variableReplacement, pro: false) == .requiresPro)
-        #expect(future.availability(.variableReplacement, pro: true) == .included)
-        #expect(future.availability(.unlimitedSavedItems, pro: false) == .included)
+        let subscription = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: true)
+        #expect(subscription.availability(.variableReplacement, pro: false) == .requiresPro)
+        #expect(subscription.availability(.variableReplacement, pro: true) == .included)
         let withheld = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: false)
         #expect(withheld.availability(.variableReplacement, pro: false) == .unavailable)
     }
@@ -26,12 +25,12 @@ struct SnippetTests {
         #expect(SnippetVariables("普通の本文").filled(with: [:]) == "普通の本文")
     }
 
-    @Test func freePlanCanSaveBeyondThirtyAndPreservesDraftsAndExistingUse() async throws {
+    @Test func savingHasNoPlanBasedCountLimitAndPreservesDraftsAndExistingUse() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }
-        let free = SnippetStore(location: database.url, hasProAccess: { false })
+        let free = SnippetStore(location: database.url)
         var ids: [UUID] = []
-        for number in 0..<ProAccess.freeLimit {
+        for number in 0..<31 {
             ids.append(try await create(free, body: "item \(number)"))
         }
         var draft = try await free.beginDraft(body: "next item")
@@ -45,7 +44,7 @@ struct SnippetTests {
         try await free.mutate(.restore, id: ids[0])
         let overflow = try await free.beginDraft(body: "overflow")
         try await free.save(overflow)
-        #expect(try await free.search().count == ProAccess.freeLimit + 2)
+        #expect(try await free.search().count == 33)
     }
 
     @Test func exactTextSurvivesReopenAndEdit() async throws {

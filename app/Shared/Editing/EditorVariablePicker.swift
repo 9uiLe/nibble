@@ -5,8 +5,7 @@ import SwiftUI
 struct EditorVariablePicker: View {
     private let inputRevision = UUID()
     let existing: [String]
-    @SkipEquatable let addExisting: (String) -> Void
-    @SkipEquatable let addNew: (String) -> Void
+    @SkipEquatable let appendVariable: (String) -> Void
     @State private var name = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -20,7 +19,7 @@ struct EditorVariablePicker: View {
                             Text("既存の変数を再利用").font(.nibbleTitle)
                             ForEach(existing, id: \.self) { variable in
                                 Button {
-                                    addExisting(variable)
+                                    appendVariable(variable)
                                     dismiss()
                                 } label: {
                                     Text(verbatim: variable)
@@ -46,7 +45,7 @@ struct EditorVariablePicker: View {
                                 .font(.nibbleBody).foregroundStyle(.secondary)
                         }
                         Button("作成して追加") {
-                            addNew(trimmed)
+                            appendVariable(trimmed)
                             dismiss()
                         }
                         .buttonStyle(.borderedProminent)

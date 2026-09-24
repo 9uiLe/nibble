@@ -13,6 +13,9 @@ protocol KeyboardEffects: AnyObject {
     func insert(_ text: String)
     func copy(_ text: String)
     func dismiss()
+    func holdInputDocument()
+    func noteVariableValueEditing()
+    func releaseInputDocument()
 }
 
 @MainActor @Observable
@@ -117,6 +120,7 @@ final class KeyboardModel {
     }
 
     func deactivate() {
+        effects?.releaseInputDocument()
         loadState = .inactive
         loadID = UUID()
         operation = nil
@@ -151,6 +155,7 @@ final class KeyboardModel {
     }
 
     private func invalidate() {
+        effects?.releaseInputDocument()
         loadID = UUID()
         if isActive { loadState = .pending }
         notice = nil
@@ -197,6 +202,7 @@ final class KeyboardModel {
             guard isActive, loadID == generation, operation == id, contains(item) else { return }
             let template = SnippetVariables(text)
             if !template.names.isEmpty {
+                if use == .insert { effects.holdInputDocument() }
                 variableUse = VariableUse(item: item, mode: use, template: template,
                     destination: destination, generation: generation,
                     availability: FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive()))
@@ -226,7 +232,12 @@ final class KeyboardModel {
         }
     }
 
-    func cancelVariableUse() { variableUse = nil }
+    func cancelVariableUse() {
+        variableUse = nil
+        effects?.releaseInputDocument()
+    }
+
+    func noteVariableValueEditing() { effects?.noteVariableValueEditing() }
 
     func completeVariableUse(values: [String: String]) async {
         guard let pending = variableUse, pending.availability.isAvailable,
@@ -236,6 +247,7 @@ final class KeyboardModel {
         let id = UUID()
         operation = id
         defer { if operation == id { operation = nil } }
+        defer { if variableUse == nil { effects.releaseInputDocument() } }
         do {
             let current = try await reader.body(for: pending.item)
             try Task.checkCancellation()
@@ -248,7 +260,12 @@ final class KeyboardModel {
             }
             switch pending.mode {
             case .insert:
-                guard effects.destination == pending.destination else { notify(.inputChanged); return }
+                // Editing a value inside the keyboard can advance UIKit's selection revision
+                // even though the host document remains the same. Keep the document boundary.
+                guard effects.destination.document == pending.destination.document else {
+                    notify(.inputChanged)
+                    return
+                }
                 effects.insert(text)
                 closeDetail()
                 notify(.inserted(pending.item.id))

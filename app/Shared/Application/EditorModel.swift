@@ -11,12 +11,11 @@ final class EditorModel {
     struct Failure: Equatable {
         let reason: StoreError
         let operation: FinishOperation?
-        enum Recovery { case retry, saveAsNew, correctInput, updateApplication, upgrade }
+        enum Recovery { case retry, saveAsNew, correctInput, updateApplication }
         var recovery: Recovery {
             switch reason {
             case .conflict, .staleDraft, .missing: operation == nil ? .retry : .saveAsNew
             case .empty, .tooLarge: .correctInput
-            case .freeLimit: .upgrade
             case .newerVersion: .updateApplication
             default: .retry
             }
