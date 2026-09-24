@@ -3,6 +3,7 @@ import SwiftUI
 
 @Equatable
 struct VariableFillView: View {
+    private static let previewCharacterLimit = 240
     private let inputRevision = UUID()
     let template: SnippetVariables
     let actionTitle: String
@@ -12,9 +13,11 @@ struct VariableFillView: View {
     @SkipEquatable let valueEdited: () -> Void
     @SkipEquatable let complete: ([String: String]) -> Void
     @State private var values: [String: String] = [:]
+    @State private var showsFullPreview = false
 
     var body: some View {
-        VStack(spacing: 0) {
+        let allValuesPresent = template.names.allSatisfy { values[$0]?.isEmpty == false }
+        return VStack(spacing: 0) {
             HStack {
                 Text(availability == .included ? "値を入力" : "変数を利用")
                     .font(.headline)
@@ -28,24 +31,49 @@ struct VariableFillView: View {
             Divider()
             if availability == .included {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: compact ? 12 : 20) {
+                    VStack(alignment: .leading, spacing: compact ? 12 : 16) {
                         ForEach(template.names, id: \.self) { name in
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
                                 Text(name).font(.nibbleTitle)
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
-                                    set: { values[name] = $0; valueEdited() }
+                                    set: {
+                                        showsFullPreview = false
+                                        values[name] = $0
+                                        valueEdited()
+                                    }
                                 ))
                                 .textFieldStyle(.roundedBorder)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
                                 .font(.body)
                                 .frame(minHeight: 44)
                                 .accessibilityLabel(name)
                             }
                         }
-                        if let preview = template.filled(with: values) {
+                        if allValuesPresent, let preview = template.filled(with: values) {
+                            let excerpt = String(preview.prefix(Self.previewCharacterLimit))
+                            let hasMore = excerpt.utf8.count < preview.utf8.count
                             Divider()
-                            Text("完成文").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            Text(verbatim: preview).font(.subheadline)
+                            HStack(spacing: 8) {
+                                Text("完成文")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer(minLength: 8)
+                                if hasMore {
+                                    Button(showsFullPreview ? "短く表示" : "全文を確認") {
+                                        showsFullPreview.toggle()
+                                    }
+                                    .font(.nibbleBody)
+                                    .frame(minHeight: 44)
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(.tint)
+                                    .accessibilityIdentifier("variables.previewToggle")
+                                }
+                            }
+                            Text(verbatim: showsFullPreview ? preview : excerpt)
+                                .font(.subheadline)
+                                .lineLimit(showsFullPreview || !hasMore ? nil : 4)
                                 .accessibilityIdentifier("variables.preview")
                         }
                     }
@@ -58,7 +86,7 @@ struct VariableFillView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                     .buttonStyle(.borderedProminent)
-                    .disabled(template.filled(with: values) == nil)
+                    .disabled(!allValuesPresent)
                     .accessibilityIdentifier("variables.complete")
                     .padding(.horizontal, compact ? 12 : 20)
                     .padding(.bottom, compact ? 4 : 12)
