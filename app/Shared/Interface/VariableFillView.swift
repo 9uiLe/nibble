@@ -17,6 +17,7 @@ struct VariableFillView: View {
     @State private var values: [String: String] = [:]
     @State private var showsFullPreview = false
     @State private var isSubmitting = false
+    @FocusState private var focusedName: String?
 
     var body: some View {
         let allValuesPresent = template.names.allSatisfy { values[$0]?.isEmpty == false }
@@ -29,8 +30,9 @@ struct VariableFillView: View {
                 Text(availability == .included ? "値を入力" : "変数を利用")
                     .font(.headline)
                 Spacer(minLength: 8)
-                Button("戻る", action: cancel)
+                Button("閉じる", action: cancel)
                     .font(.subheadline)
+                    .accessibilityLabel("確定せず閉じる")
                     .accessibilityIdentifier("variables.cancel")
             }
             .padding(.horizontal, compact ? 12 : 20)
@@ -41,12 +43,13 @@ struct VariableFillView: View {
                     VStack(alignment: .leading, spacing: compact ? 12 : 16) {
                         Text(verbatim: displayTitle)
                             .font(.nibbleTitle)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("variables.itemTitle")
                         ForEach(template.names, id: \.self) { name in
                             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-                                Text(name).font(.nibbleTitle)
+                                Text("差し替える内容：\(name)")
+                                    .font(.nibbleTitle)
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
                                     set: {
@@ -54,20 +57,23 @@ struct VariableFillView: View {
                                         values[name] = $0
                                         valueEdited()
                                     }
-                                ))
+                                ), prompt: Text("値を入力").foregroundStyle(.secondary))
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .font(.body)
                                 .frame(minHeight: 44)
-                                .accessibilityLabel(name)
+                                .focused($focusedName, equals: name)
+                                .accessibilityLabel("差し替える内容、\(name)")
+                                Text("本文の「{{\(name)}}」が入力した内容に置き換わります。")
+                                    .font(.nibbleBody)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         Divider()
                         HStack(spacing: 8) {
-                            Text(allValuesPresent ? "完成文" : "元の文章")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                            Text(allValuesPresent ? "完成文" : "入力前の文章")
+                                .font(.nibbleTitle)
                             Spacer(minLength: 8)
                             if hasMore {
                                 Button(showsFullPreview ? "短く表示" : "全文を確認") {
@@ -84,23 +90,31 @@ struct VariableFillView: View {
                             .font(.subheadline)
                             .lineLimit(showsFullPreview || !hasMore ? nil : Self.previewLineLimit)
                             .accessibilityIdentifier("variables.preview")
+                        if focusedName != nil {
+                            VariableCompleteButton(actionTitle: actionTitle,
+                                                   allValuesPresent: allValuesPresent,
+                                                   isSubmitting: isSubmitting) {
+                                isSubmitting = true
+                                complete(values)
+                            }
+                                .padding(.top, 4)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, compact ? 12 : 20)
                     .padding(.vertical, compact ? 8 : 16)
                 }
-                Button {
-                    isSubmitting = true
-                    complete(values)
-                } label: {
-                    Text(isSubmitting ? "処理中…" : actionTitle)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                if focusedName == nil {
+                    VariableCompleteButton(actionTitle: actionTitle,
+                                           allValuesPresent: allValuesPresent,
+                                           isSubmitting: isSubmitting) {
+                        isSubmitting = true
+                        complete(values)
+                    }
+                        .padding(.horizontal, compact ? 12 : 20)
+                        .padding(.bottom, compact ? 4 : 12)
+                        .background(compact ? Color(uiColor: .tertiarySystemBackground) : Color.nibbleCanvas)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!allValuesPresent || isSubmitting)
-                .accessibilityIdentifier("variables.complete")
-                .padding(.horizontal, compact ? 12 : 20)
-                .padding(.bottom, compact ? 4 : 12)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {

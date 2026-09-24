@@ -69,7 +69,7 @@ struct AppRootView: View {
                              valueEdited: {},
                              complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
                 .id(pending.id)
-                .presentationDetents([.height(CGFloat(min(520, 380 + pending.template.names.count * 90))), .large])
+                .presentationDetents([.height(CGFloat(min(510, 290 + pending.template.names.count * 80))), .large])
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }
