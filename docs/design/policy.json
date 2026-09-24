@@ -63,6 +63,11 @@
       "references": true
     },
     {
+      "path": "docs/architecture/monetization.md",
+      "kind": "file",
+      "references": true
+    },
+    {
       "path": "docs/design/evidence.md",
       "kind": "file",
       "references": true

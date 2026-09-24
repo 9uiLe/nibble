@@ -4,19 +4,29 @@ import Observation
 
 @Equatable
 struct AppRootView: View {
+    private struct VariableCompletion {
+        let id = UUID()
+        let copyID: UUID
+        let values: [String: String]
+    }
     private let inputRevision = UUID()
     @State private var library: LibraryModel
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
+    @SkipEquatable private let advertising: any AdvertisingContent
     @State private var routeOwner = LibraryTaskOwner()
+    @State private var subscription = ProSubscription()
     @State private var showsSettings = false
     @State private var showsTrash = false
+    @State private var variableCompletion: VariableCompletion?
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
+    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects,
+         advertising: any AdvertisingContent = UnconfiguredAdvertising()) {
         self.store = store
         self.effects = effects
+        self.advertising = advertising
         _library = State(initialValue: LibraryModel(store: store, effects: effects))
     }
 
@@ -24,12 +34,14 @@ struct AppRootView: View {
         @Bindable var libraryBinding = library
         NavigationStack {
             LibraryScreen(model: library, searchFocused: $searchFocused,
-                          noticesPresented: noticesPresented, openSettings: {
+                          noticesPresented: noticesPresented,
+                          advertisement: showsLibraryAd ? advertising.libraryBanner() : nil,
+                          openSettings: {
                 searchFocused = false
                 showsSettings = true
             })
             .navigationDestination(isPresented: $showsSettings) {
-                SettingsView(showTrash: { showsTrash = true })
+                SettingsView(subscription: subscription, showTrash: { showsTrash = true })
                     .environment(\.illustrationPlaybackAllowed,
                                  showsSettings && !showsTrash && library.editor == nil)
             }
@@ -46,10 +58,26 @@ struct AppRootView: View {
         .sheet(item: $libraryBinding.editor, onDismiss: {
             routeOwner.startTask(.reload, on: library)
         }) { draft in
-            SnippetEditor(draft: draft, store: store)
+            SnippetEditor(draft: draft, store: store, proInformation: {
+                AnyView(NavigationStack { ProView(subscription: subscription) })
+            })
+        }
+        .sheet(item: Binding(get: { library.variableCopy }, set: { if $0 == nil { library.cancelVariableCopy() } })) { pending in
+            VariableFillView(template: pending.template, actionTitle: "完成文をコピー", compact: false,
+                             availability: pending.availability, cancel: { library.cancelVariableCopy() },
+                             valueEdited: {},
+                             complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
+                .id(pending.id)
+                .presentationDetents([.height(CGFloat(min(420, 120 + pending.template.names.count * 70))), .large])
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }
+        .onChange(of: variableCompletion?.id) {
+            if let completion = variableCompletion {
+                routeOwner.startTask(.completeVariableCopy(completion.copyID, completion.values), on: library)
+                variableCompletion = nil
+            }
+        }
         .onAppear { library.setNoticePresentation(noticesPresented) }
         .onOpenURL { url in
             guard let route = AppRoute(url: url), library.editor == nil else { return }
@@ -61,8 +89,12 @@ struct AppRootView: View {
             if route == .create { routeOwner.startTask(.open(.new), on: library) }
         }
         .onChange(of: scenePhase) {
-            if scenePhase == .background { routeOwner.endScreen() }
+            if scenePhase == .background { routeOwner.endScreen(); library.cancelVariableCopy() }
         }
+        .task(id: scenePhase) {
+            if scenePhase == .active { await subscription.refresh() }
+        }
+        .task { await subscription.watchUpdates() }
         .privacySensitive()
         .overlay {
             if scenePhase != .active {
@@ -76,5 +108,10 @@ struct AppRootView: View {
 
     private var noticesPresented: Bool {
         scenePhase == .active && !showsSettings && !showsTrash && library.editor == nil
+    }
+
+    private var showsLibraryAd: Bool {
+        noticesPresented && library.variableCopy == nil && !searchFocused && !library.isSearching
+            && !FeatureAccess.availability(.adFree, pro: subscription.isActive).isAvailable
     }
 }

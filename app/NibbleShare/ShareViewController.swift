@@ -33,9 +33,9 @@ final class ShareViewController: UIViewController {
             let draft = try await SharedDraftLoader(store: store).load(from: providers)
             // Persisted shared text remains recoverable, but a departed host must not present UI.
             try Task.checkCancellation()
-            let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: store) { [weak self] in
+            let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: store, complete: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
-            }.modifier(NibbleInterface()))
+            }).modifier(NibbleInterface()))
             NibbleInterface.apply(to: &host.traitOverrides)
             addChild(host)
             host.view.translatesAutoresizingMaskIntoConstraints = false

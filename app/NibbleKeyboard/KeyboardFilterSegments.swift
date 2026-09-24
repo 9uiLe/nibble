@@ -15,12 +15,12 @@ struct KeyboardFilterSegments: View {
                         .font(.subheadline.weight(.medium))
                         .padding(.horizontal, 12).padding(.vertical, 5)
                         .frame(maxWidth: .infinity)
-                        .background {
+                        .foregroundStyle(model.request.filter == filter ? .primary : .secondary)
+                        .overlay(alignment: .bottom) {
                             if model.request.filter == filter {
-                                RoundedRectangle(cornerRadius: 7).fill(Color(uiColor: .tertiarySystemBackground))
+                                Rectangle().fill(Color(uiColor: .systemBlue)).frame(height: 2)
                             }
                         }
-                        .padding(2)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -29,10 +29,6 @@ struct KeyboardFilterSegments: View {
                 .accessibilityIdentifier("keyboard.filter.\(filter.rawValue)")
                 .accessibilityFocused(focus, equals: "filter.\(filter.rawValue)")
             }
-        }
-        .background {
-            RoundedRectangle(cornerRadius: 9).fill(Color(uiColor: .quaternarySystemFill))
-                .padding(.vertical, 6)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("保存した項目の絞り込み")

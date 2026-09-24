@@ -17,7 +17,7 @@ struct DeletedSnippetsView: View {
         @Bindable var library = model
         NavigationStack {
             LibraryScreen(model: model,
-                          searchFocused: $searchFocused)
+                          searchFocused: $searchFocused, advertisement: nil)
                 .modifier(LibraryNoticeOverlay(model: model, taskOwner: noticeTaskOwner,
                                                isPresented: model.noticeContext.isPresented))
                 .toolbar {

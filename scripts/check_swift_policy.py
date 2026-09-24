@@ -164,7 +164,7 @@ def violations(source):
             message = "Use Tasking for unstructured work; raw scheduling types are prohibited."
         elif token.text in RIVE_UNSUPPORTED_SYMBOLS:
             message = "Use Rive Apple Resource/Session APIs and Data Binding; callback entry points are prohibited."
-        elif token.text in ANIMATION_SYMBOLS:
+        elif token.text in ANIMATION_SYMBOLS and not (token.text == "Transaction" and previous == "." and receiver == "StoreKit"):
             message = "Use ScopedAnimation AnimationScope / animationBarrier instead of raw animation transactions."
         elif previous == "." and token.text in ANIMATION_MEMBERS:
             # Require the explicit library type for multi-trigger factories. The

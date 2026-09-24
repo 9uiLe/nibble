@@ -172,7 +172,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | UIKit / Core Animationの直接アニメーション | `UIView.animate`・`transition`等、`UIViewPropertyAnimator`、CAAnimation系、`CATransaction`等 | ScopedAnimation |
 | 直接の比較 | `.equatable`、`EquatableView`、`.equatableBody`、手書き`==` | AppMacros、データの標準Equatable合成 |
 
-対象名は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)に定義する。予約名は別用途にも使わない。SQLiteのhelperには`readTransaction`・`writeTransaction`を使い、共通の確定・rollbackをprivateな`performTransaction`へ閉じ込める。
+対象名は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)に定義する。`StoreKit.Transaction`は購入権利の検証に限って使用し、SwiftUIのアニメーションtransactionと区別する。それ以外では予約名を別用途にも使わない。SQLiteのhelperには`readTransaction`・`writeTransaction`を使い、共通の確定・rollbackをprivateな`performTransaction`へ閉じ込める。
 
 字句解析はコメント・通常/raw/複数行文字列・regexの本文を読み飛ばし、実行される補間を検査する。改行・コメントを挟む呼出し、修飾名、backtick、型aliasも対象とする。
 

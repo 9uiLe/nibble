@@ -7,8 +7,12 @@ actor SnippetStore: LibraryStorage, DraftEditing {
     private var connection: SQLiteDatabase?
     private let signposter = OSSignposter(subsystem: "nibble.9uiLe.com", category: "Store")
 
-    init(location: URL) { self.location = { location } }
-    init(location: @escaping @Sendable () throws -> URL) { self.location = location }
+    init(location: URL) {
+        self.location = { location }
+    }
+    init(location: @escaping @Sendable () throws -> URL) {
+        self.location = location
+    }
 
     private func database() throws -> SQLiteDatabase {
         if let connection { return connection }

@@ -5,6 +5,48 @@ import SQLite3
 
 @Suite("Snippet persistence and recovery")
 struct SnippetTests {
+    @Test func featureAvailabilityMatchesTheConfiguredAudience() {
+        #expect(FeatureAccess.availability(.variableReplacement, pro: false) == .included)
+        let subscription = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: true)
+        #expect(subscription.availability(.variableReplacement, pro: false) == .requiresPro)
+        #expect(subscription.availability(.variableReplacement, pro: true) == .included)
+        let withheld = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: false)
+        #expect(withheld.availability(.variableReplacement, pro: false) == .unavailable)
+    }
+
+    @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
+        let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
+        let template = SnippetVariables(original)
+        #expect(template.names == ["宛名", "日付"])
+        #expect(template.filled(with: ["宛名": "山田", "日付": "9月24日"]) ==
+            "山田さん\r\n山田へ 👩🏽‍💻 9月24日 / {{ }} / {{未完")
+        #expect(template.filled(with: ["宛名": "山田"]) == nil)
+        #expect(template.body.utf8.elementsEqual(original.utf8))
+        #expect(SnippetVariables("普通の本文").filled(with: [:]) == "普通の本文")
+    }
+
+    @Test func savingHasNoPlanBasedCountLimitAndPreservesDraftsAndExistingUse() async throws {
+        let database = try TestDatabase()
+        defer { database.removeFiles() }
+        let free = SnippetStore(location: database.url)
+        var ids: [UUID] = []
+        for number in 0..<31 {
+            ids.append(try await create(free, body: "item \(number)"))
+        }
+        var draft = try await free.beginDraft(body: "next item")
+        draft.title = "continued"
+        try await free.save(draft)
+        var edit = try await free.editingDraft(for: ids[0])
+        edit.body = "edited"
+        try await free.save(edit)
+        #expect(try await free.savedBody(ids[0]) == "edited")
+        try await free.mutate(.delete, id: ids[0])
+        try await free.mutate(.restore, id: ids[0])
+        let overflow = try await free.beginDraft(body: "overflow")
+        try await free.save(overflow)
+        #expect(try await free.search().count == 33)
+    }
+
     @Test func exactTextSurvivesReopenAndEdit() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }
@@ -185,4 +227,3 @@ struct SnippetTests {
         #expect(try await store.snippet(id).body == "saved")
     }
 }
-

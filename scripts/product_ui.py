@@ -85,8 +85,22 @@ class ProductRun(Run):
 
     def select_editor_mode(self, label):
         data = self.ui('mode-' + label)
-        entry, fraction = editor_mode_target(data, label)
-        self._tap_frame(entry['frame'], fraction)
+        for attempt in range(5):
+            entry, fraction = editor_mode_target(data, label)
+            frame = entry['frame']
+            top, bottom = editor_viewport(data)
+            if min(bottom, frame['y'] + frame['height']) - max(top, frame['y']) >= 12:
+                self._tap_frame(frame, fraction)
+                return
+            if attempt == 4 or bottom <= top:
+                raise VerificationError('Cannot reveal editor mode: ' + label)
+            start, end = top + (bottom - top) * .35, top + (bottom - top) * .75
+            if frame['y'] >= bottom:
+                start, end = end, start
+            x = data['screen']['width'] * .35
+            self.command(['sim-use', 'swipe', '--from', f'{x},{start}', '--to', f'{x},{end}',
+                          '--duration', '.4', '--post-delay', '.5', '--device', self.args.device])
+            data = self.ui('mode-' + label + f'-revealed-{attempt}')
 
     def _reveal_input(self, identifier):
         data = self.wait_ui(identifier + '-present', lambda d: identifier in identifiers(d))

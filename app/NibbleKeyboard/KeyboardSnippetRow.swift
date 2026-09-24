@@ -15,7 +15,7 @@ struct KeyboardSnippetRow: View {
             Button { taskOwner.startTask(item, as: .insert, on: model) } label: {
                 KeyboardRowContent(item: item)
                     .padding(.leading, 12).padding(.trailing, 4).padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("\(item.displayTitle)を入力")
@@ -26,8 +26,8 @@ struct KeyboardSnippetRow: View {
                 detailOrigin = item.id
                 model.openDetail(item)
             } label: {
-                Image(systemName: "ellipsis").font(.system(size: 18))
-                    .frame(width: 44, height: 54).contentShape(Rectangle())
+                Text("全文").font(.caption.weight(.medium))
+                    .frame(width: 50, height: 58).contentShape(Rectangle())
             }
             .accessibilityLabel("\(item.displayTitle)の全文と操作")
             .accessibilityIdentifier("keyboard.more.\(item.id)")

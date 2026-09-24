@@ -5,11 +5,20 @@ import SwiftUI
 struct SettingsList: View {
     private let inputRevision = UUID()
     let version: AppVersion
+    @SkipEquatable let subscription: ProSubscription
     let showTrash: () -> Void
 
     var body: some View {
         List {
             Section {
+                NavigationLink {
+                    ProView(subscription: subscription)
+                } label: {
+                    SettingsDisclosureLabel(title: "nibble Pro", detail: !subscription.checked ? "登録状態を確認中" : subscription.isActive ? "利用中・登録を管理" : "新機能を準備中",
+                                            systemImage: "star", showsChevron: false)
+                }
+                .accessibilityIdentifier("settings.pro")
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 NavigationLink {
                     KeyboardGuideView()
                 } label: {
