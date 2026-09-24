@@ -21,9 +21,13 @@ struct VariableFillView: View {
 
     var body: some View {
         let allValuesPresent = template.names.allSatisfy { values[$0]?.isEmpty == false }
-        let preview = (allValuesPresent ? template.filled(with: values) : nil) ?? template.body
-        let excerpt = Self.excerpt(preview)
-        let hasMore = excerpt != preview
+        let completedPrefix = template.filledPrefix(with: values, characterLimit: Self.previewCharacterLimit)
+        let prefix = completedPrefix ?? Self.prefix(template.body)
+        let excerpt = Self.excerpt(prefix.text)
+        let hasMore = prefix.hasMore || excerpt != prefix.text
+        let preview = showsFullPreview && hasMore
+            ? (completedPrefix == nil ? template.body : template.filled(with: values) ?? template.body)
+            : excerpt
         let displayTitle = SnippetTextPresentation(title: title, body: template.body).title
         return VStack(spacing: 0) {
             HStack {
@@ -86,7 +90,7 @@ struct VariableFillView: View {
                                 .accessibilityIdentifier("variables.previewToggle")
                             }
                         }
-                        Text(verbatim: showsFullPreview ? preview : excerpt)
+                        Text(verbatim: preview)
                             .font(.subheadline)
                             .lineLimit(showsFullPreview || !hasMore ? nil : Self.previewLineLimit)
                             .accessibilityIdentifier("variables.preview")
@@ -143,9 +147,13 @@ struct VariableFillView: View {
     }
 
     private static func excerpt(_ text: String) -> String {
-        let characters = String(text.prefix(previewCharacterLimit))
-        return characters.split(separator: "\n", maxSplits: previewLineLimit,
+        text.split(separator: "\n", maxSplits: previewLineLimit,
                                 omittingEmptySubsequences: false)
             .prefix(previewLineLimit).joined(separator: "\n")
+    }
+
+    private static func prefix(_ text: String) -> (text: String, hasMore: Bool) {
+        let leading = String(text.prefix(previewCharacterLimit + 1))
+        return (String(leading.prefix(previewCharacterLimit)), leading.count > previewCharacterLimit)
     }
 }

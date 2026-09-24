@@ -36,6 +36,35 @@ struct SnippetTests {
         #expect(template.body == original)
     }
 
+    @Test func collapsedVariablePrefixMatchesCompletedTextWithoutRequiringTheWholeBody() throws {
+        let template = SnippetVariables("前{{宛名}}中{{宛名}}後" + String(repeating: "👩🏽‍💻", count: 500))
+        let values = ["宛名": "山田\n太郎"]
+        let completed = try #require(template.filled(with: values))
+        for limit in [0, 1, 2, 4, 8, 16, 160, 1_000] {
+            let prefix = try #require(template.filledPrefix(with: values, characterLimit: limit))
+            #expect(prefix.text == String(completed.prefix(limit)))
+            #expect(prefix.hasMore == (completed.count > limit))
+        }
+        #expect(template.filledPrefix(with: [:], characterLimit: 160) == nil)
+        #expect(template.filledPrefix(with: values, characterLimit: -1) == nil)
+        #expect(template.body.hasPrefix("前{{宛名}}"))
+
+        for (source, replacement) in [
+            ("e{{境界}}末", "\u{301}"),
+            ("👩{{境界}}末", "\u{200D}💻"),
+            ("\r{{境界}}末", "\n")
+        ] {
+            let joined = SnippetVariables(source)
+            let value = ["境界": replacement]
+            let completed = try #require(joined.filled(with: value))
+            for limit in 0...3 {
+                let prefix = try #require(joined.filledPrefix(with: value, characterLimit: limit))
+                #expect(prefix.text == String(completed.prefix(limit)))
+                #expect(prefix.hasMore == (completed.count > limit))
+            }
+        }
+    }
+
     @Test func savingHasNoPlanBasedCountLimitAndPreservesDraftsAndExistingUse() async throws {
         let database = try TestDatabase()
         defer { database.removeFiles() }

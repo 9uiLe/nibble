@@ -48,6 +48,35 @@ struct SnippetVariables: Sendable, Equatable {
         return result
     }
 
+    /// Expands only the characters needed by a collapsed preview. `hasMore` is
+    /// determined by observing one further character, without building the body.
+    func filledPrefix(with values: [String: String], characterLimit: Int) -> (text: String, hasMore: Bool)? {
+        guard characterLimit >= 0, names.allSatisfy({ values[$0]?.isEmpty == false }) else { return nil }
+        var result = ""
+        result.reserveCapacity(characterLimit)
+        for part in parts {
+            let text: Substring
+            switch part {
+            case .text(let value): text = value
+            case .variable(let name): text = values[name, default: ""][...]
+            }
+            var remaining = text
+            while !remaining.isEmpty {
+                // A grapheme can span a marker boundary (for example, a base
+                // character followed by a combining mark). Count the joined
+                // string before deciding where the completed text is cut.
+                let next = remaining.prefix(max(1, characterLimit + 1 - result.count))
+                result.append(contentsOf: next)
+                remaining = remaining[next.endIndex...]
+                if result.count > characterLimit && !remaining.isEmpty {
+                    return (String(result.prefix(characterLimit)), true)
+                }
+            }
+        }
+        let hasMore = result.count > characterLimit
+        return (hasMore ? String(result.prefix(characterLimit)) : result, hasMore)
+    }
+
     static func valid(_ name: String) -> Bool {
         !name.isEmpty && name.count <= 40 && !name.contains("{") && !name.contains("}")
             && !name.contains("\n") && !name.contains("\r")
