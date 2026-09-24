@@ -46,9 +46,12 @@ struct VariableFillView: View {
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("variables.itemTitle")
+                        Text("本文中の印を入力した値に置き換えます。同じ名前の印はまとめて変わります。")
+                            .font(.nibbleBody)
+                            .foregroundStyle(.secondary)
                         ForEach(template.names, id: \.self) { name in
                             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-                                Text("差し替える内容：\(name)")
+                                Text("{{\(name)}} に入れる値")
                                     .font(.nibbleTitle)
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
@@ -64,10 +67,7 @@ struct VariableFillView: View {
                                 .font(.body)
                                 .frame(minHeight: 44)
                                 .focused($focusedName, equals: name)
-                                .accessibilityLabel("差し替える内容、\(name)")
-                                Text("本文の「{{\(name)}}」が入力した内容に置き換わります。")
-                                    .font(.nibbleBody)
-                                    .foregroundStyle(.secondary)
+                                .accessibilityLabel("{{\(name)}} に入れる値")
                             }
                         }
                         Divider()
@@ -90,7 +90,7 @@ struct VariableFillView: View {
                             .font(.subheadline)
                             .lineLimit(showsFullPreview || !hasMore ? nil : Self.previewLineLimit)
                             .accessibilityIdentifier("variables.preview")
-                        if focusedName != nil {
+                        if focusedName == nil || compact {
                             VariableCompleteButton(actionTitle: actionTitle,
                                                    allValuesPresent: allValuesPresent,
                                                    isSubmitting: isSubmitting) {
@@ -104,16 +104,16 @@ struct VariableFillView: View {
                     .padding(.horizontal, compact ? 12 : 20)
                     .padding(.vertical, compact ? 8 : 16)
                 }
-                if focusedName == nil {
+                .clipped()
+                if focusedName != nil && !compact {
                     VariableCompleteButton(actionTitle: actionTitle,
                                            allValuesPresent: allValuesPresent,
                                            isSubmitting: isSubmitting) {
                         isSubmitting = true
                         complete(values)
                     }
-                        .padding(.horizontal, compact ? 12 : 20)
-                        .padding(.bottom, compact ? 4 : 12)
-                        .background(compact ? Color(uiColor: .tertiarySystemBackground) : Color.nibbleCanvas)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
                 }
             } else {
                 ScrollView {

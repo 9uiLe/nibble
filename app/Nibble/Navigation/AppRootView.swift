@@ -70,6 +70,7 @@ struct AppRootView: View {
                              complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
                 .id(pending.id)
                 .presentationDetents([.height(CGFloat(min(510, 290 + pending.template.names.count * 80))), .large])
+                .presentationContentInteraction(.scrolls)
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }
