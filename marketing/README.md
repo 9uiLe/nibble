@@ -1,6 +1,6 @@
 # nibble のアプリ用Webサイト
 
-Firebase Hostingで配信する静的サイト。`public/` が配信ルートで、ビルドや外部JavaScriptは不要。
+Firebase Hostingで`https://nibble-10d8b.web.app`へ配信する静的サイト。`public/` が配信ルートで、ビルドや外部JavaScriptは不要。
 
 | パス | 用途 |
 | --- | --- |
@@ -11,14 +11,13 @@ Firebase Hostingで配信する静的サイト。`public/` が配信ルートで
 
 `/support`、`/privacy`、`/contact` は対応する `.html` へリダイレクトする。App Store ConnectのSupport URLには`/support.html`、Privacy Policy URLには`/privacy.html`を指定する。
 
-## 公開前に決めること
+## アプリ提出時に確認すること
 
-現時点では公開用の問い合わせ先とFirebaseプロジェクトIDが未決定。次を設定してから公開・審査提出する。
+Firebaseプロジェクトは`nibble-10d8b`、問い合わせ先は[Googleフォーム](https://forms.gle/yTHhEVNZxB8KD6M9A)を使う。アプリ提出時には次を確認する。
 
-1. `public/contact.html`の「準備中」を、実際に連絡できるメールアドレスまたは問い合わせフォームへのリンクへ置き換える。フォームを使う場合は、その提供元と問い合わせデータの扱いを`public/privacy.html`にも記す。
-2. Firebaseプロジェクトを決める。プロジェクトIDはリポジトリに仮値を書かず、デプロイ時の`--project`で指定する。
-3. 公開URLが決まったら、App Store ConnectのSupport URLとPrivacy Policy URLを登録する。アプリ内からプライバシーポリシーへ到達できる導線も追加・確認する。
-4. 提出するアプリの最終archive、第三者SDKのデータフロー、App Privacy回答とポリシー本文の整合を確認する。Webページの作成だけではこの確認は完了しない。
+1. フォームに返信先メールアドレスと内容の入力欄があり、想定する利用者が送信でき、担当者が受信できることを確認する。
+2. App Store ConnectのSupport URLに`https://nibble-10d8b.web.app/support.html`、Privacy Policy URLに`https://nibble-10d8b.web.app/privacy.html`を登録する。アプリ内からもプライバシーポリシーへ到達できることを確認する。
+3. 最終archive、第三者SDKのデータフロー、App Privacy回答とポリシー本文の整合を確認する。
 
 ## ローカル確認とデプロイ
 
@@ -26,8 +25,10 @@ Firebase Hostingで配信する静的サイト。`public/` が配信ルートで
 
 ```sh
 cd marketing
-firebase emulators:start --only hosting --project PROJECT_ID
-firebase deploy --only hosting --project PROJECT_ID
+firebase emulators:start --only hosting --project nibble-10d8b
+firebase deploy --only hosting --project nibble-10d8b
 ```
 
 Firebase CLIの設定は`firebase.json`にある。Firebaseプロジェクトへのログインと作成は管理者が行う。
+
+`nix flake check --no-update-lock-file --print-build-logs`はHTMLの内部リンクとHostingの転送先を検査する。公開サイトの応答とフォームの送受信は別に確認する。

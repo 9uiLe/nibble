@@ -19,7 +19,7 @@ struct DeletedSnippetsView: View {
     var body: some View {
         @Bindable var library = model
         LibraryScreen(model: model,
-                      searchFocused: $searchFocused, advertisement: nil)
+                      searchFocused: $searchFocused)
             .modifier(LibraryNoticeOverlay(model: model, taskOwner: noticeTaskOwner,
                                            isPresented: model.noticeContext.isPresented))
         .searchable(text: $library.query, prompt: "削除した項目を検索")

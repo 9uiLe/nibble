@@ -26,12 +26,6 @@ class InspectionCLITests(unittest.TestCase):
         self.assertEqual(result.stdout, '')
         self.assertEqual(json.loads(result.stderr.splitlines()[-1])['blocks'][0]['level'], 'error')
 
-    def test_image_requires_an_output_directory_before_processing(self):
-        result = self.execute('image', 'input.png')
-        self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, '')
-        self.assertIn('--output', result.stderr)
-
     def test_documented_sample_emits_exact_diff_and_separates_hamio_status(self):
         result = self.execute('tree', SCRIPTS / 'examples/ui-after.json',
                               '--before', SCRIPTS / 'examples/ui-before.json',

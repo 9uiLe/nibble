@@ -82,7 +82,7 @@ python3 scripts/verify.py plan --base origin/main
 
 | 変更の区分 | 共通静的検査に加える工程 |
 | --- | --- |
-| Markdown・文書・エージェント指示、分類済みの静的検査・画面要素の解析・その回帰テスト | なし |
+| Markdown・Webサイト・`.gitignore`・エージェント指示、分類済みの静的検査・画面要素の解析・その回帰テスト | なし |
 | 画面確認CLI・画像加工・macOSの画像試験 | ローカルMacの`preview-native`。Simulatorは不要 |
 | `app/NibbleTests/` | 製品targetの全テスト |
 | `validation/VerificationAppTests/` | fixtureの全テスト |

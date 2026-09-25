@@ -31,12 +31,7 @@ struct DraftLifecycleTests {
         #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
     }
 
-    @Test func byteComparisonAndInputSequencePreserveExactText() {
-        #expect(SnippetText.hasSameBytes("", ""))
-        #expect(!SnippetText.hasSameBytes("", "a"))
-        #expect(SnippetText.hasSameBytes("a\0b", "a\0b"))
-        #expect(!SnippetText.hasSameBytes("a\0b", "a\0c"))
-        #expect(!SnippetText.hasSameBytes("が", "か\u{3099}"))
+    @Test func inputSequenceDistinguishesCanonicallyEquivalentText() {
         var draft = Draft(id: UUID(), snippetID: nil, baseRevision: 0, title: "", body: "が")
         draft.body = "が"
         draft.title = ""

@@ -277,6 +277,28 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_hosting_pages_check_internal_links_and_redirect_destinations(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'README.md').write_text('# Project\n')
+            public = root / 'marketing/public'
+            public.mkdir(parents=True)
+            (root / 'marketing/firebase.json').write_text(json.dumps({
+                'hosting': {'redirects': [{'source': '/contact', 'destination': '/contact.html'}]}
+            }))
+            (public / 'index.html').write_text('<a href="/contact">Contact</a><a href="https://example.com">External</a>')
+            contact = public / 'contact.html'
+            contact.write_text('<link href="/styles.css" rel="stylesheet">')
+            (public / 'styles.css').write_text('')
+            result = check_docs.check(root)
+            self.assertEqual(result['errors'], [])
+            self.assertEqual(result['site_links'], 2)
+            (public / 'styles.css').unlink()
+            self.assertTrue(any('missing/outside site link' in error for error in check_docs.check(root)['errors']))
+            (public / 'styles.css').write_text('')
+            contact.unlink()
+            self.assertTrue(any('missing/outside redirect destination' in error for error in check_docs.check(root)['errors']))
+
     def test_context_dependent_prose_is_rejected_but_code_examples_are_not(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

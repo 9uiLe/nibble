@@ -62,7 +62,8 @@ def plan(paths, scope='auto'):
             for name in PRODUCT_STEPS - {'product-test'}:
                 select(name, path + ': 製品UIの共通操作')
             continue
-        elif path.endswith('.md') or path.startswith('docs/') or path.startswith('.agents/'):
+        elif (path.endswith('.md') or path.startswith(('docs/', '.agents/', 'marketing/'))
+              or path == '.gitignore'):
             continue
         if path.startswith(('app/NibblePerformanceTests/', 'app/TestSupport/')) or path in {
                 'app/performance-project.json', 'app/Nibble.xcodeproj/xcshareddata/xcschemes/NibblePerformance.xcscheme'}:

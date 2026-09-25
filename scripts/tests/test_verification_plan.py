@@ -26,12 +26,16 @@ class SelectionTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(self.selected([path]), set(verify.REGRESSION_STEPS))
 
-    def test_docs_do_not_start_simulators(self):
-        self.assertEqual(self.selected(['docs/ios-verification.md', 'AGENTS.md', '.agents/skills/example/SKILL.md']), {'static'})
-
-    def test_static_tooling_changes_do_not_start_ios(self):
-        self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})
-        self.assertEqual(self.selected(['scripts/testflight.py', 'scripts/deploy-testflight.sh']), {'static'})
+    def test_documents_site_and_static_tools_do_not_start_ios(self):
+        paths = [
+            'docs/ios-verification.md', 'AGENTS.md', '.agents/skills/example/SKILL.md',
+            'marketing/public/contact.html', 'marketing/firebase.json', '.gitignore',
+            'scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml',
+            'scripts/testflight.py', 'scripts/deploy-testflight.sh',
+        ]
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertEqual(self.selected([path]), {'static'})
 
     def test_controls_driver_selects_its_matching_evidence_stage(self):
         self.assertEqual(self.selected(['scripts/check_controls_ui.py']), {'static', 'controls-ui'})

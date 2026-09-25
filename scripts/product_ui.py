@@ -29,7 +29,7 @@ def editor_viewport(data):
     return top, bottom
 
 
-def input_point(data, identifier, *, trailing=False):
+def input_point(data, identifier):
     entry = unique_entry([e for e in data['entries'] if e.get('uniqueId') == identifier], identifier)
     if entry is None:
         raise VerificationError('Input is missing: ' + identifier)
@@ -38,7 +38,7 @@ def input_point(data, identifier, *, trailing=False):
     top, bottom = max(top, frame['y']), min(bottom, frame['y'] + frame['height'])
     if bottom - top < 12:
         raise VerificationError('Input is covered by fixed controls: ' + identifier)
-    return frame['x'] + frame['width'] * (.95 if trailing else .5), (top + bottom) / 2
+    return frame['x'] + frame['width'] * .5, (top + bottom) / 2
 
 
 def editor_mode_target(data, label):
@@ -119,26 +119,13 @@ class ProductRun(Run):
                           '--duration', '.4', '--post-delay', '.5', '--device', self.args.device])
             data = self.ui(identifier + f'-revealed-{attempt}')
 
-    def _focus_input(self, identifier, *, trailing=False):
-        x, y = input_point(self._reveal_input(identifier), identifier, trailing=trailing)
+    def _focus_input(self, identifier):
+        x, y = input_point(self._reveal_input(identifier), identifier)
         self.command(['sim-use', 'tap', '-x', str(x), '-y', str(y), '--duration', '.05',
                       '--post-delay', '.5', '--device', self.args.device])
         self.wait_ui(identifier + '-keyboard', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
         # Focus can resize the viewport and move the field. Observe and reveal again.
-        return input_point(self._reveal_input(identifier), identifier, trailing=trailing)
-
-    def _menu_item(self, labels, *, allow_next=False):
-        candidates = (*labels, '進む', 'Next') if allow_next else labels
-        data = self.wait_ui('edit-menu-' + labels[0], lambda d: any(e.get('label') in candidates for e in d['entries']))
-        entry = unique_entry([e for e in data['entries'] if e.get('label') in labels], 'edit menu: ' + labels[0])
-        if entry is None:
-            disclosure = unique_entry([e for e in data['entries'] if e.get('label') in ('進む', 'Next')
-                                       and e.get('role') == 'Button'], 'edit menu disclosure')
-            if disclosure is None:
-                raise VerificationError('Edit menu item is missing: ' + labels[0])
-            self._tap_frame(disclosure['frame'])
-            return self._menu_item(labels)
-        self._tap_frame(entry['frame'])
+        return input_point(self._reveal_input(identifier), identifier)
 
     def paste_editor(self, identifier, text, *, replace=False):
         def reflected(data):
@@ -146,11 +133,11 @@ class ProductRun(Run):
             # Accessibility may collapse whitespace. Scenarios also check saved/copied bytes.
             return ''.join(value.split()) == ''.join(text.split())
 
-        x, y = self._focus_input(identifier, trailing=replace)
+        x, y = self._focus_input(identifier)
         if replace:
-            self.command(['sim-use', 'tap', '-x', str(x), '-y', str(y), '--duration', '.7',
-                          '--post-delay', '.4', '--device', self.args.device])
-            self._menu_item(('すべてを選択', 'Select All'), allow_next=True)
-            self._menu_item(('カット', 'Cut'))
+            self.command(['sim-use', 'ios', 'key-combo', '--modifiers', '227', '--key', '4',
+                          '--device', self.args.device])
+            self.command(['sim-use', 'ios', 'key-combo', '--modifiers', '227', '--key', '27',
+                          '--device', self.args.device])
             x, y = self._focus_input(identifier)
         self.paste_text(text, ['--target-x', str(x), '--target-y', str(y)], reflected, name=identifier + '-paste')

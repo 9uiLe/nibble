@@ -69,7 +69,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | workflow-policy / nix-format | Ubuntu runner方針、workflow・shell構文、Nix書式 |
 | swift-library-policy | 禁止API、タスク開始、View比較、View型・ファイル構成の構文 |
-| documentation | 文書リンク、Skill、Swift例、shell例のコマンドと設定パスの実在、設計IDと未確認入力 |
+| documentation | 文書リンク、Webページの内部リンク、Skill、Swift例、shell例のコマンドと設定パスの実在、設計IDと未確認入力 |
 | ui-design / ios-tooling | 共通設計ツールと製品Adapter、実行・証跡・PR検査の回帰 |
 | rive-assets | 制作ソース・生成物・Data Binding契約 |
 
