@@ -3,6 +3,12 @@ import SwiftUI
 
 @Equatable
 struct KeyboardView: View {
+    private enum Screen {
+        case variable(KeyboardModel.VariableUse)
+        case detail(KeyboardModel.Detail)
+        case browse
+    }
+
     private struct VariableCompletion {
         let id = UUID()
         let values: [String: String]
@@ -17,28 +23,38 @@ struct KeyboardView: View {
     @State private var listPosition: UUID?
     @State private var variableCompletion: VariableCompletion?
 
+    private var screen: Screen {
+        if let pending = model.variableUse { return .variable(pending) }
+        if let detail = model.detail { return .detail(detail) }
+        return .browse
+    }
+
     private var preferredHeight: CGFloat {
-        if model.detail != nil || model.variableUse != nil || !model.isCurrent || model.notice?.expires == false {
+        switch screen {
+        case .variable, .detail:
             return 288
+        case .browse:
+            if !model.isCurrent || model.notice?.expires == false { return 288 }
+            let count = model.page?.items.count ?? 0
+            if count == 0 { return 196 }
+            return min(288, CGFloat(44 + count * 70 + 44 + 8))
         }
-        let count = model.page?.items.count ?? 0
-        if count == 0 { return 196 }
-        return min(288, CGFloat(44 + count * 70 + 44 + 8))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Group {
-                if let pending = model.variableUse {
+                switch screen {
+                case .variable(let pending):
                     VariableFillView(template: pending.template, title: pending.item.title,
                         actionTitle: pending.mode == .copy ? "完成文をコピー" : "完成文を入力",
                         compact: true, availability: pending.availability,
                         cancel: model.cancelVariableUse, valueEdited: model.noteVariableValueEditing,
                         complete: { variableCompletion = VariableCompletion(values: $0) })
                         .id(pending.id)
-                } else if let detail = model.detail {
+                case .detail(let detail):
                     KeyboardDetailView(detail: detail, model: model, taskOwner: taskOwner, focus: $focusedControl)
-                } else {
+                case .browse:
                     KeyboardBrowseView(model: model, taskOwner: taskOwner, focus: $focusedControl,
                         detailOrigin: $detailOrigin, listPosition: $listPosition)
                 }
@@ -64,11 +80,13 @@ struct KeyboardView: View {
         .onChange(of: model.detail?.id) {
             if model.detail != nil {
                 focusedControl = "back"
-            } else if let detailOrigin, model.page?.items.contains(where: { $0.id == detailOrigin }) == true {
-                focusedControl = "more.\(detailOrigin)"
-            } else {
-                focusedControl = "filter.\(model.request.filter.rawValue)"
+                return
             }
+            if let detailOrigin, model.page?.items.contains(where: { $0.id == detailOrigin }) == true {
+                focusedControl = "more.\(detailOrigin)"
+                return
+            }
+            focusedControl = "filter.\(model.request.filter.rawValue)"
         }
         .onChange(of: model.loadID) { taskOwner.endScreen() }
         .onChange(of: preferredHeight, initial: true) { _, height in setPreferredHeight(height) }

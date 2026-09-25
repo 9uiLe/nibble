@@ -158,7 +158,21 @@ def violations(source):
                     break
         following = [item.text for item in tokens[next_index:next_index + 2]]
         message = None
-        if token.text == "Task" and not (len(following) == 2 and following[0] == "." and following[1] in TASK_PRIMITIVES):
+        if token.text == "else" and source[token.offset] != "`":
+            if following[:1] == ["if"]:
+                message = "Use a typed state and switch or separate guard clauses instead of else if."
+            elif following[:1] == ["{"]:
+                depth = 1
+                for inner_index in range(next_index + 1, len(tokens)):
+                    inner = tokens[inner_index]
+                    depth += (inner.text == "{") - (inner.text == "}")
+                    if depth == 0:
+                        break
+                    if (depth == 1 and inner.text == "if" and source[inner.offset] != "`"
+                            and tokens[inner_index - 1].text != "#"):
+                        message = "Do not nest if directly in an else block; use a typed state, switch, or guard clauses."
+                        break
+        elif token.text == "Task" and not (len(following) == 2 and following[0] == "." and following[1] in TASK_PRIMITIVES):
             message = "Use Tasking ViewTaskStore / TaskingCore TaskSlot instead of raw Task creation, handles, or aliases."
         elif token.text in UNMANAGED_TYPES:
             message = "Use Tasking for unstructured work; raw scheduling types are prohibited."

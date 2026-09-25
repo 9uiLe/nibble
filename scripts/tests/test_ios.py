@@ -55,6 +55,28 @@ class DeviceSelectionTests(unittest.TestCase):
             self.select()
 
 
+class PastePermissionTests(unittest.TestCase):
+    def test_native_paste_permission_is_accepted_before_checking_input(self):
+        run = ios.Run.__new__(ios.Run)
+        run.args = SimpleNamespace(device="selected")
+        run.command = Mock(return_value="")
+        run.ui = Mock(side_effect=[
+            {"appPackage": "com.apple.springboard", "entries": [
+                {"role": "Button", "label": "ペーストを許可"}]},
+            {"appPackage": "nibble.9uiLe.com", "entries": [
+                {"uniqueId": "editor.body", "value": "本文"}]},
+        ])
+        run.wait_ui = Mock(return_value={"entries": []})
+
+        run.paste_text("本文", ["--target-id", "editor.body"],
+                       lambda data: any(e.get("value") == "本文" for e in data["entries"]))
+
+        self.assertEqual(run.command.call_args_list[1].args[0], [
+            "sim-use", "tap", "--label", "ペーストを許可", "--element-type", "Button",
+            "--device", "selected"])
+        run.wait_ui.assert_called_once()
+
+
 class ResultTests(unittest.TestCase):
     def test_simulator_signing_never_uses_a_developer_identity(self):
         self.assertEqual(ios.simulator_signing_arguments({}), ["CODE_SIGNING_ALLOWED=NO"])

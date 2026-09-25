@@ -6,10 +6,13 @@ struct SettingsView: View {
     // Refresh parent-owned inputs even when the macro excludes their values.
     private let inputRevision = UUID()
     @SkipEquatable let subscription: ProSubscription
-    let showTrash: () -> Void
+    @SkipEquatable let store: any LibraryStorage & DraftEditing
+    @SkipEquatable let effects: any LibraryEffects
+    let onTrashReturn: () -> Void
 
     var body: some View {
-        SettingsList(version: .current, subscription: subscription, showTrash: showTrash)
+        SettingsList(version: .current, subscription: subscription, store: store,
+                     effects: effects, onTrashReturn: onTrashReturn)
         .background(Color.nibbleCanvas)
         .navigationTitle("設定")
         .toolbarTitleDisplayMode(.inline)

@@ -11,17 +11,23 @@ struct KeyboardSnippetRow: View {
     @Binding var detailOrigin: UUID?
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             Button { taskOwner.startTask(item, as: .insert, on: model) } label: {
                 KeyboardRowContent(item: item)
-                    .padding(.leading, 12).padding(.trailing, 8).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("\(item.displayTitle)を入力")
             .accessibilityValue(item.pinned ? "ピン留め済み" : "")
             .accessibilityHint("保存した本文を入力中のアプリに挿入します")
             .accessibilityIdentifier("keyboard.insert.\(item.id)")
+
+            Rectangle()
+                .fill(Color(uiColor: .separator))
+                .frame(width: 1)
+
             Button {
                 detailOrigin = item.id
                 model.openDetail(item)
@@ -34,11 +40,8 @@ struct KeyboardSnippetRow: View {
                 }
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
-                .frame(width: 76, height: 70)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(Color(uiColor: .separator))
-                        .frame(width: 1, height: 44)
-                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle())
             }
             .accessibilityLabel("\(item.displayTitle)の全文を見る")

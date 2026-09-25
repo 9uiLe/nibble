@@ -48,11 +48,13 @@ struct LibraryScreen: View {
         .navigationTitle(surface.title)
         .toolbarTitleDisplayMode(.inline)
         .toolbar(surface.isRoot ? .hidden : .visible, for: .navigationBar)
-        .confirmationDialog("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } }), titleVisibility: .visible) {
+        .alert("完全に削除しますか？", isPresented: Binding(get: { permanentDeletion != nil }, set: { if !$0 { permanentDeletion = nil } })) {
             if let item = permanentDeletion {
                 Button("完全に削除", role: .destructive) { taskOwner.startTask(.permanentlyDelete(item.id), on: model); permanentDeletion = nil }
                     .accessibilityIdentifier("library.confirmPermanentDelete")
             }
+            Button("キャンセル", role: .cancel) { permanentDeletion = nil }
+                .accessibilityIdentifier("library.cancelPermanentDelete")
         } message: {
             if let item = permanentDeletion {
                 Text("「\(item.displayTitle)」と、この項目の下書きを完全に削除します。元に戻せません。")
@@ -69,8 +71,16 @@ struct LibraryScreen: View {
             if model.readDemand != nil { taskOwner.startTask(.refresh, on: model) }
         }
         .onChange(of: scenePhase) {
-            if scenePhase == .active && model.refreshOnAppearance { taskOwner.startTask(.refresh, on: model) }
-            else if scenePhase == .background { taskOwner.endScreen() }
+            switch scenePhase {
+            case .active:
+                if model.refreshOnAppearance { taskOwner.startTask(.refresh, on: model) }
+            case .background:
+                taskOwner.endScreen()
+            case .inactive:
+                break
+            @unknown default:
+                break
+            }
         }
         .onDisappear {
             taskOwner.endScreen()

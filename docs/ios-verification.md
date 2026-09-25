@@ -187,7 +187,7 @@ python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_S
 
 通常は`verify.py run --scope product`で製品テストとUI工程を実行する。`library-ui`工程は`check_library_ui.py`で基本操作を検査する。作成・下書き・編集・検索・原文コピー・ピン・削除と復元を確認し、期待結果は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)へ対応させる。
 
-`library-ui`は本体の検索欄で日本語の貼り付けと部分一致を確認する。削除一覧のOS検索欄はキーボード直上に出るため、識別用の英数字をHIDで入力して検索・復元を確認する。この工程は削除一覧での日本語入力を検証しない。
+`library-ui`は本体の検索欄で日本語の貼り付けと部分一致を確認する。削除一覧のOS検索欄では専用Simulatorの貼り付け操作で識別用文字列を入力し、検索・復元を確認する。初回のOS貼り付け許可は検証CLIが確認して進める。この工程は削除一覧での日本語入力を検証しない。
 
 固定表示は`check_interface_ui.py --device "$NIBBLE_SIMULATOR"`で一覧・編集・設定・両説明画面を巡回する。標準と最大文字サイズ・高コントラストの配置を比較し、最小文字はhostedテストで確認する。OS所有の入力UIやVoiceOver音声を画像比較の合格に含めない。
 

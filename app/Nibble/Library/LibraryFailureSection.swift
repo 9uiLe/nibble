@@ -15,23 +15,24 @@ struct LibraryFailureSection: View {
                     .font(.headline).foregroundStyle(.primary)
                     .accessibilityIdentifier("library.error")
                 Text(failure.message).font(.callout).foregroundStyle(.primary)
-                if failure.recovery == .reload {
+                switch failure.recovery {
+                case .reload:
                     Button("一覧を再読み込み") { taskOwner.startTask(.reload, on: model) }
                         .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.regular)
                         .accessibilityIdentifier("library.reload")
-                } else if failure.recovery == .retryUsage {
+                case .retryUsage:
                     Button("回数と日時を記録し直す") { taskOwner.startTask(.retryUsage, on: model) }
                         .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.regular)
                         .accessibilityIdentifier("library.retryUsage")
-                } else if case .retryRestore(let id) = failure.recovery {
+                case .retryRestore(let id):
                     Button("もう一度復元する") { taskOwner.startTask(.restore(id), on: model) }
                         .font(.nibbleTitle)
                         .buttonStyle(.bordered).controlSize(.regular)
                         .disabled(model.restoringIDs.contains(id))
                         .accessibilityIdentifier("library.retryRestore")
-                } else {
+                case .dismiss:
                     Button { model.dismissFailure() } label: {
                         Label("閉じる", systemImage: "xmark")
                             .modifier(IconControlStyle())

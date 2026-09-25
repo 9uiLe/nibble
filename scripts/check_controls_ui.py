@@ -30,7 +30,7 @@ def main():
                 frame = entry['frame']
                 # Native navigation items expose their 36pt visual bounds in AX;
                 # UIKit owns the surrounding hit area. Exercise each actual action.
-                native = identifier in ('editor.close', 'editor.save', 'editor.help.close', 'library.trash.close')
+                native = identifier in ('editor.close', 'editor.save', 'editor.help.close', 'BackButton')
                 minimum = 36 if native else 44
                 if frame['width'] < minimum or frame['height'] < minimum:
                     raise VerificationError('Control is smaller than its touch target: ' + str(entry))
@@ -69,11 +69,14 @@ def main():
                     raise VerificationError('Settings version differs from the installed bundle')
                 run.screenshot('settings-version-disclosures')
                 run.tap('library.trash')
-                data = run.wait_ui('deleted', lambda d: 'library.trash.close' in identifiers(d))
-                controls(data, ('library.trash.close',))
-                run.screenshot('deleted-close')
-                run.tap('library.trash.close')
-                run.wait_ui('settings-returned', lambda d: 'settings.version' in identifiers(d) and 'library.trash.close' not in identifiers(d))
+                data = run.wait_ui('deleted', lambda d: 'BackButton' in identifiers(d)
+                                   and any(e.get('role') == 'Heading' and e.get('label') == '削除した項目'
+                                           for e in d['entries']))
+                controls(data, ('BackButton',))
+                run.screenshot('deleted-back')
+                run.tap('BackButton')
+                run.wait_ui('settings-returned', lambda d: 'settings.version' in identifiers(d)
+                            and 'library.trash' in identifiers(d))
                 run.workspace()
                 run.tap('library.add')
                 data = run.wait_ui('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))

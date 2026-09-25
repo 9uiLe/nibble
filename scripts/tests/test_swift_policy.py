@@ -10,6 +10,30 @@ from check_swift_policy import SwiftLexer, check, violations
 
 
 class SwiftPolicyTests(unittest.TestCase):
+    def test_else_if_is_rejected_across_whitespace_and_comments(self):
+        for source in (
+            'if first {} else if second {}',
+            'if first {} else\nif second {}',
+            'if first {} else /* explanation */ if second {}',
+            'if first {} else { if second {} }',
+            'if first {} else { work(); if second {} }',
+            'guard first else { /* explanation */ if second {} }',
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(any('else if' in message or 'nest if directly' in message
+                                    for _, _, message in violations(source)))
+        for source in (
+            'let example = "else if"',
+            '// else if\nif first {} else {}',
+            '/* else if */ if first {} else {}',
+            'let `else` = true\nif `else` {}',
+            'if first {} else { switch second { case true: if third {} default: break } }',
+            'if first {} else { #if DEBUG\nwork()\n#endif }',
+        ):
+            with self.subTest(source=source):
+                self.assertFalse(any('else if' in message or 'nest if directly' in message
+                                     for _, _, message in violations(source)))
+
     def test_layers_reject_inward_dependencies_and_keep_ports_framework_independent(self):
         sources = {
             'app/Shared/Domain/Value.swift': 'import Foundation\nstruct Value {}',
