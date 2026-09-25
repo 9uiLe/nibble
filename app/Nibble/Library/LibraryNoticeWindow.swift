@@ -46,8 +46,12 @@ struct LibraryNoticeWindow: UIViewRepresentable {
             }
             if let noticeWindow, noticeWindow.windowScene === scene {
                 bottomConstraint?.constant = bottomBoundary
-                host?.rootView = content
-                noticeWindow.hasNotice = { [weak model = content.model] in model?.notice != nil }
+                // Observation refreshes the mounted notice when its model changes.
+                // Replace the root only if the owner itself changes.
+                if host?.rootView.model !== content.model || host?.rootView.taskOwner !== content.taskOwner {
+                    host?.rootView = content
+                    noticeWindow.hasNotice = { [weak model = content.model] in model?.notice != nil }
+                }
                 return
             }
             dismiss()

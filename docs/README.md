@@ -12,6 +12,7 @@ nibbleは、端末内に保存した文章やURLを探し、コピーまたは�
 | --- | --- |
 | [製品仕様](product-specification.md) | 目的、要件、原文・保存・操作・回復の契約 |
 | [architecture](architecture/README.md) | 構成、責務、依存、OSと保存層の境界 |
+| [画面の状態と応答性](architecture/responsiveness.md) | 画面・scene・拡張の状態所有、Taskの寿命、UIKit接続と配置 |
 | [編集とMarkdown](architecture/editing.md) | 原文・表示用データ・フォーカス・保存の責務と寿命 |
 | [変数の編集と利用](architecture/variables.md) | 印の挿入、値の入力、原文と完成文、確定の状態 |
 | [収益と機能アクセス](architecture/monetization.md) | 無料/Proの機能判定、権利、広告と計測の境界 |
@@ -27,3 +28,5 @@ nibbleは、端末内に保存した文章やURLを探し、コピーまたは�
 | [reference](reference/README.md) | 外部仕様・一次資料の確認範囲と適用限界 |
 
 採用仕様、外部資料、未解決の評価課題、実行結果は異なる情報です。設計の定義は上表の文書に置き、特定ソースの成否・画面・測定値はGit管理外の`artifacts/`へ記録します。検査コマンドの存在や設計台帳の記載は、あるビルドで検証を完了したという申告ではありません。
+
+各資料は現在の目的・仕様・制約・理由を直接説明する。会話や差分の経緯を知らない読者でも意味が通る文章にし、`scripts/check_docs.py`が経緯を前提にした定型表現を検出する。

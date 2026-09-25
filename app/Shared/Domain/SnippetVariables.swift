@@ -3,6 +3,10 @@ import Foundation
 /// Variable markers live in the original body. Expansion produces a new value only
 /// when the user explicitly uses the snippet; it never edits the saved text.
 struct SnippetVariables: Sendable, Equatable {
+    enum NameIssue: Sendable, Equatable {
+        case empty, tooLong, unsupportedCharacter
+    }
+
     let body: String
     let names: [String]
     private let parts: [Part]
@@ -21,7 +25,7 @@ struct SnippetVariables: Sendable, Equatable {
         while let start = body.range(of: "{{", range: cursor..<body.endIndex),
               let end = body.range(of: "}}", range: start.upperBound..<body.endIndex) {
             parts.append(.text(body[cursor..<start.lowerBound]))
-            let name = String(body[start.upperBound..<end.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let name = Self.canonicalName(String(body[start.upperBound..<end.lowerBound]))
             if Self.valid(name) {
                 parts.append(.variable(name))
             } else {
@@ -78,11 +82,24 @@ struct SnippetVariables: Sendable, Equatable {
     }
 
     static func valid(_ name: String) -> Bool {
-        !name.isEmpty && name.count <= 40 && !name.contains("{") && !name.contains("}")
-            && !name.contains("\n") && !name.contains("\r")
+        nameIssue(name) == nil
+    }
+
+    static func canonicalName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespaces)
+    }
+
+    static func nameIssue(_ name: String) -> NameIssue? {
+        let canonical = canonicalName(name)
+        if canonical.isEmpty { return .empty }
+        if canonical.count > 40 { return .tooLong }
+        if canonical.contains("{") || canonical.contains("}") || canonical.contains("\n") || canonical.contains("\r") {
+            return .unsupportedCharacter
+        }
+        return nil
     }
 
     static func marker(for name: String) -> String? {
-        valid(name) ? "{{\(name)}}" : nil
+        valid(name) ? "{{\(canonicalName(name))}}" : nil
     }
 }

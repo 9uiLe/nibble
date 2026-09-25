@@ -39,6 +39,7 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | 環境を用意して起動する | この文書のセットアップ、[製品の実行手順](docs/ios-verification.md) |
 | 変更に必要な規約・検査を知る | [開発ガイド](CONTRIBUTING.md)、[テストの設計と選択](docs/testing.md)、[エージェント向け入口](AGENTS.md) |
 | データ・状態・失敗回復を理解する | [製品仕様・要件](docs/product-specification.md)、[Swift規約](docs/library-policy.md) |
+| 画面の状態・非同期処理・描画を変更する | [画面の状態と応答性](docs/architecture/responsiveness.md)、[性能検証](docs/performance-verification.md) |
 | 変数の編集・入力・出力を理解する | [変数の編集と利用](docs/architecture/variables.md)、[操作検証](docs/ios-verification.md#変数の編集と利用を確認する) |
 | 無料・Proの機能と収益の構成を理解する | [収益と機能アクセス](docs/architecture/monetization.md) |
 | UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |

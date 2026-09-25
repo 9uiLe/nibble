@@ -16,7 +16,12 @@ struct SnippetTests {
 
     @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
         #expect(SnippetVariables.marker(for: "宛名") == "{{宛名}}")
+        #expect(SnippetVariables.marker(for: " 宛名 ") == "{{宛名}}")
         #expect(SnippetVariables.marker(for: "") == nil)
+        #expect(SnippetVariables.marker(for: "   ") == nil)
+        #expect(SnippetVariables.nameIssue(String(repeating: "長", count: 41)) == .tooLong)
+        #expect(SnippetVariables.nameIssue("改行\nあり") == .unsupportedCharacter)
+        #expect(SnippetVariables.nameIssue("波{括弧") == .unsupportedCharacter)
         let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
         let template = SnippetVariables(original)
         #expect(template.names == ["宛名", "日付"])

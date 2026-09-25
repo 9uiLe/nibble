@@ -65,7 +65,7 @@ struct EditorBodyField: View {
                     .accessibilityIdentifier("editor.bodyRequirement")
             }
             if availability == .included {
-                Text("{{宛名}}は使用時に差し替えます。保存した本文は変わりません。")
+                Text("変数の値は使用時に入力します。保存した本文は変わりません。")
                     .font(.nibbleBody).foregroundStyle(.secondary)
             }
         }

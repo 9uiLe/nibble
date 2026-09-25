@@ -62,7 +62,7 @@ def main():
             # when the simulator hides the software keyboard.
             run.command(["sim-use", "ios", "key", "40", "--device", args.device])
 
-    def paste_search(text):
+    def enter_search(text, *, type_with_hid=False):
         data = run.wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
         if "search.clear" in identifiers(data):
             run.tap("search.clear")
@@ -71,6 +71,13 @@ def main():
         frame = search_fields(data)[0]["frame"]
         x, y = frame["x"] + frame["width"] / 2, frame["y"] + frame["height"] / 2
         run.command(["sim-use", "tap", "--point", f"{x},{y}", "--device", args.device])
+        if type_with_hid:
+            if not text.isascii():
+                raise VerificationError("HID search input requires ASCII text")
+            run.command(["sim-use", "type", "--device", args.device, text])
+            run.wait_ui("search-typed", lambda d: any(
+                text in (field.get("value") or "") for field in search_fields(d)))
+            return
         run.command(["sim-use", "paste", "--device", args.device, text])
         for _ in range(3):
             applied = run.ui("search-paste-applied")
@@ -78,7 +85,7 @@ def main():
                 return
             time.sleep(0.15)
         # A simulator without a connected hardware keyboard drops Cmd+V.
-        run.command(["sim-use", "paste", "--via-menu", "--target-x", str(x),
+        run.command(["sim-use", "paste", "--via-menu", "--menu-timeout", "5", "--target-x", str(x),
                      "--target-y", str(y), "--device", args.device, text])
 
     def clear_search():
@@ -186,7 +193,7 @@ def main():
                 # Identify this run's item through a unique Japanese search term.
                 # A visible-row difference can mistake an older, newly revealed row
                 # for the saved item when the keyboard or existing pins change layout.
-                paste_search(title)
+                enter_search(title)
                 data = run.wait_ui("searched", lambda data: any(
                     e.get("uniqueId", "").startswith("snippet.") and e.get("label") == title
                     for e in data["entries"]))
@@ -247,7 +254,7 @@ def main():
                 run.tap("search.field")
                 run.wait_ui("independent-search-focused", search_active)
                 # The query remains independent from the library's pinned filter.
-                paste_search(title)
+                enter_search(title)
                 run.wait_ui("independent-search", lambda data: row in identifiers(data))
                 submit_search()
                 run.wait_ui("independent-search-submitted", lambda data: not search_active(data))
@@ -285,7 +292,7 @@ def main():
                 run.wait_ui("search-opened-again", lambda data: "search.field" in identifiers(data))
                 run.tap("search.field")
                 run.wait_ui("search-refocused", search_active)
-                paste_search(title)
+                enter_search(title)
                 run.wait_ui("pin-search-result", lambda data: row in identifiers(data))
                 submit_search()
                 run.wait_ui("pin-search-submitted", lambda data: not search_active(data))
@@ -304,7 +311,7 @@ def main():
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "discarded-copy") != edited_body:
                     raise VerificationError("Discard changed the saved snippet's original text")
                 clear_search()
-                paste_search("該当なし-" + uuid4().hex)
+                enter_search("該当なし-" + uuid4().hex)
                 run.wait_ui("search-empty", lambda data: not any(
                     e.get("uniqueId", "").startswith("snippet.") for e in data["entries"]))
                 run.screenshot("search-empty")
@@ -322,11 +329,13 @@ def main():
                 run.wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
                 run.tap("library.trash")
                 run.wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
-                paste_search("該当なし-" + uuid4().hex)
+                # The native trash search sits directly above the software keyboard.
+                # Use HID for its ASCII query; the workspace search above checks Unicode paste.
+                enter_search("missing-" + uuid4().hex, type_with_hid=True)
                 run.wait_ui("trash-search-empty", lambda data: any(
                     e.get("label") == "見つかりませんでした" for e in data["entries"]))
                 clear_search()
-                paste_search(title)
+                enter_search(title.rsplit(" ", 1)[-1], type_with_hid=True)
                 run.wait_ui("trash-search-result", lambda data: "restore." + snippet_id in identifiers(data))
                 submit_search()
                 run.wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))

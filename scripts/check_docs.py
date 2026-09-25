@@ -17,6 +17,10 @@ from script_ui import ui
 
 from check_swift_policy import GENERATED, violations
 
+CONTEXT_DEPENDENT_PHRASES = (
+    '以前は', '今回の変更で', '新方式', '旧方式', '暫定的に', '議論したとおり',
+)
+
 def markdown_files(root):
     for directory, folders, files in root.walk(follow_symlinks=False):
         folders[:] = sorted(n for n in folders if n not in GENERATED and n != 'result' and not n.startswith('result-'))
@@ -56,13 +60,21 @@ class Document:
     swift_examples: tuple[tuple[int, str], ...]
     frontmatter: str | None
     command_paths: tuple[str, ...]
+    context_dependent_prose: tuple[tuple[int, str], ...]
 
 
 def inspect_document(source):
     """Parse one source into compact facts. No filesystem or shared parser state."""
     tokens = MarkdownIt('commonmark').parse(source)
-    links, examples, command_paths = [], [], []
+    links, examples, command_paths, context_dependent_prose = [], [], [], []
     for token in tokens:
+        if token.type == 'inline':
+            for child in token.children or []:
+                if child.type != 'text':
+                    continue
+                for phrase in CONTEXT_DEPENDENT_PHRASES:
+                    if phrase in child.content:
+                        context_dependent_prose.append(((token.map or [0])[0] + 1, phrase))
         for child in token.children or []:
             target = child.attrGet('href') if child.type == 'link_open' else child.attrGet('src') if child.type == 'image' else None
             if target is not None:
@@ -77,12 +89,14 @@ def inspect_document(source):
                 token.content))
     front = re.match(r'\A---\n(.*?)\n---(?:\n|$)', source, flags=re.S)
     return Document(frozenset(anchors(tokens)), tuple(links), tuple(examples), front[1] if front else None,
-                    tuple(command_paths))
+                    tuple(command_paths), tuple(context_dependent_prose))
 
 
 def document_errors(document, relative):
     """Apply path-specific contracts after parsing, including aliases of the same source."""
     errors = []
+    for line, phrase in document.context_dependent_prose:
+        errors.append(f'{relative}:{line}: context-dependent design prose: {phrase}')
     if relative == 'docs/library-policy.md':
         for line, source in document.swift_examples:
             found = violations(source)

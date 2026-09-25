@@ -12,7 +12,7 @@ struct EditorVariablePicker: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let trimmed = SnippetVariables.canonicalName(name)
         let issue = nameIssue(trimmed)
         let canCreate = issue == nil
         let createButton = Button {
@@ -117,12 +117,13 @@ struct EditorVariablePicker: View {
     }
 
     private func nameIssue(_ trimmed: String) -> String? {
-        if trimmed.isEmpty { return "名前を入力すると追加できます。" }
-        if existing.contains(trimmed) { return "この名前は既にあります。上の行から追加してください。" }
-        if trimmed.count > 40 { return "名前は40文字以内にしてください。" }
-        if trimmed.contains("{") || trimmed.contains("}") || trimmed.contains("\n") || trimmed.contains("\r") {
-            return "名前に波括弧と改行は使えません。"
+        switch SnippetVariables.nameIssue(trimmed) {
+        case .empty: return "名前を入力すると追加できます。"
+        case .tooLong: return "名前は40文字以内にしてください。"
+        case .unsupportedCharacter: return "名前に波括弧と改行は使えません。"
+        case nil: break
         }
-        return SnippetVariables.valid(trimmed) ? nil : "名前を確認してください。"
+        if existing.contains(trimmed) { return "この名前は既にあります。上の行から追加してください。" }
+        return nil
     }
 }
