@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "キーボードの行入力・詳細復帰・固定表示を仕様とSimulatorで照合した。",
+  "summary": "キーボード詳細の操作を維持して戻ると下部操作の装飾を軽くし、明暗の表示を照合した。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md"
@@ -81,8 +81,8 @@
     "app/NibbleKeyboard/KeyboardBrowseView.swift": "bd863328f6c2a44f60d40a6058bac2c270039c53180a3e250f9cad9245ac5cc6",
     "app/NibbleKeyboard/KeyboardControlStyle.swift": "e2715879318643f0bb66b550c4ff62915a028e49a2c57fb341e3e37837895246",
     "app/NibbleKeyboard/KeyboardControls.swift": "09ea9d6e17dc11a97f63d4ad7439a5bfe7d5eb6e8b4dbbf1323cbcf1f81e4e04",
-    "app/NibbleKeyboard/KeyboardDetailActions.swift": "8870e73c0209e10d0f8827ad1ea41c2728865bb06376dfd0ef5ce5638d5b0cad",
-    "app/NibbleKeyboard/KeyboardDetailHeader.swift": "1560e06b62c51106ed0ef9548cb9bbfe965d10596c57384888a554b924fb8ced",
+    "app/NibbleKeyboard/KeyboardDetailActions.swift": "2a7551dadb6c8a77721cf44ff637852cb8af0589c277e5382de5531125c260d4",
+    "app/NibbleKeyboard/KeyboardDetailHeader.swift": "e07565be8244bec39716d7d8ce15419d5eb5544283327f3026fc778e8d251993",
     "app/NibbleKeyboard/KeyboardDetailView.swift": "344fcb6999761d51265e0953da6e68da6fe10e98eadad922a55cc7780fa29414",
     "app/NibbleKeyboard/KeyboardFilterBar.swift": "d7a3bf7c43466eeb5e5b4d1e82dbd8c2ff562577614de033db835fd0f40bbf89",
     "app/NibbleKeyboard/KeyboardFilterSegments.swift": "d5a34753f005bb10f142867a5f117eae4a660c0f38d334491905902d85043917",

@@ -14,9 +14,7 @@ struct KeyboardDetailActions: View {
                 Label("クリップボードへコピー", systemImage: model.hasFullAccess ? "doc.on.doc" : "lock.doc")
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .padding(.horizontal, 4)
-                    .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color(uiColor: .separator), lineWidth: 1))
+                    .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 8))
             }
             .accessibilityIdentifier("keyboard.copy.\(detail.item.id)")
             .accessibilityHint(model.hasFullAccess ? "本文をコピーします" : "フルアクセスの設定方法を表示します")
@@ -24,7 +22,7 @@ struct KeyboardDetailActions: View {
                 Text("入力先へ入力").fontWeight(.semibold)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .foregroundStyle(.white)
-                    .background(Color(uiColor: .systemBlue), in: .rect(cornerRadius: 10))
+                    .background(Color(uiColor: .systemBlue), in: .rect(cornerRadius: 8))
             }
             .accessibilityIdentifier("keyboard.detail.insert")
         }

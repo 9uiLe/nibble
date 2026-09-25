@@ -18,13 +18,12 @@ struct KeyboardDetailHeader: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .frame(width: 76, height: 44)
-                .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 8))
                 .contentShape(Rectangle())
             }
-                .buttonStyle(.plain)
-                .accessibilityLabel("一覧に戻る")
-                .accessibilityIdentifier("keyboard.back")
-                .accessibilityFocused(focus, equals: "back")
+            .buttonStyle(.plain)
+            .accessibilityLabel("一覧に戻る")
+            .accessibilityIdentifier("keyboard.back")
+            .accessibilityFocused(focus, equals: "back")
             Text(detail.item.displayTitle).font(.subheadline.weight(.semibold))
                 .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
