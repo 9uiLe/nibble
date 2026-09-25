@@ -13,6 +13,8 @@ struct KeyboardDetailHeader: View {
         HStack(spacing: 8) {
             Button("一覧に戻る", systemImage: "chevron.left", action: model.closeDetail)
                 .labelStyle(.iconOnly)
+                .frame(width: 48, height: 44)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("keyboard.back")
                 .accessibilityFocused(focus, equals: "back")
             Text(detail.item.displayTitle).font(.subheadline.weight(.semibold))

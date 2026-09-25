@@ -8,6 +8,7 @@ struct KeyboardListContent: View {
     @SkipEquatable let taskOwner: KeyboardTaskOwner
     @SkipEquatable let focus: AccessibilityFocusState<String?>.Binding
     @Binding var detailOrigin: UUID?
+    @Binding var listPosition: UUID?
 
     var body: some View {
         ScrollView {
@@ -28,6 +29,7 @@ struct KeyboardListContent: View {
                             KeyboardSnippetRow(item: item, model: model, taskOwner: taskOwner, focus: focus, detailOrigin: $detailOrigin)
                             if item.id != page.items.last?.id { Divider().padding(.horizontal, 12) }
                         }
+                        .id(item.id)
                     }
                     .disabled(!model.isCurrent || model.isUsing)
                 } else if model.loading {
@@ -37,15 +39,18 @@ struct KeyboardListContent: View {
                         Text(model.request.filter == .pinned ? "ピン留めした項目はありません" : "保存した項目はありません")
                             .font(.subheadline.weight(.semibold))
                         Text(model.request.filter == .pinned
-                            ? "「すべて」で項目の「全文」を開くと、ピン留めできます。"
+                            ? "「すべて」で項目の「全文を見る」を押すと、ピン留めできます。"
                             : "nibbleで文章やURLを保存すると、ここから入力できます。")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     .multilineTextAlignment(.center).padding(16).frame(maxWidth: .infinity)
                 }
             }
+            .scrollTargetLayout()
         }
         .id(model.request)
+        .scrollPosition(id: $listPosition)
+        .onChange(of: model.request) { listPosition = nil }
         .overlay {
             if model.loading, model.page?.items.isEmpty == false {
                 ProgressView().accessibilityLabel("読み込み中")

@@ -15,6 +15,8 @@ struct KeyboardDetailActions: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .padding(.horizontal, 4)
                     .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(Color(uiColor: .separator), lineWidth: 1))
             }
             .accessibilityIdentifier("keyboard.copy.\(detail.item.id)")
             .accessibilityHint(model.hasFullAccess ? "本文をコピーします" : "フルアクセスの設定方法を表示します")
@@ -29,5 +31,6 @@ struct KeyboardDetailActions: View {
         .font(.caption).buttonStyle(.plain)
         .disabled(model.isUsing || detail.body == nil || !model.isCurrent)
         .padding(.horizontal, 10).padding(.top, 6)
+        .background(Color(uiColor: .secondarySystemBackground))
     }
 }

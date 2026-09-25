@@ -8,6 +8,7 @@ struct KeyboardBrowseView: View {
     @SkipEquatable let taskOwner: KeyboardTaskOwner
     @SkipEquatable let focus: AccessibilityFocusState<String?>.Binding
     @Binding var detailOrigin: UUID?
+    @Binding var listPosition: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +22,8 @@ struct KeyboardBrowseView: View {
                     .accessibilityIdentifier("keyboard.refresh")
             }
             .padding(.horizontal, 10)
-            KeyboardListContent(model: model, taskOwner: taskOwner, focus: focus, detailOrigin: $detailOrigin)
+            KeyboardListContent(model: model, taskOwner: taskOwner, focus: focus,
+                detailOrigin: $detailOrigin, listPosition: $listPosition)
                 .modifier(KeyboardPanelStyle())
         }
     }

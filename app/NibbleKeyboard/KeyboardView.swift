@@ -14,6 +14,7 @@ struct KeyboardView: View {
     @State private var taskOwner = KeyboardTaskOwner()
     @AccessibilityFocusState private var focusedControl: String?
     @State private var detailOrigin: UUID?
+    @State private var listPosition: UUID?
     @State private var variableCompletion: VariableCompletion?
 
     private var preferredHeight: CGFloat {
@@ -27,7 +28,7 @@ struct KeyboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
+            Group {
                 if let pending = model.variableUse {
                     VariableFillView(template: pending.template, title: pending.item.title,
                         actionTitle: pending.mode == .copy ? "完成文をコピー" : "完成文を入力",
@@ -35,14 +36,11 @@ struct KeyboardView: View {
                         cancel: model.cancelVariableUse, valueEdited: model.noteVariableValueEditing,
                         complete: { variableCompletion = VariableCompletion(values: $0) })
                         .id(pending.id)
+                } else if let detail = model.detail {
+                    KeyboardDetailView(detail: detail, model: model, taskOwner: taskOwner, focus: $focusedControl)
                 } else {
-                    KeyboardBrowseView(model: model, taskOwner: taskOwner, focus: $focusedControl, detailOrigin: $detailOrigin)
-                        .opacity(model.detail == nil ? 1 : 0)
-                        .allowsHitTesting(model.detail == nil)
-                        .accessibilityHidden(model.detail != nil)
-                    if let detail = model.detail {
-                        KeyboardDetailView(detail: detail, model: model, taskOwner: taskOwner, focus: $focusedControl)
-                    }
+                    KeyboardBrowseView(model: model, taskOwner: taskOwner, focus: $focusedControl,
+                        detailOrigin: $detailOrigin, listPosition: $listPosition)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
