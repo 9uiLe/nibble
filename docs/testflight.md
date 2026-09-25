@@ -142,6 +142,6 @@ scripts/deploy-testflight.sh --build-number 202609170900
 
 生成物はGit管理外とする。共有する実行記録にはmanifestを使い、archive・IPA・生ログをPRへ添付しない。manifestの`completed: true`はexportまたはuploadの工程完了を表す。グループへの配信や実機の動作確認は別に記録する。
 
-`steps`は`checks`、`prepare-rive-runtime`、`resolve`、`archive`、`upload`（dry-runは`export`）の時刻・秒数・成否を持つ。工程間の差はスクリプト内の確認と準備であり、ネットワーク待ちなど各工程の内訳を示すものではない。実行中または強制終了した工程は`running`のまま残り得るため、成功と扱わない。配布担当者はApple側で処理完了・「本人用」で利用可能になったUTC時刻を別途`artifacts/testflight/<build>/availability.json`へ、`processed_at`・`available_at`・`observed_at`・`source`（確認画面など）を記録する。Appleが正確な時刻を示さない場合は`processed_at`や`available_at`を`null`とし、観測した時刻を実際の遷移時刻と混同しない。エージェントはApple側の状態を推測して埋めない。
+`steps`は`checks`、`prepare-rive-runtime`、`resolve`、`archive`、`upload`（dry-runは`export`）の時刻・秒数・成否を持つ。工程間の差はスクリプト内の確認と準備であり、ネットワーク待ちなど各工程の内訳を示すものではない。実行中または強制終了した工程は`running`のまま残り得るため、成功と扱わない。所要時間の改善対象はupload完了までとし、Apple側の処理・グループ反映の待ち時間は含めない。
 
 失敗時は配布担当者が保護されたログを調べ、秘密情報を除いた原因だけをエージェントへ伝える。中断やtimeoutで送信結果が不明な場合はApp Store Connectの受理状況を確認し、必要な場合だけ新しい番号で実行する。自動再試行は行わない。
