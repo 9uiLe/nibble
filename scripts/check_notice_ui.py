@@ -214,7 +214,8 @@ def main():
                                  if e.get("uniqueId") == action + snippet)
                     if frame["width"] < 44 or frame["height"] < 44:
                         raise VerificationError("Deleted item action is smaller than 44pt: " + action)
-                back_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "BackButton")
+                back_before = next(e["frame"] for e in data["entries"]
+                                   if e.get("uniqueId") == "BackButton" and e.get("label") == "設定")
                 run.tap("permanentlyDelete." + snippet)
                 run.wait_ui("trash-delete-confirmation", lambda d: "library.confirmPermanentDelete" in identifiers(d))
                 run.tap("library.cancelPermanentDelete")
@@ -222,7 +223,8 @@ def main():
                             and "library.confirmPermanentDelete" not in identifiers(d))
                 run.tap("restore." + snippet)
                 data = run.wait_ui("trash-notice", lambda d: "library.notice" in identifiers(d))
-                back_during = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "BackButton")
+                back_during = next(e["frame"] for e in data["entries"]
+                                   if e.get("uniqueId") == "BackButton" and e.get("label") == "設定")
                 notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
                 if back_before != back_during or notice["width"] < data["screen"]["width"] - 70:
                     raise VerificationError("Deleted-item notice changed navigation or lost its full width")
