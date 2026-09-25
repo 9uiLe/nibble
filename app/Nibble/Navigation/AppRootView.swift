@@ -63,14 +63,25 @@ struct AppRootView: View {
             })
         }
         .sheet(item: Binding(get: { library.variableCopy }, set: { if $0 == nil { library.cancelVariableCopy() } })) { pending in
-            VariableFillView(template: pending.template, title: pending.title,
-                             actionTitle: "完成文をコピー", compact: false,
-                             availability: pending.availability, cancel: { library.cancelVariableCopy() },
-                             valueEdited: {},
-                             complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
-                .id(pending.id)
-                .presentationDetents([.height(CGFloat(min(510, 290 + pending.template.names.count * 80))), .large])
-                .presentationContentInteraction(.scrolls)
+            NavigationStack {
+                VariableFillView(template: pending.template, title: pending.title,
+                                 actionTitle: "完成文をコピー", compact: false,
+                                 availability: pending.availability, cancel: { library.cancelVariableCopy() },
+                                 valueEdited: {},
+                                 complete: { values in variableCompletion = VariableCompletion(copyID: pending.id, values: values) })
+                    .navigationTitle(pending.availability == .included ? "値を入力" : "変数を利用")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("閉じる") { library.cancelVariableCopy() }
+                                .accessibilityLabel("確定せず閉じる")
+                                .accessibilityIdentifier("variables.cancel")
+                        }
+                    }
+            }
+            .id(pending.id)
+            .presentationDetents([.height(CGFloat(min(510, 290 + pending.template.names.count * 80))), .large])
+            .presentationContentInteraction(.scrolls)
         }
         .tint(.nibbleAccent)
         .onChange(of: noticesPresented) { library.setNoticePresentation(noticesPresented) }

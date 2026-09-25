@@ -30,18 +30,20 @@ struct VariableFillView: View {
             : excerpt
         let displayTitle = SnippetTextPresentation(title: title, body: template.body).title
         return VStack(spacing: 0) {
-            HStack {
-                Text(availability == .included ? "値を入力" : "変数を利用")
-                    .font(.headline)
-                Spacer(minLength: 8)
-                Button("閉じる", action: cancel)
-                    .font(.subheadline)
-                    .accessibilityLabel("確定せず閉じる")
-                    .accessibilityIdentifier("variables.cancel")
+            if compact {
+                HStack {
+                    Text(availability == .included ? "値を入力" : "変数を利用")
+                        .font(.headline)
+                    Spacer(minLength: 8)
+                    Button("閉じる", action: cancel)
+                        .font(.subheadline)
+                        .accessibilityLabel("確定せず閉じる")
+                        .accessibilityIdentifier("variables.cancel")
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                Divider()
             }
-            .padding(.horizontal, compact ? 12 : 20)
-            .frame(minHeight: 44)
-            Divider()
             if availability == .included {
                 ScrollView {
                     VStack(alignment: .leading, spacing: compact ? 12 : 16) {
@@ -64,7 +66,7 @@ struct VariableFillView: View {
                                         values[name] = $0
                                         valueEdited()
                                     }
-                                ), prompt: Text("値を入力").foregroundStyle(.secondary))
+                                ), prompt: Text("値を入力").foregroundStyle(Color.primary.opacity(0.68)))
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
@@ -90,6 +92,11 @@ struct VariableFillView: View {
                                 .accessibilityIdentifier("variables.previewToggle")
                             }
                         }
+                        if !allValuesPresent {
+                            Text("すべての値を入力すると完成文に変わります。")
+                                .font(.nibbleBody)
+                                .foregroundStyle(.secondary)
+                        }
                         Text(verbatim: preview)
                             .font(.subheadline)
                             .lineLimit(showsFullPreview || !hasMore ? nil : Self.previewLineLimit)
@@ -109,15 +116,25 @@ struct VariableFillView: View {
                     .padding(.vertical, compact ? 8 : 16)
                 }
                 .clipped()
-                if focusedName != nil && !compact {
-                    VariableCompleteButton(actionTitle: actionTitle,
-                                           allValuesPresent: allValuesPresent,
-                                           isSubmitting: isSubmitting) {
-                        isSubmitting = true
-                        complete(values)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if focusedName != nil && !compact {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !allValuesPresent {
+                                Text("すべての値を入力するとコピーできます。")
+                                    .font(.nibbleBody)
+                                    .foregroundStyle(.secondary)
+                            }
+                            VariableCompleteButton(actionTitle: actionTitle,
+                                                   allValuesPresent: allValuesPresent,
+                                                   isSubmitting: isSubmitting) {
+                                isSubmitting = true
+                                complete(values)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(Color.nibbleCanvas)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
                 }
             } else {
                 ScrollView {
