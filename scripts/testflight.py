@@ -17,6 +17,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import uuid
 
 
@@ -221,7 +222,8 @@ class Deployment:
         self.logs = self.logs / ('nibble-' + build + '-' + uuid.uuid4().hex[:8])
         self.logs.mkdir(mode=0o700)
         self.manifest = {'commit': self.commit, 'build': build, 'configuration': 'Release',
-                         'destination': 'export' if dry_run else 'upload', 'stage': 'prepared', 'completed': False}
+                         'destination': 'export' if dry_run else 'upload', 'stage': 'prepared', 'completed': False,
+                         'started_at': datetime.now(timezone.utc).isoformat(), 'steps': []}
         self.save()
 
     def save(self):
@@ -229,15 +231,26 @@ class Deployment:
 
     def native(self, stage, command, timeout):
         self.manifest['stage'] = stage
+        step = {'stage': stage, 'started_at': datetime.now(timezone.utc).isoformat(), 'result': 'running'}
+        self.manifest['steps'].append(step)
         self.save()
-        with ui.step(stage), (self.logs / (stage + '.log')).open('xb') as log:
-            os.chmod(log.name, 0o600)
-            try:
-                result = subprocess.run(command, cwd=self.root, env=apple_environment(),
-                                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
-            except (OSError, subprocess.TimeoutExpired):
-                raise DistributionError(stage + 'を完了できませんでした。本人が保護されたログと送信状況を確認してください。') from None
-            require(result.returncode == 0, stage + 'に失敗しました。本人が保護されたログを確認してください。')
+        start = time.monotonic()
+        try:
+            with ui.step(stage), (self.logs / (stage + '.log')).open('xb') as log:
+                os.chmod(log.name, 0o600)
+                try:
+                    result = subprocess.run(command, cwd=self.root, env=apple_environment(),
+                                            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
+                except (OSError, subprocess.TimeoutExpired):
+                    raise DistributionError(stage + 'を完了できませんでした。本人が保護されたログと送信状況を確認してください。') from None
+                require(result.returncode == 0, stage + 'に失敗しました。本人が保護されたログを確認してください。')
+            step['result'] = 'success'
+        finally:
+            step['finished_at'] = datetime.now(timezone.utc).isoformat()
+            step['duration_seconds'] = round(time.monotonic() - start, 3)
+            if step['result'] == 'running':
+                step['result'] = 'failed'
+            self.save()
 
     def unchanged(self):
         require(source_commit(self.root) == self.commit, '実行中にソースが変わりました。配布を停止しました。')
@@ -279,6 +292,7 @@ class Deployment:
         if self.dry_run:
             require(any(exported.glob('*.ipa')), 'export成功後のIPAがありません。本人がログを確認してください。')
         self.manifest['completed'] = True
+        self.manifest['finished_at'] = datetime.now(timezone.utc).isoformat()
         self.save()
         ui.result(True, '完了: version=' + info['version'] + ' build=' + self.build)
         ui.message('IPA書き出しのみ。Appleへは送信していません。' if self.dry_run else

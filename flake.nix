@@ -178,6 +178,12 @@
             }
           ];
         };
+        ci = pkgs.mkShellNoCC {
+          packages = [
+            pkgs.python3
+            pkgs.gh
+          ];
+        };
       });
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt);

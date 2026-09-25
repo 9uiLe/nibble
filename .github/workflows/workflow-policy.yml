@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  actions: read
 
 concurrency:
   group: workflow-policy-${{ github.ref }}
@@ -30,10 +31,19 @@ jobs:
         uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
         with:
           enable_kvm: false
+      - name: Find successful locked-tools check for this head
+        if: github.event_name == 'pull_request' && github.event.action == 'edited'
+        id: prior
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          reuse="$(nix develop .#ci --command python3 scripts/check_pr.py reuse-locked-checks --event "$GITHUB_EVENT_PATH" --run-id "$GITHUB_RUN_ID")" || reuse=false
+          echo "reuse=$reuse" >> "$GITHUB_OUTPUT"
       - name: Check repository with locked tools
+        if: steps.prior.outputs.reuse != 'true'
         run: nix flake check --no-update-lock-file --print-build-logs
       - name: Check pull request body and commit inventory
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: nix develop --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH"
+        run: nix develop .#ci --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH"

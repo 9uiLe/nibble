@@ -92,6 +92,8 @@ scripts/deploy-testflight.sh --dry-run
 
 `--check-config`は鍵の有効性や署名を検証しない。`--dry-run`はIPAを生成するが、App Store Connectへビルドを送信しない。
 
+配布スクリプトだけを変更したときの`verify.py plan`は共通静的検査を選ぶ。偽認証情報を使う配布回帰テストもここに含む。署名・送信の成立はこの検査では証明できないため、配布の前に通常の配布コマンドで毎回検査とarchiveを行う。署名を送信前に確認したい場合は`--dry-run`を使い、別のbuild番号で本配布する。
+
 ## 輸出コンプライアンス
 
 本体と両拡張の`Info.plist`へ保存した`ITSAppUsesNonExemptEncryption`の申告を、完成したarchiveで検査してから送信する。申告の理由と依存変更時の再確認は[配布設計](architecture/distribution.md)に従う。エージェントやスクリプトは申告を推測して書き換えない。
@@ -133,11 +135,13 @@ scripts/deploy-testflight.sh --build-number 202609170900
 
 | 保存先 | 内容 |
 | --- | --- |
-| `artifacts/testflight/<build>/manifest.json` | 対象commit、工程、完了フラグ、archiveの公開メタデータ |
+| `artifacts/testflight/<build>/manifest.json` | 対象commit、工程、開始・終了UTC、工程秒数と成否、完了フラグ、archiveの公開メタデータ |
 | `artifacts/testflight/<build>/Nibble.xcarchive` | 実機向けarchive |
 | `artifacts/testflight/<build>/export/` | dry-runで生成したIPA等 |
 | `~/.appstoreconnect/logs/nibble-<build>-<識別子>/` | Xcode・Nixの生ログとExportOptions。ディレクトリ`0700`、ファイル`0600` |
 
 生成物はGit管理外とする。共有する実行記録にはmanifestを使い、archive・IPA・生ログをPRへ添付しない。manifestの`completed: true`はexportまたはuploadの工程完了を表す。グループへの配信や実機の動作確認は別に記録する。
+
+`steps`は`checks`、`prepare-rive-runtime`、`resolve`、`archive`、`upload`（dry-runは`export`）の時刻・秒数・成否を持つ。工程間の差はスクリプト内の確認と準備であり、ネットワーク待ちなど各工程の内訳を示すものではない。実行中または強制終了した工程は`running`のまま残り得るため、成功と扱わない。所要時間の改善対象はupload完了までとし、Apple側の処理・グループ反映の待ち時間は含めない。
 
 失敗時は配布担当者が保護されたログを調べ、秘密情報を除いた原因だけをエージェントへ伝える。中断やtimeoutで送信結果が不明な場合はApp Store Connectの受理状況を確認し、必要な場合だけ新しい番号で実行する。自動再試行は行わない。

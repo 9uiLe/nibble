@@ -394,6 +394,22 @@ class DeploymentTests(Fixture):
             run.native('upload', ['native'], 10)
         self.assertNotIn('FAKE', str(timeout_result.exception))
         self.assertNotIn('FAKE', json.dumps(self.display_blocks))
+        steps = json.loads((run.path / 'manifest.json').read_text())['steps']
+        self.assertEqual([step['result'] for step in steps], ['failed', 'failed'])
+        self.assertTrue(all(step['duration_seconds'] >= 0 and step['finished_at'] for step in steps))
+
+    def test_successful_step_records_public_timing(self):
+        run = self.deployment()
+        with patch.object(tf.subprocess, 'run', return_value=Mock(returncode=0)):
+            run.native('checks', ['nix'], 10)
+        step = json.loads((run.path / 'manifest.json').read_text())['steps'][0]
+        self.assertEqual(step['result'], 'success')
+        self.assertEqual(step['stage'], 'checks')
+        self.assertGreaterEqual(step['duration_seconds'], 0)
+        self.assertIn('started_at', step)
+        self.assertIn('finished_at', step)
+        for value in self.values.values():
+            self.assertNotIn(value, json.dumps(step))
 
     def test_build_number_rejects_paths_flags_and_non_numeric_versions(self):
         for value in ['../1', '-1', '1.2.3.4', '1.01', 'a', '1' * 19]:
