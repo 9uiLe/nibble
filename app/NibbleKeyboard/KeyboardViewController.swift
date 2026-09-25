@@ -7,6 +7,7 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
     private lazy var model = KeyboardModel(reader: KeyboardReader(), effects: self)
     private var selectionRevision = UUID()
     private var keyboardHeight: NSLayoutConstraint?
+    private var requestedHeight: CGFloat = 288
     // The value field changes UIKit's current document; retain the host proxy for insertion.
     private var heldInputDocument: (proxy: any UITextDocumentProxy, id: UUID, editingID: UUID)?
 
@@ -38,7 +39,8 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
         globe.accessibilityLabel = "次のキーボード"
         globe.accessibilityIdentifier = "keyboard.nextKeyboard"
         globe.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
-        let host = UIHostingController(rootView: KeyboardView(model: model, globe: globe).modifier(NibbleInterface()))
+        let host = UIHostingController(rootView: KeyboardView(model: model, globe: globe,
+            setPreferredHeight: { [weak self] in self?.setPreferredHeight($0) }).modifier(NibbleInterface()))
         NibbleInterface.apply(to: &host.traitOverrides)
         // Keep the system keyboard surface visible through the SwiftUI content.
         host.view.backgroundColor = .clear
@@ -67,9 +69,21 @@ final class KeyboardViewController: UIInputViewController, KeyboardEffects {
 
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
-        let height: CGFloat = traitCollection.verticalSizeClass == .compact ? 196 : 288
-        if keyboardHeight?.constant != height { keyboardHeight?.constant = height }
+        updateKeyboardHeight()
         updateCapabilities()
+    }
+
+    private func setPreferredHeight(_ height: CGFloat) {
+        requestedHeight = height
+        updateKeyboardHeight()
+    }
+
+    private func updateKeyboardHeight() {
+        let limit: CGFloat = traitCollection.verticalSizeClass == .compact ? 196 : 288
+        let height = min(requestedHeight, limit)
+        guard keyboardHeight?.constant != height else { return }
+        keyboardHeight?.constant = height
+        view.invalidateIntrinsicContentSize()
     }
 
     override func textWillChange(_ textInput: (any UITextInput)?) {

@@ -14,8 +14,8 @@ struct KeyboardSnippetRow: View {
         HStack(spacing: 0) {
             Button { taskOwner.startTask(item, as: .insert, on: model) } label: {
                 KeyboardRowContent(item: item)
-                    .padding(.leading, 12).padding(.trailing, 4).padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+                    .padding(.leading, 12).padding(.trailing, 8).padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("\(item.displayTitle)を入力")
@@ -26,9 +26,10 @@ struct KeyboardSnippetRow: View {
                 detailOrigin = item.id
                 model.openDetail(item)
             } label: {
-                Text("全文").font(.caption.weight(.medium))
-                    .frame(width: 50, height: 58).contentShape(Rectangle())
+                Text("全文").font(.caption.weight(.semibold))
+                    .frame(width: 58, height: 70).contentShape(Rectangle())
             }
+            .background(Color(uiColor: .secondarySystemBackground))
             .accessibilityLabel("\(item.displayTitle)の全文と操作")
             .accessibilityIdentifier("keyboard.more.\(item.id)")
             .accessibilityFocused(focus, equals: "more.\(item.id)")

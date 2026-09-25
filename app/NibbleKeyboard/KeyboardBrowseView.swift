@@ -15,8 +15,9 @@ struct KeyboardBrowseView: View {
                 KeyboardFilterBar(model: model, focus: focus)
                 Spacer(minLength: 0)
                 Button("更新", systemImage: "arrow.clockwise", action: model.requestReload)
-                    .labelStyle(.iconOnly)
+                    .labelStyle(.titleAndIcon)
                     .buttonStyle(KeyboardControlStyle())
+                    .accessibilityHint("選択中の一覧を先頭から読み直します")
                     .accessibilityIdentifier("keyboard.refresh")
             }
             .padding(.horizontal, 10)

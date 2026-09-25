@@ -10,10 +10,20 @@ struct KeyboardView: View {
     private let inputRevision = UUID()
     @SkipEquatable let model: KeyboardModel
     @SkipEquatable let globe: UIButton
+    @SkipEquatable let setPreferredHeight: (CGFloat) -> Void
     @State private var taskOwner = KeyboardTaskOwner()
     @AccessibilityFocusState private var focusedControl: String?
     @State private var detailOrigin: UUID?
     @State private var variableCompletion: VariableCompletion?
+
+    private var preferredHeight: CGFloat {
+        if model.detail != nil || model.variableUse != nil || !model.isCurrent || model.notice?.expires == false {
+            return 288
+        }
+        let count = model.page?.items.count ?? 0
+        if count == 0 { return 196 }
+        return min(288, CGFloat(44 + count * 70 + 44 + 8))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -63,6 +73,7 @@ struct KeyboardView: View {
             }
         }
         .onChange(of: model.loadID) { taskOwner.endScreen() }
+        .onChange(of: preferredHeight, initial: true) { _, height in setPreferredHeight(height) }
         .onDisappear { taskOwner.endScreen() }
     }
 }

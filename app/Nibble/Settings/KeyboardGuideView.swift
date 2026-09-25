@@ -14,7 +14,7 @@ struct KeyboardGuideView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 20) {
                     Text("使うとき").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                    KeyboardGuideSection(title: "全文を確認する", text: "項目の「全文」を押すと、本文を最後まで読めます。この操作では入力されません。「入力する」を押すと本文を挿入します。")
+                    KeyboardGuideSection(title: "全文を確認する", text: "項目の「全文」を押すと、本文を最後まで読めます。この操作では入力されません。「入力先へ入力」を押すと本文を挿入します。「クリップボードへコピー」は入力先へ送らず、あとで貼り付けられるようにします。")
                     KeyboardGuideSection(title: "一覧を更新する", text: "「すべて」と「ピン留め」で表示する項目を選び、矢印で50件ずつ移動できます。nibbleで保存や編集をした後は、キーボードの更新ボタンを押してください。検索や編集はnibbleアプリで行います。")
                 }
                 Divider()
