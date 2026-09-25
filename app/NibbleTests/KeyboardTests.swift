@@ -122,6 +122,19 @@ struct KeyboardStorageTests {
 struct KeyboardOperationTests {
     private let item = SnippetSummary(id: UUID(), title: "定型文", preview: "本文", pinned: false, revision: 1)
 
+    @Test func reopeningKeyboardStartsWithAllItems() {
+        let reader = KeyboardGateReader()
+        let effects = RecordingKeyboardEffects()
+        let model = KeyboardModel(reader: reader, effects: effects)
+        model.activate()
+        model.select(.pinned)
+        #expect(model.request.filter == .pinned)
+        model.deactivate()
+        model.activate()
+        #expect(model.request == KeyboardRequest())
+        #expect(model.loading)
+    }
+
     @Test func anItemOutsideTheCurrentPageCannotTriggerAnEffect() async {
         let reader = KeyboardGateReader()
         let effects = RecordingKeyboardEffects()
@@ -396,8 +409,14 @@ struct KeyboardOperationTests {
         let effects = RecordingKeyboardEffects()
         let model = KeyboardModel(reader: reader, effects: effects)
         let item = SnippetSummary(id: item.id, title: item.title, preview: item.preview, pinned: true, revision: 1)
-        model.select(filter)
         await prepare(model, reader: reader, item: item)
+        model.select(filter)
+        if filter == .pinned {
+            async let filtered: Void = model.refresh()
+            await reader.pages.waitForRequests(2)
+            reader.pages.finish(1, .success(KeyboardPage(items: [item], hasMore: false)))
+            await filtered
+        }
         model.openDetail(item)
         async let preview: Void = model.loadDetail()
         await reader.bodies.waitForRequests(1)
@@ -408,8 +427,9 @@ struct KeyboardOperationTests {
         await reader.pins.waitForRequests(1)
         let updated = SnippetSummary(id: item.id, title: item.title, preview: item.preview, pinned: false, revision: 2)
         reader.pins.finish(0, .success(updated))
-        await reader.pages.waitForRequests(2)
-        reader.pages.finish(1, .failure(StoreError.database))
+        let reloadIndex = filter == .pinned ? 2 : 1
+        await reader.pages.waitForRequests(reloadIndex + 1)
+        reader.pages.finish(reloadIndex, .failure(StoreError.database))
         await pin
         #expect(model.detail?.item == updated && model.detail?.body == "本文")
         #expect(model.page?.items == (filter == .all ? [updated] : []))

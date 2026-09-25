@@ -116,6 +116,7 @@ final class KeyboardModel {
 
     func activate() {
         loadState = .pending
+        request = KeyboardRequest()
         requestReload()
     }
 

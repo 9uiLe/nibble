@@ -11,10 +11,18 @@ struct KeyboardDetailHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Button("一覧に戻る", systemImage: "chevron.left", action: model.closeDetail)
-                .labelStyle(.iconOnly)
-                .frame(width: 48, height: 44)
+            Button(action: model.closeDetail) {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                    Text("戻る")
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 76, height: 44)
+                .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 8))
                 .contentShape(Rectangle())
+            }
+                .buttonStyle(.plain)
+                .accessibilityLabel("一覧に戻る")
                 .accessibilityIdentifier("keyboard.back")
                 .accessibilityFocused(focus, equals: "back")
             Text(detail.item.displayTitle).font(.subheadline.weight(.semibold))

@@ -28,7 +28,7 @@ struct KeyboardSnippetRow: View {
             } label: {
                 Text("全文を見る").font(.caption.weight(.semibold))
                     .lineLimit(2).multilineTextAlignment(.center)
-                    .frame(width: 70, height: 70).contentShape(Rectangle())
+                    .frame(width: 76, height: 70).contentShape(Rectangle())
             }
             .background(Color(uiColor: .secondarySystemBackground))
             .accessibilityLabel("\(item.displayTitle)の全文を見る")

@@ -15,11 +15,13 @@ struct KeyboardBrowseView: View {
             HStack(spacing: 8) {
                 KeyboardFilterBar(model: model, focus: focus)
                 Spacer(minLength: 0)
-                Button("更新", systemImage: "arrow.clockwise", action: model.requestReload)
-                    .labelStyle(.titleAndIcon)
-                    .buttonStyle(KeyboardControlStyle())
-                    .accessibilityHint("選択中の一覧を先頭から読み直します")
-                    .accessibilityIdentifier("keyboard.refresh")
+                if model.loadFailure != nil || model.notice?.expires == false {
+                    Button("再読み込み", systemImage: "arrow.clockwise", action: model.requestReload)
+                        .labelStyle(.titleAndIcon)
+                        .buttonStyle(KeyboardControlStyle())
+                        .accessibilityHint("選択中の一覧を先頭から読み直します")
+                        .accessibilityIdentifier("keyboard.refresh")
+                }
             }
             .padding(.horizontal, 10)
             KeyboardListContent(model: model, taskOwner: taskOwner, focus: focus,

@@ -20,7 +20,7 @@ extension KeyboardModel.Notice {
 extension KeyboardModel.Message {
     var text: String {
         switch self {
-        case .cancelled: "読み込みを中断しました。更新ボタンを押してください。"
+        case .cancelled: "読み込みを中断しました。再読み込みを押してください。"
         case .requiresFullAccess(let action):
             "\(action == .copy ? "コピー" : "ピン留めの変更")にはフルアクセスが必要です。nibbleの「設定」→「nibbleキーボード」で設定方法を確認してください。"
         case .inputChanged: "入力位置が変わったため、本文を送っていません。入力先を確認して、項目をもう一度選んでください。"
@@ -57,15 +57,15 @@ extension KeyboardModel.Reason {
         case .changed: reason = "項目が変更されています。"
         case .notPrepared, .unavailable: reason = "保存データを読み込めませんでした。"
         }
-        return reason + (detailIsOpen ? "「一覧に戻る」を押してから、更新ボタンを押してください。" : "更新ボタンを押してください。")
+        return reason + (detailIsOpen ? "「一覧に戻る」を押してから、再読み込みを押してください。" : "再読み込みを押してください。")
     }
 }
 
 extension KeyboardReadError: LocalizedError {
     var errorDescription: String? {
         switch self {
-        case .notPrepared: "nibbleで文章やURLを保存してから、更新ボタンを押してください。"
-        case .changed: "項目が変更されています。一覧を更新して選び直してください。"
+        case .notPrepared: "nibbleで文章やURLを保存してから、キーボードを開き直してください。"
+        case .changed: "項目が変更されています。一覧を読み直して選び直してください。"
         }
     }
 }
