@@ -180,12 +180,12 @@ def can_reuse(event, current_run, get=api):
     prefix = 'repos/' + repository + '/actions'
     data = get(prefix + '/workflows/workflow-policy.yml/runs?head_sha=' + head
                + '&event=pull_request&per_page=100')
-    if data.get('total_count', 0) > len(data.get('workflow_runs', [])):
+    if not isinstance(data.get('total_count'), int) or data['total_count'] != len(data.get('workflow_runs', [])):
         return False
 
     def jobs(run_id):
         result = get(prefix + '/runs/' + str(run_id) + '/jobs?per_page=100')
-        if result.get('total_count', 0) > len(result.get('jobs', [])):
+        if not isinstance(result.get('total_count'), int) or result['total_count'] != len(result.get('jobs', [])):
             raise ValueError('Incomplete job history')
         return result['jobs']
 

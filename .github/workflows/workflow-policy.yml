@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          reuse="$(nix develop --command python3 scripts/check_pr.py reuse-locked-checks --event "$GITHUB_EVENT_PATH" --run-id "$GITHUB_RUN_ID")" || reuse=false
+          reuse="$(nix develop .#ci --command python3 scripts/check_pr.py reuse-locked-checks --event "$GITHUB_EVENT_PATH" --run-id "$GITHUB_RUN_ID")" || reuse=false
           echo "reuse=$reuse" >> "$GITHUB_OUTPUT"
       - name: Check repository with locked tools
         if: steps.prior.outputs.reuse != 'true'
@@ -46,4 +46,4 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: nix develop --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH"
+        run: nix develop .#ci --command python3 scripts/check_pr.py remote --event "$GITHUB_EVENT_PATH"

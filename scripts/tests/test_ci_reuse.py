@@ -70,6 +70,8 @@ class ReuseTests(unittest.TestCase):
         self.assertFalse(reuse.can_reuse(event(), 12, source([], {})))
         self.assertFalse(reuse.can_reuse(event(), 12,
                                         lambda _: {'total_count': 2, 'workflow_runs': [run(9)]}))
+        self.assertFalse(reuse.can_reuse(event(), 12,
+                                        lambda _: {'workflow_runs': [run(9)]}))
         self.assertFalse(reuse.can_reuse(event(), 12, source([run(9)], {9: []})))
         self.assertFalse(reuse.can_reuse(event(), 12, source([run(11), run(9)],
                                                        {11: [{'name': reuse.JOB_NAME, 'steps': []}], 9: [job()]})))
