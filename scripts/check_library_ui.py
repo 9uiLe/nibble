@@ -90,9 +90,27 @@ def main():
         run.wait_ui("search-closed", lambda d: "library.add" in identifiers(d) and not search_active(d))
 
     def menu(row, name):
-        run.tap("more." + row.removeprefix("snippet."))
+        tap_visible_row_control("more." + row.removeprefix("snippet."))
         time.sleep(0.35)
         run.ui(name)
+
+    def tap_visible_row_control(identifier):
+        for attempt in range(12):
+            data = run.ui(f"row-control-reveal-{attempt}")
+            top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
+                       if e.get("uniqueId", "").startswith("library.filter.")), default=226) + 8
+            bottom = min((e["frame"]["y"] for e in data["entries"]
+                          if e.get("uniqueId") == "library.add"), default=data["screen"]["height"] * .6) - 8
+            entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
+            if entry and entry["frame"]["y"] >= top and entry["frame"]["y"] + entry["frame"]["height"] <= bottom:
+                run.tap(identifier)
+                return
+            high, low = top + 20, min(bottom - 20, 460)
+            downward = entry is not None and entry["frame"]["y"] < top
+            run.command(["sim-use", "swipe", "--from", f"180,{high if downward else low}",
+                         "--to", f"180,{low if downward else high}",
+                         "--duration", "0.4", "--post-delay", "0.3", "--device", args.device])
+        raise VerificationError("Could not reveal row control: " + identifier)
 
     def background_editor(name):
         before = run.wait_ui(name + "-before", lambda data: "editor.body" in identifiers(data))
@@ -189,7 +207,7 @@ def main():
                     raise VerificationError("Expected exactly one item for this run's unique search term")
                 row = added[0]
                 snippet_id = row.removeprefix("snippet.")
-                run.tap("copy." + snippet_id)
+                tap_visible_row_control("copy." + snippet_id)
                 copied = run.command([XCRUN, "simctl", "pbpaste", args.device], "copied")
                 if copied != body:
                     raise VerificationError("Copied UTF-8 text differs from input")
@@ -208,7 +226,7 @@ def main():
                 run.tap("editor.save")
                 run.wait_ui("edited", lambda data: any(e.get("uniqueId") == row
                         and e.get("label") == edited_title for e in data["entries"]))
-                run.tap("copy." + snippet_id)
+                tap_visible_row_control("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "edited-copy") != edited_body:
                     raise VerificationError("The edited row copied stale or altered text")
                 run.screenshot("edited")
@@ -261,7 +279,8 @@ def main():
                 library = run.wait_ui("trailing-actions", lambda data: row in identifiers(data))
                 check_actions(library, snippet_id)
                 run.screenshot("trailing-actions")
-                run.tap("copy." + snippet_id)
+                tap_visible_row_control("copy." + snippet_id)
+                run.wait_ui("trailing-copy-notice", lambda data: "library.notice" in identifiers(data))
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "trailing-copy") != edited_body:
                     raise VerificationError("Copy after settings navigation changed the text")
                 run.tap("library.add")
@@ -293,7 +312,7 @@ def main():
                 run.tap("editor.confirmDiscard")
                 run.wait_ui("discarded", lambda data: row in identifiers(data)
                         and "editor.body" not in identifiers(data))
-                run.tap("copy." + snippet_id)
+                tap_visible_row_control("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "discarded-copy") != edited_body:
                     raise VerificationError("Discard changed the saved snippet's original text")
                 clear_search()
@@ -341,7 +360,7 @@ def main():
                         and "library.trash" in identifiers(data))
                 run.workspace(clear_query=True)
                 run.wait_ui("restored-in-library", lambda data: row in identifiers(data))
-                run.tap("copy." + snippet_id)
+                tap_visible_row_control("copy." + snippet_id)
                 if run.command([XCRUN, "simctl", "pbpaste", args.device], "trash-restored-copy") != edited_body:
                     raise VerificationError("Trash search/restore changed the snippet's text")
                 time.sleep(2.3)
