@@ -31,6 +31,7 @@ class SelectionTests(unittest.TestCase):
 
     def test_static_tooling_changes_do_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/check_docs.py', 'tools/ui-design/cli.py', '.github/workflows/check.yml']), {'static'})
+        self.assertEqual(self.selected(['scripts/testflight.py', 'scripts/deploy-testflight.sh']), {'static'})
 
     def test_controls_driver_selects_its_matching_evidence_stage(self):
         self.assertEqual(self.selected(['scripts/check_controls_ui.py']), {'static', 'controls-ui'})

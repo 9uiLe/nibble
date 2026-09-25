@@ -23,6 +23,7 @@ STATIC_SCRIPTS = {
     'scripts/check_docs.py', 'scripts/check_swift_policy.py', 'scripts/check_ui_design.py',
     'scripts/check_workflows.py', 'scripts/check_pr.py', 'scripts/swift_equatable_policy.py', 'scripts/swift_layers.py',
     'scripts/swift_task_boundary.py', 'scripts/swift_view_structure.py', 'scripts/benchmark_docs.py', 'scripts/ui_observation.py',
+    'scripts/testflight.py', 'scripts/deploy-testflight.sh',
 }
 
 
