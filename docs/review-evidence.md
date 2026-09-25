@@ -153,7 +153,7 @@ nix develop --command python3 scripts/check_pr.py local \
 
 ### 3. PRを作成・更新する
 
-GitHubへの作成・更新は`gh pr create/edit --body-file`で行う。作成時はbaseとhead、更新時は対象PRを明示する。`nix develop --command gh pr create --help`で`--attach`の対応を確認し、対応する場合は媒体の原本を添付する。CLIが添付に対応しない場合はGitHubのブラウザー添付を使う。
+GitHubへの作成・更新は`gh pr create/edit --body-file`で行う。PRはドラフトにせず作成し、未実施条件は本文のチェック項目に残してマージ前に確認する。作成時はbaseとhead、更新時は対象PRを明示する。`nix develop --command gh pr create --help`で`--attach`の対応を確認し、対応する場合は媒体の原本を添付する。CLIが添付に対応しない場合はGitHubのブラウザー添付を使う。
 
 アップロード後はGitHubから本文を取得し、その内容を編集元にする。ローカルパスの本文で上書きすると添付URLが失われるため、公開済みのURLを保持する。
 

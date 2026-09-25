@@ -41,7 +41,13 @@ Python回帰テストとNix検査を実行。
 
 class PRTests(unittest.TestCase):
     def snapshot(self, body=BODY, files=None):
-        return {'head': SHA, 'commits': [SHA], 'body': body, 'files': files or ['docs/guide.md']}
+        return {'head': SHA, 'commits': [SHA], 'body': body, 'files': files or ['docs/guide.md'],
+                'draft': False}
+
+    def test_draft_pr_is_rejected_even_with_complete_body_and_ci(self):
+        snapshot = self.snapshot()
+        snapshot['draft'] = True
+        self.assertIn('PR must be ready for review, not a draft', check_pr.check(snapshot))
 
     def test_document_only_pr_and_current_ci(self):
         snapshot = self.snapshot()
@@ -118,12 +124,16 @@ class PRTests(unittest.TestCase):
                 self.assertTrue(check_pr.check(altered))
 
     def test_remote_snapshot_rejects_api_truncation_and_racing_push(self):
-        pr = {'head': {'sha': SHA}, 'body': BODY, 'commits': 1, 'changed_files': 1}
+        pr = {'head': {'sha': SHA}, 'body': BODY, 'commits': 1, 'changed_files': 1, 'draft': False}
         rows = [{'filename': 'docs/guide.md'}]
         with patch.object(check_pr, 'api', side_effect=[pr, [], rows]):
             with self.assertRaisesRegex(ValueError, 'Incomplete'):
                 check_pr.remote_snapshot('example/repo', 1)
         changed = {**pr, 'head': {'sha': 'b' * 40}}
+        with patch.object(check_pr, 'api', side_effect=[pr, [{'sha': SHA}], rows, changed]):
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                check_pr.remote_snapshot('example/repo', 1)
+        changed = {**pr, 'draft': True}
         with patch.object(check_pr, 'api', side_effect=[pr, [{'sha': SHA}], rows, changed]):
             with self.assertRaisesRegex(ValueError, 'changed'):
                 check_pr.remote_snapshot('example/repo', 1)

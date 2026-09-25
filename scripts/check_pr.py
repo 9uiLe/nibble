@@ -48,6 +48,8 @@ def changes_ui(files):
 
 def check(snapshot, complete=False, expected_head=None, check_ci=False):
     errors = []
+    if snapshot.get('draft') is not False:
+        errors.append('PR must be ready for review, not a draft')
     body = snapshot['body'] or ''
     content = sections(body)
     if expected_head and snapshot['head'] != expected_head:
@@ -131,7 +133,7 @@ def git(root, *args):
 
 def local_snapshot(root, base, body):
     base_sha = git(root, 'rev-parse', '--verify', base + '^{commit}')
-    return {'head': git(root, 'rev-parse', 'HEAD'), 'body': body,
+    return {'head': git(root, 'rev-parse', 'HEAD'), 'body': body, 'draft': False,
             'commits': git(root, 'rev-list', '--reverse', base_sha + '..HEAD').splitlines(),
             'files': git(root, 'diff', '--no-renames', '--name-only', base_sha + '...HEAD').splitlines()}
 
@@ -197,19 +199,23 @@ def remote_snapshot(repo, number, ci=False):
         raise ValueError('Specify owner/repo and a positive PR number')
     endpoint = f'repos/{repo}/pulls/{number}'
     pr = api(endpoint)
+    if not isinstance(pr.get('draft'), bool):
+        raise ValueError('GitHub did not report the PR draft state')
     commits = api(endpoint + '/commits?per_page=100', paged=True)
     files = api(endpoint + '/files?per_page=100', paged=True)
     # GitHub limits these REST endpoints; fail rather than certify a partial list.
     if len(commits) != pr['commits'] or len(files) != pr['changed_files']:
         raise ValueError('Incomplete GitHub commit/file listing; split the PR or inspect API limits')
-    snapshot = {'head': pr['head']['sha'], 'body': pr['body'], 'commits': [c['sha'] for c in commits],
+    snapshot = {'head': pr['head']['sha'], 'body': pr['body'], 'draft': pr['draft'],
+                'commits': [c['sha'] for c in commits],
                 'files': [name for row in files for name in [row['filename'], row.get('previous_filename')] if name]}
     if ci:
         pages = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/commits/{snapshot["head"]}/check-runs?per_page=100', '--paginate', '--slurp'], text=True))
         snapshot['checks'] = [row for page in pages for row in page['check_runs']]
     # Detect edits or pushes while assembling the read-only snapshot.
     current = api(endpoint)
-    if current['head']['sha'] != pr['head']['sha'] or current['body'] != pr['body']:
+    if (current['head']['sha'] != pr['head']['sha'] or current['body'] != pr['body']
+            or current.get('draft') != pr['draft']):
         raise ValueError('PR changed during collection; rerun')
     return snapshot
 
