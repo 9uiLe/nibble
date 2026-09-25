@@ -71,6 +71,8 @@ struct ExampleView: View {
 
 ## Viewの構成とレイアウト
 
+Swiftソースでは`else`に続く`if`と、`else`ブロック直下の`if`を使わない。複数の表示状態を持つViewは、表示に必要な値をassociated valueに持つViewローカルのenumへまとめ、`switch`で描画する。読込中・完了・空状態など、表示結果だけの区別をDomainへ移さない。保存・入力・結果の採否に関わる状態はDomainまたはApplicationが所有し、Viewはその結果から表示状態を導出する。単純な逐次判定は早期returnやguardで表す。`check_swift_policy.py`がコメントと文字列を除いたSwiftソースの違反を検出する。
+
 製品のSwiftUI Viewは本体・共有拡張・キーボード・表示Packageを通して、一つの型を同名のファイルへ置く。画面の構成要素は入力を受け取る独立したView型で表し、Viewを返す補助関数・算出プロパティ、補助の`@ViewBuilder`宣言を作らない。`body`・`equatableBody`とModifier・Style・representableのprotocol必須実装はこの禁止の対象外である。テスト専用のfixtureは検証する契約と同じファイルへ置ける。
 
 Viewは表示値、選択、フォーカス、シート、可視性など表示に必要な状態を扱う。保存・検索の取得・競合判定・共有入力の変換・OSへの作用はモデルまたは専用の境界へ渡す。UIイベントからの非同期処理はタスク所有者の`startTask`で開始する。共通の外観と表示観測はModifier、内容と入力のまとまりはView、寸法は用途別の値として定義する。

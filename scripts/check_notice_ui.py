@@ -205,20 +205,32 @@ def main():
                 assert_no_notice("returned-workspace")
                 navigate("設定")
                 run.tap("library.trash")
-                data = run.wait_ui("trash", lambda data: "more." + snippet in identifiers(data))
-                close_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
-                run.tap("more." + snippet)
-                label("復元")
+                data = run.wait_ui("trash", lambda data: "restore." + snippet in identifiers(data)
+                                   and "permanentlyDelete." + snippet in identifiers(data))
+                if "more." + snippet in identifiers(data):
+                    raise VerificationError("Deleted item has a redundant menu button")
+                for action in ("restore.", "permanentlyDelete."):
+                    frame = next(e["frame"] for e in data["entries"]
+                                 if e.get("uniqueId") == action + snippet)
+                    if frame["width"] < 44 or frame["height"] < 44:
+                        raise VerificationError("Deleted item action is smaller than 44pt: " + action)
+                back_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "BackButton")
+                run.tap("permanentlyDelete." + snippet)
+                run.wait_ui("trash-delete-confirmation", lambda d: "library.confirmPermanentDelete" in identifiers(d))
+                run.tap("library.cancelPermanentDelete")
+                run.wait_ui("trash-delete-cancelled", lambda d: "restore." + snippet in identifiers(d)
+                            and "library.confirmPermanentDelete" not in identifiers(d))
+                run.tap("restore." + snippet)
                 data = run.wait_ui("trash-notice", lambda d: "library.notice" in identifiers(d))
-                close_during = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.trash.close")
+                back_during = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "BackButton")
                 notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
-                if close_before != close_during or notice["width"] < data["screen"]["width"] - 70:
+                if back_before != back_during or notice["width"] < data["screen"]["width"] - 70:
                     raise VerificationError("Deleted-item notice changed navigation or lost its full width")
                 if notice["y"] < data["screen"]["height"] * .6 or notice["y"] + notice["height"] > data["screen"]["height"] - 8:
                     raise VerificationError("Deleted-item notice is outside its bottom presentation area")
                 run.screenshot("trash-restored")
-                run.tap("library.trash.close")
-                assert_no_notice("sheet-dismissed")
+                run.tap("BackButton")
+                assert_no_notice("deleted-items-left")
                 navigate("一覧")
                 run.wait_ui("restored-from-trash", lambda data: "snippet." + snippet in identifiers(data))
                 tap_row("copy." + snippet)

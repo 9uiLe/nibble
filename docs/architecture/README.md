@@ -79,7 +79,7 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 
 `RootScreenHeading`は作業画面の製品名と設定への入口を配置する。文字表示は`ScreenHeading`、作成は下部の`CreateSnippetButton`が担う。本文、項目名、補足、通知などは[F03](../design/foundations.md#f03-文字と図記号)の役割で指定する。
 
-本体・共有拡張・キーボード・表示PackageのViewは責務ごとの型とファイルへ分ける。Viewを返す補助関数・算出プロパティを作らず、入力と更新境界をView型で表す。`LibraryScreen`は表示と寿命、`LibraryList`は状態に対応する描画、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。空状態の成立、検索範囲、下書きの対象資格はApplicationから受け取る。標準NavigationStackを使い、設定を階層、編集と削除一覧をシートで開く。
+本体・共有拡張・キーボード・表示PackageのViewは責務ごとの型とファイルへ分ける。Viewを返す補助関数・算出プロパティを作らず、入力と更新境界をView型で表す。`LibraryScreen`は表示と寿命、`LibraryList`は状態に対応する描画、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。空状態の成立、検索範囲、下書きの対象資格はApplicationから受け取る。標準NavigationStackを使い、設定と削除一覧を階層で開き、編集をシートで開く。
 
 設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景と標準見出しを共通化する。説明内容と各ページの余白はページに残し、各イラストが自身の可視性を観測する。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 

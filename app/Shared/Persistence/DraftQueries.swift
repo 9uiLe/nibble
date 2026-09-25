@@ -66,8 +66,11 @@ enum DraftQueries {
         try db.writeTransaction {
             let replacement = try replacement(snapshot, in: db)
             guard replacement != .rejected else { throw StoreError.staleDraft }
-            if snapshot.isDisposable { try removeDraft(snapshot.id, from: db) }
-            else if replacement == .newer { try writeDraft(snapshot, in: db) }
+            if snapshot.isDisposable {
+                try removeDraft(snapshot.id, from: db)
+                return
+            }
+            if replacement == .newer { try writeDraft(snapshot, in: db) }
         }
     }
 

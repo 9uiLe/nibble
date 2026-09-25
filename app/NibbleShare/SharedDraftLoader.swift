@@ -22,11 +22,14 @@ struct SharedDraftLoader {
         let type = provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ? UTType.plainText.identifier : UTType.url.identifier
         return try await withCheckedThrowingContinuation { continuation in
             provider.loadItem(forTypeIdentifier: type, options: nil) { item, error in
-                if let error { continuation.resume(throwing: error) }
-                else if let text = item as? String { continuation.resume(returning: text) }
-                else if let url = item as? URL { continuation.resume(returning: url.absoluteString) }
-                else if let data = item as? Data, let text = String(data: data, encoding: .utf8) { continuation.resume(returning: text) }
-                else { continuation.resume(throwing: ShareError.unsupported) }
+                if let error { continuation.resume(throwing: error); return }
+                if let text = item as? String { continuation.resume(returning: text); return }
+                if let url = item as? URL { continuation.resume(returning: url.absoluteString); return }
+                if let data = item as? Data, let text = String(data: data, encoding: .utf8) {
+                    continuation.resume(returning: text)
+                    return
+                }
+                continuation.resume(throwing: ShareError.unsupported)
             }
         }
     }

@@ -125,9 +125,9 @@ struct LibraryReadState {
         for snapshot in snapshots {
             if surface == .library && snapshot.request.query.isEmpty {
                 if retainsCollections { collections[snapshot.request.filter] = snapshot }
-            } else if publishesCurrent {
-                searchSnapshot = snapshot
+                continue
             }
+            if publishesCurrent { searchSnapshot = snapshot }
         }
         // A completed mutation must still refresh browsing after the user clears search.
         // Only the latest collection read can replace that cache; obsolete queries never publish.

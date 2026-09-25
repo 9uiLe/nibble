@@ -21,11 +21,11 @@ struct SnippetRow: View {
         .padding(.vertical, isTrash ? 14 : 10)
         .listRowInsets(EdgeInsets(top: 0, leading: isTrash ? 22 : 20, bottom: 0, trailing: isTrash ? 16 : 12))
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-        .contextMenu { SnippetRowMenu(item: item, isTrash: isTrash, perform: perform) }
+        .contextMenu {
+            if !isTrash { SnippetRowMenu(item: item, perform: perform) }
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: !isTrash) {
-            if isTrash {
-                Button("完全に削除", role: .destructive) { perform(.permanentlyDelete) }
-            } else {
+            if !isTrash {
                 Button("削除", systemImage: "trash", role: .destructive) { perform(.delete) }
                     .accessibilityIdentifier("swipe.delete.\(item.id)")
             }

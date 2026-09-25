@@ -6,7 +6,9 @@ struct SettingsList: View {
     private let inputRevision = UUID()
     let version: AppVersion
     @SkipEquatable let subscription: ProSubscription
-    let showTrash: () -> Void
+    @SkipEquatable let store: any LibraryStorage & DraftEditing
+    @SkipEquatable let effects: any LibraryEffects
+    let onTrashReturn: () -> Void
 
     var body: some View {
         List {
@@ -28,9 +30,11 @@ struct SettingsList: View {
                 .accessibilityIdentifier("settings.keyboard")
                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 .listRowSeparator(.hidden, edges: .top)
-                Button(action: showTrash) {
+                NavigationLink {
+                    DeletedSnippetsView(store: store, effects: effects, onReturn: onTrashReturn)
+                } label: {
                     SettingsDisclosureLabel(title: "削除した項目", detail: "復元・完全削除",
-                                            systemImage: "trash", showsChevron: true)
+                                            systemImage: "trash", showsChevron: false)
                 }
                 .accessibilityIdentifier("library.trash")
                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }

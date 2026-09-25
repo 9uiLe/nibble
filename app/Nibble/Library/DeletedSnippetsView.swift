@@ -3,33 +3,25 @@ import SwiftUI
 
 @Equatable
 struct DeletedSnippetsView: View {
+    private let inputRevision = UUID()
     @State private var model: LibraryModel
     @State private var noticeTaskOwner = LibraryTaskOwner()
     @FocusState private var searchFocused: Bool
-    @Environment(\.dismiss) private var dismiss
+    let onReturn: () -> Void
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
+    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects,
+         onReturn: @escaping () -> Void) {
         _model = State(initialValue: LibraryModel(store: store, effects: effects, surface: .deleted))
+        self.onReturn = onReturn
     }
 
     var body: some View {
         @Bindable var library = model
-        NavigationStack {
-            LibraryScreen(model: model,
-                          searchFocused: $searchFocused, advertisement: nil)
-                .modifier(LibraryNoticeOverlay(model: model, taskOwner: noticeTaskOwner,
-                                               isPresented: model.noticeContext.isPresented))
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button { dismiss() } label: {
-                            Label("閉じる", systemImage: "xmark")
-                        }
-                        .labelStyle(.iconOnly)
-                        .accessibilityIdentifier("library.trash.close")
-                    }
-                }
-        }
+        LibraryScreen(model: model,
+                      searchFocused: $searchFocused, advertisement: nil)
+            .modifier(LibraryNoticeOverlay(model: model, taskOwner: noticeTaskOwner,
+                                           isPresented: model.noticeContext.isPresented))
         .searchable(text: $library.query, prompt: "削除した項目を検索")
         .searchFocused($searchFocused)
         .textInputAutocapitalization(.never)
@@ -41,6 +33,7 @@ struct DeletedSnippetsView: View {
         .onDisappear {
             model.setNoticePresentation(false)
             noticeTaskOwner.endScreen()
+            onReturn()
         }
     }
 }

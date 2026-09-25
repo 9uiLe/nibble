@@ -62,31 +62,17 @@ def main():
             # when the simulator hides the software keyboard.
             run.command(["sim-use", "ios", "key", "40", "--device", args.device])
 
-    def enter_search(text, *, type_with_hid=False):
+    def enter_search(text):
         data = run.wait_ui("native-search-field", lambda data: len(search_fields(data)) == 1)
         if "search.clear" in identifiers(data):
             run.tap("search.clear")
             data = run.wait_ui("query-cleared-for-paste", lambda d: "search.clear" not in identifiers(d))
-        # Resolve the live AX frame for both app search and the trash sheet's native field.
+        # Resolve the live AX frame for both app search and the deleted-items search field.
         frame = search_fields(data)[0]["frame"]
         x, y = frame["x"] + frame["width"] / 2, frame["y"] + frame["height"] / 2
-        run.command(["sim-use", "tap", "--point", f"{x},{y}", "--device", args.device])
-        if type_with_hid:
-            if not text.isascii():
-                raise VerificationError("HID search input requires ASCII text")
-            run.command(["sim-use", "type", "--device", args.device, text])
-            run.wait_ui("search-typed", lambda d: any(
-                text in (field.get("value") or "") for field in search_fields(d)))
-            return
-        run.command(["sim-use", "paste", "--device", args.device, text])
-        for _ in range(3):
-            applied = run.ui("search-paste-applied")
-            if any(text in (field.get("value") or "") for field in search_fields(applied)):
-                return
-            time.sleep(0.15)
-        # A simulator without a connected hardware keyboard drops Cmd+V.
-        run.command(["sim-use", "paste", "--via-menu", "--menu-timeout", "5", "--target-x", str(x),
-                     "--target-y", str(y), "--device", args.device, text])
+        run.paste_text(text, ["--target-x", str(x), "--target-y", str(y)],
+                       lambda applied: any(text in (field.get("value") or "")
+                                           for field in search_fields(applied)), name="search-paste")
 
     def clear_search():
         data = run.ui("before-clear-search")
@@ -328,14 +314,14 @@ def main():
                 run.open_settings()
                 run.wait_ui("trash-settings", lambda data: "library.trash" in identifiers(data))
                 run.tap("library.trash")
-                run.wait_ui("trash-sheet", lambda data: "library.trash.close" in identifiers(data))
-                # The native trash search sits directly above the software keyboard.
-                # Use HID for its ASCII query; the workspace search above checks Unicode paste.
-                enter_search("missing-" + uuid4().hex, type_with_hid=True)
+                run.wait_ui("trash-destination", lambda data: "BackButton" in identifiers(data)
+                            and any(e.get("role") == "Heading" and e.get("label") == "削除した項目"
+                                    for e in data["entries"]))
+                enter_search("missing-" + uuid4().hex)
                 run.wait_ui("trash-search-empty", lambda data: any(
                     e.get("label") == "見つかりませんでした" for e in data["entries"]))
                 clear_search()
-                enter_search(title.rsplit(" ", 1)[-1], type_with_hid=True)
+                enter_search(title.rsplit(" ", 1)[-1])
                 run.wait_ui("trash-search-result", lambda data: "restore." + snippet_id in identifiers(data))
                 submit_search()
                 run.wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))
@@ -349,10 +335,10 @@ def main():
                     raise VerificationError("Restoration notice overlaps the native search controls")
                 run.screenshot("trash-restored-notice")
                 label("閉じる")
-                run.wait_ui("trash-search-closed", lambda data: "library.trash.close" in identifiers(data))
-                run.tap("library.trash.close")
+                run.wait_ui("trash-search-closed", lambda data: "BackButton" in identifiers(data))
+                run.tap("BackButton")
                 run.wait_ui("trash-returned", lambda data: "settings.about" in identifiers(data)
-                        and "library.trash.close" not in identifiers(data))
+                        and "library.trash" in identifiers(data))
                 run.workspace(clear_query=True)
                 run.wait_ui("restored-in-library", lambda data: row in identifiers(data))
                 run.tap("copy." + snippet_id)

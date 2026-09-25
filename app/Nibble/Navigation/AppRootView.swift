@@ -17,7 +17,7 @@ struct AppRootView: View {
     @State private var routeOwner = LibraryTaskOwner()
     @State private var subscription = ProSubscription()
     @State private var showsSettings = false
-    @State private var showsTrash = false
+    @State private var trashReturnID = UUID()
     @State private var variableCompletion: VariableCompletion?
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
@@ -41,20 +41,16 @@ struct AppRootView: View {
                 showsSettings = true
             })
             .navigationDestination(isPresented: $showsSettings) {
-                SettingsView(subscription: subscription, showTrash: { showsTrash = true })
+                SettingsView(subscription: subscription, store: store, effects: effects,
+                             onTrashReturn: { trashReturnID = UUID() })
                     .environment(\.illustrationPlaybackAllowed,
-                                 showsSettings && !showsTrash && library.editor == nil)
+                                 showsSettings && library.editor == nil)
             }
         }
         .sensoryFeedback(.success, trigger: library.feedback)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .onSubmit(of: .search) { searchFocused = false }
-        .sheet(isPresented: $showsTrash, onDismiss: {
-            routeOwner.startTask(.reload, on: library)
-        }) {
-            DeletedSnippetsView(store: store, effects: effects)
-        }
         .sheet(item: $libraryBinding.editor, onDismiss: {
             routeOwner.startTask(.reload, on: library)
         }) { draft in
@@ -94,7 +90,6 @@ struct AppRootView: View {
         .onAppear { library.setNoticePresentation(noticesPresented) }
         .onOpenURL { url in
             guard let route = AppRoute(url: url), library.editor == nil else { return }
-            showsTrash = false
             showsSettings = false
             searchFocused = false
             library.showAll()
@@ -104,6 +99,7 @@ struct AppRootView: View {
         .onChange(of: scenePhase) {
             if scenePhase == .background { routeOwner.endScreen(); library.cancelVariableCopy() }
         }
+        .onChange(of: trashReturnID) { routeOwner.startTask(.reload, on: library) }
         .task(id: scenePhase) {
             if scenePhase == .active { await subscription.refresh() }
         }
@@ -120,7 +116,7 @@ struct AppRootView: View {
     }
 
     private var noticesPresented: Bool {
-        scenePhase == .active && !showsSettings && !showsTrash && library.editor == nil
+        scenePhase == .active && !showsSettings && library.editor == nil
     }
 
     private var showsLibraryAd: Bool {

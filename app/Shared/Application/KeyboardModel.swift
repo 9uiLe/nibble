@@ -34,9 +34,15 @@ final class KeyboardModel {
     enum Reason: Equatable {
         case store(StoreError), notPrepared, changed, unavailable
         init(_ error: Error) {
-            if let error = error as? StoreError { self = .store(error) }
-            else if let error = error as? KeyboardReadError { self = error == .notPrepared ? .notPrepared : .changed }
-            else { self = .unavailable }
+            if let error = error as? StoreError {
+                self = .store(error)
+                return
+            }
+            if let error = error as? KeyboardReadError {
+                self = error == .notPrepared ? .notPrepared : .changed
+                return
+            }
+            self = .unavailable
         }
     }
     enum Message: Equatable {
@@ -116,6 +122,7 @@ final class KeyboardModel {
 
     func activate() {
         loadState = .pending
+        request = KeyboardRequest()
         requestReload()
     }
 

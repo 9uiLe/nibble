@@ -18,15 +18,24 @@ struct SnippetRowActions: View {
                     .buttonStyle(.borderless)
                     .accessibilityLabel("\(item.displayTitle)を復元")
                     .accessibilityIdentifier("restore.\(item.id)")
-            } else { SnippetCopyButton(item: item, perform: perform) }
-            Menu { SnippetRowMenu(item: item, isTrash: isTrash, perform: perform) } label: {
-                Image(systemName: "ellipsis").font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44).contentShape(.rect)
+                Button(role: .destructive) { perform(.permanentlyDelete) } label: {
+                    Image(systemName: "trash").font(.body)
+                        .frame(width: 44, height: 44).contentShape(.rect)
+                }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("\(item.displayTitle)を完全に削除")
+                    .accessibilityIdentifier("permanentlyDelete.\(item.id)")
+            } else {
+                SnippetCopyButton(item: item, perform: perform)
+                Menu { SnippetRowMenu(item: item, perform: perform) } label: {
+                    Image(systemName: "ellipsis").font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44).contentShape(.rect)
+                }
+                .menuStyle(.borderlessButton)
+                .accessibilityLabel("\(item.displayTitle)のその他の操作")
+                .accessibilityIdentifier("more.\(item.id)")
             }
-            .menuStyle(.borderlessButton)
-            .accessibilityLabel("\(item.displayTitle)のその他の操作")
-            .accessibilityIdentifier("more.\(item.id)")
         }
     }
 }

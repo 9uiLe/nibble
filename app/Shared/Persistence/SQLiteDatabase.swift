@@ -23,7 +23,10 @@ final class SQLiteDatabase {
         }
         guard sqlite3_open_v2(url.path, &opened, flags | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
               let opened else {
-            if let opened { sqlite3_close_v2(opened) }
+            switch opened {
+            case .some(let opened): sqlite3_close_v2(opened)
+            case .none: break
+            }
             throw StoreError.database
         }
         handle = opened
@@ -95,7 +98,10 @@ final class SQLiteDatabase {
         } else {
             var prepared: OpaquePointer?
             guard sqlite3_prepare_v2(handle, sql, -1, &prepared, nil) == SQLITE_OK, let prepared else {
-                if let prepared { sqlite3_finalize(prepared) }
+                switch prepared {
+                case .some(let prepared): sqlite3_finalize(prepared)
+                case .none: break
+                }
                 throw StoreError.database
             }
             statement = prepared

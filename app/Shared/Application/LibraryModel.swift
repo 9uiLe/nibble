@@ -202,7 +202,10 @@ final class LibraryModel {
             }
             guard !Task.isCancelled, opening == requestID else {
                 // No user input exists for a new, unpresented draft. Existing drafts stay intact.
-                if case .new = source { try? await store.keepDraft(draft) }
+                switch source {
+                case .new: try? await store.keepDraft(draft)
+                case .snippet(_), .draft(_): break
+                }
                 return
             }
             setNoticePresentation(false)

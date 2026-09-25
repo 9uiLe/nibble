@@ -86,11 +86,14 @@ struct MarkdownDocument: Equatable, Sendable {
                 let byteCount = scalar == "\0" ? 3 : scalar.utf8.count
                 utf16Offsets.append(contentsOf: repeatElement(utf16, count: byteCount))
                 utf16 += scalar.utf16.count
-                if scalar == "\r" {
+                switch scalar {
+                case "\r":
                     lineStarts.append(utf16Offsets.count)
-                } else if scalar == "\n" {
+                case "\n":
                     if previousWasCR { lineStarts[lineStarts.count - 1] = utf16Offsets.count }
                     else { lineStarts.append(utf16Offsets.count) }
+                default:
+                    break
                 }
                 previousWasCR = scalar == "\r"
             }

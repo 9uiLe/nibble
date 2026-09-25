@@ -4,6 +4,19 @@ import SwiftUI
 
 @Equatable
 struct ProView: View {
+    private enum EntitlementContent {
+        case checking
+        case active
+        case inactive
+    }
+
+    private enum ProductContent {
+        case unavailable
+        case loading
+        case ready([Product])
+        case failed
+    }
+
     private let inputRevision = UUID()
     @SkipEquatable let subscription: ProSubscription
     @State private var showsManageSubscriptions = false
@@ -12,30 +25,44 @@ struct ProView: View {
     @State private var reloadID = 0
     @State private var productRequestID: UUID?
 
+    private var entitlementContent: EntitlementContent {
+        if !subscription.checked { return .checking }
+        return subscription.isActive ? .active : .inactive
+    }
+
+    private var productContent: ProductContent {
+        if !FeatureAccess.subscriptionsOffered { return .unavailable }
+        if loadingProducts { return .loading }
+        if products.count == ProSubscription.productIDs.count { return .ready(products) }
+        return .failed
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            if !subscription.checked {
+            switch entitlementContent {
+            case .checking:
                 ProgressView("登録状態を確認中")
                     .font(.nibbleBody).padding()
-            } else if subscription.isActive {
+            case .active:
                 Label("nibble Proを利用中です", systemImage: "checkmark.circle.fill")
                     .font(.nibbleTitle).padding()
                 Button("登録を管理") { showsManageSubscriptions = true }
                     .font(.nibbleTitle)
                     .accessibilityIdentifier("pro.manage")
-            } else {
+            case .inactive:
                 Text(proDescription)
                     .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding()
             }
-            if !FeatureAccess.subscriptionsOffered {
+            switch productContent {
+            case .unavailable:
                 Spacer()
-            } else if loadingProducts {
+            case .loading:
                 ProgressView("商品を読み込み中")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if products.count == ProSubscription.productIDs.count {
+            case .ready(let products):
                 SubscriptionStoreView(subscriptions: products)
                     .storeButton(.visible, for: .restorePurchases)
-            } else {
+            case .failed:
                 ContentUnavailableView {
                     Label("商品を読み込めませんでした", systemImage: "wifi.exclamationmark")
                 } description: {

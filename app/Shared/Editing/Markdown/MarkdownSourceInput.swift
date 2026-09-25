@@ -38,14 +38,16 @@ struct MarkdownSourceInput: UIViewRepresentable {
         context.coordinator.parent = self
         if view.isEditable != context.environment.isEnabled { view.isEditable = context.environment.isEnabled }
         if view.markedTextRange == nil {
-            if !SnippetText.hasSameBytes(view.text, text) {
+            let bodyChanged = !SnippetText.hasSameBytes(view.text, text)
+            if bodyChanged {
                 let desiredSelection = selection ?? view.selectedRange
                 view.text = text
                 let start = min(desiredSelection.location, view.textStorage.length)
                 view.selectedRange = NSRange(location: start,
                                              length: min(desiredSelection.length, view.textStorage.length - start))
-            } else if let selection, view.selectedRange != selection,
-                      NSMaxRange(selection) <= view.textStorage.length {
+            }
+            if !bodyChanged, let selection, view.selectedRange != selection,
+               NSMaxRange(selection) <= view.textStorage.length {
                 view.selectedRange = selection
             }
             view.apply(document)
@@ -57,7 +59,8 @@ struct MarkdownSourceInput: UIViewRepresentable {
             view.wantsFocus = wantsFocus
             if wantsFocus {
                 if view.window != nil && !view.isFirstResponder { view.becomeFirstResponder() }
-            } else if view.isFirstResponder { view.resignFirstResponder() }
+            }
+            if !wantsFocus && view.isFirstResponder { view.resignFirstResponder() }
         }
     }
 

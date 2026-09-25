@@ -308,6 +308,14 @@ class Run:
         self.command(["sim-use", "paste", "--via-menu", *target,
                       "--device", self.args.device, text], name)
         data = self.ui(name + "-menu-result")
+        if data.get("appPackage") == "com.apple.springboard":
+            permission = next((entry.get("label") for entry in data["entries"]
+                               if entry.get("role") == "Button"
+                               and entry.get("label") in ("ペーストを許可", "Allow Paste")), None)
+            if permission is not None:
+                self.command(["sim-use", "tap", "--label", permission, "--element-type", "Button",
+                              "--device", self.args.device], name + "-permission")
+                data = self.ui(name + "-permission-result")
         if not reflected(data):
             item = next((entry for entry in data["entries"]
                          if entry.get("label") in ("ペースト", "Paste")), None)
