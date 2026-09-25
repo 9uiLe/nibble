@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check PR structure against actual commits/files, locally or through read-only GitHub APIs."""
+"""Check PR structure and reuse verified CI work for metadata-only edits."""
 
 import argparse
 import json
@@ -14,6 +14,9 @@ from script_ui import ui
 SECTIONS = ['目的・背景', 'アウトカム', '変更内容', 'スクリーンショット・画面録画', '検証結果', 'レビュー前の確認']
 SHA = r'[a-f0-9]{40}'
 LINK = re.compile(r'(!?)\[[^\]\n]*\]\((https?://[^\s)]+)\)')
+CHECK_STEP = 'Check repository with locked tools'
+JOB_NAME = 'workflow-policy'
+WORKFLOW = '.github/workflows/workflow-policy.yml'
 
 
 def sections(body):
@@ -141,6 +144,54 @@ def api(endpoint, paged=False):
     return [row for page in value for row in page] if paged else value
 
 
+def reusable(runs, jobs_for_run, head, base, number, current_run):
+    """Trust only the latest completed, actually executed locked-tools step."""
+    for run in sorted(runs, key=lambda row: row['id'], reverse=True):
+        if (run.get('id') == current_run or run.get('head_sha') != head
+                or run.get('path') != WORKFLOW or run.get('event') != 'pull_request'
+                or not any(pr.get('number') == number and pr.get('base', {}).get('sha') == base
+                           for pr in run.get('pull_requests', []))):
+            continue
+        if run.get('status') != 'completed':
+            return False
+        jobs = [job for job in jobs_for_run(run['id']) if job.get('name') == JOB_NAME]
+        if len(jobs) != 1:
+            return False
+        steps = [step for step in jobs[0].get('steps', []) if step.get('name') == CHECK_STEP]
+        if len(steps) != 1:
+            return False
+        if steps[0].get('conclusion') != 'skipped':
+            return steps[0].get('conclusion') == 'success'
+    return False
+
+
+def can_reuse(event, current_run, get=api):
+    if event.get('action') != 'edited':
+        return False
+    repository = event['repository']['full_name']
+    head = event['pull_request']['head']['sha']
+    base = event['pull_request']['base']['sha']
+    number = event['number']
+    if (not re.fullmatch(r'[\w.-]+/[\w.-]+', repository)
+            or not re.fullmatch(r'[a-f0-9]{40}', head)
+            or not re.fullmatch(r'[a-f0-9]{40}', base)
+            or not isinstance(number, int) or number < 1 or current_run < 1):
+        return False
+    prefix = 'repos/' + repository + '/actions'
+    data = get(prefix + '/workflows/workflow-policy.yml/runs?head_sha=' + head
+               + '&event=pull_request&per_page=100')
+    if data.get('total_count', 0) > len(data.get('workflow_runs', [])):
+        return False
+
+    def jobs(run_id):
+        result = get(prefix + '/runs/' + str(run_id) + '/jobs?per_page=100')
+        if result.get('total_count', 0) > len(result.get('jobs', [])):
+            raise ValueError('Incomplete job history')
+        return result['jobs']
+
+    return reusable(data['workflow_runs'], jobs, head, base, number, current_run)
+
+
 def remote_snapshot(repo, number, ci=False):
     if not re.fullmatch(r'[\w.-]+/[\w.-]+', repo) or number < 1:
         raise ValueError('Specify owner/repo and a positive PR number')
@@ -181,7 +232,17 @@ def main(argv=None):
     remote.add_argument('--complete', action='store_true')
     remote.add_argument('--check-ci', action='store_true', help='Final read-only check; do not use inside the running CI job')
     remote.add_argument('--snapshot-out', type=Path)
+    reuse = sub.add_parser('reuse-locked-checks', help='Return true only after a prior full check on the same PR/head/base')
+    reuse.add_argument('--event', type=Path, required=True)
+    reuse.add_argument('--run-id', type=int, required=True)
     args = cli.parse_args(argv)
+    if args.command == 'reuse-locked-checks':
+        try:
+            result = can_reuse(json.loads(args.event.read_text()), args.run_id)
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            result = False
+        print('true' if result else 'false')
+        return 0
     try:
         if args.command in {'commits', 'local'}:
             if args.command == 'local' and git(args.root, 'status', '--porcelain'):
