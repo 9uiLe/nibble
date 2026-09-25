@@ -26,11 +26,21 @@ struct KeyboardSnippetRow: View {
                 detailOrigin = item.id
                 model.openDetail(item)
             } label: {
-                Text("全文を見る").font(.caption.weight(.semibold))
-                    .lineLimit(2).multilineTextAlignment(.center)
-                    .frame(width: 76, height: 70).contentShape(Rectangle())
+                HStack(spacing: 3) {
+                    Text("全文を見る")
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .frame(width: 76, height: 70)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Color(uiColor: .separator))
+                        .frame(width: 1, height: 44)
+                }
+                .contentShape(Rectangle())
             }
-            .background(Color(uiColor: .secondarySystemBackground))
             .accessibilityLabel("\(item.displayTitle)の全文を見る")
             .accessibilityIdentifier("keyboard.more.\(item.id)")
             .accessibilityFocused(focus, equals: "more.\(item.id)")

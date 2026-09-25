@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "キーボード詳細の操作を維持して戻ると下部操作の装飾を軽くし、明暗の表示を照合した。",
+  "summary": "キーボードの全文を見る操作を区切り線とchevronに整え、主操作と独立したタップ領域を明暗で照合した。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md"
@@ -91,7 +91,7 @@
     "app/NibbleKeyboard/KeyboardPanelStyle.swift": "d04a1b27d41e0f8dc0e2bd34de42112168dc93453e395b8146da1fd79d7f2b54",
     "app/NibbleKeyboard/KeyboardRowContent.swift": "6a58b147a31e48beaaabd8caefab3ffc522dfc2cc2e9e10b639d05236e025d0c",
     "app/NibbleKeyboard/KeyboardRowStyle.swift": "0fce723472034ba9f8ccdc72aa251929222e966aa4369d49023e4bcddb58d9b4",
-    "app/NibbleKeyboard/KeyboardSnippetRow.swift": "49814eb2915280ff47c8dae8b36e754b8e740c6cb6d6adab93a867a3f2fe7cd5",
+    "app/NibbleKeyboard/KeyboardSnippetRow.swift": "7e5d30c16284e17a45f19b9dd46ccd3477dfc8adab92570052b3b3b7873117a8",
     "app/NibbleKeyboard/KeyboardStatusMessage.swift": "a7481f1b3d37e18f297c6845630a1585b50d221f55beb380498f2fdd3f386aac",
     "app/NibbleKeyboard/KeyboardTaskOwner.swift": "eee469c892e896d517249f90ed48f55425e5d659d17b2db975e5ae2dd3d40084",
     "app/NibbleKeyboard/KeyboardView.swift": "b3b89312e140bc7ba3e4405bc44c6a5b75f3ccfa6eff8428fb27aec74ef599d9",
