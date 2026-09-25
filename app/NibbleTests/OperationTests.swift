@@ -4,6 +4,92 @@ import Testing
 import Tasking
 @testable import Nibble
 
+@Suite("Entitlement refresh", .serialized)
+@MainActor
+struct EntitlementRefreshTests {
+    @Test func olderAndCancelledReadsCannotReplaceTheLatestAccess() async {
+        let gate = EntitlementReadGate()
+        let subscription = ProSubscription(readExpiration: { await gate.read() },
+                                           updateAccess: { gate.publish($0) })
+        let tasks = ViewTaskStore()
+        tasks.start(id: "entitlement.first", lifetime: .sceneBound, policy: .ignoreNew) { _ in
+            await subscription.refresh()
+        }
+        await gate.waitForReads(1)
+        tasks.start(id: "entitlement.second", lifetime: .sceneBound, policy: .ignoreNew) { _ in
+            await subscription.refresh()
+        }
+        await gate.waitForReads(2)
+        let current = Date().addingTimeInterval(3_600)
+        gate.finish(1, with: current)
+        await gate.waitForPublications(1)
+        #expect(subscription.checked && subscription.isActive)
+        gate.finish(0, with: nil)
+        await tasks.waitForIdle()
+        #expect(gate.published.count == 1 && gate.published[0] == current)
+
+        tasks.start(id: "entitlement.third", lifetime: .sceneBound, policy: .ignoreNew) { _ in
+            await subscription.refresh()
+        }
+        await gate.waitForReads(3)
+        tasks.cancel(lifetime: .sceneBound)
+        gate.finish(2, with: nil)
+        await tasks.waitForIdle()
+        #expect(gate.published.count == 1 && subscription.isActive)
+
+        tasks.start(id: "entitlement.fourth", lifetime: .sceneBound, policy: .ignoreNew) { _ in
+            await subscription.refresh()
+        }
+        await gate.waitForReads(4)
+        gate.finish(3, with: nil)
+        await tasks.waitForIdle()
+        #expect(gate.published.count == 2 && !subscription.isActive)
+    }
+}
+
+@MainActor
+private final class EntitlementReadGate {
+    private var pending: [CheckedContinuation<Date?, Never>?] = []
+    private var readWaiter: (count: Int, continuation: CheckedContinuation<Void, Never>)?
+    private var publicationWaiter: (count: Int, continuation: CheckedContinuation<Void, Never>)?
+    private(set) var published: [Date?] = []
+
+    func read() async -> Date? {
+        await withCheckedContinuation { continuation in
+            pending.append(continuation)
+            if let readWaiter, pending.count >= readWaiter.count {
+                self.readWaiter = nil
+                readWaiter.continuation.resume()
+            }
+        }
+    }
+
+    func waitForReads(_ count: Int) async {
+        guard pending.count < count else { return }
+        await withCheckedContinuation { readWaiter = (count, $0) }
+    }
+
+    func finish(_ index: Int, with expiration: Date?) {
+        let continuation = pending[index]
+        pending[index] = nil
+        continuation?.resume(returning: expiration)
+    }
+
+    func publish(_ expiration: Date?) -> Bool {
+        published.append(expiration)
+        if let publicationWaiter, published.count >= publicationWaiter.count {
+            self.publicationWaiter = nil
+            publicationWaiter.continuation.resume()
+        }
+        return expiration.map { $0 > Date() } ?? false
+    }
+
+    func waitForPublications(_ count: Int) async {
+        guard published.count < count else { return }
+        await withCheckedContinuation { publicationWaiter = (count, $0) }
+    }
+}
+
 extension UIIntegrationTests {
     @Suite("Awaitable operations", .serialized)
     @MainActor

@@ -29,3 +29,31 @@ extension Color {
                     : UIColor(red: 0.975, green: 0.968, blue: 0.95, alpha: 1)
     })
 }
+
+struct NibbleActionButtonStyle: ButtonStyle {
+    enum Role {
+        case primary
+        case secondary
+    }
+
+    @Environment(\.isEnabled) private var isEnabled
+    let role: Role
+
+    func makeBody(configuration: Configuration) -> some View {
+        let primary = role == .primary
+        let radius: CGFloat = 12
+        configuration.label
+            .font(.nibbleTitle)
+            .foregroundStyle(primary && isEnabled ? Color.nibbleCanvas : Color.primary)
+            .padding(.horizontal, primary ? 16 : 12)
+            .frame(maxWidth: .infinity, minHeight: primary ? 52 : 48)
+            .background(primary && isEnabled ? Color.nibbleAccent : Color(uiColor: .secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: radius))
+            .overlay {
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(Color.secondary.opacity(primary && !isEnabled ? 0.55 : primary ? 0 : 0.35))
+            }
+            .opacity(configuration.isPressed && isEnabled ? 0.78 : 1)
+            .contentShape(.rect)
+    }
+}

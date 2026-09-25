@@ -8,71 +8,122 @@ struct EditorVariablePicker: View {
     @SkipEquatable let insertVariable: (String) -> Bool
     @State private var name = ""
     @State private var insertionRejected = false
+    @FocusState private var nameFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let trimmed = SnippetVariables.canonicalName(name)
+        let issue = nameIssue(trimmed)
+        let canCreate = issue == nil
+        let createButton = Button {
+            if insertVariable(trimmed) { dismiss() }
+            else { insertionRejected = true }
+        } label: {
+            Text("作成して追加")
+        }
+        .buttonStyle(NibbleActionButtonStyle(role: .primary))
+        .disabled(!canCreate)
+        .accessibilityHint(issue ?? "新しい印を本文に追加します")
+        .accessibilityIdentifier("editor.createVariable")
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if !existing.isEmpty {
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("印を追加する場所").font(.nibbleTitle)
+                            Text("カーソル位置に追加し、選択中の文字は置き換えます。位置がなければ末尾に追加します。")
+                                .font(.nibbleBody)
+                                .foregroundStyle(.secondary)
+                        }
+
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("既存の変数を再利用").font(.nibbleTitle)
-                            ForEach(existing, id: \.self) { variable in
-                                Button {
-                                    if insertVariable(variable) { dismiss() }
-                                    else { insertionRejected = true }
-                                } label: {
-                                    Text(verbatim: variable)
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .contentShape(.rect)
+                            Text("既存の変数を使う").font(.nibbleTitle)
+                            if existing.isEmpty {
+                                Text("まだ変数はありません。下で新しい変数を作れます。")
+                                    .font(.nibbleBody)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("選ぶと同じ印を追加します。使用時に入力する値は1つです。")
+                                    .font(.nibbleBody)
+                                    .foregroundStyle(.secondary)
+                                ForEach(existing, id: \.self) { variable in
+                                    Button {
+                                        if insertVariable(variable) { dismiss() }
+                                        else { insertionRejected = true }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Text(verbatim: "{{\(variable)}}")
+                                                .font(.body)
+                                                .foregroundStyle(.primary)
+                                            Spacer(minLength: 8)
+                                            Text("追加")
+                                                .font(.nibbleBody)
+                                                .foregroundStyle(.tint)
+                                            Image(systemName: "plus.circle.fill")
+                                                .foregroundStyle(.tint)
+                                                .accessibilityHidden(true)
+                                        }
+                                    }
+                                    .buttonStyle(NibbleActionButtonStyle(role: .secondary))
+                                    .accessibilityLabel("既存の変数、\(variable)を本文に追加")
+                                    .accessibilityIdentifier("editor.reuseVariable.\(variable)")
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("editor.reuseVariable.\(variable)")
-                                Divider()
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("新しい変数を作る").font(.nibbleTitle)
+                            TextField("新しい変数の名前", text: $name, prompt: Text("名前を入力"))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(minHeight: 44)
+                                .focused($nameFocused)
+                                .accessibilityIdentifier("editor.newVariableName")
+                            if let issue {
+                                Text(issue)
+                                    .font(.nibbleBody)
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityIdentifier("editor.variableNameIssue")
+                            }
+                            createButton
+                                .id("createVariable")
+                            if insertionRejected {
+                                Text("本文の入力位置が変わりました。閉じて位置を選び直してください。")
+                                    .font(.nibbleBody).foregroundStyle(.secondary)
                             }
                         }
                     }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("新しい変数を作成").font(.nibbleTitle)
-                        TextField("例：宛名", text: $name)
-                            .textFieldStyle(.roundedBorder)
-                            .accessibilityIdentifier("editor.newVariableName")
-                        if existing.contains(trimmed) {
-                            Text("この名前は既にあります。上の一覧から選んでください。")
-                                .font(.nibbleBody).foregroundStyle(.secondary)
-                        } else {
-                            Text("名前は40文字以内。本文のカーソル位置に印を追加します。文字を選択中なら置き換えます。")
-                                .font(.nibbleBody).foregroundStyle(.secondary)
-                        }
-                        Button("作成して追加") {
-                            if insertVariable(trimmed) { dismiss() }
-                            else { insertionRejected = true }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!SnippetVariables.valid(trimmed) || existing.contains(trimmed))
-                        .accessibilityIdentifier("editor.createVariable")
-                        if insertionRejected {
-                            Text("本文の入力位置が変わりました。閉じて位置を選び直してください。")
-                                .font(.nibbleBody).foregroundStyle(.secondary)
-                        }
-                    }
-                    if !existing.isEmpty {
-                        Text("同じ変数を再利用すると、使用時に入力する値は1つです。")
-                            .font(.nibbleBody).foregroundStyle(.secondary)
+                    .padding(20)
+                }
+                .clipped()
+                .onChange(of: nameFocused) { _, focused in
+                    if focused {
+                        scrollProxy.scrollTo("createVariable", anchor: .bottom)
                     }
                 }
-                .padding(20)
             }
+            .background(Color.nibbleCanvas)
             .navigationTitle("変数を追加")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("閉じる") { dismiss() }
+                        .accessibilityHint("変数を追加せず、このシートを閉じます")
+                        .accessibilityIdentifier("editor.variablePicker.close")
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.height(CGFloat(min(650, 440 + existing.count * 55))), .large])
+        .presentationContentInteraction(.scrolls)
         .background(Color.nibbleCanvas)
+    }
+
+    private func nameIssue(_ trimmed: String) -> String? {
+        switch SnippetVariables.nameIssue(trimmed) {
+        case .empty: return "名前を入力すると追加できます。"
+        case .tooLong: return "名前は40文字以内にしてください。"
+        case .unsupportedCharacter: return "名前に波括弧と改行は使えません。"
+        case nil: break
+        }
+        if existing.contains(trimmed) { return "この名前は既にあります。上の行から追加してください。" }
+        return nil
     }
 }

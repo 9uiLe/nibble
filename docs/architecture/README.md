@@ -91,6 +91,7 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 
 ## 分野ごとの契約
 
+- [画面の状態と応答性](responsiveness.md)：状態の正本、Taskの寿命、更新範囲、UIKit接続と配置。
 - [編集とMarkdown](editing.md)：原文、解析、表示モード、入力の寿命。
 - [変数の編集と利用](variables.md)：印の挿入、値の入力、完成文、確定と取消。
 

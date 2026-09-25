@@ -10,6 +10,7 @@ struct ProView: View {
     @State private var products: [Product] = []
     @State private var loadingProducts = true
     @State private var reloadID = 0
+    @State private var productRequestID: UUID?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,14 +52,14 @@ struct ProView: View {
         .toolbarTitleDisplayMode(.inline)
         .task(id: reloadID) {
             guard FeatureAccess.subscriptionsOffered else { return }
+            let id = UUID()
+            productRequestID = id
             loadingProducts = true
             await subscription.refresh()
-            do {
-                let loaded = try await Product.products(for: ProSubscription.productIDs)
-                products = ProSubscription.productIDs.compactMap { id in loaded.first { $0.id == id } }
-            } catch {
-                products = []
-            }
+            guard !Task.isCancelled, productRequestID == id else { return }
+            let loaded = (try? await Product.products(for: ProSubscription.productIDs)) ?? []
+            guard !Task.isCancelled, productRequestID == id else { return }
+            products = ProSubscription.productIDs.compactMap { id in loaded.first { $0.id == id } }
             loadingProducts = false
         }
         .manageSubscriptionsSheet(isPresented: $showsManageSubscriptions)

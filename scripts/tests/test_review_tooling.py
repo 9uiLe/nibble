@@ -277,6 +277,15 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_context_dependent_prose_is_rejected_but_code_examples_are_not(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            document = root / 'README.md'
+            document.write_text('現在の仕様を説明する。\n\n```md\n以前は別の仕様\n```\n')
+            self.assertEqual(check_docs.check(root)['errors'], [])
+            document.write_text('以前は別の仕様を使った。\n')
+            self.assertTrue(any('context-dependent design prose' in error for error in check_docs.check(root)['errors']))
+
     def test_shell_examples_require_real_repository_commands_and_configs(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

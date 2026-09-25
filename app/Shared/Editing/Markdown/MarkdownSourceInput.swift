@@ -79,7 +79,8 @@ struct MarkdownSourceInput: UIViewRepresentable {
             textView.invalidateIntrinsicContentSize()
         }
         func textViewDidChangeSelection(_ textView: UITextView) {
-            if textView.markedTextRange == nil { parent.selection = textView.selectedRange }
+            guard textView.markedTextRange == nil, parent.selection != textView.selectedRange else { return }
+            parent.selection = textView.selectedRange
         }
     }
 }

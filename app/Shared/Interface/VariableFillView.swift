@@ -21,23 +21,29 @@ struct VariableFillView: View {
 
     var body: some View {
         let allValuesPresent = template.names.allSatisfy { values[$0]?.isEmpty == false }
-        let preview = (allValuesPresent ? template.filled(with: values) : nil) ?? template.body
-        let excerpt = Self.excerpt(preview)
-        let hasMore = excerpt != preview
+        let completedPrefix = template.filledPrefix(with: values, characterLimit: Self.previewCharacterLimit)
+        let prefix = completedPrefix ?? Self.prefix(template.body)
+        let excerpt = Self.excerpt(prefix.text)
+        let hasMore = prefix.hasMore || excerpt != prefix.text
+        let preview = showsFullPreview && hasMore
+            ? (completedPrefix == nil ? template.body : template.filled(with: values) ?? template.body)
+            : excerpt
         let displayTitle = SnippetTextPresentation(title: title, body: template.body).title
         return VStack(spacing: 0) {
-            HStack {
-                Text(availability == .included ? "値を入力" : "変数を利用")
-                    .font(.headline)
-                Spacer(minLength: 8)
-                Button("閉じる", action: cancel)
-                    .font(.subheadline)
-                    .accessibilityLabel("確定せず閉じる")
-                    .accessibilityIdentifier("variables.cancel")
+            if compact {
+                HStack {
+                    Text(availability == .included ? "値を入力" : "変数を利用")
+                        .font(.headline)
+                    Spacer(minLength: 8)
+                    Button("閉じる", action: cancel)
+                        .font(.subheadline)
+                        .accessibilityLabel("確定せず閉じる")
+                        .accessibilityIdentifier("variables.cancel")
+                }
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                Divider()
             }
-            .padding(.horizontal, compact ? 12 : 20)
-            .frame(minHeight: 44)
-            Divider()
             if availability == .included {
                 ScrollView {
                     VStack(alignment: .leading, spacing: compact ? 12 : 16) {
@@ -46,9 +52,12 @@ struct VariableFillView: View {
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("variables.itemTitle")
+                        Text("本文中の印を入力した値に置き換えます。同じ名前の印はまとめて変わります。")
+                            .font(.nibbleBody)
+                            .foregroundStyle(.secondary)
                         ForEach(template.names, id: \.self) { name in
                             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-                                Text("差し替える内容：\(name)")
+                                Text("{{\(name)}} に入れる値")
                                     .font(.nibbleTitle)
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
@@ -57,17 +66,14 @@ struct VariableFillView: View {
                                         values[name] = $0
                                         valueEdited()
                                     }
-                                ), prompt: Text("値を入力").foregroundStyle(.secondary))
+                                ), prompt: Text("値を入力").foregroundStyle(Color.primary.opacity(0.68)))
                                 .textFieldStyle(.roundedBorder)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .font(.body)
                                 .frame(minHeight: 44)
                                 .focused($focusedName, equals: name)
-                                .accessibilityLabel("差し替える内容、\(name)")
-                                Text("本文の「{{\(name)}}」が入力した内容に置き換わります。")
-                                    .font(.nibbleBody)
-                                    .foregroundStyle(.secondary)
+                                .accessibilityLabel("{{\(name)}} に入れる値")
                             }
                         }
                         Divider()
@@ -86,11 +92,16 @@ struct VariableFillView: View {
                                 .accessibilityIdentifier("variables.previewToggle")
                             }
                         }
-                        Text(verbatim: showsFullPreview ? preview : excerpt)
+                        if !allValuesPresent {
+                            Text("すべての値を入力すると完成文に変わります。")
+                                .font(.nibbleBody)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(verbatim: preview)
                             .font(.subheadline)
                             .lineLimit(showsFullPreview || !hasMore ? nil : Self.previewLineLimit)
                             .accessibilityIdentifier("variables.preview")
-                        if focusedName != nil {
+                        if focusedName == nil || compact {
                             VariableCompleteButton(actionTitle: actionTitle,
                                                    allValuesPresent: allValuesPresent,
                                                    isSubmitting: isSubmitting) {
@@ -104,16 +115,26 @@ struct VariableFillView: View {
                     .padding(.horizontal, compact ? 12 : 20)
                     .padding(.vertical, compact ? 8 : 16)
                 }
-                if focusedName == nil {
-                    VariableCompleteButton(actionTitle: actionTitle,
-                                           allValuesPresent: allValuesPresent,
-                                           isSubmitting: isSubmitting) {
-                        isSubmitting = true
-                        complete(values)
+                .clipped()
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if focusedName != nil && !compact {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !allValuesPresent {
+                                Text("すべての値を入力するとコピーできます。")
+                                    .font(.nibbleBody)
+                                    .foregroundStyle(.secondary)
+                            }
+                            VariableCompleteButton(actionTitle: actionTitle,
+                                                   allValuesPresent: allValuesPresent,
+                                                   isSubmitting: isSubmitting) {
+                                isSubmitting = true
+                                complete(values)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                        .background(Color.nibbleCanvas)
                     }
-                        .padding(.horizontal, compact ? 12 : 20)
-                        .padding(.bottom, compact ? 4 : 12)
-                        .background(compact ? Color(uiColor: .tertiarySystemBackground) : Color.nibbleCanvas)
                 }
             } else {
                 ScrollView {
@@ -143,9 +164,13 @@ struct VariableFillView: View {
     }
 
     private static func excerpt(_ text: String) -> String {
-        let characters = String(text.prefix(previewCharacterLimit))
-        return characters.split(separator: "\n", maxSplits: previewLineLimit,
+        text.split(separator: "\n", maxSplits: previewLineLimit,
                                 omittingEmptySubsequences: false)
             .prefix(previewLineLimit).joined(separator: "\n")
+    }
+
+    private static func prefix(_ text: String) -> (text: String, hasMore: Bool) {
+        let leading = String(text.prefix(previewCharacterLimit + 1))
+        return (String(leading.prefix(previewCharacterLimit)), leading.count > previewCharacterLimit)
     }
 }

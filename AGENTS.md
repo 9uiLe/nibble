@@ -11,6 +11,7 @@ nibbleはiOS 26.0以上向けのスニペットツール。素早い利用、原
 | 文書・指示 | 対象文書と参照元・参照先、[文書の責務](CONTRIBUTING.md#文書の責務) |
 | 作業の引き継ぎ | [引き継ぎ内容](CONTRIBUTING.md#作業の引き継ぎ) |
 | Swift実装・レビュー | [実装規約](docs/library-policy.md)、[製品仕様・要件](docs/product-specification.md) |
+| 状態管理・非同期処理・描画性能 | [画面の状態と応答性](docs/architecture/responsiveness.md)、[性能検証](docs/performance-verification.md) |
 | UI | [UI設計](docs/design/README.md)から対象の画面・部品・理由・評価条件 |
 | 変数の編集・利用 | [変数の設計](docs/architecture/variables.md)、[製品仕様](docs/product-specification.md#無料機能とnibble-pro)、対象の画面とテスト |
 | Rive制作・接続 | [演出設計](docs/architecture/presentation.md)、[アセット手順](app/Animations/README.md)。about配下は[局所規約](app/Animations/about/AGENTS.md)も適用 |

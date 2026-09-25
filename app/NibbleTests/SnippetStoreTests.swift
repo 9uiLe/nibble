@@ -16,7 +16,12 @@ struct SnippetTests {
 
     @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
         #expect(SnippetVariables.marker(for: "宛名") == "{{宛名}}")
+        #expect(SnippetVariables.marker(for: " 宛名 ") == "{{宛名}}")
         #expect(SnippetVariables.marker(for: "") == nil)
+        #expect(SnippetVariables.marker(for: "   ") == nil)
+        #expect(SnippetVariables.nameIssue(String(repeating: "長", count: 41)) == .tooLong)
+        #expect(SnippetVariables.nameIssue("改行\nあり") == .unsupportedCharacter)
+        #expect(SnippetVariables.nameIssue("波{括弧") == .unsupportedCharacter)
         let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
         let template = SnippetVariables(original)
         #expect(template.names == ["宛名", "日付"])
@@ -34,6 +39,35 @@ struct SnippetTests {
         #expect(template.names == ["宛名"])
         #expect(template.filled(with: ["宛名": "山田"]) == "先頭山田" + text + "山田末尾")
         #expect(template.body == original)
+    }
+
+    @Test func collapsedVariablePrefixMatchesCompletedTextWithoutRequiringTheWholeBody() throws {
+        let template = SnippetVariables("前{{宛名}}中{{宛名}}後" + String(repeating: "👩🏽‍💻", count: 500))
+        let values = ["宛名": "山田\n太郎"]
+        let completed = try #require(template.filled(with: values))
+        for limit in [0, 1, 2, 4, 8, 16, 160, 1_000] {
+            let prefix = try #require(template.filledPrefix(with: values, characterLimit: limit))
+            #expect(prefix.text == String(completed.prefix(limit)))
+            #expect(prefix.hasMore == (completed.count > limit))
+        }
+        #expect(template.filledPrefix(with: [:], characterLimit: 160) == nil)
+        #expect(template.filledPrefix(with: values, characterLimit: -1) == nil)
+        #expect(template.body.hasPrefix("前{{宛名}}"))
+
+        for (source, replacement) in [
+            ("e{{境界}}末", "\u{301}"),
+            ("👩{{境界}}末", "\u{200D}💻"),
+            ("\r{{境界}}末", "\n")
+        ] {
+            let joined = SnippetVariables(source)
+            let value = ["境界": replacement]
+            let completed = try #require(joined.filled(with: value))
+            for limit in 0...3 {
+                let prefix = try #require(joined.filledPrefix(with: value, characterLimit: limit))
+                #expect(prefix.text == String(completed.prefix(limit)))
+                #expect(prefix.hasMore == (completed.count > limit))
+            }
+        }
     }
 
     @Test func savingHasNoPlanBasedCountLimitAndPreservesDraftsAndExistingUse() async throws {
