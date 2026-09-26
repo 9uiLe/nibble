@@ -106,8 +106,10 @@ struct SnippetUsageTests {
         let e = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
         // Explicit persisted times/IDs make every ordering tie intentional.
         for (id, uses, updated, pinned) in [(a, 2, 1000, 1), (b, 2, 2000, 0), (c, 2, 2000, 1), (d, 3, 0, 0), (e, 0, 3000, 0)] {
-            try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count) VALUES(?,'項目','本文','本文',?,1,?,0,?)",
-                           [.text(id.uuidString), .int(pinned), .int(updated), .int(uses)])
+            try db.execute("""
+                INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count,last_used)
+                VALUES(?,'項目','本文','本文',?,1,?,0,?,CASE WHEN ?>0 THEN ? ELSE NULL END)
+                """, [.text(id.uuidString), .int(pinned), .int(updated), .int(uses), .int(uses), .real(Double(updated))])
         }
         #expect(try await files.store.search().map(\.id) == [d, b, c, a, e])
         #expect(try await files.store.search(filter: .pinned).map(\.id) == [c, a])
