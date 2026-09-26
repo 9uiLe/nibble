@@ -16,7 +16,9 @@ nibbleは保存件数で利用を制限しない。利用者は本文を端末�
 
 ## 権利と商品
 
-本体の[ProSubscription.swift](../../app/Nibble/Monetization/ProSubscription.swift)はStoreKitが検証した現在の権利と取引更新を読み、期限付きのPro状態をApp Groupへ反映する。`ProAccess`はその共有スナップショットを本体と拡張へ渡す。拡張は購入や復元を開始しない。設定の[ProView.swift](../../app/Nibble/Settings/ProView.swift)は権利の確認、登録管理、販売中の商品取得と復元入口を担当する。表示価格と期間はStoreKitの商品情報を使う。
+本体の[ProSubscription.swift](../../app/Nibble/Monetization/ProSubscription.swift)はStoreKitが検証した現在の権利と取引更新を読み、期限付きのPro状態をApp Groupへ反映する。保存層の[ProAccess.swift](../../app/Shared/Persistence/ProAccess.swift)は共有領域の利用不可、値の欠落、期限内、期限切れ、不正形式を区別する。期限内だけを利用可能とし、不正形式を権利として扱わない。拡張は購入や復元を開始しない。設定の[ProView.swift](../../app/Nibble/Settings/ProView.swift)は権利の確認、登録管理、販売中の商品取得と復元入口を担当する。表示価格と期間はStoreKitの商品情報を使う。
+
+各入口は権利の読取関数を編集画面とApplicationのモデルへ渡す。ApplicationはApp Groupを直接読まず、利用時に渡された関数から現在の権利を評価する。単独モデルのテストでは権利なしを既定にできる。
 
 scene復帰と取引更新からの権利再取得が重なった場合、最後に開始した有効な要求だけが共有スナップショットへ反映する。取消済みの要求は反映しない。商品取得は設定画面の表示期間に属し、画面を離れた要求や旧再読込の結果で新しい商品表示を上書きしない。
 

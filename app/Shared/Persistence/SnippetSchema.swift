@@ -3,14 +3,18 @@ import Foundation
 /// Versioned domain schema; connection mechanics do not know table layouts.
 enum SnippetSchema {
     static func prepare(_ db: SQLiteDatabase, at url: URL) throws {
-        let version = try db.rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
+        guard let version = try db.rows("PRAGMA user_version", [], map: { try $0.int(0) }).first else {
+            throw StoreError.database
+        }
         guard version <= 2 else { throw StoreError.newerVersion }
         try db.execute("PRAGMA journal_mode=WAL")
         try db.preserveWAL()
         try db.execute("PRAGMA synchronous=FULL")
         try db.writeTransaction {
             // Another process may have migrated while this connection waited for the write lock.
-            let current = try db.rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
+            guard let current = try db.rows("PRAGMA user_version", [], map: { try $0.int(0) }).first else {
+                throw StoreError.database
+            }
             guard current <= 2 else { throw StoreError.newerVersion }
             if current == 0 {
                 try db.execute("CREATE TABLE snippets(id TEXT PRIMARY KEY,title TEXT NOT NULL,body TEXT NOT NULL,search_key TEXT NOT NULL,pinned INTEGER NOT NULL,revision INTEGER NOT NULL,updated REAL NOT NULL,deleted INTEGER NOT NULL,use_count INTEGER NOT NULL DEFAULT 0 CHECK(use_count>=0),last_used REAL)")

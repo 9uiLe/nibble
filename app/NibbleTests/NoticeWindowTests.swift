@@ -105,20 +105,19 @@ extension UIIntegrationTests {
             anchor.synchronize()
             #expect(anchor.noticeWindow == nil) // No connected source scene yet.
             source.rootViewController?.view.addSubview(anchor)
-            weak var firstWindow = anchor.noticeWindow
-            #expect(firstWindow != nil)
+            let firstWindow = WeakReference(anchor.noticeWindow)
+            #expect(firstWindow.value != nil)
             anchor.synchronize()
-            #expect(anchor.noticeWindow === firstWindow) // Updates reuse the same window.
+            #expect(anchor.noticeWindow === firstWindow.value) // Updates reuse the same window.
             anchor.removeFromSuperview()
             #expect(anchor.noticeWindow == nil)
             try await Task.sleep(for: .milliseconds(100))
-            #expect(firstWindow == nil)
+            #expect(firstWindow.value == nil)
             source.rootViewController?.view.addSubview(anchor)
             #expect(anchor.noticeWindow != nil)
             let bridge = LibraryNoticeWindow(model: model, taskOwner: LibraryTaskOwner(), isPresented: true,
                                              bottomBoundary: source.bounds.height - 100)
-            let coordinator = bridge.makeCoordinator()
-            LibraryNoticeWindow.dismantleUIView(anchor, coordinator: coordinator)
+            LibraryNoticeWindow.dismantleUIView(anchor, coordinator: bridge.makeCoordinator())
             #expect(anchor.noticeWindow == nil && anchor.content == nil)
         }
     }

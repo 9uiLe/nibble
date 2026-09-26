@@ -11,10 +11,11 @@ struct EditorBodyField: View {
     @State private var insertedVariable = false
     @SkipEquatable let model: EditorModel
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
+    @SkipEquatable let proIsActive: () -> Bool
     @SkipEquatable let showPro: (() -> Void)?
 
     var body: some View {
-        let availability = FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive())
+        let availability = FeatureAccess.availability(.variableReplacement, pro: proIsActive())
         VStack(alignment: .leading, spacing: 12) {
             Text("本文").font(.nibbleTitle)
             HStack(spacing: 8) {

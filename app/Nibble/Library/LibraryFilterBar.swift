@@ -1,7 +1,6 @@
 import AppMacros
 import SwiftUI
 
-
 /// Selects a retained collection within the library workspace.
 @Equatable
 struct LibraryFilterBar: View {

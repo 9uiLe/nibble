@@ -2,7 +2,7 @@
 
 変数は保存済み本文に含まれる `{{宛名}}` のような印である。利用者は編集時に印の位置と名前を決め、コピーまたはキーボード入力の直前に値を指定する。保存する本文と、値を当てはめた出力は別のデータとして扱う。名前・値・取消の製品契約は[製品仕様](../product-specification.md#無料機能とnibble-pro)が定める。
 
-名前の有効条件は`SnippetVariables.nameIssue`が一つの結果型で返し、新規作成シートはその結果を利用者向けの理由へ変換する。既存名との重複だけは編集中の本文に依存するためシートで判定する。印の解析、新規作成、本文への挿入は同じDomainの有効条件を使う。
+名前の有効条件は`VariableName.issue(_:)`が一つの結果型で返し、新規作成シートはその結果を利用者向けの理由へ変換する。入力文字列は有効な`VariableName`に変換してから本文へ挿入する。既存名との重複だけは編集中の本文に依存するためシートで判定する。印の解析、新規作成、本文への挿入は同じDomainの有効条件を使う。
 
 ## 編集から利用まで
 
@@ -19,7 +19,7 @@
 
 | 所有者 | 正本と役割 |
 | --- | --- |
-| [SnippetVariables](../../app/Shared/Domain/SnippetVariables.swift) | 印の名前の検証・生成、原文からの初出順の名前抽出、全出現箇所の展開。展開結果を保存データへ書き戻さない |
+| [VariableNameとSnippetVariables](../../app/Shared/Domain/SnippetVariables.swift) | 入力された名前の検証・正規化、原文からの初出順の名前抽出、型付きの名前に対応する値の全出現箇所への展開。展開結果を保存データへ書き戻さない |
 | [EditorBodyField](../../app/Shared/Editing/EditorBodyField.swift) と [MarkdownSourceInput](../../app/Shared/Editing/Markdown/MarkdownSourceInput.swift) | `UITextView` のUTF-16選択範囲をシート表示前に保持し、挿入後のカーソルを反映する。シート取消では本文を変えない |
 | [EditorModel](../../app/Shared/Application/EditorModel.swift) | 下書きの編集状態を確認し、選択範囲を印で置換する。位置が未設定なら末尾を使い、無効な位置では本文を変更しない |
 | [LibraryModel](../../app/Shared/Application/LibraryModel.swift) と [KeyboardModel](../../app/Shared/Application/KeyboardModel.swift) | 保存済み原文を読み、利用対象と権限を固定し、確定時に原文・対象・入力先を再確認して外部作用を実行する |

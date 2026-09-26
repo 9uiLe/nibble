@@ -6,7 +6,7 @@ enum SnippetCommands {
         guard use.completedAt.timeIntervalSince1970.isFinite else { throw StoreError.database }
         try db.writeTransaction {
             let existing = try db.rows("SELECT snippet_id,used FROM snippet_uses WHERE id=?", [.text(use.id.uuidString)]) {
-                (snippetID: try $0.uuid(0), timestamp: $0.double(1))
+                (snippetID: try $0.uuid(0), timestamp: try $0.double(1))
             }
             if let existing = existing.first {
                 // Compare in SQLite's epoch representation: converting back to Date
@@ -24,7 +24,7 @@ enum SnippetCommands {
                 """, [.real(use.completedAt.timeIntervalSince1970), .real(use.completedAt.timeIntervalSince1970),
                        .text(use.snippetID.uuidString), .int(Int.max)])
             if db.changes != 1 {
-                let exists = try db.rows("SELECT 1 FROM snippets WHERE id=?", [.text(use.snippetID.uuidString)]) { $0.int(0) }
+                let exists = try db.rows("SELECT 1 FROM snippets WHERE id=?", [.text(use.snippetID.uuidString)]) { try $0.int(0) }
                 throw exists.isEmpty ? StoreError.missing : StoreError.database
             }
         }

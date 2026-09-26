@@ -96,7 +96,7 @@ export NIBBLE_UI_FORMAT=json
 nix flake check --no-update-lock-file --print-build-logs
 ```
 
-以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLI、hamioが入り、macOSではsim-use 0.14.0も使えます。画像加工はmacOS付属のsipsを使います。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
+以降はリポジトリルートで実行します。初回はlockで固定した依存を取得します。`nix develop`はGitのhook設定が未設定なら`.githooks/pre-commit`を登録し、コミット前に[共通のスタイル検査](scripts/check_swift_style.sh)を実行します。既存の`core.hooksPath`設定は維持します。開発シェルにはPython 3、PyYAML、markdown-it-py、tree-sitter-language-pack、actionlint、ShellCheck、Git、GitHub CLI、hamio、SwiftLint、SwiftFormatが入り、macOSではsim-use 0.14.0も使えます。画像加工はmacOS付属のsipsを使います。Homebrew・pipでの個別導入は不要です。開発シェルは`exit`で終了できます。
 
 | 共通検査 | 確認する内容 |
 | --- | --- |
@@ -104,6 +104,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | driver、証跡、画面要素の解析、画像加工の拒否・失敗契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
 | `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、レイヤー依存・タスク開始・View比較・型とファイルによるView構成の境界 |
+| `swift-style` / `swift-build-settings` | SwiftLint・SwiftFormatの規則と、Swift・Clang警告をエラーにするビルド設定 |
 | `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、shell例のコマンド・設定パス、UI設計IDと照合記録 |
 | `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
 | `rive-assets` | RML・生成物のhash、Data Bindingの名前・型・参照 |

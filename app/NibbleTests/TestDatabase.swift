@@ -1,6 +1,15 @@
 import Foundation
 @testable import Nibble
 
+func testVariableName(_ text: String) -> VariableName {
+    guard let name = VariableName(text) else { preconditionFailure("Invalid test variable name") }
+    return name
+}
+
+func testVariableValues(_ values: [String: String]) -> [VariableName: String] {
+    Dictionary(uniqueKeysWithValues: values.map { (testVariableName($0.key), $0.value) })
+}
+
 struct TestDatabase {
     let url: URL
     let store: SnippetStore
@@ -20,7 +29,6 @@ func create(_ store: SnippetStore, title: String = "", body: String) async throw
     draft.title = title
     return try await store.save(draft)
 }
-
 
 @MainActor
 final class RecordingLibraryEffects: LibraryEffects {

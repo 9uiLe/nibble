@@ -11,7 +11,7 @@ final class LibraryTaskOwner {
 
     enum Action {
         case refresh, reload, retryUsage, open(LibraryModel.EditorSource), copy(UUID)
-        case completeVariableCopy(UUID, [String: String]), pin(SnippetSummary)
+        case completeVariableCopy(UUID, [VariableName: String]), pin(SnippetSummary)
         case delete(UUID), restore(UUID), undoNotice(UUID), permanentlyDelete(UUID)
 
         var id: ActionID {

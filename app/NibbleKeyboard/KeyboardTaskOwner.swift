@@ -12,7 +12,7 @@ final class KeyboardTaskOwner {
         }
     }
 
-    func startTask(_ values: [String: String], on model: KeyboardModel) {
+    func startTask(_ values: [VariableName: String], on model: KeyboardModel) {
         tasks.start(id: "keyboard.use", lifetime: .screenBound, policy: .ignoreNew) { cancellation in
             try cancellation.check()
             await model.completeVariableUse(values: values)

@@ -259,7 +259,7 @@ private final class PausedNoticeStorage: LibraryStorage {
         return try await store.mutate(mutation, id: id)
     }
     func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage] { try await store.libraries(requests) }
-    func beginDraft(snippetID: UUID?, body: String) async throws -> Draft { try await store.beginDraft(snippetID: snippetID, body: body) }
+    func beginDraft(target: DraftTarget, body: String) async throws -> Draft { try await store.beginDraft(target: target, body: body) }
     func editingDraft(for id: UUID) async throws -> Draft { try await store.editingDraft(for: id) }
     func draft(_ id: UUID) async throws -> Draft { try await store.draft(id) }
     func keepDraft(_ draft: Draft) async throws { try await store.keepDraft(draft) }

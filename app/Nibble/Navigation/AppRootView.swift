@@ -7,7 +7,7 @@ struct AppRootView: View {
     private struct VariableCompletion {
         let id = UUID()
         let copyID: UUID
-        let values: [String: String]
+        let values: [VariableName: String]
     }
     private let inputRevision = UUID()
     @State private var library: LibraryModel
@@ -24,7 +24,7 @@ struct AppRootView: View {
     init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
         self.store = store
         self.effects = effects
-        _library = State(initialValue: LibraryModel(store: store, effects: effects))
+        _library = State(initialValue: LibraryModel(store: store, effects: effects, proIsActive: ProAccess.isActive))
     }
 
     var body: some View {
@@ -50,7 +50,7 @@ struct AppRootView: View {
         .sheet(item: $libraryBinding.editor, onDismiss: {
             routeOwner.startTask(.reload, on: library)
         }) { draft in
-            SnippetEditor(draft: draft, store: store, proInformation: {
+            SnippetEditor(draft: draft, store: store, proIsActive: ProAccess.isActive, proInformation: {
                 AnyView(NavigationStack { ProView(subscription: subscription) })
             })
         }

@@ -8,7 +8,7 @@ nibbleは入力中の原文と保存済みの利用対象を分け、非同期�
 | --- | --- | --- |
 | 本体の一覧・検索・整理 | sceneの`LibraryModel`が選択集合、検索語、通知と編集提示を所有する。`LibraryReadState`が集合別の取得上限と読取snapshotを保持する | 読取要求IDと条件を照合し、遅れた検索結果を現在の画面へ反映しない。保存や整理の結果は集合と必要な検索を再取得する |
 | 編集・下書き・Markdown | 編集シートの`EditorModel`が入力、sequence、終了状態を所有する。Viewはフォーカス、本文選択、表示モード、補足シートを所有する | 自動保存は固定した下書きsnapshotを渡し、DBが同一sessionの新しいsequenceだけを適用する。Markdown解析は現在の本文のUTF-8と一致する結果だけを表示する |
-| 変数の追加・利用 | 編集中の選択位置は`EditorBodyField`、名前と印の規則は`SnippetVariables`、利用時の入力値とプレビューの展開状態は`VariableFillView`が所有する | 確定時に本体またはKeyboardのモデルが利用対象を再確認する。未確定の値を保存済み原文へ書き戻さない |
+| 変数の追加・利用 | 編集中の選択位置は`EditorBodyField`、名前と印の規則は`VariableName`と`SnippetVariables`、利用時の入力値とプレビューの展開状態は`VariableFillView`が所有する | 確定時に本体またはKeyboardのモデルが利用対象を再確認する。未確定の値を保存済み原文へ書き戻さない |
 | Share Extension | `ShareViewController`が提示と取込Taskを、`SharedDraftLoader`がprovider入力から下書き保存までを所有する | 共有元への終了前に提示資格を確認する。保存済みの下書きはUIの離脱で取り消さない |
 | Keyboard Extension | controllerが入力先、`KeyboardModel`が一覧・詳細・変数利用を所有する | 読込世代、項目revision、入力先文書IDを確定時に照合し、別の入力欄へ送らない |
 | 権利・説明イラスト | sceneの`ProSubscription`がStoreKit更新を監視する。各案内画面が`IllustrationPlayback`の可視性を所有する | 権利は検証済み取引から再評価する。説明画面を離れるか非表示になれば再生を止める |

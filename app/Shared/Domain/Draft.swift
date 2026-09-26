@@ -1,22 +1,27 @@
 import Foundation
 
+enum DraftTarget: Equatable, Sendable {
+    case new
+    case snippet(UUID)
+}
+
 /// An immutable identity and base revision with monotonically ordered input snapshots.
 struct Draft: Identifiable, Equatable, Sendable {
     enum Replacement { case newer, identical, rejected }
     /// Persistent identity and input ordering, without allocating the stored body.
     struct Checkpoint: Equatable, Sendable {
         let id: UUID
-        let snippetID: UUID?
+        let target: DraftTarget
         let baseRevision: Int
         let sequence: Int
 
         func belongsToSameSession(as other: Self) -> Bool {
-            id == other.id && snippetID == other.snippetID && baseRevision == other.baseRevision
+            id == other.id && target == other.target && baseRevision == other.baseRevision
         }
     }
 
     let id: UUID
-    let snippetID: UUID?
+    let target: DraftTarget
     let baseRevision: Int
     var title: String {
         didSet { if !SnippetText.hasSameBytes(oldValue, title) { sequence += 1 } }
@@ -27,7 +32,7 @@ struct Draft: Identifiable, Equatable, Sendable {
     private(set) var sequence: Int = 0
 
     var checkpoint: Checkpoint {
-        Checkpoint(id: id, snippetID: snippetID, baseRevision: baseRevision, sequence: sequence)
+        Checkpoint(id: id, target: target, baseRevision: baseRevision, sequence: sequence)
     }
 
     func canAutosave(over stored: Checkpoint) -> Bool {
@@ -41,7 +46,11 @@ struct Draft: Identifiable, Equatable, Sendable {
     }
 
     var isDisposable: Bool {
-        (title.isEmpty && body.isEmpty) || (snippetID != nil && sequence == 0)
+        if title.isEmpty && body.isEmpty { return true }
+        switch target {
+        case .new: return false
+        case .snippet: return sequence == 0
+        }
     }
 }
 

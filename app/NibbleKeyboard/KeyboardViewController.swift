@@ -4,7 +4,7 @@ import UIKit
 /// UIKit owns the host input connection; the model never reads surrounding text.
 @MainActor
 final class KeyboardViewController: UIInputViewController, KeyboardEffects {
-    private lazy var model = KeyboardModel(reader: KeyboardReader(), effects: self)
+    private lazy var model = KeyboardModel(reader: KeyboardReader(), effects: self, proIsActive: ProAccess.isActive)
     private var selectionRevision = UUID()
     private var keyboardHeight: NSLayoutConstraint?
     private var requestedHeight: CGFloat = 288

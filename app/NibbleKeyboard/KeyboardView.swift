@@ -11,7 +11,7 @@ struct KeyboardView: View {
 
     private struct VariableCompletion {
         let id = UUID()
-        let values: [String: String]
+        let values: [VariableName: String]
     }
     private let inputRevision = UUID()
     @SkipEquatable let model: KeyboardModel

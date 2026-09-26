@@ -13,7 +13,7 @@
 
 SPMの直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。RiveRuntimeは[Rive描画基盤](../runtime/rive/README.md)のローカルPackageとし、ソース・間接依存をflake.lockで固定してビルドする。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
 
-製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#4-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
+製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。Xcodeの本体・検証用projectはDebug/ReleaseともSwift・Clangのコンパイラ警告をエラーにする。PackageのコンパイルはXcode側の警告抑制と衝突するため、このビルド設定の対象はproject内のtargetとする。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#4-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 
 Releaseは-Osize・whole-module・ENABLE_TESTABILITY=NO。ios.py testだけがテスト可能性を有効にする。ライセンスは[同梱告知](../app/Shared/Resources/ThirdPartyNotices.txt)と各依存の条件を維持する。
 
@@ -157,10 +157,11 @@ RivePresentationのApple runtime APIとData Bindingを使い、RiveViewModel・R
 
 ## Lintと禁止する直接使用
 
-`swift-library-policy`は字句解析とSwift構文木を使い、APIの使用箇所・タスク開始・View比較の規約を検査する。ローカルとUbuntu CIは同じNixのPython環境とlockに固定したSwift grammarを使う。違反時はファイル・行・列を表示し、終了コード1で失敗する。
+一般的なコード診断は[SwiftLint設定](../.swiftlint.yml)、機械的な書式は[SwiftFormat設定](../.swiftformat)が所有する。両方の実行は[スタイル検査](../scripts/check_swift_style.sh)が一つの入口にまとめる。製品固有のAPI、タスク開始、View比較、View構造、層間依存は`swift-library-policy`が字句解析とSwift構文木で検査する。SwiftLint・SwiftFormatへ移した規則をPythonで重複実装しない。3つともNixのlockに固定し、ローカルとUbuntu CIで同じ設定を使う。違反時はファイル・行を表示し、非ゼロの終了コードで失敗する。
 
 ```sh
 nix develop --command python3 scripts/check_swift_policy.py
+nix develop --command sh scripts/check_swift_style.sh
 nix flake check --no-update-lock-file --print-build-logs
 ```
 

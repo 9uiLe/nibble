@@ -13,7 +13,9 @@ actor KeyboardReader: KeyboardReading {
         let url = try location()
         guard FileManager.default.fileExists(atPath: url.path) else { throw KeyboardReadError.notPrepared }
         let db = try SQLiteDatabase(url: url, access: access)
-        let version = try db.rows("PRAGMA user_version", []) { $0.int(0) }.first ?? 0
+        guard let version = try db.rows("PRAGMA user_version", [], map: { try $0.int(0) }).first else {
+            throw StoreError.database
+        }
         guard version <= 2 else { throw StoreError.newerVersion }
         guard version >= 1 else { throw KeyboardReadError.notPrepared }
         return db

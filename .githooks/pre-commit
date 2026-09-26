@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+nix develop --no-update-lock-file --command sh scripts/check_swift_style.sh

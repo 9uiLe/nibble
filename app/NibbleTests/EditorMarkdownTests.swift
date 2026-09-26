@@ -14,17 +14,17 @@ extension UIIntegrationTests {
             model.body = "👩🏽‍💻前後"
             let selection = (model.body as NSString).range(of: "前")
 
-            let caret = model.insertVariable(named: "宛名", at: selection)
+            let name = testVariableName("宛名")
+            let caret = model.insertVariable(named: name, at: selection)
 
             #expect(model.body == "👩🏽‍💻{{宛名}}後")
             #expect(caret == NSRange(location: selection.location + "{{宛名}}".utf16.count, length: 0))
             let unchanged = model.body
-            #expect(model.insertVariable(named: "宛名", at: NSRange(location: 100, length: 0)) == nil)
+            #expect(model.insertVariable(named: name, at: NSRange(location: 100, length: 0)) == nil)
             #expect(model.body == unchanged)
-            let end = model.insertVariable(named: "宛名", at: nil)
+            let end = model.insertVariable(named: name, at: nil)
             #expect(model.body == unchanged + "{{宛名}}")
             #expect(end == NSRange(location: model.body.utf16.count, length: 0))
-            #expect(model.insertVariable(named: "", at: nil) == nil)
         }
 
         @Test func bodyParsingIdentityTracksBytesIndependentlyOfTitle() async throws {
@@ -51,7 +51,7 @@ extension UIIntegrationTests {
             let host = try ViewTestHost()
             defer { host.close() }
             host.window.makeKeyAndVisible()
-            host.show(AnyView(SnippetEditor(draft: draft, store: database.store)))
+            host.show(AnyView(SnippetEditor(draft: draft, store: database.store, proIsActive: { false })))
             try await host.wait { host.find(MarkdownSourceTextView.self)?.isFirstResponder == true }
             let input = try #require(host.find(MarkdownSourceTextView.self))
             let source = "# 入力した見出し\n\n**太字** 👩🏽‍💻 か\u{3099}"

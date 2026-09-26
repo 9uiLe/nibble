@@ -145,7 +145,7 @@ private final class ControlledLibraryOpener: LibraryOpening {
     private var requests: [CheckedContinuation<Draft, any Error>?] = []
     private var waiting: (count: Int, continuation: CheckedContinuation<Void, Never>)?
 
-    func beginDraft(snippetID: UUID?, body: String) async throws -> Draft { try await read() }
+    func beginDraft(target: DraftTarget, body: String) async throws -> Draft { try await read() }
     func editingDraft(for id: UUID) async throws -> Draft { try await read() }
     func draft(_ id: UUID) async throws -> Draft { try await read() }
 

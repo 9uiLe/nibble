@@ -24,19 +24,20 @@ extension UIIntegrationTests {
         try await host.wait { !log.advances.isEmpty }
         try await Task.sleep(for: .milliseconds(500))
         let metal = try #require(host.find(MTKView.self))
-        weak var native: RiveUIView? = try #require(host.find(RiveUIView.self))
+        let native = WeakReference(host.find(RiveUIView.self))
+        _ = try #require(native.value)
         // Wake a settled controller without changing its drawable dimensions.
         session.rive.backgroundColor = RiveRuntime.Color(0x01000000)
         try await Task.sleep(for: .milliseconds(50))
-        native?.isPaused = false
+        native.value?.isPaused = false
         log.reset()
         // The main actor cannot receive the asynchronous acquisition result
         // until this synchronous burst returns. Keep only one pending frame.
-        for _ in 0..<32 { native?.draw(in: metal) }
+        for _ in 0..<32 { native.value?.draw(in: metal) }
         #expect(log.advances.count == 1, "Pending acquisition must coalesce further frame requests")
         let advancesBeforeDismissal = log.advances.count
         host.show(AnyView(EmptyView()))
-        try await host.wait { native?.rive == nil }
+        try await host.wait { native.value?.rive == nil }
         try await Task.sleep(for: .milliseconds(100))
         #expect(log.advances.count == advancesBeforeDismissal, "A result arriving after dismissal must not restart the clock")
     }
@@ -105,22 +106,22 @@ extension UIIntegrationTests {
         navigation.scheme = .light
         try await Task.sleep(for: .milliseconds(150))
         #expect(try await host.find(RiveUIView.self)?.rive?.viewModelInstance?.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
-        weak var native = host.find(RiveUIView.self)
-        weak var rive = native?.rive
+        let native = WeakReference(host.find(RiveUIView.self))
+        let rive = WeakReference(native.value?.rive)
         navigation.tab = 1
-        try await host.wait { native?.isPaused == true || native?.window == nil }
+        try await host.wait { native.value?.isPaused == true || native.value?.window == nil }
         navigation.tab = 0
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
-        #expect(host.find(RiveUIView.self)?.rive === rive)
+        #expect(host.find(RiveUIView.self)?.rive === rive.value)
         try await Task.sleep(for: .milliseconds(150))
         #expect(try await host.find(RiveUIView.self)?.rive?.viewModelInstance?.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
         navigation.covered = true
-        try await host.wait { native?.isPaused == true || native?.window == nil }
+        try await host.wait { native.value?.isPaused == true || native.value?.window == nil }
         navigation.covered = false
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
-        #expect(host.find(RiveUIView.self)?.rive === rive)
+        #expect(host.find(RiveUIView.self)?.rive === rive.value)
         navigation.path = []
-        try await host.wait { native == nil && rive == nil }
+        try await host.wait { native.value == nil && rive.value == nil }
         navigation.path = [1]
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
     }
@@ -242,25 +243,26 @@ extension UIIntegrationTests {
         var second: IllustrationPlayback? = IllustrationPlayback()
         await first?.load(named: "about-story", contract: AboutIllustration.contract)
         await second?.load(named: "about-story", contract: AboutIllustration.contract)
-        weak var firstSession = first?.session
-        weak var secondSession = second?.session
-        weak var firstFile = firstSession?.rive.file
-        weak var secondFile = secondSession?.rive.file
-        #expect(firstSession !== secondSession)
-        firstSession?.data.setValue(of: ColorProperty(path: "paper"), to: RiveRuntime.Color(0xFF25282C))
-        #expect(try await firstSession?.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
-        #expect(try await secondSession?.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
+        let firstSession = WeakReference(first?.session)
+        let secondSession = WeakReference(second?.session)
+        let firstFile = WeakReference(firstSession.value?.rive.file)
+        let secondFile = WeakReference(secondSession.value?.rive.file)
+        #expect(firstSession.value !== secondSession.value)
+        firstSession.value?.data.setValue(of: ColorProperty(path: "paper"), to: RiveRuntime.Color(0xFF25282C))
+        #expect(try await firstSession.value?.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
+        #expect(try await secondSession.value?.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
         host.show(AnyView(HStack {
             RiveCanvas(session: first!.session!, paused: true)
             RiveCanvas(session: second!.session!)
         }.frame(height: 200)))
         try await host.wait { host.find(RiveUIView.self) != nil }
-        weak var native = host.find(RiveUIView.self)
+        let native = WeakReference(host.find(RiveUIView.self))
         first = nil
         second = nil
         host.show(AnyView(EmptyView()))
         try await host.wait {
-            firstSession == nil && secondSession == nil && firstFile == nil && secondFile == nil && native == nil
+            firstSession.value == nil && secondSession.value == nil && firstFile.value == nil
+                && secondFile.value == nil && native.value == nil
         }
     }
 

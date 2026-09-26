@@ -4,19 +4,20 @@ import SwiftUI
 @Equatable
 struct EditorVariablePicker: View {
     private let inputRevision = UUID()
-    let existing: [String]
-    @SkipEquatable let insertVariable: (String) -> Bool
+    let existing: [VariableName]
+    @SkipEquatable let insertVariable: (VariableName) -> Bool
     @State private var name = ""
     @State private var insertionRejected = false
     @FocusState private var nameFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        let trimmed = SnippetVariables.canonicalName(name)
-        let issue = nameIssue(trimmed)
-        let canCreate = issue == nil
+        let candidate = VariableName(name)
+        let issue = nameIssue(name)
+        let canCreate = candidate != nil && issue == nil
         let createButton = Button {
-            if insertVariable(trimmed) { dismiss() }
+            guard let candidate else { return }
+            if insertVariable(candidate) { dismiss() }
             else { insertionRejected = true }
         } label: {
             Text("作成して追加")
@@ -52,7 +53,7 @@ struct EditorVariablePicker: View {
                                         else { insertionRejected = true }
                                     } label: {
                                         HStack(spacing: 8) {
-                                            Text(verbatim: "{{\(variable)}}")
+                                            Text(verbatim: variable.marker)
                                                 .font(.body)
                                                 .foregroundStyle(.primary)
                                             Spacer(minLength: 8)
@@ -65,8 +66,8 @@ struct EditorVariablePicker: View {
                                         }
                                     }
                                     .buttonStyle(NibbleActionButtonStyle(role: .secondary))
-                                    .accessibilityLabel("既存の変数、\(variable)を本文に追加")
-                                    .accessibilityIdentifier("editor.reuseVariable.\(variable)")
+                                    .accessibilityLabel("既存の変数、\(variable.text)を本文に追加")
+                                    .accessibilityIdentifier("editor.reuseVariable.\(variable.text)")
                                 }
                             }
                         }
@@ -116,14 +117,16 @@ struct EditorVariablePicker: View {
         .background(Color.nibbleCanvas)
     }
 
-    private func nameIssue(_ trimmed: String) -> String? {
-        switch SnippetVariables.nameIssue(trimmed) {
+    private func nameIssue(_ input: String) -> String? {
+        switch VariableName.issue(input) {
         case .empty: return "名前を入力すると追加できます。"
         case .tooLong: return "名前は40文字以内にしてください。"
         case .unsupportedCharacter: return "名前に波括弧と改行は使えません。"
         case nil: break
         }
-        if existing.contains(trimmed) { return "この名前は既にあります。上の行から追加してください。" }
+        if let name = VariableName(input), existing.contains(name) {
+            return "この名前は既にあります。上の行から追加してください。"
+        }
         return nil
     }
 }

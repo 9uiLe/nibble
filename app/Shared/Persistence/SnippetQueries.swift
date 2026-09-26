@@ -3,14 +3,17 @@ import Foundation
 /// Saved-text queries shared by writable stores and the keyboard's read-only connection.
 enum SnippetQueries {
     static func requireSaved(_ db: SQLiteDatabase, id: UUID) throws {
-        let deleted = try db.rows("SELECT deleted FROM snippets WHERE id=?", [.text(id.uuidString)]) { $0.int(0) }
-        guard deleted.first == 0 else { throw StoreError.missing }
+        let deleted = try db.rows("SELECT deleted FROM snippets WHERE id=?", [.text(id.uuidString)]) { try $0.bool(0) }
+        guard deleted.first == false else { throw StoreError.missing }
     }
 
     static func summary(_ db: SQLiteDatabase, id: UUID, includesUsage: Bool = true) throws -> SnippetSummary {
         let usage = includesUsage ? "use_count,last_used" : "NULL,NULL"
-        let values = try db.rows("SELECT id,title,substr(body,1,\(SnippetText.previewLength)),pinned,revision,\(usage) FROM snippets WHERE id=?",
-                                [.text(id.uuidString)], map: summaryRow)
+        let values = try db.rows("SELECT id,title,substr(body,1,\(SnippetText.previewLength)),pinned,revision,\(usage),deleted FROM snippets WHERE id=?",
+                                [.text(id.uuidString)]) { row in
+            _ = try row.bool(7)
+            return try summaryRow(row, includesUsage: includesUsage)
+        }
         guard let value = values.first else { throw StoreError.missing }
         return value
     }
@@ -18,9 +21,9 @@ enum SnippetQueries {
     /// Read only the body. Validate the row before allocating its full text in Swift.
     static func savedBody(_ db: SQLiteDatabase, id: UUID, revision: Int? = nil) throws -> String {
         let values = try db.rows("SELECT deleted,revision,body FROM snippets WHERE id=?", [.text(id.uuidString)]) { row in
-            guard row.int(0) == 0 else { throw StoreError.missing }
-            if let revision, row.int(1) != revision { throw StoreError.conflict }
-            return row.text(2)
+            guard try !row.bool(0) else { throw StoreError.missing }
+            if let revision, try row.int(1) != revision { throw StoreError.conflict }
+            return try row.text(2)
         }
         guard let value = values.first else { throw StoreError.missing }
         return value
@@ -46,22 +49,39 @@ enum SnippetQueries {
             SELECT id,title,substr(body,1,\(SnippetText.previewLength)),pinned,revision,\(usage) FROM snippets
             WHERE deleted=?\(pinned)\(matching)
             ORDER BY \(order) LIMIT ? OFFSET ?
-            """, values, map: summaryRow)
+            """, values) { try summaryRow($0, includesUsage: includesUsage) }
     }
 
-    private static func summaryRow(_ row: SQLRow) throws -> SnippetSummary {
-        SnippetSummary(id: try row.uuid(0), title: row.text(1), preview: row.text(2),
-                       pinned: row.int(3) == 1, revision: row.int(4),
-                       usage: row.isNull(5) ? nil : SnippetUsage(count: row.int(5),
-                           lastUsedAt: row.isNull(6) ? nil : Date(timeIntervalSince1970: row.double(6))))
+    private static func summaryRow(_ row: SQLRow, includesUsage: Bool) throws -> SnippetSummary {
+        let usage: SnippetUsage?
+        if includesUsage {
+            usage = try usageRow(row, countColumn: 5, dateColumn: 6)
+        } else {
+            guard row.isNull(5), row.isNull(6) else { throw StoreError.database }
+            usage = nil
+        }
+        return SnippetSummary(id: try row.uuid(0), title: try row.text(1), preview: try row.text(2),
+                              pinned: try row.bool(3), revision: try row.int(4), usage: usage)
+    }
+
+    private static func usageRow(_ row: SQLRow, countColumn: Int32, dateColumn: Int32) throws -> SnippetUsage {
+        let count = try row.int(countColumn)
+        let date: Date?
+        if row.isNull(dateColumn) {
+            date = nil
+        } else {
+            date = Date(timeIntervalSince1970: try row.double(dateColumn))
+        }
+        guard let usage = SnippetUsage(count: count, lastUsedAt: date) else { throw StoreError.database }
+        return usage
     }
 
     static func snippet(_ db: SQLiteDatabase, id: UUID) throws -> Snippet {
         let values = try db.rows("SELECT id,title,body,pinned,revision,updated,deleted,use_count,last_used FROM snippets WHERE id=?",
                                 [.text(id.uuidString)]) { row in
-            Snippet(id: id, title: row.text(1), body: row.text(2), pinned: row.int(3) == 1,
-                    revision: row.int(4), updatedAt: Date(timeIntervalSince1970: row.double(5)), deleted: row.int(6) == 1,
-                    usage: SnippetUsage(count: row.int(7), lastUsedAt: row.isNull(8) ? nil : Date(timeIntervalSince1970: row.double(8))))
+            Snippet(id: id, title: try row.text(1), body: try row.text(2), pinned: try row.bool(3),
+                    revision: try row.int(4), updatedAt: Date(timeIntervalSince1970: try row.double(5)), deleted: try row.bool(6),
+                    usage: try usageRow(row, countColumn: 7, dateColumn: 8))
         }
         guard let value = values.first else { throw StoreError.missing }
         return value
