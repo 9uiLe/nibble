@@ -50,16 +50,31 @@ final class KeyboardModel {
         case failed(Action, Reason, detailIsOpen: Bool)
     }
     struct Detail: Equatable {
+        enum Content: Equatable {
+            case loading
+            case ready(String)
+            case failed(Message)
+        }
         let id: UUID
         let item: SnippetSummary
-        let body: String?
-        let error: Message?
+        let content: Content
+        var body: String? {
+            switch content {
+            case .ready(let body): body
+            case .loading, .failed: nil
+            }
+        }
+        var error: Message? {
+            switch content {
+            case .failed(let error): error
+            case .loading, .ready: nil
+            }
+        }
     }
     private struct Selection {
         let id = UUID()
         let itemID: UUID
-        var body: String?
-        var error: Message?
+        var content: Detail.Content = .loading
     }
     struct Notice: Equatable {
         let id = UUID()
@@ -80,6 +95,7 @@ final class KeyboardModel {
     }
     private let reader: any KeyboardReading
     private weak var effects: (any KeyboardEffects)?
+    private let proIsActive: () -> Bool
     private(set) var request = KeyboardRequest()
     private(set) var loadID = UUID()
     private var loadState = LoadState.inactive
@@ -89,7 +105,7 @@ final class KeyboardModel {
     private var rows: [UUID: SnippetSummary] = [:]
     var detail: Detail? {
         guard let selection, let item = rows[selection.itemID] else { return nil }
-        return Detail(id: selection.id, item: item, body: selection.body, error: selection.error)
+        return Detail(id: selection.id, item: item, content: selection.content)
     }
     private(set) var hasFullAccess = false
     private(set) var needsSwitchKey = false
@@ -115,9 +131,10 @@ final class KeyboardModel {
     var isCurrent: Bool { snapshot?.request == request && loadState == .ready }
     var isUsing: Bool { operation != nil }
 
-    init(reader: any KeyboardReading, effects: any KeyboardEffects) {
+    init(reader: any KeyboardReading, effects: any KeyboardEffects, proIsActive: @escaping () -> Bool = { false }) {
         self.reader = reader
         self.effects = effects
+        self.proIsActive = proIsActive
     }
 
     func activate() {
@@ -212,7 +229,7 @@ final class KeyboardModel {
                 if use == .insert { effects.holdInputDocument() }
                 variableUse = VariableUse(item: item, mode: use, template: template,
                     destination: destination, generation: generation,
-                    availability: FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive()))
+                    availability: FeatureAccess.availability(.variableReplacement, pro: proIsActive()))
                 return
             }
             switch use {
@@ -246,7 +263,7 @@ final class KeyboardModel {
 
     func noteVariableValueEditing() { effects?.noteVariableValueEditing() }
 
-    func completeVariableUse(values: [String: String]) async {
+    func completeVariableUse(values: [VariableName: String]) async {
         guard let pending = variableUse, pending.availability.isAvailable,
               let text = pending.template.filled(with: values), isActive, isCurrent,
               loadID == pending.generation, contains(pending.item), operation == nil,
@@ -305,14 +322,13 @@ final class KeyboardModel {
             try Task.checkCancellation()
             guard isActive, loadID == generation, detail?.id == selected.id,
                   detail?.item.revision == selected.item.revision else { return }
-            selection?.body = body
-            selection?.error = nil
+            selection?.content = .ready(body)
         } catch is CancellationError { }
         catch {
             guard isActive, loadID == generation, detail?.id == selected.id,
                   detail?.item.revision == selected.item.revision else { return }
             let message = failure(for: .preview, error: error)
-            selection?.error = message
+            selection?.content = .failed(message)
         }
     }
 
@@ -357,8 +373,7 @@ final class KeyboardModel {
             if let current = rows[selectedItem.id] {
                 if current.revision != selectedItem.revision {
                     let message = failure(for: .changed, error: KeyboardReadError.changed)
-                    selection?.body = nil
-                    selection?.error = message
+                    selection?.content = .failed(message)
                 }
             } else { rows[selectedItem.id] = selectedItem }
         }

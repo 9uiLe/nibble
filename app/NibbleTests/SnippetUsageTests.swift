@@ -41,7 +41,8 @@ struct SnippetUsageTests {
     }
 
     @Test @MainActor func refreshReevaluatesTimeWithoutModifyingUsage() async throws {
-        #expect(!SnippetUsage(count: 0, lastUsedAt: nil).isDeletionCandidate(at: instant))
+        #expect(!SnippetUsage.never.isDeletionCandidate(at: instant))
+        #expect(SnippetUsage(count: 1, lastUsedAt: Date(timeIntervalSince1970: .nan)) == nil)
         let files = try TestDatabase()
         defer { files.removeFiles() }
         let id = try await create(files.store, body: "時間経過")
@@ -105,8 +106,10 @@ struct SnippetUsageTests {
         let e = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
         // Explicit persisted times/IDs make every ordering tie intentional.
         for (id, uses, updated, pinned) in [(a, 2, 1000, 1), (b, 2, 2000, 0), (c, 2, 2000, 1), (d, 3, 0, 0), (e, 0, 3000, 0)] {
-            try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count) VALUES(?,'項目','本文','本文',?,1,?,0,?)",
-                           [.text(id.uuidString), .int(pinned), .int(updated), .int(uses)])
+            try db.execute("""
+                INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted,use_count,last_used)
+                VALUES(?,'項目','本文','本文',?,1,?,0,?,CASE WHEN ?>0 THEN ? ELSE NULL END)
+                """, [.text(id.uuidString), .int(pinned), .int(updated), .int(uses), .int(uses), .real(Double(updated))])
         }
         #expect(try await files.store.search().map(\.id) == [d, b, c, a, e])
         #expect(try await files.store.search(filter: .pinned).map(\.id) == [c, a])
@@ -136,7 +139,7 @@ struct SnippetUsageTests {
         _ = try await reopened.mutate(.delete, id: id)
         _ = try await reopened.mutate(.permanentlyDelete, id: id)
         let db = try SQLiteDatabase(url: files.url)
-        #expect(try db.rows("SELECT count(*) FROM snippet_uses", []) { $0.int(0) } == [0])
+        #expect(try db.rows("SELECT count(*) FROM snippet_uses", []) { try $0.int(0) } == [0])
     }
 
     @Test func versionOneMigrationPreservesOriginalBytesAndDrafts() async throws {
@@ -165,7 +168,7 @@ struct SnippetUsageTests {
         #expect(value.revision == 7 && value.updatedAt == Date(timeIntervalSince1970: 123) && value.pinned)
         #expect(value.usage.count == 0 && value.usage.lastUsedAt == nil && !value.deleted && trash.deleted)
         #expect(draft.body.utf8.elementsEqual(text.utf8) && draft.title == "未保存" && draft.sequence == 3)
-        #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [2])
+        #expect(try db.rows("PRAGMA user_version", []) { try $0.int(0) } == [2])
         #expect(try await reader.page(KeyboardRequest()).items.map(\.id) == [id])
         _ = try await SnippetStore(location: files.url).search()
         #expect(try await files.store.snippet(id).usage.count == 0)

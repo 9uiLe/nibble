@@ -1,5 +1,3 @@
-import Foundation
-
 enum ProductFeature: Hashable, Sendable {
     case variableReplacement
 }
@@ -17,23 +15,6 @@ struct FeaturePolicy: Sendable {
     func availability(_ feature: ProductFeature, pro: Bool) -> FeatureAvailability {
         if !proFeatures.contains(feature) || pro { return .included }
         return subscriptionsOffered ? .requiresPro : .unavailable
-    }
-}
-
-/// The containing app refreshes this snapshot from verified StoreKit transactions.
-enum ProAccess {
-    private static let group = "group.nibble.9uiLe.com"
-    private static let expirationKey = "pro.entitlementExpiration"
-
-    static func isActive() -> Bool {
-        guard let expiration = UserDefaults(suiteName: group)?.object(forKey: expirationKey) as? Date else { return false }
-        return expiration > Date()
-    }
-
-    static func update(expiration: Date?) {
-        let defaults = UserDefaults(suiteName: group)
-        if let expiration { defaults?.set(expiration, forKey: expirationKey) }
-        else { defaults?.removeObject(forKey: expirationKey) }
     }
 }
 

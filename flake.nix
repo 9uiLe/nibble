@@ -130,6 +130,8 @@
           pkgs.git
           pkgs.firebase-tools
           pkgs.premake5
+          pkgs.swiftlint
+          pkgs.swiftformat
         ]
         ++ hamioFor pkgs
         ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ (simUseFor pkgs) ]
@@ -139,6 +141,13 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShellNoCC {
           packages = toolsFor pkgs;
+          shellHook = ''
+            if [ -f .githooks/pre-commit ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+              if [ -z "$(git config --local --get core.hooksPath 2>/dev/null || true)" ]; then
+                git config --local core.hooksPath .githooks
+              fi
+            fi
+          '';
           NIBBLE_RIVE_SOURCES = pkgs.linkFarm "nibble-rive-sources" [
             {
               name = "rive-ios";
@@ -220,6 +229,44 @@
               python3 ${./scripts}/check_swift_policy.py --root ${./.}
               touch "$out"
             '';
+        swift-style =
+          pkgs.runCommand "nibble-swift-style"
+            {
+              nativeBuildInputs = [
+                pkgs.swiftlint
+                pkgs.swiftformat
+              ];
+            }
+            ''
+              cd ${./.}
+              sh scripts/check_swift_style.sh
+              fixture_root="$TMPDIR/swift-style-fixture"
+              mkdir -p "$fixture_root/app"
+              cp .swiftlint.yml .swiftformat "$fixture_root/"
+              printf 'let value = 1 as! Int\n' > "$fixture_root/app/Bad.swift"
+              if (cd "$fixture_root" && swiftlint lint --strict --quiet --no-cache --config .swiftlint.yml) > "$TMPDIR/lint.log" 2>&1; then
+                echo 'SwiftLint accepted a force cast' >&2
+                exit 1
+              fi
+              grep -q '(force_cast)' "$TMPDIR/lint.log"
+              printf 'let value = 1  \n' > "$fixture_root/app/Bad.swift"
+              if swiftformat --lint --config "$fixture_root/.swiftformat" --cache ignore "$fixture_root/app" > "$TMPDIR/format.log" 2>&1; then
+                echo 'SwiftFormat accepted trailing whitespace' >&2
+                exit 1
+              fi
+              grep -q '(trailingSpace)' "$TMPDIR/format.log"
+              touch "$out"
+            '';
+        swift-build-settings =
+          pkgs.runCommand "nibble-swift-build-settings"
+            {
+              nativeBuildInputs = [ (pythonFor pkgs) ] ++ hamioFor pkgs;
+              NIBBLE_UI_FORMAT = "json";
+            }
+            ''
+              python3 ${./scripts}/check_swift_build_settings.py --root ${./.}
+              touch "$out"
+            '';
         ios-tooling =
           pkgs.runCommand "nibble-ios-tooling"
             {
@@ -238,6 +285,9 @@
               cp -R ${./tools/ui-design} tools/ui-design
               chmod -R u+w scripts tools
               shellcheck scripts/deploy-testflight.sh
+              shellcheck scripts/check_swift_style.sh
+              shellcheck ${./.githooks/pre-commit}
+              test -x ${./.githooks/pre-commit}
               python3 -m unittest discover -s scripts/tests -v
               touch "$out"
             '';

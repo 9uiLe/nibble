@@ -14,10 +14,10 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
 | `app/NibbleShare/` | `SharedDraftLoader`の取込・下書き保存、失敗文言、controllerの共通エディター提示 |
 | `app/NibbleKeyboard/` | OS入力先・権限・キーボードのViewとcontroller |
-| `app/Shared/Domain/` | 項目・使用状況・並び順、下書きの入力順序と置換資格、原文の検証、変数の展開、機能アクセス、保存エラー |
+| `app/Shared/Domain/` | 項目・使用状況・並び順、下書きの入力順序と置換資格、原文の検証、変数の展開、機能方針、保存エラー |
 | `app/Shared/Application/Contracts/` | 一覧・編集・Keyboardの要求と結果、読書込とOS作用のprotocol。具体的な接続や表示形式を持たない |
 | `app/Shared/Application/` | `LibraryModel`・`EditorModel`・`KeyboardModel`の操作、`LibraryReadState`の取得結果と採否、型で表した成功・失敗・回復 |
-| `app/Shared/Persistence/` | SQLite接続、schema、同期SQL、`SnippetStore`と既存DB専用の`KeyboardReader` actor |
+| `app/Shared/Persistence/` | SQLite接続、schema、同期SQL、`SnippetStore`と既存DB専用の`KeyboardReader` actor、App Groupの権利スナップショット |
 | `app/Shared/Editing/` | `EditorTaskOwner`、`SnippetEditor`と入力・操作・補足の表示部品、`EditorPresentation`の文言。本体と共有拡張で使用 |
 | `app/Shared/Editing/Markdown/` | 原文からの解析、共通の文字スタイル、入力とプレビュー、UIKitの編集接続 |
 | `app/Shared/Interface/` | 項目名・上限・失敗の表示形式、共通見出しとピン操作、色、文字役割、操作領域、固定表示のSwiftUI・UIKit境界 |
@@ -54,15 +54,20 @@ flowchart TD
 
 新規DBはschema 2で作成する。schema 1は原文・UUID・下書き・削除状態を維持して2へ移行する。配布済みデータの継続利用のためにこの互換性を持ち、未対応schemaを初期化で置き換えない。Keyboardはschema 1/2を読み、移行は行わない。
 
+下書きの対象はDomainの`DraftTarget`で扱う。DBの`drafts.snippet_id`では新規を空文字、既存項目をUUID文字列として保存し、読取時に型へ変換する。NULLと不正なUUIDは破損として拒否する。保存操作の意図はApplicationの`DraftSaveMode`で指定し、編集対象へ保存するか別項目を作るかをSQLの分岐へ渡す。
+
 ## 概念ごとの正本と更新経路
 
 DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・SQLite・Viewを参照しない。ApplicationのモデルはContractsのprotocolを通じて保存と外部作用を調整する。永続化層はSQLの形式と原子的な更新を所有し、原文の検証や下書きの置換資格をDomainへ委譲する。表示層はDomainの値とApplicationの結果から文言を作る。`Notice`・`Failure`・`Message`は操作、理由、対象を保持し、回復の可否はApplication、文言・日付・数値形式はPresentationが所有する。読み上げも同じ結果から生成する。
+
+権利の永続化はPersistenceが所有し、入口が現在の権利を読む関数をApplicationと編集画面へ渡す。機能方針はDomainの`FeatureAccess`に一つだけ定義する。
 
 | 概念 | 正本・更新経路 | 派生値と保持の責務 |
 | --- | --- | --- |
 | 保存済み本文・UUID・revision・削除状態 | SQLiteの`snippets`。`SnippetStore` / `KeyboardReader`から同期Commandsを実行する | `Snippet`は全文、`SnippetSummary`は上限付き要約。別の編集可能データとして扱わず、操作時にUUID・必要なrevisionで読み直す |
 | 原文の保存資格・UTF-8上限 | `SnippetText`。共有取込と最終保存が同じ検証を呼ぶ | `EditorModel.hasBody`も同じ空白判定を使用する。UTF-8全体を数える上限検証は保存時に行い、入力のたびに本文全体を走査しない。上限案内・失敗文言は`SnippetInputLimits`から生成する |
-| 下書きの同一性・入力順序 | `Draft.Checkpoint`の下書きID・対象ID・開始revisionとsequence。`Draft`がUTF-8変更時にsequenceを進め、置換資格を判定する | `DraftQueries`はwrite transactionで保存済みcheckpointと照合する。自動保存は同一sessionの新しい入力だけを受理する。保持・保存・破棄は同一sequenceの同一原文も受理する。欠落した下書きを自動保存で復活させない |
+| 下書きの対象・同一性・入力順序 | `DraftTarget`が新規作成と既存項目の編集を区別する。`Draft.Checkpoint`は下書きID・対象・開始revision・sequenceを保持し、`Draft`がUTF-8変更時にsequenceを進めて置換資格を判定する | `DraftQueries`はwrite transactionで保存済みcheckpointと照合する。自動保存は同一sessionの新しい入力だけを受理する。保持・保存・破棄は同一sequenceの同一原文も受理する。欠落した下書きを自動保存で復活させない |
+| 利用履歴 | `SnippetUsage`は未使用、または正の利用回数と最終利用日時を持つ。矛盾した組み合わせは生成できない | `SnippetQueries`がDBの回数とNULL/日時を照合して変換する。Keyboardの一覧は履歴を読まないため要約の履歴欄を持たない |
 | 使用回数・最後のコピー日時 | `SnippetCommands.recordUse`。使用IDごとの`snippet_uses`と`snippets`の集計列を同じtransactionで更新する | 集計列は永続化した派生値。再試行は同じ使用IDを使い、二重加算しない。完全削除は履歴も同時に除く。`SnippetUsage`が経過時間による削除候補を判定し、`LibraryModel`が読込時点の時計を渡す。未使用は候補にしない |
 | 一覧の意味と並び順 | `LibraryFilter`・`SnippetOrdering`。本体は使用回数順、削除一覧は更新順、Keyboardはピン優先を要求する | SQLは要求された順序をクエリーへ変換する。Viewで再び並べ替えない |
 | 操作結果と失敗回復 | Applicationの型付き結果。`StoreError`と操作を受けて回復経路を決める | 文言は`LibraryPresentation`・`EditorPresentation`・`KeyboardPresentation`・`SnippetPresentation`。モデル内に文言と判定を重複させない |

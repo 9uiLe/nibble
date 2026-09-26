@@ -32,12 +32,45 @@ struct SnippetSummary: Identifiable, Equatable, Sendable {
 
 struct SnippetUsage: Equatable, Sendable {
     static let inactivityDays = 30
-    let count: Int
-    let lastUsedAt: Date?
+    static let never = SnippetUsage(state: .never)
+
+    private enum State: Equatable, Sendable {
+        case never
+        case used(count: Int, lastUsedAt: Date)
+    }
+    private let state: State
+
+    private init(state: State) { self.state = state }
+
+    init?(count: Int, lastUsedAt: Date?) {
+        switch (count, lastUsedAt) {
+        case (0, nil): state = .never
+        case (1..., .some(let date)) where date.timeIntervalSince1970.isFinite:
+            state = .used(count: count, lastUsedAt: date)
+        default: return nil
+        }
+    }
+
+    var count: Int {
+        switch state {
+        case .never: 0
+        case .used(let count, _): count
+        }
+    }
+
+    var lastUsedAt: Date? {
+        switch state {
+        case .never: nil
+        case .used(_, let date): date
+        }
+    }
 
     func isDeletionCandidate(at date: Date) -> Bool {
-        guard let lastUsedAt else { return false }
-        return date.timeIntervalSince(lastUsedAt) >= Double(Self.inactivityDays * 24 * 60 * 60)
+        switch state {
+        case .never: false
+        case .used(_, let lastUsedAt):
+            date.timeIntervalSince(lastUsedAt) >= Double(Self.inactivityDays * 24 * 60 * 60)
+        }
     }
 }
 

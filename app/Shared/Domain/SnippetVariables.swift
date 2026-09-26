@@ -3,35 +3,31 @@ import Foundation
 /// Variable markers live in the original body. Expansion produces a new value only
 /// when the user explicitly uses the snippet; it never edits the saved text.
 struct SnippetVariables: Sendable, Equatable {
-    enum NameIssue: Sendable, Equatable {
-        case empty, tooLong, unsupportedCharacter
-    }
-
     let body: String
-    let names: [String]
+    let names: [VariableName]
     private let parts: [Part]
 
     private enum Part: Sendable, Equatable {
         case text(Substring)
-        case variable(String)
+        case variable(VariableName)
     }
 
     init(_ body: String) {
         self.body = body
-        var found: [String] = []
-        var seen: Set<String> = []
+        var found: [VariableName] = []
+        var seen: Set<VariableName> = []
         var parts: [Part] = []
         var cursor = body.startIndex
         while let start = body.range(of: "{{", range: cursor..<body.endIndex),
               let end = body.range(of: "}}", range: start.upperBound..<body.endIndex) {
             parts.append(.text(body[cursor..<start.lowerBound]))
-            let name = Self.canonicalName(String(body[start.upperBound..<end.lowerBound]))
-            if Self.valid(name) {
+            let name = VariableName(String(body[start.upperBound..<end.lowerBound]))
+            if let name {
                 parts.append(.variable(name))
             } else {
                 parts.append(.text(body[start.lowerBound..<end.upperBound]))
             }
-            if Self.valid(name), seen.insert(name).inserted { found.append(name) }
+            if let name, seen.insert(name).inserted { found.append(name) }
             cursor = end.upperBound
         }
         parts.append(.text(body[cursor...]))
@@ -39,14 +35,16 @@ struct SnippetVariables: Sendable, Equatable {
         self.parts = parts
     }
 
-    func filled(with values: [String: String]) -> String? {
+    func filled(with values: [VariableName: String]) -> String? {
         guard names.allSatisfy({ values[$0]?.isEmpty == false }) else { return nil }
         var result = ""
         result.reserveCapacity(body.utf8.count)
         for part in parts {
             switch part {
             case .text(let text): result += text
-            case .variable(let name): result += values[name] ?? ""
+            case .variable(let name):
+                guard let value = values[name] else { return nil }
+                result += value
             }
         }
         return result
@@ -54,7 +52,7 @@ struct SnippetVariables: Sendable, Equatable {
 
     /// Expands only the characters needed by a collapsed preview. `hasMore` is
     /// determined by observing one further character, without building the body.
-    func filledPrefix(with values: [String: String], characterLimit: Int) -> (text: String, hasMore: Bool)? {
+    func filledPrefix(with values: [VariableName: String], characterLimit: Int) -> (text: String, hasMore: Bool)? {
         guard characterLimit >= 0, names.allSatisfy({ values[$0]?.isEmpty == false }) else { return nil }
         var result = ""
         result.reserveCapacity(characterLimit)
@@ -62,7 +60,9 @@ struct SnippetVariables: Sendable, Equatable {
             let text: Substring
             switch part {
             case .text(let value): text = value
-            case .variable(let name): text = values[name, default: ""][...]
+            case .variable(let name):
+                guard let value = values[name] else { return nil }
+                text = value[...]
             }
             var remaining = text
             while !remaining.isEmpty {
@@ -80,26 +80,33 @@ struct SnippetVariables: Sendable, Equatable {
         let hasMore = result.count > characterLimit
         return (hasMore ? String(result.prefix(characterLimit)) : result, hasMore)
     }
+}
 
-    static func valid(_ name: String) -> Bool {
-        nameIssue(name) == nil
+/// A canonical marker name. Every instance has passed the marker grammar.
+struct VariableName: Hashable, Sendable {
+    enum Issue: Equatable, Sendable {
+        case empty, tooLong, unsupportedCharacter
     }
 
-    static func canonicalName(_ name: String) -> String {
-        name.trimmingCharacters(in: .whitespaces)
+    let text: String
+    var marker: String { "{{\(text)}}" }
+
+    init?(_ input: String) {
+        guard Self.issue(input) == nil else { return nil }
+        text = Self.canonical(input)
     }
 
-    static func nameIssue(_ name: String) -> NameIssue? {
-        let canonical = canonicalName(name)
-        if canonical.isEmpty { return .empty }
-        if canonical.count > 40 { return .tooLong }
-        if canonical.contains("{") || canonical.contains("}") || canonical.contains("\n") || canonical.contains("\r") {
+    static func issue(_ input: String) -> Issue? {
+        let name = canonical(input)
+        if name.isEmpty { return .empty }
+        if name.count > 40 { return .tooLong }
+        if name.contains("{") || name.contains("}") || name.contains("\n") || name.contains("\r") {
             return .unsupportedCharacter
         }
         return nil
     }
 
-    static func marker(for name: String) -> String? {
-        valid(name) ? "{{\(canonicalName(name))}}" : nil
+    private static func canonical(_ input: String) -> String {
+        input.trimmingCharacters(in: .whitespaces)
     }
 }

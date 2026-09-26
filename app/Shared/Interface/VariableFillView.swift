@@ -13,11 +13,11 @@ struct VariableFillView: View {
     let availability: FeatureAvailability
     @SkipEquatable let cancel: () -> Void
     @SkipEquatable let valueEdited: () -> Void
-    @SkipEquatable let complete: ([String: String]) -> Void
-    @State private var values: [String: String] = [:]
+    @SkipEquatable let complete: ([VariableName: String]) -> Void
+    @State private var values: [VariableName: String] = [:]
     @State private var showsFullPreview = false
     @State private var isSubmitting = false
-    @FocusState private var focusedName: String?
+    @FocusState private var focusedName: VariableName?
 
     var body: some View {
         let allValuesPresent = template.names.allSatisfy { values[$0]?.isEmpty == false }
@@ -57,7 +57,7 @@ struct VariableFillView: View {
                             .foregroundStyle(.secondary)
                         ForEach(template.names, id: \.self) { name in
                             VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-                                Text("{{\(name)}} に入れる値")
+                                Text("\(name.marker) に入れる値")
                                     .font(.nibbleTitle)
                                 TextField("値を入力", text: Binding(
                                     get: { values[name] ?? "" },
@@ -73,7 +73,7 @@ struct VariableFillView: View {
                                 .font(.body)
                                 .frame(minHeight: 44)
                                 .focused($focusedName, equals: name)
-                                .accessibilityLabel("{{\(name)}} に入れる値")
+                                .accessibilityLabel("\(name.marker) に入れる値")
                             }
                         }
                         Divider()

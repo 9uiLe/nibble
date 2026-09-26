@@ -14,20 +14,39 @@ struct SnippetTests {
         #expect(withheld.availability(.variableReplacement, pro: false) == .unavailable)
     }
 
+    @Test func proEntitlementDistinguishesStoredStates() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        #expect(ProEntitlement(stored: nil, now: now) == .absent)
+        #expect(!ProEntitlement.unavailable.isActive)
+        #expect(ProEntitlement(stored: "", now: now) == .invalid)
+        #expect(ProEntitlement(stored: 1_001, now: now) == .invalid)
+        #expect(ProEntitlement(stored: Date(timeIntervalSince1970: .nan), now: now) == .invalid)
+        #expect(ProEntitlement(stored: now, now: now) == .expired(at: now))
+        #expect(ProEntitlement(stored: now.addingTimeInterval(-1), now: now) == .expired(at: now.addingTimeInterval(-1)))
+        let future = now.addingTimeInterval(1)
+        #expect(ProEntitlement(stored: future, now: now) == .active(until: future))
+        #expect(ProEntitlement(stored: future, now: now).isActive)
+        #expect(!ProEntitlement(stored: "", now: now).isActive)
+    }
+
     @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
-        #expect(SnippetVariables.marker(for: "宛名") == "{{宛名}}")
-        #expect(SnippetVariables.marker(for: " 宛名 ") == "{{宛名}}")
-        #expect(SnippetVariables.marker(for: "") == nil)
-        #expect(SnippetVariables.marker(for: "   ") == nil)
-        #expect(SnippetVariables.nameIssue(String(repeating: "長", count: 41)) == .tooLong)
-        #expect(SnippetVariables.nameIssue("改行\nあり") == .unsupportedCharacter)
-        #expect(SnippetVariables.nameIssue("波{括弧") == .unsupportedCharacter)
+        #expect(VariableName(" 宛名 ")?.text == "宛名")
+        #expect(VariableName("") == nil)
+        #expect(VariableName("   ") == nil)
+        #expect(VariableName("波{括弧") == nil)
+        #expect(VariableName(String(repeating: "長", count: 41)) == nil)
+        #expect(VariableName("宛名")?.marker == "{{宛名}}")
+        #expect(VariableName(" 宛名 ")?.marker == "{{宛名}}")
+        #expect(VariableName.issue(String(repeating: "長", count: 41)) == .tooLong)
+        #expect(VariableName.issue("改行\nあり") == .unsupportedCharacter)
+        #expect(VariableName.issue("波{括弧") == .unsupportedCharacter)
         let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
         let template = SnippetVariables(original)
-        #expect(template.names == ["宛名", "日付"])
-        #expect(template.filled(with: ["宛名": "山田", "日付": "9月24日"]) ==
+        #expect(template.names == [testVariableName("宛名"), testVariableName("日付")])
+        #expect(template.filled(with: testVariableValues(["宛名": "山田", "日付": "9月24日"])) ==
             "山田さん\r\n山田へ 👩🏽‍💻 9月24日 / {{ }} / {{未完")
-        #expect(template.filled(with: ["宛名": "山田"]) == nil)
+        #expect(template.filled(with: testVariableValues(["宛名": "山田"])) == nil)
+        #expect(template.filled(with: testVariableValues(["宛名": "", "日付": "9月24日"])) == nil)
         #expect(template.body.utf8.elementsEqual(original.utf8))
         #expect(SnippetVariables("普通の本文").filled(with: [:]) == "普通の本文")
     }
@@ -36,14 +55,14 @@ struct SnippetTests {
         let text = String(repeating: "本文👩🏽‍💻\r\n", count: 40_000)
         let original = "先頭{{ 宛名 }}" + text + "{{宛名}}末尾"
         let template = SnippetVariables(original)
-        #expect(template.names == ["宛名"])
-        #expect(template.filled(with: ["宛名": "山田"]) == "先頭山田" + text + "山田末尾")
+        #expect(template.names == [testVariableName("宛名")])
+        #expect(template.filled(with: testVariableValues(["宛名": "山田"])) == "先頭山田" + text + "山田末尾")
         #expect(template.body == original)
     }
 
     @Test func collapsedVariablePrefixMatchesCompletedTextWithoutRequiringTheWholeBody() throws {
         let template = SnippetVariables("前{{宛名}}中{{宛名}}後" + String(repeating: "👩🏽‍💻", count: 500))
-        let values = ["宛名": "山田\n太郎"]
+        let values = testVariableValues(["宛名": "山田\n太郎"])
         let completed = try #require(template.filled(with: values))
         for limit in [0, 1, 2, 4, 8, 16, 160, 1_000] {
             let prefix = try #require(template.filledPrefix(with: values, characterLimit: limit))
@@ -60,7 +79,7 @@ struct SnippetTests {
             ("\r{{境界}}末", "\n")
         ] {
             let joined = SnippetVariables(source)
-            let value = ["境界": replacement]
+            let value = testVariableValues(["境界": replacement])
             let completed = try #require(joined.filled(with: value))
             for limit in 0...3 {
                 let prefix = try #require(joined.filledPrefix(with: value, characterLimit: limit))
@@ -103,7 +122,7 @@ struct SnippetTests {
         let value = try await reopened.snippet(id)
         #expect(Array(value.body.utf8) == Array(text.utf8))
         #expect(value.title == "  住所  ")
-        var draft = try await reopened.beginDraft(snippetID: id)
+        var draft = try await reopened.beginDraft(target: .snippet(id))
         draft.body += "改訂"
         try await reopened.save(draft)
         #expect(try await store.snippet(id).body == text + "改訂")
@@ -137,7 +156,7 @@ struct SnippetTests {
         let draft = try await store.editingDraft(for: id)
         await #expect(throws: StoreError.missing) { try await store.mutate(.permanentlyDelete, id: id) }
         #expect(try await store.snippet(id).body == "keep me")
-        #expect(try await store.draft(draft.id).snippetID == id)
+        #expect(try await store.draft(draft.id).target == .snippet(id))
         try await store.mutate(.delete, id: id)
         try await store.mutate(.permanentlyDelete, id: id)
         await #expect(throws: StoreError.missing) { try await reopened.snippet(id) }
@@ -150,15 +169,15 @@ struct SnippetTests {
         let url = database.url
         let first = SnippetStore(location: url), second = SnippetStore(location: url)
         let id = try await create(first, body: "original")
-        var a = try await first.beginDraft(snippetID: id)
-        var b = try await second.beginDraft(snippetID: id)
+        var a = try await first.beginDraft(target: .snippet(id))
+        var b = try await second.beginDraft(target: .snippet(id))
         a.body = "first edit"; b.body = "second edit"
         try await second.updateDraft(b)
         try await first.save(a)
         await #expect(throws: StoreError.conflict) { try await second.save(b) }
         #expect(try await first.snippet(id).body == "first edit")
         #expect(try await second.draft(b.id).body == "second edit")
-        let recovered = try await second.save(b, asNew: true)
+        let recovered = try await second.save(b, mode: .saveAsNew)
         #expect(recovered != id)
         #expect(try await first.snippet(recovered).body == "second edit")
     }
@@ -189,7 +208,7 @@ struct SnippetTests {
         defer { database.removeFiles() }
         let store = database.store
         let id = try await create(store, body: "original")
-        var draft = try await store.beginDraft(snippetID: id)
+        var draft = try await store.beginDraft(target: .snippet(id))
         draft.body = " \n "
         try await store.updateDraft(draft)
         await #expect(throws: StoreError.empty) { try await store.save(draft) }
@@ -198,7 +217,7 @@ struct SnippetTests {
         draft.body = String(repeating: "あ", count: 333_333) + "a"
         draft.title = String(repeating: "あ", count: 170) + "ab"
         try await store.save(draft) // Exact UTF-8 limits, not character counts.
-        let atLimit = try await store.beginDraft(snippetID: id)
+        let atLimit = try await store.beginDraft(target: .snippet(id))
         var tooLong = atLimit
         tooLong.title += "a"
         await #expect(throws: StoreError.tooLarge) { try await store.save(tooLong) }
@@ -265,7 +284,7 @@ struct SnippetTests {
         defer { database.removeFiles() }
         let store = database.store
         let id = try await create(store, body: "saved")
-        let draft = try await store.beginDraft(snippetID: id)
+        let draft = try await store.beginDraft(target: .snippet(id))
         let editor = EditorModel(draft: draft, store: store)
         #expect(await editor.finish(.keep))
         #expect(try await store.drafts().isEmpty)

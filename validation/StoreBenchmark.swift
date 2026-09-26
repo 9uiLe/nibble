@@ -83,7 +83,8 @@ func millis(_ elapsed: Duration) -> Double {
         try await store.discardDraft(draft)
         let longText = String(repeating: "a", count: 999_999)
         let options = [longText + "x", longText + "y"]
-        let editor = EditorModel(draft: Draft(id: UUID(), snippetID: nil, baseRevision: 0, title: "long", body: options[1], sequence: 0), store: store)
+        let inputDraft = try await store.beginDraft(body: options[1])
+        let editor = EditorModel(draft: inputDraft, store: store)
         var inputTimes: [Double] = []
         for index in 0..<100 {
             let start = clock.now

@@ -14,17 +14,17 @@ struct DraftLifecycleTests {
         #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
         // Equal sequence remains valid after persistence and can close again.
         try await database.store.keepDraft(draft)
-        let conflicting = Draft(id: draft.id, snippetID: draft.snippetID, baseRevision: draft.baseRevision,
+        let conflicting = Draft(id: draft.id, target: draft.target, baseRevision: draft.baseRevision,
                                 title: draft.title, body: original + "が\0", sequence: draft.sequence)
         await #expect(throws: StoreError.staleDraft) { try await database.store.keepDraft(conflicting) }
         // Autosave ignores non-newer snapshots; terminal operations report the conflict.
         try await database.store.updateDraft(conflicting)
         await #expect(throws: StoreError.staleDraft) { try await database.store.save(conflicting) }
-        let foreign = Draft(id: draft.id, snippetID: UUID(), baseRevision: draft.baseRevision,
+        let foreign = Draft(id: draft.id, target: .snippet(UUID()), baseRevision: draft.baseRevision,
                             title: draft.title, body: draft.body, sequence: draft.sequence + 1)
         try await database.store.updateDraft(foreign)
         await #expect(throws: StoreError.staleDraft) { try await database.store.discardDraft(foreign) }
-        let wrongBase = Draft(id: draft.id, snippetID: draft.snippetID, baseRevision: draft.baseRevision + 1,
+        let wrongBase = Draft(id: draft.id, target: draft.target, baseRevision: draft.baseRevision + 1,
                               title: draft.title, body: "wrong session", sequence: draft.sequence + 1)
         try await database.store.updateDraft(wrongBase)
         await #expect(throws: StoreError.staleDraft) { try await database.store.keepDraft(wrongBase) }
@@ -32,7 +32,7 @@ struct DraftLifecycleTests {
     }
 
     @Test func inputSequenceDistinguishesCanonicallyEquivalentText() {
-        var draft = Draft(id: UUID(), snippetID: nil, baseRevision: 0, title: "", body: "が")
+        var draft = Draft(id: UUID(), target: .new, baseRevision: 0, title: "", body: "が")
         draft.body = "が"
         draft.title = ""
         #expect(draft.sequence == 0)
@@ -47,7 +47,7 @@ struct DraftLifecycleTests {
         defer { database.removeFiles() }
         let store = database.store
         let id = try await create(store, body: "保存済み")
-        var stale = try await store.beginDraft(snippetID: id)
+        var stale = try await store.beginDraft(target: .snippet(id))
         stale.body = "古い入力"
         var newest = stale
         newest.body = "最新の入力"
@@ -57,7 +57,7 @@ struct DraftLifecycleTests {
         #expect(try await store.snippet(id).body == "保存済み")
         #expect(try await store.draft(stale.id).body == newest.body)
 
-        let recovered = try await store.save(stale, asNew: true)
+        let recovered = try await store.save(stale, mode: .saveAsNew)
         #expect(recovered != id)
         #expect(try await store.snippet(recovered).body == stale.body)
         #expect(try await store.draft(stale.id).body == newest.body)
@@ -137,7 +137,7 @@ extension UIIntegrationTests {
             defer { database.removeFiles() }
             let store = database.store
             let id = try await create(store, body: "保存済み")
-            var draft = try await store.beginDraft(snippetID: id)
+            var draft = try await store.beginDraft(target: .snippet(id))
             let library = LibraryModel(store: store)
             await library.refresh()
             // Simulate an extension write after the library obtained its rows.
@@ -169,7 +169,7 @@ extension UIIntegrationTests {
             defer { database.removeFiles() }
             let store = database.store
             let id = try await create(store, body: "削除する項目")
-            _ = try await store.beginDraft(snippetID: id)
+            _ = try await store.beginDraft(target: .snippet(id))
             let library = LibraryModel(store: store)
             await library.refresh()
             try await store.mutate(.delete, id: id)

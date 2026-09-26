@@ -47,3 +47,11 @@ final class ViewTestHost {
                      sourceLocation: SourceLocation(fileID: fileID, filePath: filePath, line: line, column: column))
     }
 }
+
+/// Keeps a deallocation observation without retaining the observed object.
+@MainActor
+final class WeakReference<Object: AnyObject> {
+    weak var value: Object?
+
+    init(_ value: Object?) { self.value = value }
+}

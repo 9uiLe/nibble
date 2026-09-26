@@ -53,6 +53,8 @@ nibbleは、必要なテキストを探して利用し、入力を失わずに�
 
 Xcode・Apple Swift・SDK・Simulator・署名情報はローカルMacで管理する。Nixは`mkShellNoCC`でAppleのcompilerを置き換えない。対応CPUとセットアップはREADME、Swift依存とmacroの条件は実装規約を参照する。
 
+`nix develop`はGitの`core.hooksPath`が未設定なら[pre-commit hook](.githooks/pre-commit)を登録する。hookとCIの`swift-style`は共通の[スタイル検査](scripts/check_swift_style.sh)をNix環境で実行し、違反したコミットやCIを止める。既存のhook設定は上書きしない。
+
 依存更新は用途、互換性、保守、ライセンス、lock差分を確認する単一目的の変更とする。Nixは`nix flake update <入力名>`と`nix fmt flake.nix`を使う。通常の検査ではlockを更新しない。
 
 ## 実行と検査
@@ -69,6 +71,8 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | workflow-policy / nix-format | Ubuntu runner方針、workflow・shell構文、Nix書式 |
 | swift-library-policy | 禁止API、タスク開始、View比較、View型・ファイル構成の構文 |
+| swift-style | SwiftLintによる一般的なコード診断、SwiftFormatによる書式 |
+| swift-build-settings | 製品・検証用projectのSwift・Clang警告をエラーにする設定 |
 | documentation | 文書リンク、Webページの内部リンク、Skill、Swift例、shell例のコマンドと設定パスの実在、設計IDと未確認入力 |
 | ui-design / ios-tooling | 共通設計ツールと製品Adapter、実行・証跡・PR検査の回帰 |
 | rive-assets | 制作ソース・生成物・Data Binding契約 |

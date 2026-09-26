@@ -55,8 +55,9 @@ final class EditorModel {
     func appendToBody(_ text: String) { body += text }
 
     /// A nil selection means the body has no insertion position. A stale position never changes the body.
-    func insertVariable(named name: String, at selection: NSRange?) -> NSRange? {
-        guard phase == .editing, let marker = SnippetVariables.marker(for: name) else { return nil }
+    func insertVariable(named name: VariableName, at selection: NSRange?) -> NSRange? {
+        guard phase == .editing else { return nil }
+        let marker = name.marker
         let target = selection ?? NSRange(location: body.utf16.count, length: 0)
         guard let range = Range(target, in: body) else { return nil }
         var updated = body
@@ -85,8 +86,8 @@ final class EditorModel {
         failure = nil
         do {
             switch operation {
-            case .save: try await store.save(snapshot, asNew: false)
-            case .saveAsNew: try await store.save(snapshot, asNew: true)
+            case .save: try await store.save(snapshot, mode: .save)
+            case .saveAsNew: try await store.save(snapshot, mode: .saveAsNew)
             case .keep: try await store.keepDraft(snapshot)
             case .discard: try await store.discardDraft(snapshot)
             }

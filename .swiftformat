@@ -1,0 +1,7 @@
+# SwiftFormat owns mechanical whitespace and line endings.
+--disable all
+--enable trailingSpace,consecutiveBlankLines,linebreakAtEndOfFile
+--linebreaks lf
+--trimwhitespace always
+--swiftversion 6
+--exclude artifacts,.build,DerivedData

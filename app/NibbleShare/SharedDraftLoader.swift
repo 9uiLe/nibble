@@ -15,7 +15,7 @@ struct SharedDraftLoader {
         let body = try await Self.read(provider)
         try Task.checkCancellation()
         try SnippetText.validate(title: "", body: body)
-        return try await store.beginDraft(snippetID: nil, body: body)
+        return try await store.beginDraft(target: .new, body: body)
     }
 
     private static func read(_ provider: NSItemProvider) async throws -> String {

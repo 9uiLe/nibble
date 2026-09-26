@@ -22,7 +22,7 @@ struct KeyboardStorageTests {
         }
         if let db {
             await #expect(throws: StoreError.newerVersion) { try await useDatabase() }
-            #expect(try db.rows("PRAGMA user_version", []) { $0.int(0) } == [99])
+            #expect(try db.rows("PRAGMA user_version", []) { try $0.int(0) } == [99])
         } else {
             await #expect(throws: KeyboardReadError.notPrepared) { try await useDatabase() }
             #expect(!FileManager.default.fileExists(atPath: files.url.path))
@@ -60,7 +60,7 @@ struct KeyboardStorageTests {
         let item = try #require(try await reader.page(KeyboardRequest()).items.first)
         #expect(try await reader.body(for: item).utf8.elementsEqual(original.utf8))
         let writer = SnippetStore(location: files.url)
-        var draft = try await writer.beginDraft(snippetID: id)
+        var draft = try await writer.beginDraft(target: .snippet(id))
         draft.body = "更新後"
         _ = try await writer.save(draft)
         await #expect(throws: KeyboardReadError.self) { try await reader.body(for: item) }
@@ -190,10 +190,10 @@ struct KeyboardOperationTests {
         await reader.bodies.waitForRequests(1)
         reader.bodies.finish(0, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await first
-        #expect(effects.events.isEmpty && model.variableUse?.template.names == ["宛名"])
+        #expect(effects.events.isEmpty && model.variableUse?.template.names == [testVariableName("宛名")])
         #expect(effects.holdsInputDocument)
         effects.destination = KeyboardDestination(document: UUID(), revision: UUID())
-        async let rejected: Void = model.completeVariableUse(values: ["宛名": "山田"])
+        async let rejected: Void = model.completeVariableUse(values: testVariableValues(["宛名": "山田"]))
         await reader.bodies.waitForRequests(2)
         reader.bodies.finish(1, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await rejected
@@ -204,7 +204,7 @@ struct KeyboardOperationTests {
         reader.bodies.finish(2, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await second
         effects.destination = KeyboardDestination(document: effects.destination.document, revision: UUID())
-        async let accepted: Void = model.completeVariableUse(values: ["宛名": "山田"])
+        async let accepted: Void = model.completeVariableUse(values: testVariableValues(["宛名": "山田"]))
         await reader.bodies.waitForRequests(4)
         reader.bodies.finish(3, .success("こんにちは、{{宛名}}さん。{{宛名}}さん。"))
         await accepted
@@ -293,6 +293,7 @@ struct KeyboardOperationTests {
         let model = KeyboardModel(reader: reader, effects: effects)
         await prepare(model, reader: reader)
         model.openDetail(item)
+        #expect(model.detail?.content == .loading)
         async let first: Void = model.loadDetail()
         await reader.bodies.waitForRequests(1)
         model.closeDetail()
@@ -305,6 +306,7 @@ struct KeyboardOperationTests {
         let body = "新しいプレビュー本文\n末尾"
         reader.bodies.finish(1, .success(body))
         await second
+        #expect(model.detail?.content == .ready(body))
         #expect(model.detail?.body == body && effects.events.isEmpty)
         model.closeDetail()
         #expect(model.isCurrent && model.page?.items == [item] && model.request.filter == .all)
@@ -368,6 +370,7 @@ struct KeyboardOperationTests {
         await reader.bodies.waitForRequests(1)
         reader.bodies.finish(0, .failure(KeyboardReadError.changed))
         await preview
+        #expect(model.detail?.content != .loading)
         #expect(model.detail?.failure != nil && model.detail?.body == nil)
         #expect(model.detail?.failure?.contains("「一覧に戻る」を押してから") == true)
         #expect(model.notice == nil && effects.events.isEmpty)

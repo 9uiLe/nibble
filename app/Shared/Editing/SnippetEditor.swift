@@ -18,11 +18,14 @@ struct SnippetEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     private let complete: (@MainActor () -> Void)?
+    @SkipEquatable private let proIsActive: () -> Bool
     @SkipEquatable private let proInformation: (@MainActor () -> AnyView)?
 
-    init(draft: Draft, store: any DraftEditing, proInformation: (@MainActor () -> AnyView)? = nil,
+    init(draft: Draft, store: any DraftEditing, proIsActive: @escaping () -> Bool,
+         proInformation: (@MainActor () -> AnyView)? = nil,
          complete: (@MainActor () -> Void)? = nil) {
         _model = State(initialValue: EditorModel(draft: draft, store: store))
+        self.proIsActive = proIsActive
         self.proInformation = proInformation
         self.complete = complete
     }
@@ -34,6 +37,7 @@ struct SnippetEditor: View {
                 EditorExitGuidance(isShared: complete != nil)
                 ScrollView {
                     EditorForm(model: model, focus: $focus, taskOwner: taskOwner, isShared: complete != nil,
+                               proIsActive: proIsActive,
                                showPro: proInformation == nil ? nil : { focus = nil; showsPro = true })
                 }
                 .scrollDismissesKeyboard(.interactively)
@@ -46,7 +50,7 @@ struct SnippetEditor: View {
                 }
             }
             .background { Color.nibbleCanvas.ignoresSafeArea() }
-            .navigationTitle(complete != nil ? "共有から保存" : model.draft.snippetID == nil ? "新規作成" : "項目を編集")
+            .navigationTitle(complete != nil ? "共有から保存" : model.draft.target == .new ? "新規作成" : "項目を編集")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 EditorToolbar(model: model, taskOwner: taskOwner)
@@ -73,7 +77,7 @@ struct SnippetEditor: View {
         .onAppear {
             guard !hasSetInitialFocus else { return }
             hasSetInitialFocus = true
-            if complete == nil && model.draft.snippetID == nil && model.title.isEmpty && model.body.isEmpty {
+            if complete == nil && model.draft.target == .new && model.title.isEmpty && model.body.isEmpty {
                 focus = .body
             }
         }

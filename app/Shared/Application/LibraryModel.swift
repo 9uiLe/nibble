@@ -14,6 +14,7 @@ final class LibraryModel {
     private let store: any LibraryStorage
     private let effects: any LibraryEffects
     private let usageRecorder: any SnippetUsageRecording
+    private let proIsActive: () -> Bool
     private let now: () -> Date
     private(set) var evaluatedAt: Date
     private struct PendingUse {
@@ -122,7 +123,8 @@ final class LibraryModel {
 
     init(store: any LibraryStorage, effects: any LibraryEffects, surface: LibrarySurface = .library,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
-         usageRecorder: (any SnippetUsageRecording)? = nil, now: @escaping () -> Date = Date.init,
+         usageRecorder: (any SnippetUsageRecording)? = nil, proIsActive: @escaping () -> Bool = { false },
+         now: @escaping () -> Date = Date.init,
          noticeSleep: @escaping (ContinuousClock.Instant) async throws -> Void = { try await ContinuousClock().sleep(until: $0) }) {
         self.store = store
         self.surface = surface
@@ -131,6 +133,7 @@ final class LibraryModel {
         self.libraryReader = libraryReader ?? store
         self.libraryOpener = libraryOpener ?? store
         self.usageRecorder = usageRecorder ?? store
+        self.proIsActive = proIsActive
         self.now = now
         self.noticeSleep = noticeSleep
         evaluatedAt = now()
@@ -196,7 +199,7 @@ final class LibraryModel {
             // Read at the time of opening; rows contain no editable snapshot.
             let draft: Draft
             switch source {
-            case .new: draft = try await libraryOpener.beginDraft(snippetID: nil, body: "")
+            case .new: draft = try await libraryOpener.beginDraft(target: .new, body: "")
             case .snippet(let id): draft = try await libraryOpener.editingDraft(for: id)
             case .draft(let id): draft = try await libraryOpener.draft(id)
             }
@@ -230,7 +233,7 @@ final class LibraryModel {
                 variableCopy = VariableCopy(snippetID: id,
                     title: items.first(where: { $0.id == id })?.title ?? "",
                     template: template, context: context,
-                    availability: FeatureAccess.availability(.variableReplacement, pro: ProAccess.isActive()))
+                    availability: FeatureAccess.availability(.variableReplacement, pro: proIsActive()))
                 return
             }
             await completeCopy(body, snippetID: id, context: context)
@@ -240,7 +243,7 @@ final class LibraryModel {
 
     func cancelVariableCopy() { variableCopy = nil }
 
-    func completeVariableCopy(id: UUID, values: [String: String]) async {
+    func completeVariableCopy(id: UUID, values: [VariableName: String]) async {
         guard let pending = variableCopy, pending.id == id, pending.availability.isAvailable,
               let filled = pending.template.filled(with: values) else { return }
         variableCopy = nil

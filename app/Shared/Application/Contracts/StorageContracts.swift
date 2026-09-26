@@ -1,16 +1,21 @@
 import Foundation
 
+enum DraftSaveMode: Sendable {
+    case save
+    case saveAsNew
+}
+
 /// An editor can persist its draft and finish it, but cannot browse or delete saved items.
 protocol DraftEditing: Sendable {
     func updateDraft(_ draft: Draft) async throws
     func keepDraft(_ draft: Draft) async throws
     func discardDraft(_ draft: Draft) async throws
-    @discardableResult func save(_ draft: Draft, asNew: Bool) async throws -> UUID
+    @discardableResult func save(_ draft: Draft, mode: DraftSaveMode) async throws -> UUID
 }
 
 /// Opening and resuming are separate from the lifetime of the presented editor.
 protocol LibraryOpening: Sendable {
-    func beginDraft(snippetID: UUID?, body: String) async throws -> Draft
+    func beginDraft(target: DraftTarget, body: String) async throws -> Draft
     func editingDraft(for id: UUID) async throws -> Draft
     func draft(_ id: UUID) async throws -> Draft
 }

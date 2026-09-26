@@ -106,7 +106,7 @@ extension UIIntegrationTests {
             let pending = try #require(library.variableCopy)
             #expect(pending.title == "送信用")
             #expect(effects.events.isEmpty)
-            await library.completeVariableCopy(id: pending.id, values: ["宛名": "山田"])
+            await library.completeVariableCopy(id: pending.id, values: testVariableValues(["宛名": "山田"]))
             #expect(effects.events.contains(.copy("山田さんへ")))
             #expect(try await database.store.snippet(id).body == "{{宛名}}さんへ")
         }
@@ -513,7 +513,7 @@ extension UIIntegrationTests {
             let older = editor.draft
             editor.body = "最新"
             let newest = editor.draft
-            #expect(try await store.draft(editor.draft.id).body == "")
+            #expect(try await store.draft(editor.draft.id).body.isEmpty)
             await editor.persist(newest)
             await editor.persist(older)
             #expect(try await store.draft(editor.draft.id).body == "最新")
@@ -744,5 +744,5 @@ private final class PausedDraftEditing: DraftEditing {
     func resumeUpdate() { update?.resume(); update = nil }
     func keepDraft(_ draft: Draft) async throws { try await store.keepDraft(draft) }
     func discardDraft(_ draft: Draft) async throws { try await store.discardDraft(draft) }
-    func save(_ draft: Draft, asNew: Bool) async throws -> UUID { try await store.save(draft, asNew: asNew) }
+    func save(_ draft: Draft, mode: DraftSaveMode) async throws -> UUID { try await store.save(draft, mode: mode) }
 }

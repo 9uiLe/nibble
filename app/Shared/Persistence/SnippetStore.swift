@@ -56,7 +56,7 @@ actor SnippetStore: LibraryStorage, DraftEditing {
             SELECT count(*), coalesce(sum(pinned),0), (SELECT count(*) FROM drafts)
             FROM snippets WHERE deleted=0
             """, []) { row in
-            LibraryCounts(saved: row.int(0), pinned: row.int(1), drafts: row.int(2))
+            LibraryCounts(saved: try row.int(0), pinned: try row.int(1), drafts: try row.int(2))
         }
         guard let counts = values.first else { throw StoreError.unavailable }
         return counts
@@ -78,8 +78,8 @@ actor SnippetStore: LibraryStorage, DraftEditing {
         try SnippetQueries.snippet(database(), id: id)
     }
 
-    func beginDraft(snippetID: UUID? = nil, body: String = "") throws -> Draft {
-        try DraftQueries.beginDraft(database(), snippetID: snippetID, body: body)
+    func beginDraft(target: DraftTarget = .new, body: String = "") throws -> Draft {
+        try DraftQueries.beginDraft(database(), target: target, body: body)
     }
 
     func editingDraft(for id: UUID) throws -> Draft {
@@ -96,10 +96,10 @@ actor SnippetStore: LibraryStorage, DraftEditing {
     func discardDraft(_ draft: Draft) throws { try DraftQueries.discardDraft(draft, in: database()) }
 
     @discardableResult
-    func save(_ draft: Draft, asNew: Bool = false) throws -> UUID {
+    func save(_ draft: Draft, mode: DraftSaveMode = .save) throws -> UUID {
         let interval = signposter.beginInterval("Save")
         defer { signposter.endInterval("Save", interval) }
-        return try DraftQueries.save(draft, asNew: asNew, in: database())
+        return try DraftQueries.save(draft, mode: mode, in: database())
     }
 
     func savedBody(_ id: UUID) throws -> String { try SnippetQueries.savedBody(database(), id: id) }

@@ -75,6 +75,7 @@ mkdir -p artifacts
 NIBBLE_UI_FORMAT=json python3 scripts/check_docs.py \
   > artifacts/docs-result.json 2> artifacts/docs-display.log
 NIBBLE_UI_FORMAT=human python3 scripts/check_swift_policy.py
+sh scripts/check_swift_style.sh
 ```
 
 この例はNixシェル内でPythonを実行し、Nix自体の診断とスクリプトの出力を分ける。`docs-result.json`は文書検査の結果、`docs-display.log`は表示の記録である。stderrには表示障害時のテキスト警告も含むため、常にJSONだけで構成されるとは限らない。

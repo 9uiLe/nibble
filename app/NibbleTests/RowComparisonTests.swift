@@ -22,8 +22,10 @@ extension UIIntegrationTests {
             for style in [UIUserInterfaceStyle.light, .dark] {
                 var ratios: [Double] = []
                 for contrast in [UIAccessibilityContrast.normal, .high] {
-                    let traits = UITraitCollection(traitsFrom: [UITraitCollection(userInterfaceStyle: style),
-                                                               UITraitCollection(accessibilityContrast: contrast)])
+                    let traits = UITraitCollection(mutations: {
+                        $0.userInterfaceStyle = style
+                        $0.accessibilityContrast = contrast
+                    })
                     let accent = luminance(UIColor(Color.nibbleAccent), traits)
                     let canvas = luminance(UIColor(Color.nibbleCanvas), traits)
                     let ratio = (max(accent, canvas) + 0.05) / (min(accent, canvas) + 0.05)
@@ -145,7 +147,6 @@ extension UIIntegrationTests {
         #expect(try await pixels() != normal)
     }
 }
-
 
 @MainActor @Observable
 private final class FilterSelection {

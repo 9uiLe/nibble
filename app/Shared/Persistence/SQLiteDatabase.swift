@@ -145,13 +145,36 @@ struct SQLRow {
     let statement: OpaquePointer
     func isNull(_ column: Int32) -> Bool { sqlite3_column_type(statement, column) == SQLITE_NULL }
     func uuid(_ column: Int32) throws -> UUID {
-        guard let value = UUID(uuidString: text(column)) else { throw StoreError.database }
+        guard let value = UUID(uuidString: try text(column)) else { throw StoreError.database }
         return value
     }
-    func int(_ column: Int32) -> Int { Int(sqlite3_column_int64(statement, column)) }
-    func double(_ column: Int32) -> Double { sqlite3_column_double(statement, column) }
-    func text(_ column: Int32) -> String {
-        guard let bytes = sqlite3_column_text(statement, column) else { return "" }
-        return String(decoding: UnsafeBufferPointer(start: bytes, count: Int(sqlite3_column_bytes(statement, column))), as: UTF8.self)
+    func int(_ column: Int32) throws -> Int {
+        guard sqlite3_column_type(statement, column) == SQLITE_INTEGER,
+              let value = Int(exactly: sqlite3_column_int64(statement, column)) else { throw StoreError.database }
+        return value
+    }
+    func bool(_ column: Int32) throws -> Bool {
+        switch try int(column) {
+        case 0: false
+        case 1: true
+        default: throw StoreError.database
+        }
+    }
+    func double(_ column: Int32) throws -> Double {
+        let type = sqlite3_column_type(statement, column)
+        guard type == SQLITE_FLOAT || type == SQLITE_INTEGER else { throw StoreError.database }
+        let value = sqlite3_column_double(statement, column)
+        guard value.isFinite else { throw StoreError.database }
+        return value
+    }
+    func text(_ column: Int32) throws -> String {
+        guard sqlite3_column_type(statement, column) == SQLITE_TEXT else { throw StoreError.database }
+        let byteCount = Int(sqlite3_column_bytes(statement, column))
+        if byteCount == 0 { return "" }
+        guard
+              let bytes = sqlite3_column_text(statement, column),
+              let value = String(bytes: UnsafeBufferPointer(start: bytes, count: byteCount),
+                                 encoding: .utf8) else { throw StoreError.database }
+        return value
     }
 }

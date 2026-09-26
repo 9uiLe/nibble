@@ -1,0 +1,23 @@
+# SwiftLint owns general source diagnostics. Product-specific API and layer
+# contracts are enforced by scripts/check_swift_policy.py.
+# empty_count is intentionally omitted: product models also use count for
+# numeric usage counters that do not provide isEmpty.
+only_rules:
+  - duplicate_imports
+  - empty_string
+  - force_cast
+  - force_try
+  - unneeded_break_in_switch
+
+included:
+  - app
+  - runtime
+  - scripts
+  - validation
+
+excluded:
+  - artifacts
+  - .build
+  - DerivedData
+
+reporter: xcode
