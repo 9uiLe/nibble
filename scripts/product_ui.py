@@ -79,7 +79,7 @@ class ProductRun(Run):
         self.tap('navigation.settings')
         self.wait_ui('settings-route', lambda d: 'settings.about' in identifiers(d))
 
-    def _tap_frame(self, frame, fraction=.5):
+    def tap_frame(self, frame, fraction=.5):
         self.command(['sim-use', 'tap', '-x', str(frame['x'] + frame['width'] * fraction),
                       '-y', str(frame['y'] + frame['height'] / 2), '--device', self.args.device])
 
@@ -90,7 +90,7 @@ class ProductRun(Run):
             frame = entry['frame']
             top, bottom = editor_viewport(data)
             if min(bottom, frame['y'] + frame['height']) - max(top, frame['y']) >= 12:
-                self._tap_frame(frame, fraction)
+                self.tap_frame(frame, fraction)
                 return
             if attempt == 4 or bottom <= top:
                 raise VerificationError('Cannot reveal editor mode: ' + label)
