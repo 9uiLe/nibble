@@ -39,9 +39,9 @@ python3 scripts/ios.py devices
 
 ## Simulatorの作成と選択
 
-操作対象には検証専用SimulatorのUDIDを明示する。UDIDは端末の一意な識別子で、同名のSimulatorも区別できる。既存の専用端末を再利用する場合は`devices`の出力でruntimeを確認する。
+通常の一連の検証は`verify.py run --temporary-device`を使う。このモードはiOS 26.5のiPhone 17 Pro Simulatorを作成し、検証の成否にかかわらず終了時に削除する。削除の成否は`result.json`の`temporary_device`に記録する。既存端末を削除しない。画面を手動で調べる場合は専用SimulatorのUDIDを明示する。UDIDは端末の一意な識別子で、同名のSimulatorも区別できる。
 
-専用端末を新しく用意する場合は、利用可能なruntimeとdevice typeを選んで作成する。device typeは`xcrun simctl list devicetypes`で確認できる。
+手動操作用の端末を新しく用意する場合は、利用可能なruntimeとdevice typeを選んで作成する。device typeは`xcrun simctl list devicetypes`で確認できる。作成したUDIDを記録し、操作と証跡取得が終わったらその端末を削除する。
 
 ```sh
 python3 scripts/ios.py create \
@@ -58,7 +58,7 @@ python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
 open -a Simulator
 ```
 
-画面操作の前に対象端末のウィンドウを表示する。端末名や暗黙の`booted`を操作先に使わず、既存端末を消去・削除しない。
+画面操作の前に対象端末のウィンドウを表示する。端末名や暗黙の`booted`を操作先に使わない。手動で作成した端末は、操作が終わりrunの媒体が確定してから`xcrun simctl delete "$NIBBLE_SIMULATOR"`で削除する。再利用した既存端末は削除しない。
 
 ## 変更から検証を実行する
 
@@ -73,7 +73,7 @@ python3 scripts/verify.py plan --base origin/main
 | 操作 | 引数 | 成功時の動作 |
 | --- | --- | --- |
 | `plan` | `--base`または`--since`、`--scope`、`--output` | 検査を実行せず、計画を保存して要約を返す |
-| `run` | 計画と同じ引数、iOS工程用の`--device` | 実行時に再計画し、工程結果・ログ・run参照を保存する |
+| `run` | 計画と同じ引数、iOS工程用の`--temporary-device`または`--device` | 実行時に再計画し、工程結果・ログ・run参照を保存する |
 | `status` | 必須の`--result` | 保存済み結果と現在ソースを読み、状態の要約を返す |
 
 `--base`と`--since`は比較元の指定で、同時には使わない。省略時は`origin/main`を使う。`--since`は結果内のソースsnapshotと比較するためGitの比較元ブランチを必要としない。操作に対応しない引数は拒否する。引数は各操作の`--help`でも確認できる。
@@ -93,7 +93,7 @@ python3 scripts/verify.py plan --base origin/main
 | `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
 | 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
 
-製品UIを含む一連の検証は、専用SimulatorのNibbleを初期化した状態から開始する。通常の入力工程ではOS標準の英語キーボードを選ぶ。nibbleキーボードを追加済みの場合は地球儀から切り替え、通常キーが表示されることを画面で確認する。Keyboard拡張の検証は専用の操作手順で別に行う。基本操作のdriverは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
+製品UIを含む一連の検証は、Nibbleを初期化した状態から開始する。`--temporary-device`なら新しい端末により初期状態が得られる。通常の入力工程ではOS標準の英語キーボードを選ぶ。nibbleキーボードを追加済みの場合は地球儀から切り替え、通常キーが表示されることを画面で確認する。Keyboard拡張の検証は専用の操作手順で別に行う。基本操作のdriverは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
 
 ```sh
 xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
@@ -104,7 +104,7 @@ xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
 準備ができたら実行する。`run`は実行時のソースから計画を作るので、先に表示した`plan`の結果を固定して実行するコマンドではない。
 
 ```sh
-python3 scripts/verify.py run --base origin/main --device "$NIBBLE_SIMULATOR"
+python3 scripts/verify.py run --base origin/main --temporary-device
 ```
 
 共通静的検査、選択されたmacOSの画像試験、対象targetの全テスト、UI操作を順に実行する。iOS工程はReleaseを使う。文書だけの計画では`--device`を省略でき、Simulatorを起動しない。実行中はソースを編集しない。

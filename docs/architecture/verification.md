@@ -24,6 +24,8 @@
 | `benchmark_verification.py` | 明示したコマンド列の反復測定、工程時間・ばらつき・完了数の集計 |
 | `check_pr.py`・Ubuntu CI | PR本文と全コミット、変更範囲、最終headのCI、共通静的検査 |
 
+`VerificationApp`はiOS実行基盤の独立した入力対象である。製品の状態や画面に依存せず、Xcodeのテスト、sim-useの日本語・結合文字の貼り付け、AXの値、静止画と録画の確定を確認する。製品UIで失敗した際に、同じ実行環境の共通経路が成立したかを切り分ける用途がある。fixtureの成功は製品機能の成功を示さず、製品のテストとUI工程も実行する。
+
 各工程のstdoutは`<工程>.log`、stderrは`<工程>.stderr.log`へ分けて保存し、resultの`log`と`stderr`で参照する。CLIが入力・結果データ・終了コードを管理し、工程や成否の表示は`script_ui`の表示Adapterを通してhamioへ渡す。入出力と表示障害の扱いは[スクリプト設計](../script-tooling.md)に定義する。
 
 ## 検証範囲と工程の順序
@@ -46,7 +48,7 @@
 
 補助ツールはflakeとlock、製品依存は共有`Package.resolved`で固定する。Xcode・SDK・SimulatorはローカルMacのApple配布物を使い、NixのC toolchainでApple compilerを置き換えない。ツール、OS、runtimeのbuildをmanifestへ記録する。
 
-iOS実行は明示したiOS 26.5の専用UDIDとダミーデータを使う。UDIDは同名の端末を区別する識別子である。共通driverと保存層の測定は同じ`simulator_lock`で同一UDIDへの同時実行を拒否する。直接のsim-useやXcode操作はこのロックに参加しないため、利用者が同じ端末への操作を直列化する。既存端末の消去・削除は行わない。
+iOS実行は明示したiOS 26.5の専用UDIDとダミーデータを使う。UDIDは同名の端末を区別する識別子である。`--temporary-device`の実行は新しいSimulatorを所有し、成功・失敗・中断後に削除する。既存の専用端末を指定した実行は所有しないため削除しない。共通driverと保存層の測定は同じ`simulator_lock`で同一UDIDへの同時実行を拒否する。直接のsim-useやXcode操作はこのロックに参加しないため、利用者が同じ端末への操作を直列化する。
 
 ビルド・実行管理・撮影はApple CLI、画面の読取・入力はNixのsim-useが担う。閲覧用画像の加工にはmacOS付属の`sips`を使う。一つのrun内では完了した端末起動確認を共有し、各runの開始時には端末の準備を確認する。
 

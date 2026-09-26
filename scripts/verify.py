@@ -186,6 +186,7 @@ def summarize_report(report, path, current):
                    if key in step} for step in report['steps']],
         'source_stable': end == report['source_start'] if end is not None else None,
         'source_matches_current': end == current if end is not None else None,
+        'temporary_device': report.get('temporary_device'),
         'changed_since_start': differences(report['source_start'], current),
         'manual_review': report.get('manual_review', []),
         'coverage': report.get('coverage'),
@@ -263,6 +264,34 @@ def run_plan(selected, directory, device, timeout=1800):
     return report
 
 
+def run_on_temporary_device(selected, directory):
+    """Own one fresh Simulator for the entire run and always remove it."""
+    runtime = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
+    device_type = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'
+    created = subprocess.run(['xcrun', 'simctl', 'create', 'nibble Verification', device_type, runtime],
+                             capture_output=True, text=True, check=True)
+    device = created.stdout.strip()
+    uuid.UUID(device)
+    report = None
+    try:
+        subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, capture_output=True, text=True)
+        subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True,
+                       capture_output=True, text=True)
+        subprocess.run(['open', '-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device],
+                       check=True, capture_output=True, text=True)
+        report = run_plan(selected, directory, device)
+    finally:
+        deleted = subprocess.run(['xcrun', 'simctl', 'delete', device], capture_output=True, text=True)
+        if report is not None:
+            report['temporary_device'] = {'udid': device, 'deleted': deleted.returncode == 0}
+            if deleted.returncode:
+                report.update(status='failed', error='Could not delete the temporary Simulator')
+            save_report(directory / 'result.json', report)
+        if deleted.returncode:
+            raise ValueError('Could not delete temporary Simulator ' + device + ': ' + deleted.stderr.strip())
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_subparsers(dest='action', required=True)
@@ -275,7 +304,10 @@ def main(argv=None):
         command.add_argument('--scope', choices=('auto', *SCOPES), default='auto')
         command.add_argument('--output', type=Path, help='New directory (default: artifacts/verify/<unique ID>); never overwritten')
         if action == 'run':
-            command.add_argument('--device', help='Dedicated iOS 26.5 Simulator UDID; required for iOS stages')
+            device_choice = command.add_mutually_exclusive_group()
+            device_choice.add_argument('--device', help='Existing dedicated iOS 26.5 Simulator UDID')
+            device_choice.add_argument('--temporary-device', action='store_true',
+                                       help='Create a fresh iOS 26.5 Simulator and delete it after the run')
     status = actions.add_parser('status', help='Summarize a saved result without running stages')
     status.add_argument('--result', type=Path, required=True, help='Verification result.json to read')
     args = parser.parse_args(argv)
@@ -305,7 +337,10 @@ def main(argv=None):
                               'preconditions': selected['preconditions'],
                               'manual_review': selected['manual_review']}, ensure_ascii=False))
             return 0
-        report = run_plan(selected, directory, args.device)
+        if args.temporary_device and not (set(step['id'] for step in selected['steps']) - OFFLINE_STEPS):
+            raise ValueError('--temporary-device requires an iOS stage')
+        report = (run_on_temporary_device(selected, directory) if args.temporary_device
+                  else run_plan(selected, directory, args.device))
         print(json.dumps({'status': report['status'], 'result': str(directory / 'result.json'),
                           'elapsed_seconds': report['elapsed_seconds'], 'manual_review': report['manual_review']}, ensure_ascii=False))
         ui.result(report['status'] == 'passed', str(directory / 'result.json'))

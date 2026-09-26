@@ -123,6 +123,39 @@ class SelectionTests(unittest.TestCase):
             self.assertFalse(any('only-testing' in value or 'skip-testing' in value for value in argv))
             self.assertIn('Release', argv)
 
+    def test_temporary_simulator_is_deleted_after_success_and_run_failure(self):
+        device = 'B1892F16-2B7E-48C6-BC02-9E1FA9C4EEC4'
+        def process(argv, **_kwargs):
+            return subprocess.CompletedProcess(argv, 0, device + '\n' if argv[2] == 'create' else '', '')
+        for failure in (False, True):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as folder:
+                run = Mock(side_effect=ValueError('run failed')) if failure else Mock(return_value={'status': 'passed'})
+                with patch.object(verify.subprocess, 'run', side_effect=process) as command, patch.object(verify, 'run_plan', run):
+                    if failure:
+                        with self.assertRaisesRegex(ValueError, 'run failed'):
+                            verify.run_on_temporary_device({}, Path(folder))
+                    else:
+                        result = verify.run_on_temporary_device({}, Path(folder))
+                        self.assertEqual(result['temporary_device'], {'udid': device, 'deleted': True})
+                    self.assertIn(['open', '-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device],
+                                  [call.args[0] for call in command.call_args_list])
+                    self.assertEqual(command.call_args_list[-1].args[0], ['xcrun', 'simctl', 'delete', device])
+
+    def test_temporary_simulator_delete_failure_invalidates_the_run(self):
+        device = 'B1892F16-2B7E-48C6-BC02-9E1FA9C4EEC4'
+        def process(argv, **_kwargs):
+            if argv[2] == 'delete':
+                return subprocess.CompletedProcess(argv, 1, '', 'device unavailable')
+            return subprocess.CompletedProcess(argv, 0, device + '\n' if argv[2] == 'create' else '', '')
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(verify.subprocess, 'run', side_effect=process), patch.object(
+                    verify, 'run_plan', return_value={'status': 'passed'}):
+                with self.assertRaisesRegex(ValueError, 'Could not delete temporary Simulator'):
+                    verify.run_on_temporary_device({}, Path(folder))
+            result = json.loads((Path(folder) / 'result.json').read_text())
+            self.assertEqual(result['status'], 'failed')
+            self.assertEqual(result['temporary_device'], {'udid': device, 'deleted': False})
+
     def test_changed_files_include_untracked_deleted_and_staged_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
