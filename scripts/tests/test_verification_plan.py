@@ -129,13 +129,15 @@ class SelectionTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0, device + '\n' if argv[2] == 'create' else '', '')
         for failure in (False, True):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as folder:
+                output = Path(folder) / 'run'
                 run = Mock(side_effect=ValueError('run failed')) if failure else Mock(return_value={'status': 'passed'})
                 with patch.object(verify.subprocess, 'run', side_effect=process) as command, patch.object(verify, 'run_plan', run):
                     if failure:
-                        with self.assertRaisesRegex(ValueError, 'run failed'):
-                            verify.run_on_temporary_device({}, Path(folder))
+                        result = verify.run_on_temporary_device({}, output)
+                        self.assertEqual(result['status'], 'failed')
+                        self.assertEqual(result['error'], 'run failed')
                     else:
-                        result = verify.run_on_temporary_device({}, Path(folder))
+                        result = verify.run_on_temporary_device({}, output)
                         self.assertEqual(result['temporary_device'], {'udid': device, 'deleted': True})
                     self.assertIn(['open', '-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device],
                                   [call.args[0] for call in command.call_args_list])
@@ -148,13 +150,46 @@ class SelectionTests(unittest.TestCase):
                 return subprocess.CompletedProcess(argv, 1, '', 'device unavailable')
             return subprocess.CompletedProcess(argv, 0, device + '\n' if argv[2] == 'create' else '', '')
         with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / 'run'
             with patch.object(verify.subprocess, 'run', side_effect=process), patch.object(
                     verify, 'run_plan', return_value={'status': 'passed'}):
-                with self.assertRaisesRegex(ValueError, 'Could not delete temporary Simulator'):
-                    verify.run_on_temporary_device({}, Path(folder))
-            result = json.loads((Path(folder) / 'result.json').read_text())
+                report = verify.run_on_temporary_device({}, output)
+                self.assertEqual(report['status'], 'failed')
+                self.assertIn('Could not delete the temporary Simulator', report['error'])
+            result = json.loads((output / 'result.json').read_text())
             self.assertEqual(result['status'], 'failed')
             self.assertEqual(result['temporary_device'], {'udid': device, 'deleted': False})
+
+    def test_temporary_simulator_boot_failure_keeps_a_failed_result_and_deletes_device(self):
+        device = 'B1892F16-2B7E-48C6-BC02-9E1FA9C4EEC4'
+        calls = []
+        def process(argv, **_kwargs):
+            calls.append(argv)
+            if argv[2] == 'boot':
+                raise subprocess.CalledProcessError(1, argv)
+            return subprocess.CompletedProcess(argv, 0, device + '\n' if argv[2] == 'create' else '', '')
+        with tempfile.TemporaryDirectory() as folder, patch.object(verify.subprocess, 'run', side_effect=process):
+            output = Path(folder) / 'run'
+            report = verify.run_on_temporary_device({'planning_source': {'source': 'hash'},
+                                                     'steps': [{'id': 'product-test'}]}, output)
+            self.assertEqual(report['status'], 'failed')
+            result = json.loads((output / 'result.json').read_text())
+            self.assertEqual(result['status'], 'failed')
+            self.assertEqual(result['steps'][0]['status'], 'pending')
+            self.assertEqual(result['temporary_device'], {'udid': device, 'deleted': True})
+            self.assertEqual(calls[-1], ['xcrun', 'simctl', 'delete', device])
+
+    def test_existing_result_is_never_overwritten_by_temporary_device_setup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / 'existing'
+            output.mkdir()
+            result = output / 'result.json'
+            result.write_text('existing result')
+            with patch.object(verify.subprocess, 'run') as command:
+                with self.assertRaises(FileExistsError):
+                    verify.run_on_temporary_device({}, output)
+            command.assert_not_called()
+            self.assertEqual(result.read_text(), 'existing result')
 
     def test_changed_files_include_untracked_deleted_and_staged_files(self):
         with tempfile.TemporaryDirectory() as directory:

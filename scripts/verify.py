@@ -112,7 +112,7 @@ def plan(paths, scope='auto'):
     if 'preview-native' in selected:
         preconditions.append('画像加工の試験にはmacOS付属のsipsを使う')
     if set(selected) - OFFLINE_STEPS:
-        preconditions.append('XcodeとiOS 26.5 runtimeを用意し、専用SimulatorのUDIDをrun --deviceへ指定する')
+        preconditions.append('XcodeとiOS 26.5 runtimeを用意し、run --temporary-deviceまたは専用UDIDのrun --deviceを指定する')
     if set(selected) & (PRODUCT_STEPS - {'product-test'}):
         preconditions.append('専用Simulatorの検証用Nibbleを初期化し、ダミーデータで操作する。docs/ios-verification.mdを参照')
     return {'scope': scope, 'changed_files': paths,
@@ -194,10 +194,13 @@ def summarize_report(report, path, current):
     }
 
 
-def run_plan(selected, directory, device, timeout=1800):
+def run_plan(selected, directory, device, timeout=1800, *, reserved=False):
     # All commands are materialized first: missing device must not leave partial work.
     steps = [{**step, 'argv': command_for(step['id'], device), 'status': 'pending'} for step in selected['steps']]
-    directory.mkdir(parents=True, exist_ok=False)
+    if not reserved:
+        directory.mkdir(parents=True, exist_ok=False)
+    elif not directory.is_dir():
+        raise ValueError('Reserved verification output is missing')
     start = time.monotonic()
     report = {**selected, 'steps': steps, 'status': 'running',
               'started_at': datetime.now(timezone.utc).isoformat(), 'source_start': working_hashes(ROOT)}
@@ -266,29 +269,62 @@ def run_plan(selected, directory, device, timeout=1800):
 
 def run_on_temporary_device(selected, directory):
     """Own one fresh Simulator for the entire run and always remove it."""
+    directory.mkdir(parents=True, exist_ok=False)
     runtime = 'com.apple.CoreSimulator.SimRuntime.iOS-26-5'
     device_type = 'com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro'
-    created = subprocess.run(['xcrun', 'simctl', 'create', 'nibble Verification', device_type, runtime],
-                             capture_output=True, text=True, check=True)
-    device = created.stdout.strip()
-    uuid.UUID(device)
+    device = None
     report = None
+    failure = None
+    previous_term = signal.getsignal(signal.SIGTERM)
+    def interrupt(_signal, _frame):
+        raise KeyboardInterrupt('Verification was terminated')
+    signal.signal(signal.SIGTERM, interrupt)
     try:
+        created = subprocess.run(['xcrun', 'simctl', 'create', 'nibble Verification ' + directory.name,
+                                  device_type, runtime], capture_output=True, text=True, check=True)
+        device = created.stdout.strip()
+        uuid.UUID(device)
         subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, capture_output=True, text=True)
         subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True,
                        capture_output=True, text=True)
         subprocess.run(['open', '-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device],
                        check=True, capture_output=True, text=True)
-        report = run_plan(selected, directory, device)
+        report = run_plan(selected, directory, device, reserved=True)
+    except BaseException as error:
+        failure = error
     finally:
-        deleted = subprocess.run(['xcrun', 'simctl', 'delete', device], capture_output=True, text=True)
-        if report is not None:
-            report['temporary_device'] = {'udid': device, 'deleted': deleted.returncode == 0}
-            if deleted.returncode:
-                report.update(status='failed', error='Could not delete the temporary Simulator')
-            save_report(directory / 'result.json', report)
-        if deleted.returncode:
-            raise ValueError('Could not delete temporary Simulator ' + device + ': ' + deleted.stderr.strip())
+        previous_int = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        try:
+            cleanup_error = None
+            if device:
+                try:
+                    deleted = subprocess.run(['xcrun', 'simctl', 'delete', device], capture_output=True,
+                                             text=True, timeout=120)
+                    cleanup_error = (deleted.stderr.strip() or 'simctl delete failed') if deleted.returncode else None
+                except (OSError, subprocess.TimeoutExpired) as error:
+                    cleanup_error = str(error)
+        finally:
+            signal.signal(signal.SIGINT, previous_int)
+            signal.signal(signal.SIGTERM, previous_term)
+        result_path = directory / 'result.json'
+        if report is None and result_path.is_file():
+            report = json.loads(result_path.read_text())
+        if report is None:
+            source = selected.get('planning_source', {})
+            report = {**selected, 'steps': [{**step, 'status': 'pending'} for step in selected.get('steps', [])],
+                      'status': 'failed', 'source_start': source,
+                      'error': str(failure) or 'Interrupted', 'elapsed_seconds': 0,
+                      'finished_at': datetime.now(timezone.utc).isoformat()}
+        elif failure is not None:
+            report.update(status='failed', error=str(failure) or 'Interrupted')
+            for step in report.get('steps', []):
+                if step.get('status') == 'running':
+                    step['status'] = 'failed'
+        report['temporary_device'] = {'udid': device, 'deleted': device is not None and cleanup_error is None}
+        if cleanup_error:
+            report.update(status='failed', error='Could not delete the temporary Simulator: ' + cleanup_error)
+        save_report(result_path, report)
     return report
 
 
@@ -345,7 +381,7 @@ def main(argv=None):
                           'elapsed_seconds': report['elapsed_seconds'], 'manual_review': report['manual_review']}, ensure_ascii=False))
         ui.result(report['status'] == 'passed', str(directory / 'result.json'))
         return 0 if report['status'] == 'passed' else 1
-    except (ValueError, OSError, subprocess.SubprocessError) as error:
+    except (ValueError, OSError, subprocess.SubprocessError, KeyboardInterrupt) as error:
         ui.message(str(error), 'error')
         return 1
 

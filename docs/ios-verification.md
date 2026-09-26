@@ -39,7 +39,7 @@ python3 scripts/ios.py devices
 
 ## Simulatorの作成と選択
 
-通常の一連の検証は`verify.py run --temporary-device`を使う。このモードはiOS 26.5のiPhone 17 Pro Simulatorを作成し、検証の成否にかかわらず終了時に削除する。削除の成否は`result.json`の`temporary_device`に記録する。既存端末を削除しない。画面を手動で調べる場合は専用SimulatorのUDIDを明示する。UDIDは端末の一意な識別子で、同名のSimulatorも区別できる。
+通常の一連の検証は`verify.py run --temporary-device`を使う。このモードは結果ディレクトリを先に確保し、iOS 26.5のiPhone 17 Pro Simulatorを作成する。正常終了、工程失敗、起動失敗、割り込み時には結果を記録して端末を削除する。削除の成否は`result.json`の`temporary_device`で確認する。削除できなかった場合は記録されたUDIDを調べ、専用端末だけを削除する。既存端末は削除しない。強制終了や電源断では後処理を実行できないため、端末一覧で`nibble Verification`から始まる専用端末の残存を確認する。画面を手動で調べる場合は専用SimulatorのUDIDを明示する。UDIDは端末の一意な識別子で、同名のSimulatorも区別できる。
 
 手動操作用の端末を新しく用意する場合は、利用可能なruntimeとdevice typeを選んで作成する。device typeは`xcrun simctl list devicetypes`で確認できる。作成したUDIDを記録し、操作と証跡取得が終わったらその端末を削除する。
 
@@ -117,6 +117,7 @@ stdoutに成否と結果ファイルのパスを返す。既定の保存先は`a
 | `steps` | 工程ごとのコマンド、成否、時間、ログ、生成したrun、証跡照合 |
 | `source_start`・`source_end` | 開始・終了時のソース内容 |
 | `manual_review` | 自動成功に含まれない確認事項 |
+| `temporary_device` | 自動作成した端末のUDIDと削除の成否 |
 
 失敗・中断・ソース変更では後続を開始せず、失敗と未開始工程を残す。該当する工程ログとrunを調べ、原因を修正して新しい保存先で実行する。媒体の目視と未解決事項の確認は、自動工程の`passed`とは別に完了させる。
 

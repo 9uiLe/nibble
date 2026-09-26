@@ -48,7 +48,7 @@
 
 補助ツールはflakeとlock、製品依存は共有`Package.resolved`で固定する。Xcode・SDK・SimulatorはローカルMacのApple配布物を使い、NixのC toolchainでApple compilerを置き換えない。ツール、OS、runtimeのbuildをmanifestへ記録する。
 
-iOS実行は明示したiOS 26.5の専用UDIDとダミーデータを使う。UDIDは同名の端末を区別する識別子である。`--temporary-device`の実行は新しいSimulatorを所有し、成功・失敗・中断後に削除する。既存の専用端末を指定した実行は所有しないため削除しない。共通driverと保存層の測定は同じ`simulator_lock`で同一UDIDへの同時実行を拒否する。直接のsim-useやXcode操作はこのロックに参加しないため、利用者が同じ端末への操作を直列化する。
+iOS実行は明示したiOS 26.5の専用UDIDとダミーデータを使う。UDIDは同名の端末を区別する識別子である。`--temporary-device`は結果ディレクトリを確保してからSimulatorを作成し、成功・失敗・割り込み後に削除結果を記録する。既存の専用端末を指定した実行は所有しないため削除しない。プロセスの強制終了と電源断では削除を保証できないため、専用端末の残存を端末一覧で確認する。共通driverと保存層の測定は同じ`simulator_lock`で同一UDIDへの同時実行を拒否する。直接のsim-useやXcode操作はこのロックに参加しないため、利用者が同じ端末への操作を直列化する。
 
 ビルド・実行管理・撮影はApple CLI、画面の読取・入力はNixのsim-useが担う。閲覧用画像の加工にはmacOS付属の`sips`を使う。一つのrun内では完了した端末起動確認を共有し、各runの開始時には端末の準備を確認する。
 

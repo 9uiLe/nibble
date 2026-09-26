@@ -160,7 +160,14 @@ xcodebuild -resolvePackageDependencies \
 
 ### 5. 専用Simulatorで製品を実行する
 
-[ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。計画の準備事項を満たしたら`verify.py run`で共通検査・対象テスト・UI操作を実行し、`verify.py status --result <結果ファイル>`で成否と未開始工程を確認します。
+[ローカルiOS検証](docs/ios-verification.md)で環境と計画の準備事項を確認します。通常の検証ではコマンドがiOS 26.5の専用Simulatorを作成し、終了時に削除します。
+
+```sh
+python3 scripts/verify.py run --base origin/main --temporary-device
+python3 scripts/verify.py status --result artifacts/verify/対象ID/result.json
+```
+
+結果ファイルのパスは`run`のstdoutから取得します。`status`で成否、未開始工程、端末の削除結果を確認します。
 
 通常回帰は`--scope regression`、製品は`--scope product`、Riveの時間・メモリ測定は`--scope performance`で選べます。測定は目的と条件を決めて実行します。
 

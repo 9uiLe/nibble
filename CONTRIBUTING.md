@@ -111,7 +111,7 @@ stdoutは結果データ、stderrは工程と診断に使う。[表示Adapter](d
 
 ## ローカルとクラウドの責務
 
-iOSのビルド・テスト・操作・撮影・性能はローカルMacで行う。Apple CLIが実行と撮影、Nixのsim-useが画面の読取と操作を担う。ダミーデータと専用Simulatorを使い、既存端末を消去・削除しない。
+iOSのビルド・テスト・操作・撮影・性能はローカルMacで行う。Apple CLIが実行と撮影、Nixのsim-useが画面の読取と操作を担う。ダミーデータと専用Simulatorを使い、検証時に新しく作成した端末は終了後に削除する。既存端末を消去・削除しない。
 
 GitHub Actionsの全jobは`runs-on: ubuntu-24.04`を直接指定する。runnerの式・matrix・group、self-hosted、job単位の再利用workflow、別サービス経由のmacOS起動は禁止。外部ActionはSHA固定。Ubuntuの成功をiOS検証済みと扱わない。
 
