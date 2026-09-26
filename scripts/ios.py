@@ -36,6 +36,10 @@ class VerificationError(Exception):
     pass
 
 
+class UIObservationUnavailable(VerificationError):
+    """A transient AX translation gap while the Simulator changes screens."""
+
+
 @contextmanager
 def simulator_lock(device):
     # Shared across worktrees; only this user's nibble CLI invocations take this lock.
@@ -155,7 +159,15 @@ class Run:
                 event["seconds"] = round(time.monotonic() - start, 3)
                 self.save()
         if result.returncode:
-            detail = ((self.path / event["stdout"]).read_text() + (self.path / event["stderr"]).read_text())
+            stdout = (self.path / event["stdout"]).read_text()
+            detail = stdout + (self.path / event["stderr"]).read_text()
+            if argv[:2] == ["sim-use", "ui"]:
+                try:
+                    error = json.loads(stdout).get("error", "")
+                except (ValueError, AttributeError):
+                    error = ""
+                if error.startswith("No translation object returned for simulator."):
+                    raise UIObservationUnavailable(error)
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
         return (self.path / event["stdout"]).read_text()
@@ -295,9 +307,13 @@ class Run:
         return result["data"]
 
     def wait_ui(self, name, predicate, *, attempts=20, interval=.25):
-        """Wait for a nonempty observed state; tool/process failures remain failures."""
+        """Wait for a matching state across empty frames and transient AX translation gaps."""
         for attempt in range(attempts):
-            data = self.ui(f"{name}-{attempt}", allow_empty=True)
+            try:
+                data = self.ui(f"{name}-{attempt}", allow_empty=True)
+            except UIObservationUnavailable:
+                time.sleep(interval)
+                continue
             if data.get("entries") and predicate(data):
                 return data
             time.sleep(interval)
@@ -380,7 +396,8 @@ class Run:
             raise VerificationError("fixture-smoke requires validation/project.json")
         self.launch()
         self.command(["sim-use", "devices", "--no-physical-ios"], "sim-use-devices")
-        self.ui("before")
+        self.wait_ui("before", lambda data: data.get("appPackage") == self.config["bundle_id"]
+                     and any(e.get("uniqueId") == "fixture.input" for e in data["entries"]))
         self.screenshot("before")
         with self.recording():
             self.tap("fixture.reset")
@@ -528,7 +545,7 @@ def main(argv=None):
                     run.build(test=True)
                 elif args.command == "run":
                     run.launch()
-                    run.ui()
+                    run.wait_ui("launched", lambda data: data.get("appPackage") == run.config["bundle_id"])
                 elif args.command == "fixture-smoke":
                     run.fixture_smoke()
                 else:
