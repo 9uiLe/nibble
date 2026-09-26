@@ -36,6 +36,15 @@ struct AboutView: View {
                     Text("アプリを削除すると、保存データも失われます。")
                     Text("アカウント、広告、アクセス解析はありません。")
                         .accessibilityIdentifier("about.privacy")
+                    Link(destination: URL(string: "https://nibble-10d8b.web.app/privacy.html")!) {
+                        HStack(spacing: 6) {
+                            Text("プライバシーポリシーを読む")
+                            Image(systemName: "arrow.up.right")
+                                .accessibilityHidden(true)
+                        }
+                    }
+                        .foregroundStyle(Color.nibbleAccent)
+                        .accessibilityIdentifier("about.privacyPolicy")
                 }
             }
             .font(.nibbleBody)

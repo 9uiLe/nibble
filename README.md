@@ -22,15 +22,7 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 
 保存、検索、コピー、キーボード挿入、変数の差し替えは件数制限なく利用できます。設定の「nibble Pro」は権利状態と提供状況を表示します。Proの販売は、継続的な提供内容と公開用の規約・プライバシーポリシーが揃ったときに開始します。無料版の広告も配信設定とプライバシー対応が揃ってから作業画面へ導入します。編集、変数入力、キーボード、コピー完了の面には広告を置きません。機能の利用条件、StoreKit、広告を導入する条件は[収益と機能アクセス](docs/architecture/monetization.md)を参照してください。
 
-本体は縦向き固定の一つの作業画面で、上部の検索欄と「すべて・ピン留め・下書き」を使います。検索は保存済み全体が対象で、検索語を消すと元の集合へ戻ります。設定は右上の歯車、新規作成は下部の「新規作成」から開きます。編集の「閉じる」は下書き保持、「保存」は利用対象への確定です。
-
-本文には`# 見出し`、`**太字**`、`*斜体*`、コードなどのMarkdownを入力できます。本文上部の「プレビュー」を選ぶと、`#`や`**`を隠し、見出しを大きく、強調を太字で表示します。「入力」に戻ると同じ原文の編集を続けられます。保存・コピーには表示モードに関係なく、記号を含む原文を使います。「末尾にペースト」はテキストをコピーすると使えます。入力中の説明は「入力と保存について」から開けます。
-
-新規作成を閉じると、開いた画面・フィルター・検索語へ戻ります。ピン留めや下書きを見ている途中でも、選択した集合を保って作業を続けられます。
-
-一覧のフィルターを切り替えても保持済みの内容を再読み込みしません。他アプリの共有拡張などによる更新は、一覧を下へ引いて取り込みます。アプリ内の保存や整理の結果は、検索中でも閲覧用の集合へ自動で反映します。
-
-削除した項目は通知の「元に戻す」または設定の「削除した項目」から復元できます。削除一覧では行の復元ボタンと赤いゴミ箱ボタンが独立しており、完全削除には対象名と取消操作を示す確認アラートがあります。全文、入力の保持、操作の失敗を区別して扱う契約は[製品仕様・要件](docs/product-specification.md)に定義します。
+操作・保存・失敗回復の詳細は[製品仕様・要件](docs/product-specification.md)に定義します。
 
 ## 開発を始めるときに読む資料
 
@@ -45,12 +37,13 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
 | 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
 | AIでSimulatorの動作・外観を確認する | [観測データの確認](docs/simulator-inspection.md)。原本を保存し、要素情報と必要な領域の画像を読む |
-| 外部の制約・未確認条件を調べる | [参照資料](docs/reference/README.md)、[検証範囲](docs/testing.md#検証範囲と制約) |
+| 外部の制約・未確認条件を調べる | [OSの境界](docs/reference/platform.md)、[保存と検索](docs/reference/storage.md)、[保護と公開](docs/reference/security.md)、[検証範囲](docs/testing.md#検証範囲と制約) |
+| サポート・プライバシーの公開ページを管理する | [Webサイトの構成と公開手順](marketing/README.md) |
 | 本人向けに配布する | [TestFlight手順](docs/testflight.md) |
 
 ## アプリの構成
 
-本体と共有拡張はApp GroupのSQLiteへ読み書きします。キーボードは既存DBを読み、許可されたピン更新だけを書き込みます。Domainが原文・下書き・使用状況のルール、Applicationが操作と結果の採否、保存層が接続とtransaction、Viewが描画と表示に必要な寿命を所有します。画面はSwiftUI、説明イラストはRivePresentationとRMLで構成します。コードの配置と依存関係は[アーキテクチャ](docs/architecture/README.md)、資料の責務は[文書一覧](docs/README.md)を参照してください。
+コードの配置と依存関係は[アーキテクチャ](docs/architecture/README.md)、資料の責務は[開発ガイド](CONTRIBUTING.md#文書の責務)を参照してください。
 
 | 配置 | 内容 |
 | --- | --- |
@@ -59,6 +52,7 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | `scripts/` | ビルド・検証・証跡・配布のCLIと回帰テスト |
 | `validation/` | 実行基盤のVerificationApp、保存層の測定harness、Markdownの入力例とOS連携用の入力ページ |
 | `tools/ui-design/` | 製品に依存しない設計照合ツール |
+| `marketing/` | Firebase Hostingで配信するサポート・プライバシー・問い合わせページ |
 | `docs/` | 仕様、構成、UI設計、開発・検証手順、外部仕様の参照 |
 | `artifacts/` | Git管理外の実行結果・ログ・媒体 |
 
@@ -166,7 +160,14 @@ xcodebuild -resolvePackageDependencies \
 
 ### 5. 専用Simulatorで製品を実行する
 
-[ローカルiOS検証](docs/ios-verification.md)で環境を確認し、iOS 26.5の専用Simulatorを選びます。計画の準備事項を満たしたら`verify.py run`で共通検査・対象テスト・UI操作を実行し、`verify.py status --result <結果ファイル>`で成否と未開始工程を確認します。
+[ローカルiOS検証](docs/ios-verification.md)で環境と計画の準備事項を確認します。通常の検証ではコマンドがiOS 26.5の専用Simulatorを作成し、終了時に削除します。
+
+```sh
+python3 scripts/verify.py run --base origin/main --temporary-device
+python3 scripts/verify.py status --result artifacts/verify/対象ID/result.json
+```
+
+結果ファイルのパスは`run`のstdoutから取得します。`status`で成否、未開始工程、端末の削除結果を確認します。
 
 通常回帰は`--scope regression`、製品は`--scope product`、Riveの時間・メモリ測定は`--scope performance`で選べます。測定は目的と条件を決めて実行します。
 

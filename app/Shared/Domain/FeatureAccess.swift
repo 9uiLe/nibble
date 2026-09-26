@@ -1,7 +1,7 @@
 import Foundation
 
 enum ProductFeature: Hashable, Sendable {
-    case variableReplacement, adFree
+    case variableReplacement
 }
 
 enum FeatureAvailability: Equatable, Sendable {
@@ -39,7 +39,7 @@ enum ProAccess {
 
 /// The app and its extensions use the same feature audience and verified Pro grant.
 enum FeatureAccess {
-    static let policy = FeaturePolicy(proFeatures: [.adFree], subscriptionsOffered: false)
+    static let policy = FeaturePolicy(proFeatures: [], subscriptionsOffered: false)
     static var subscriptionsOffered: Bool { policy.subscriptionsOffered }
 
     static func availability(_ feature: ProductFeature, pro: Bool) -> FeatureAvailability {

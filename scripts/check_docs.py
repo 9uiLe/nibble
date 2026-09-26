@@ -3,6 +3,7 @@
 
 import argparse
 from dataclasses import dataclass
+from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
@@ -20,6 +21,52 @@ from check_swift_policy import GENERATED, violations
 CONTEXT_DEPENDENT_PHRASES = (
     '以前は', '今回の変更で', '新方式', '旧方式', '暫定的に', '議論したとおり',
 )
+
+
+class SiteLinks(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.targets = []
+
+    def handle_starttag(self, tag, attrs):
+        attribute = 'href' if tag in {'a', 'link'} else 'src' if tag in {'img', 'script'} else None
+        if attribute:
+            self.targets.extend(value for name, value in attrs if name == attribute and value)
+
+
+def check_site(root):
+    public = root / 'marketing/public'
+    if not public.is_dir():
+        return {'site_pages': 0, 'site_links': 0, 'errors': []}
+    config = root / 'marketing/firebase.json'
+    redirects = {}
+    errors = []
+    if config.exists():
+        try:
+            redirects = {item['source']: item['destination']
+                         for item in json.loads(config.read_text(encoding='utf-8'))['hosting'].get('redirects', [])}
+        except (KeyError, TypeError, ValueError) as error:
+            errors.append(f'marketing/firebase.json: invalid Hosting redirects: {error}')
+    for source, target in redirects.items():
+        path = unquote(urlsplit(target).path)
+        destination = (public / ('index.html' if path == '/' else path.lstrip('/'))).resolve()
+        if not path.startswith('/') or not destination.is_relative_to(public.resolve()) or not destination.is_file():
+            errors.append(f'marketing/firebase.json: missing/outside redirect destination: {source} -> {target}')
+    links = 0
+    pages = list(public.glob('*.html'))
+    for page in pages:
+        parser = SiteLinks()
+        parser.feed(page.read_text(encoding='utf-8'))
+        for target in parser.targets:
+            url = urlsplit(target)
+            if url.scheme or url.netloc or not url.path:
+                continue
+            links += 1
+            path = redirects.get(url.path, url.path)
+            destination = (public / ('index.html' if path == '/' else unquote(path).lstrip('/'))).resolve() if path.startswith('/') else (page.parent / unquote(path)).resolve()
+            if not destination.is_relative_to(public.resolve()) or not destination.is_file():
+                errors.append(f'{page.relative_to(root)}: missing/outside site link: {target}')
+    return {'site_pages': len(pages), 'site_links': links, 'errors': errors}
 
 def markdown_files(root):
     for directory, folders, files in root.walk(follow_symlinks=False):
@@ -142,10 +189,13 @@ def check(root):
                 errors.append(f'{relative}: missing/outside local link: {target}')
             elif url.fragment and dest.suffix == '.md' and unquote(url.fragment) not in load(dest).headings:
                 errors.append(f'{relative}: missing heading: {target}')
+    site = check_site(root)
+    errors.extend(site['errors'])
     if not files:
         errors.append('No Markdown files found')
     return {'markdown_files': len(files), 'local_links': links, 'swift_examples': examples,
-            'command_paths': commands, 'errors': errors}
+            'command_paths': commands, 'site_pages': site['site_pages'],
+            'site_links': site['site_links'], 'errors': errors}
 
 
 def main():

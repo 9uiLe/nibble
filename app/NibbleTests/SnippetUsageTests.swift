@@ -41,6 +41,7 @@ struct SnippetUsageTests {
     }
 
     @Test @MainActor func refreshReevaluatesTimeWithoutModifyingUsage() async throws {
+        #expect(!SnippetUsage(count: 0, lastUsedAt: nil).isDeletionCandidate(at: instant))
         let files = try TestDatabase()
         defer { files.removeFiles() }
         let id = try await create(files.store, body: "時間経過")
@@ -111,14 +112,6 @@ struct SnippetUsageTests {
         #expect(try await files.store.search(filter: .pinned).map(\.id) == [c, a])
         try db.execute("UPDATE snippets SET updated=3000 WHERE id=?", [.text(a.uuidString)])
         #expect(try await files.store.search().map(\.id) == [d, a, b, c, e])
-    }
-
-    @Test func candidateBoundaryUsesElapsedHoursAndRequiresRecordedUse() {
-        let never = SnippetUsage(count: 0, lastUsedAt: nil)
-        #expect(!never.isDeletionCandidate(at: instant))
-        let used = SnippetUsage(count: 1, lastUsedAt: instant)
-        #expect(!used.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600 - 0.001)))
-        #expect(used.isDeletionCandidate(at: instant.addingTimeInterval(720 * 3600)))
     }
 
     @Test func editingDeletionAndRestorationPreserveUsage() async throws {

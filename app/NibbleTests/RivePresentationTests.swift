@@ -45,29 +45,23 @@ extension UIIntegrationTests {
     func loadingUsesTheAppearanceAtCompletion() async throws {
         let host = try ViewTestHost()
         defer { host.close() }
-        for keyboard in [false, true] {
-            let probe = IllustrationLoadProbe()
-            probe.fails = false
-            probe.holdsResult = true
-            let playback = IllustrationPlayback(loadResource: probe.load)
-            func show(_ scheme: ColorScheme) {
-                host.show(AnyView(ScrollView {
-                    if keyboard { KeyboardIllustration(playback: playback) }
-                    else { AboutIllustration(playback: playback) }
-                }), scheme: scheme)
-            }
-            show(.dark)
-            try await host.wait { probe.continuation != nil }
-            show(.light)
-            try await Task.sleep(for: .milliseconds(100))
-            probe.continuation?.resume()
-            probe.continuation = nil
-            try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
-            let session = try #require(playback.session)
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
-            host.show(AnyView(EmptyView()))
+        let probe = IllustrationLoadProbe()
+        probe.fails = false
+        probe.holdsResult = true
+        let playback = IllustrationPlayback(loadResource: probe.load)
+        func show(_ scheme: ColorScheme) {
+            host.show(AnyView(ScrollView { AboutIllustration(playback: playback) }), scheme: scheme)
         }
+        show(.dark)
+        try await host.wait { probe.continuation != nil }
+        show(.light)
+        try await Task.sleep(for: .milliseconds(100))
+        probe.continuation?.resume()
+        probe.continuation = nil
+        try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
+        let session = try #require(playback.session)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(try await session.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
     }
 
     @Test @MainActor
@@ -205,42 +199,39 @@ extension UIIntegrationTests {
     func illustrationsWaitForVisibilityAndKeepTheirViewportAcrossHostStops() async throws {
         let host = try ViewTestHost()
         defer { host.close() }
-        for keyboard in [false, true] {
-            let playback = IllustrationPlayback()
-            func show(allowed: Bool) {
-                host.show(AnyView(ScrollView {
-                    VStack {
-                        Color.clear.frame(height: 900)
-                        if keyboard { KeyboardIllustration(playback: playback) }
-                        else { AboutIllustration(playback: playback) }
-                        Color.clear.frame(height: 900)
-                    }
-                }.environment(\.illustrationPlaybackAllowed, allowed)))
-            }
-            show(allowed: true)
-            try await host.wait { host.find(RiveUIView.self) != nil }
-            let native = try #require(host.find(RiveUIView.self))
-            let session = try #require(playback.session)
-            #expect(native.isPaused)
-            let scroll = try #require(host.find(UIScrollView.self))
-            let rectangle = native.convert(native.bounds, to: scroll)
-            for fraction in [0.11, 0.09] {
-                scroll.setContentOffset(CGPoint(x: 0, y: rectangle.maxY - rectangle.height * fraction
-                        - scroll.adjustedContentInset.top), animated: false)
-                try await host.wait { native.isPaused == (fraction < 0.1) }
-                #expect(host.find(RiveUIView.self) === native)
-                #expect(playback.session === session)
-            }
-            scroll.setContentOffset(CGPoint(x: 0, y: rectangle.minY - scroll.adjustedContentInset.top), animated: false)
-            try await host.wait { !native.isPaused }
-            show(allowed: false)
-            try await host.wait { native.isPaused }
-            show(allowed: true)
-            try await host.wait { !native.isPaused }
-            #expect(host.find(RiveUIView.self) === native)
-            host.show(AnyView(EmptyView()))
-            try await host.wait { native.rive == nil }
+        let playback = IllustrationPlayback()
+        func show(allowed: Bool) {
+            host.show(AnyView(ScrollView {
+                VStack {
+                    Color.clear.frame(height: 900)
+                    AboutIllustration(playback: playback)
+                    Color.clear.frame(height: 900)
+                }
+            }.environment(\.illustrationPlaybackAllowed, allowed)))
         }
+        show(allowed: true)
+        try await host.wait { host.find(RiveUIView.self) != nil }
+        let native = try #require(host.find(RiveUIView.self))
+        let session = try #require(playback.session)
+        #expect(native.isPaused)
+        let scroll = try #require(host.find(UIScrollView.self))
+        let rectangle = native.convert(native.bounds, to: scroll)
+        for fraction in [0.11, 0.09] {
+            scroll.setContentOffset(CGPoint(x: 0, y: rectangle.maxY - rectangle.height * fraction
+                    - scroll.adjustedContentInset.top), animated: false)
+            try await host.wait { native.isPaused == (fraction < 0.1) }
+            #expect(host.find(RiveUIView.self) === native)
+            #expect(playback.session === session)
+        }
+        scroll.setContentOffset(CGPoint(x: 0, y: rectangle.minY - scroll.adjustedContentInset.top), animated: false)
+        try await host.wait { !native.isPaused }
+        show(allowed: false)
+        try await host.wait { native.isPaused }
+        show(allowed: true)
+        try await host.wait { !native.isPaused }
+        #expect(host.find(RiveUIView.self) === native)
+        host.show(AnyView(EmptyView()))
+        try await host.wait { native.rive == nil }
     }
 
     @Test @MainActor
@@ -334,17 +325,6 @@ extension UIIntegrationTests {
         host.show(AnyView(KeyboardGuideView()), scheme: .dark)
         try await host.wait { host.find(RiveUIView.self)?.isPaused == false }
         #expect(host.find(RiveUIView.self)?.rive !== rive)
-    }
-
-    @Test @MainActor
-    func keyboardAssetCreatesIndependentSessions() async throws {
-        let resource = try await RiveResource.load(named: "keyboard-story", in: .main)
-        let contract = KeyboardIllustration.contract
-        let first = try await resource.makeSession(contract)
-        let second = try await resource.makeSession(contract)
-        first.data.setValue(of: ColorProperty(path: "paper"), to: RiveRuntime.Color(0xFF25282C))
-        #expect(try await first.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFF25282C)
-        #expect(try await second.data.value(of: ColorProperty(path: "paper")).argbValue == 0xFFFFFDFC)
     }
 
     @Test @MainActor

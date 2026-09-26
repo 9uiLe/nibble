@@ -8,7 +8,6 @@ nibbleは保存件数で利用を制限しない。利用者は本文を端末�
 | --- | --- | --- | --- |
 | 保存・検索・通常のコピー・キーボード挿入 | 利用できる。保存件数に上限はない | 同じ | 保存層にプラン判定を置かない |
 | 変数の作成・再利用・差し替え | 利用できる | 利用できる | `FeatureAccess.availability(.variableReplacement, pro:)` |
-| 広告なし | 広告配信開始時は対象外 | 対象 | `FeatureAccess`の`.adFree`。広告SDKと広告枠は未接続 |
 | サブスクリプション購入 | 販売を開始するまで表示しない | 検証済みの権利を表示・管理できる | `FeatureAccess.subscriptionsOffered`とStoreKitの商品取得 |
 
 [FeatureAccess.swift](../../app/Shared/Domain/FeatureAccess.swift)は機能ごとの対象と販売状態を一つの`FeaturePolicy`にまとめる。`included`は利用可能、`requiresPro`は販売中のPro権利が必要、`unavailable`は購入によっても利用できない状態を表す。本体、共有拡張、キーボードは同じ判定を使う。利用条件を変える場合は、追加入口、利用直前の判定、設定の説明、該当テストを同じ変更で更新する。利用不可になった変数を含む本文も原文のまま編集・保持でき、コピーや挿入では印を送らず理由を示す。
@@ -25,7 +24,7 @@ App Store Connectの商品IDは月額`nibble.pro.subscription.monthly`、年額`
 
 ## 広告と計測
 
-無料版へ広告を配信する場合は作業画面の閲覧中に限る。編集、変数入力、検索、キーボード、コピー完了には広告を置かない。[AdvertisingContent.swift](../../app/Nibble/Monetization/AdvertisingContent.swift)が作業画面用の表示を供給し、[AppRootView.swift](../../app/Nibble/Navigation/AppRootView.swift)が画面状態とPro権利で表示資格を決める。`UnconfiguredAdvertising`は何も返さず、空の広告枠も作らない。広告事業者と広告枠ID、公開用プライバシーポリシー、必要な同意表示が揃うまで広告SDKをリンクしない。
+広告事業者と広告枠ID、プライバシーポリシー、必要な同意表示が揃うまで、広告SDKと表示枠はアプリへ組み込まない。広告を配信する場合は作業画面の閲覧中に限り、編集、変数入力、検索、キーボード、コピー完了には表示しない。表示資格とPro権利の判定は、広告を導入する変更で定義する。
 
 本文、検索語、画面操作の履歴を外部analyticsへ送らない。購入・継続の集計はApp Store Connect Analyticsを使う。広告導入時は広告事業者の収益レポートとApp Store Connectの購入集計を分けて読む。アプリ内イベントを計測する場合は、収集項目、保存期間、同意、公開文書を製品仕様に定義してから実装する。
 

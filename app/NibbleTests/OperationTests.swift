@@ -131,38 +131,6 @@ extension UIIntegrationTests {
             #expect(library.notice?.message == "コピーしました") // Copy does not wait for notice expiry.
         }
 
-        @Test func librarySectionsKeepSearchIndependentAndRefreshSharedChanges() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let first = try await create(store, body: "定型文")
-            let second = try await create(store, body: "検索だけに一致")
-            try await store.setPinned(true, id: first)
-            let all = LibraryModel(store: store)
-            let search = LibraryModel(store: store)
-            let deleted = LibraryModel(store: store, surface: .deleted)
-            search.filter = .pinned
-            deleted.filter = .all
-            #expect(search.filter == .pinned && deleted.filter == .trash)
-            #expect(search.refreshOnAppearance && deleted.refreshOnAppearance)
-            search.query = "検索だけ"
-            search.showMore()
-            await all.refresh()
-            await search.refresh()
-            #expect(Set(all.items.map(\.id)) == [first, second])
-            #expect(all.items.filter(\.pinned).map(\.id) == [first])
-            #expect(search.items.map(\.id) == [second])
-            #expect(all.query.isEmpty)
-            #expect(all.request.limit == LibraryRequest.pageSize)
-            let item = try #require(all.items.first { $0.id == first })
-            await all.pin(item)
-            #expect(all.items.allSatisfy { !$0.pinned })
-            await all.delete(second)
-            await search.refresh()
-            #expect(search.items.isEmpty)
-            #expect(search.query == "検索だけ")
-        }
-
         @Test func libraryFiltersSeparateSavedPinnedAndDraftContent() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
@@ -237,6 +205,16 @@ extension UIIntegrationTests {
             let model = LibraryModel(store: store, effects: RecordingLibraryEffects())
             model.filter = .trash
             #expect(model.query.isEmpty && model.filter == .all && model.refreshOnAppearance)
+            let search = LibraryModel(store: store)
+            let deleted = LibraryModel(store: store, surface: .deleted)
+            deleted.filter = .all
+            #expect(deleted.filter == .trash && deleted.refreshOnAppearance)
+            search.filter = .pinned
+            search.query = "ピン留め"
+            #expect(search.refreshOnAppearance)
+            await search.refresh()
+            #expect(search.items.map(\.id) == [pinned])
+            #expect(model.query.isEmpty && model.request.limit == LibraryRequest.pageSize)
             await model.refresh()
             #expect(!model.refreshOnAppearance && model.readDemand == nil)
             model.filter = .drafts
@@ -254,6 +232,8 @@ extension UIIntegrationTests {
             model.filter = .pinned
             #expect(!model.loading && Set(model.items.map(\.id)) == [pinned, external])
             await model.delete(pinned)
+            await search.refresh()
+            #expect(search.items.isEmpty && search.query == "ピン留め" && model.query.isEmpty)
             model.filter = .all
             #expect(model.items.map(\.id) == [external])
             model.filter = .drafts

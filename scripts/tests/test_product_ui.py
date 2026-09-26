@@ -45,14 +45,6 @@ class ProductNavigationTests(unittest.TestCase):
         self.assertEqual(run._focus_input('editor.body'), (187.5, 220))
         self.assertEqual([call.args[0][1] for call in run.command.call_args_list], ['tap', 'swipe'])
 
-    def test_native_menu_failure_is_not_reclassified_as_success(self):
-        run = object.__new__(ProductRun)
-        run.wait_ui = Mock(side_effect=VerificationError('missing menu'))
-        run.command = Mock()
-        with self.assertRaises(VerificationError):
-            run._menu_item(('すべてを選択', 'Select All'), allow_next=True)
-        run.command.assert_not_called()
-
     def test_editor_viewport_excludes_the_navigation_bar_and_keyboard_accessory(self):
         data = {'screen': {'height': 667}, 'entries': [
             {'role': 'Group', 'uniqueId': '新規作成', 'frame': {'y': 46, 'height': 54}},

@@ -10,6 +10,21 @@ from ios import simulator_lock, XCRUN, VerificationError
 from product_ui import ProductRun as Run, identifiers
 
 
+def trash_back_frame(data):
+    """Use the visible frame; iOS can duplicate this control or omit its label."""
+    screen = data['screen']
+    matches = [entry for entry in data['entries']
+               if entry.get('uniqueId') == 'BackButton'
+               and (frame := entry.get('frame', {})).get('width', 0) > 0
+               and frame.get('height', 0) > 0
+               and 0 <= frame.get('x', -1) < screen['width']
+               and 0 <= frame.get('y', -1) < screen['height'] / 4]
+    frames = [entry['frame'] for entry in matches]
+    if not frames or any(frame != frames[0] for frame in frames[1:]):
+        raise VerificationError('Deleted-items navigation has no unique visible back frame')
+    return frames[0]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
@@ -214,7 +229,7 @@ def main():
                                  if e.get("uniqueId") == action + snippet)
                     if frame["width"] < 44 or frame["height"] < 44:
                         raise VerificationError("Deleted item action is smaller than 44pt: " + action)
-                back_before = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "BackButton")
+                back_before = trash_back_frame(data)
                 run.tap("permanentlyDelete." + snippet)
                 run.wait_ui("trash-delete-confirmation", lambda d: "library.confirmPermanentDelete" in identifiers(d))
                 run.tap("library.cancelPermanentDelete")
@@ -222,14 +237,14 @@ def main():
                             and "library.confirmPermanentDelete" not in identifiers(d))
                 run.tap("restore." + snippet)
                 data = run.wait_ui("trash-notice", lambda d: "library.notice" in identifiers(d))
-                back_during = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "BackButton")
+                back_during = trash_back_frame(data)
                 notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
                 if back_before != back_during or notice["width"] < data["screen"]["width"] - 70:
                     raise VerificationError("Deleted-item notice changed navigation or lost its full width")
                 if notice["y"] < data["screen"]["height"] * .6 or notice["y"] + notice["height"] > data["screen"]["height"] - 8:
                     raise VerificationError("Deleted-item notice is outside its bottom presentation area")
                 run.screenshot("trash-restored")
-                run.tap("BackButton")
+                run.tap_frame(back_during)
                 assert_no_notice("deleted-items-left")
                 navigate("一覧")
                 run.wait_ui("restored-from-trash", lambda data: "snippet." + snippet in identifiers(data))

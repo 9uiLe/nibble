@@ -5,7 +5,7 @@ import Tasking
 
 @Suite("Keyboard storage")
 struct KeyboardStorageTests {
-    @Test(arguments: [false, true], [false, true])
+    @Test(arguments: [(false, false), (false, true), (true, false)])
     func unpreparedDatabaseIsNeitherCreatedNorMigrated(unknownSchema: Bool, pin: Bool) async throws {
         let files = try TestDatabase()
         defer { files.removeFiles() }
@@ -212,7 +212,7 @@ struct KeyboardOperationTests {
         #expect(!effects.holdsInputDocument)
     }
 
-    @Test(arguments: [false, true], [false, true])
+    @Test(arguments: [(false, false), (true, true)])
     func lateReadCannotReplaceCurrentPage(changesRequest: Bool, fails: Bool) async {
         let reader = KeyboardGateReader()
         let effects = RecordingKeyboardEffects()

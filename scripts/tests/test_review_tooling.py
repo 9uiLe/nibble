@@ -41,7 +41,13 @@ Python回帰テストとNix検査を実行。
 
 class PRTests(unittest.TestCase):
     def snapshot(self, body=BODY, files=None):
-        return {'head': SHA, 'commits': [SHA], 'body': body, 'files': files or ['docs/guide.md']}
+        return {'head': SHA, 'commits': [SHA], 'body': body, 'files': files or ['docs/guide.md'],
+                'draft': False}
+
+    def test_draft_pr_is_rejected_even_with_complete_body_and_ci(self):
+        snapshot = self.snapshot()
+        snapshot['draft'] = True
+        self.assertIn('PR must be ready for review, not a draft', check_pr.check(snapshot))
 
     def test_document_only_pr_and_current_ci(self):
         snapshot = self.snapshot()
@@ -118,12 +124,16 @@ class PRTests(unittest.TestCase):
                 self.assertTrue(check_pr.check(altered))
 
     def test_remote_snapshot_rejects_api_truncation_and_racing_push(self):
-        pr = {'head': {'sha': SHA}, 'body': BODY, 'commits': 1, 'changed_files': 1}
+        pr = {'head': {'sha': SHA}, 'body': BODY, 'commits': 1, 'changed_files': 1, 'draft': False}
         rows = [{'filename': 'docs/guide.md'}]
         with patch.object(check_pr, 'api', side_effect=[pr, [], rows]):
             with self.assertRaisesRegex(ValueError, 'Incomplete'):
                 check_pr.remote_snapshot('example/repo', 1)
         changed = {**pr, 'head': {'sha': 'b' * 40}}
+        with patch.object(check_pr, 'api', side_effect=[pr, [{'sha': SHA}], rows, changed]):
+            with self.assertRaisesRegex(ValueError, 'changed'):
+                check_pr.remote_snapshot('example/repo', 1)
+        changed = {**pr, 'draft': True}
         with patch.object(check_pr, 'api', side_effect=[pr, [{'sha': SHA}], rows, changed]):
             with self.assertRaisesRegex(ValueError, 'changed'):
                 check_pr.remote_snapshot('example/repo', 1)
@@ -277,6 +287,28 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_hosting_pages_check_internal_links_and_redirect_destinations(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'README.md').write_text('# Project\n')
+            public = root / 'marketing/public'
+            public.mkdir(parents=True)
+            (root / 'marketing/firebase.json').write_text(json.dumps({
+                'hosting': {'redirects': [{'source': '/contact', 'destination': '/contact.html'}]}
+            }))
+            (public / 'index.html').write_text('<a href="/contact">Contact</a><a href="https://example.com">External</a>')
+            contact = public / 'contact.html'
+            contact.write_text('<link href="/styles.css" rel="stylesheet">')
+            (public / 'styles.css').write_text('')
+            result = check_docs.check(root)
+            self.assertEqual(result['errors'], [])
+            self.assertEqual(result['site_links'], 2)
+            (public / 'styles.css').unlink()
+            self.assertTrue(any('missing/outside site link' in error for error in check_docs.check(root)['errors']))
+            (public / 'styles.css').write_text('')
+            contact.unlink()
+            self.assertTrue(any('missing/outside redirect destination' in error for error in check_docs.check(root)['errors']))
+
     def test_context_dependent_prose_is_rejected_but_code_examples_are_not(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

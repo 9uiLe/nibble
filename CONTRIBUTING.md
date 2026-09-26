@@ -69,7 +69,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | --- | --- |
 | workflow-policy / nix-format | Ubuntu runner方針、workflow・shell構文、Nix書式 |
 | swift-library-policy | 禁止API、タスク開始、View比較、View型・ファイル構成の構文 |
-| documentation | 文書リンク、Skill、Swift例、shell例のコマンドと設定パスの実在、設計IDと未確認入力 |
+| documentation | 文書リンク、Webページの内部リンク、Skill、Swift例、shell例のコマンドと設定パスの実在、設計IDと未確認入力 |
 | ui-design / ios-tooling | 共通設計ツールと製品Adapter、実行・証跡・PR検査の回帰 |
 | rive-assets | 制作ソース・生成物・Data Binding契約 |
 
@@ -111,7 +111,7 @@ stdoutは結果データ、stderrは工程と診断に使う。[表示Adapter](d
 
 ## ローカルとクラウドの責務
 
-iOSのビルド・テスト・操作・撮影・性能はローカルMacで行う。Apple CLIが実行と撮影、Nixのsim-useが画面の読取と操作を担う。ダミーデータと専用Simulatorを使い、既存端末を消去・削除しない。
+iOSのビルド・テスト・操作・撮影・性能はローカルMacで行う。Apple CLIが実行と撮影、Nixのsim-useが画面の読取と操作を担う。ダミーデータと専用Simulatorを使い、検証時に新しく作成した端末は終了後に削除する。既存端末を消去・削除しない。
 
 GitHub Actionsの全jobは`runs-on: ubuntu-24.04`を直接指定する。runnerの式・matrix・group、self-hosted、job単位の再利用workflow、別サービス経由のmacOS起動は禁止。外部ActionはSHA固定。Ubuntuの成功をiOS検証済みと扱わない。
 

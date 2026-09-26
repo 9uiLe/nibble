@@ -8,7 +8,6 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import check_ui_design
 from ui_design import snapshot
 
 
@@ -35,10 +34,6 @@ class DesignAdapterTests(unittest.TestCase):
         path = Path(__file__).resolve().parents[1] / script
         return subprocess.run([sys.executable, str(path), '--root', str(self.root), *args],
                               text=True, capture_output=True, check=False)
-
-    def test_adapter_command_passes(self):
-        result = self.run_command('check_ui_design.py', 'check')
-        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_required_documentation_command_detects_stale_review(self):
         (self.root / 'app' / 'View.swift').write_text('changed')

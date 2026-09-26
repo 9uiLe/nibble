@@ -18,7 +18,7 @@ nibbleはiOS 26.0以上向けのスニペットツール。素早い利用、原
 | iOS実行・証跡・PR | [nibble-verification](.agents/skills/nibble-verification/SKILL.md)。静的検査だけなら不要 |
 | AIでの画面確認 | [観測の設計](docs/architecture/verification.md#画面の観測と閲覧用データ)、[CLI仕様と開発](docs/simulator-inspection.md)、[画像の全体と細部の確認](docs/review-evidence.md#画像の全体と細部の確認) |
 | 検証基盤・CI | [基盤設計](docs/architecture/verification.md)、[スクリプト設計](docs/script-tooling.md)、変更する検査と回帰テスト |
-| TestFlight | [配布手順](docs/testflight.md)、[配布設計](docs/architecture/distribution.md) |
+| TestFlight | [配布手順](docs/testflight.md) |
 
 ## 作業範囲と権限
 

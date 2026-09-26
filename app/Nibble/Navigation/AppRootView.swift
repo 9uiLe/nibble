@@ -13,7 +13,6 @@ struct AppRootView: View {
     @State private var library: LibraryModel
     @SkipEquatable private let store: any LibraryStorage & DraftEditing
     @SkipEquatable private let effects: any LibraryEffects
-    @SkipEquatable private let advertising: any AdvertisingContent
     @State private var routeOwner = LibraryTaskOwner()
     @State private var subscription = ProSubscription()
     @State private var showsSettings = false
@@ -22,11 +21,9 @@ struct AppRootView: View {
     @FocusState private var searchFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
-    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects,
-         advertising: any AdvertisingContent = UnconfiguredAdvertising()) {
+    init(store: any LibraryStorage & DraftEditing, effects: any LibraryEffects) {
         self.store = store
         self.effects = effects
-        self.advertising = advertising
         _library = State(initialValue: LibraryModel(store: store, effects: effects))
     }
 
@@ -35,7 +32,6 @@ struct AppRootView: View {
         NavigationStack {
             LibraryScreen(model: library, searchFocused: $searchFocused,
                           noticesPresented: noticesPresented,
-                          advertisement: showsLibraryAd ? advertising.libraryBanner() : nil,
                           openSettings: {
                 searchFocused = false
                 showsSettings = true
@@ -117,10 +113,5 @@ struct AppRootView: View {
 
     private var noticesPresented: Bool {
         scenePhase == .active && !showsSettings && library.editor == nil
-    }
-
-    private var showsLibraryAd: Bool {
-        noticesPresented && library.variableCopy == nil && !searchFocused && !library.isSearching
-            && !FeatureAccess.availability(.adFree, pro: subscription.isActive).isAvailable
     }
 }

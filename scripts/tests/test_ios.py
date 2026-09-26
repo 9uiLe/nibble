@@ -246,6 +246,24 @@ class ProcessTests(unittest.TestCase):
             with self.assertRaisesRegex(ios.VerificationError, "Process exited"):
                 self.run.wait_ui("ready", lambda data: True)
 
+    def test_transition_wait_accepts_only_the_known_ax_translation_gap(self):
+        ready = {"entries": [{"uniqueId": "ready"}]}
+        gap = ios.UIObservationUnavailable("No translation object returned for simulator.")
+        with patch.object(self.run, "ui", side_effect=[gap, ready]), patch.object(ios.time, "sleep"):
+            self.assertEqual(self.run.wait_ui("ready", lambda data: True), ready)
+        with patch.object(self.run, "ui", side_effect=gap), patch.object(ios.time, "sleep"):
+            with self.assertRaisesRegex(ios.VerificationError, "did not reach"):
+                self.run.wait_ui("ready", lambda data: True, attempts=2)
+
+    def test_sim_use_ax_gap_is_classified_from_its_json_error(self):
+        def unavailable(_argv, **kwargs):
+            kwargs["stdout"].write(json.dumps({"ok": False, "error":
+                "No translation object returned for simulator. This means the screen is changing"}))
+            return Mock(returncode=1)
+        with patch.object(ios.subprocess, "run", side_effect=unavailable):
+            with self.assertRaises(ios.UIObservationUnavailable):
+                self.run.command(["sim-use", "ui", "--device", "explicit-udid"])
+
     def test_finish_records_empty_message_exceptions_as_diagnostic_failures(self):
         for error in [KeyboardInterrupt(), StopIteration(), ""]:
             with self.subTest(error=type(error).__name__), patch.object(ios, "ui"):

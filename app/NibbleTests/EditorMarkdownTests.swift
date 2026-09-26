@@ -114,6 +114,10 @@ extension UIIntegrationTests {
             let paragraph = try #require(parsed.previewBlocks.dropFirst().first)
             let styled = MarkdownPreviewBlock.styledText(paragraph)
             #expect(styled.runs.first?.font == .system(size: 15, weight: .bold, design: .default))
+            let italic = try #require(styled.runs.first { $0.inlinePresentationIntent?.contains(.emphasized) == true })
+            #expect(italic.font == .system(size: 15, weight: .regular, design: .default).italic())
+            let code = try #require(styled.runs.first { $0.inlinePresentationIntent?.contains(.code) == true })
+            #expect(code.font == .system(size: 15, weight: .regular, design: .monospaced))
             #expect(parsed.previewBlocks[2].listMarker == "•" && parsed.previewBlocks[3].listMarker == "•")
             #expect(parsed.previewBlocks[4].style.quote && parsed.previewBlocks[5].style.code)
             #expect(parsed.previewBlocks.last?.text.runs.first?.link == URL(string: "https://example.com"))
@@ -121,12 +125,19 @@ extension UIIntegrationTests {
             #expect(await model.finish(.keep))
             let reopened = try await database.store.draft(model.draft.id)
             #expect(Array(reopened.body.utf8) == Array(source.utf8))
+            let incomplete = "**未完成"
+            let input = MarkdownSourceTextView()
+            input.text = incomplete
+            input.apply(await MarkdownDocument.parse(incomplete))
+            #expect(input.text == incomplete)
         }
         @Test func formattingPreservesSourceSelectionAndComposition() async throws {
-            let source = "# 日本語 👩🏽‍💻\n\n**太字** *italic* `code`\n\nか\u{3099}\t  \n\n```swift\nlet x = 1\n```"
+            let source = "# 日本語 👩🏽‍💻\n\n## 副見出し\n\n**太字** *italic* `code`\n\nか\u{3099}\t  \n\n```swift\nlet x = 1\n```"
             let document = await MarkdownDocument.parse(source)
             let title = try #require(document.sourceSpans.first { $0.style.heading == 1 })
             #expect((source as NSString).substring(with: title.range) == "日本語 👩🏽‍💻")
+            let subtitle = try #require(document.sourceSpans.first { $0.style.heading == 2 })
+            #expect((source as NSString).substring(with: subtitle.range) == "副見出し")
             let bold = try #require(document.sourceSpans.first { $0.style.bold })
             #expect((source as NSString).substring(with: bold.range) == "太字")
             let view = MarkdownSourceTextView()
@@ -137,6 +148,8 @@ extension UIIntegrationTests {
             #expect(view.selectedRange == NSRange(location: 4, length: 2))
             let titleFont = try #require(view.textStorage.attribute(.font, at: title.range.location, effectiveRange: nil) as? UIFont)
             #expect(titleFont.pointSize == 26)
+            let subtitleFont = try #require(view.textStorage.attribute(.font, at: subtitle.range.location, effectiveRange: nil) as? UIFont)
+            #expect(subtitleFont.pointSize == 22 && subtitleFont.fontDescriptor.symbolicTraits.contains(.traitBold))
             let boldFont = try #require(view.textStorage.attribute(.font, at: bold.range.location, effectiveRange: nil) as? UIFont)
             #expect(boldFont.fontDescriptor.symbolicTraits.contains(.traitBold))
             let paragraph = try #require(view.textStorage.attribute(.paragraphStyle, at: bold.range.location,
@@ -149,36 +162,6 @@ extension UIIntegrationTests {
             view.apply(await MarkdownDocument.parse(view.text))
             #expect(view.text == composed)
             #expect((view.markedTextRange == nil) == (markedRange == nil))
-        }
-
-        @Test func headingAndInlineStylesAgreeAcrossInputAndPreview() async throws {
-            let source = "## **太字**と*斜体* `code`"
-            let document = await MarkdownDocument.parse(source)
-            let view = MarkdownSourceTextView()
-            view.text = source
-            view.apply(document)
-            let block = try #require(document.previewBlocks.first)
-            let rendered = MarkdownPreviewBlock.styledText(block)
-            #expect(String(rendered.characters) == "太字と斜体 code")
-            for span in document.sourceSpans {
-                let font = try #require(view.textStorage.attribute(.font, at: span.range.location, effectiveRange: nil) as? UIFont)
-                #expect(font.pointSize == 22)
-                #expect(font.fontDescriptor.symbolicTraits.contains(.traitBold))
-            }
-            let code = try #require(rendered.runs.first { $0.inlinePresentationIntent?.contains(.code) == true })
-            #expect(code.font == .system(size: 22, weight: .bold, design: .monospaced))
-            let italic = try #require(rendered.runs.first { $0.inlinePresentationIntent?.contains(.emphasized) == true })
-            #expect(italic.font == .system(size: 22, weight: .bold, design: .default).italic())
-            #expect(Array(view.text.utf8) == Array(source.utf8))
-        }
-
-        @Test func plainAndIncompleteMarkdownPreserveSource() async throws {
-            for source in ["", "**未完成"] {
-                let view = MarkdownSourceTextView()
-                view.text = source
-                view.apply(await MarkdownDocument.parse(source))
-                #expect(Array(view.text.utf8) == Array(source.utf8))
-            }
         }
 
         @Test(arguments: [("\n", ""), ("\n", "前\0 "), ("\r", "前\0 "), ("\r\n", "前\0 "), ("\n\r", "前\0 ")])

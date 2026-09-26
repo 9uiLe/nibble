@@ -220,18 +220,18 @@ class AboutCheck:
         data = self.run.ui(name + "-top")
         self.run.screenshot(name + "-top")
         for index in range(30):
-            paragraph = element(data, "about.privacy" if self.story == "about" else "keyboard.guide.limits")
-            if paragraph:
-                frame = paragraph["frame"]
+            final_content = element(data, "about.privacyPolicy" if self.story == "about" else "keyboard.guide.limits")
+            if final_content:
+                frame = final_content["frame"]
                 bar_top = data["screen"]["height"] - 34
                 if 75 <= frame["y"] and frame["y"] + frame["height"] <= bar_top - 8:
                     break
             self.scroll(data)
             data = self.run.ui(f"{name}-scroll-{index}")
         else:
-            raise VerificationError("Final paragraph is not reachable")
+            raise VerificationError("Final content is not reachable")
         self.run.screenshot(name + "-bottom")
-        self.observations[name] = {"final_paragraph_reachable": True, "swipes": index}
+        self.observations[name] = {"final_content_reachable": True, "swipes": index}
         # Preserve the reading position while checking both palettes.
         self.option("appearance", "dark")
         self.run.screenshot("dark-bottom")

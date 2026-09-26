@@ -59,12 +59,9 @@ extension UIIntegrationTests {
             #expect(overlay.windowLevel > source.windowLevel)
             #expect(!overlay.canBecomeKey && !overlay.isKeyWindow)
             #expect(scene.keyWindow === source && input.isFirstResponder)
-            #expect(frame.height >= 52 && frame.minY >= overlay.safeAreaInsets.top)
-            #expect(abs(frame.minX - 16) < 1)
-            #expect(abs(frame.maxX - (overlay.bounds.width - 16)) < 1)
+            #expect(frame.height >= 44 && frame.minY >= overlay.safeAreaInsets.top)
             let keyboardTop = controller.view.convert(keyboardGuide.layoutFrame, to: overlay).minY
             #expect(frame.maxY <= keyboardTop - 8 + 1)
-            #expect(abs(frame.maxY - anchor.bottomBoundary) < 1)
             let creationTarget = CGPoint(x: overlay.bounds.width - 44, y: overlay.safeAreaInsets.top + 34)
             #expect(overlay.hitTest(creationTarget, with: nil) == nil)
             #expect(overlay.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil) != nil)

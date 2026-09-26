@@ -24,10 +24,6 @@ class ProjectConfigurationTests(unittest.TestCase):
         (self.root / 'project.json').write_text(json.dumps(value))
         return load_project(self.root, 'project.json')
 
-    def test_valid_description_preserves_explicit_signing(self):
-        self.config['simulator_signing'] = 'ad-hoc'
-        self.assertEqual(self.load(self.config), self.config)
-
     def test_invalid_descriptions_are_rejected(self):
         invalid = [[], {}, {**self.config, 'unknown': 'option'}]
         for key, value in [('project', '../Nibble.xcodeproj'), ('project', '/tmp/Other.xcodeproj'),

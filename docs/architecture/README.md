@@ -10,7 +10,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Nibble/Navigation/` | `AppRootView`の設定階層・編集シート・scene、`AppRoute`、作業画面の見出し |
 | `app/Nibble/Library/` | 画面・行・通知、タスク所有者、`LibraryPresentation`による文言、`SystemLibraryEffects`によるOS作用 |
 | `app/Nibble/Settings/` | 設定、製品情報、キーボード利用案内 |
-| `app/Nibble/Monetization/` | StoreKitで検証したPro権利の更新と、作業画面の広告接続 |
+| `app/Nibble/Monetization/` | StoreKitで検証したPro権利の更新 |
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
 | `app/NibbleShare/` | `SharedDraftLoader`の取込・下書き保存、失敗文言、controllerの共通エディター提示 |
 | `app/NibbleKeyboard/` | OS入力先・権限・キーボードのViewとcontroller |
@@ -100,10 +100,10 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 - [収益と機能アクセス](monetization.md)：無料/Proの判定、StoreKit権利、広告と計測の境界。
 - [説明イラスト](presentation.md)：RML、再生位置、停止・復帰、解放。
 - [検証基盤](verification.md)：計画、ビルドキャッシュ、実行と観測。
-- [配布](distribution.md)：署名、送信、担当者と秘密情報の境界。
+- [TestFlight手順](../testflight.md)：署名、送信、担当者と秘密情報の境界。
 
 ## 開発ツール
 
 `scripts/ios_project.py`が対象configを検査し、`scripts/verification_catalog.py`が検証工程のID・実行コマンド・対象configへの参照・runの種類を定義し、`verify.py`が差分から選択して直列実行する。証跡のproject情報は同じconfigの全フィールドと照合する。製品回帰、基盤fixture、性能測定は目的で分ける。`validation/`は基盤試験と製品の保存層測定・共有入力に必要なfixtureだけを持つ。
 
-文書は相対リンク、Swift例、設計台帳を共通検査で照合する。UIの採用仕様は`docs/design/`、製品に依存しない照合処理は`tools/ui-design/`、nibble固有の対象選択はpolicyとAdapterに置く。結果のJSONと進捗表示は[CLIの契約](../script-tooling.md)に従って分離する。
+文書の相対リンク、Webページの内部リンク、Swift例、設計台帳を共通検査で照合する。UIの採用仕様は`docs/design/`、製品に依存しない照合処理は`tools/ui-design/`、nibble固有の対象選択はpolicyとAdapterに置く。結果のJSONと進捗表示は[CLIの契約](../script-tooling.md)に従って分離する。

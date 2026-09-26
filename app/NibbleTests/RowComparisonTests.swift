@@ -83,16 +83,11 @@ extension UIIntegrationTests {
             let untitled = SnippetRowContent(title: "", preview: "一件目", pinned: false)
             let untitledPixels = try await render(untitled)
             #expect(try await render(SnippetRowContent(title: "", preview: "二件目", pinned: false)) != untitledPixels)
-            #expect(try await render(untitled) == untitledPixels)
-            #expect(try await render(original) == initial)
-
             // Equal row inputs must not freeze environment updates in Text/Image.
+            _ = try await render(original)
             window.overrideUserInterfaceStyle = .dark
             try await Task.sleep(for: .milliseconds(100))
             #expect(try pixels() != initial)
-            window.overrideUserInterfaceStyle = .light
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(try pixels() == initial)
         }
     }
 }

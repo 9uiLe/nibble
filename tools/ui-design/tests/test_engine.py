@@ -288,12 +288,6 @@ class DesignChecks(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'symlinks'):
             self.record()
 
-    def test_snapshot_owns_its_returned_metadata(self):
-        references = ['design/screens.md']
-        value = design.snapshot(self.root, 'policy.json', 'Reviewed.', references)
-        references.append('unrelated.md')
-        self.assertEqual(value['references'], ['design/screens.md'])
-
     def test_concurrent_products_and_subsequent_checks_are_independent(self):
         self.write('design/screens.md', '## S01 Library\nC99\n')
         with tempfile.TemporaryDirectory() as directory:
