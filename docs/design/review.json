@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "summary": "原文を保持し、下書き対象・利用履歴・変数名・Keyboard詳細状態を型で表す。保存境界で不正値を拒否し、画面表示と操作の契約を共有する",
+  "summary": "設定では現在使えるキーボード案内と復元を準備中のProより先に示す。販売準備中は権利確認の完了を待たず、無料機能と提供状態を説明する。iOS 26.5の変更前後の画面で確認した。",
   "references": [
     "docs/design/screens.md",
     "docs/design/components.md",
-    "docs/design/copy.md"
+    "docs/design/copy.md",
+    "docs/design/foundations.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -73,9 +74,9 @@
     "app/Nibble/Settings/GuidePageStyle.swift": "294cae89fcc64afce73c9978d8662092a402309e01306956e1671770d3f40d93",
     "app/Nibble/Settings/KeyboardGuideSection.swift": "b951a99eb17337818b1e552664658f1110ab8452f6975118bb9ae37634d049ae",
     "app/Nibble/Settings/KeyboardGuideView.swift": "61cecd59946dcc7fb22a6af9eaa7df28ff653381d94696dedc64a75a0ba33fbd",
-    "app/Nibble/Settings/ProView.swift": "3790a3e47ec5cd18f3f5f423151421646a392027127b3570bdbae4e3de8b6745",
+    "app/Nibble/Settings/ProView.swift": "b79bda21aa20c8045da09c5f3079cc036484328da4b450273b92655a859a99aa",
     "app/Nibble/Settings/SettingsDisclosureLabel.swift": "b565930c5b98116a2c7df020043871e0c6826da94c611045cf5a4fb1737609fb",
-    "app/Nibble/Settings/SettingsList.swift": "1d0a907f811cae049aa120d0a3b114bb2d2f5eac609e1e71f4539e2140ed0d90",
+    "app/Nibble/Settings/SettingsList.swift": "fed1c27a6c6bb464292fb18a6265ef31cb30a6ab1935d8814fe586e833cb1ad5",
     "app/Nibble/Settings/SettingsView.swift": "3da6df19f4e9f8d9554189e3959902f86d817fa722d45de160e10fe47d270b9b",
     "app/NibbleKeyboard/Info.plist": "34655e3be06e791c6d9c6a5b6fe10b33c995860b2b6d49751ad793cbfd2a155e",
     "app/NibbleKeyboard/KeyboardBrowseView.swift": "bd863328f6c2a44f60d40a6058bac2c270039c53180a3e250f9cad9245ac5cc6",
@@ -180,7 +181,7 @@
     "docs/architecture/variables.md": "b4b10137dd7327d7c337a01f89cfe93dfa8e2473fc3c262b2b48b4e845bb9e8c",
     "docs/design/README.md": "dff365b9ca2b5f2bd1b9a7e5f042b3a7073ac1b0b6b10cb047655db0004221a8",
     "docs/design/audit.md": "5b7bcc1ade3f7f758219ac21293decb746ff59edc03c37e03f58f4040b032d3f",
-    "docs/design/components.md": "d05f4bfbd75a70aa7503754b167cff9667a6e6858f17db26a35b702c9037d742",
+    "docs/design/components.md": "ddb7df7eadd6ff9fc7cba32440df4254166a0028b05d4b49eb7f797a15d02950",
     "docs/design/copy.md": "54c6e3d2f8284d8144fc4ef81f6d37dfe9dc3e8e5785f3650d8d46b7cd071af4",
     "docs/design/evidence.md": "84387d3214b64a883e6f048b4b63d3492c9b21dfa71e25fc05ce1b2ee79edfd8",
     "docs/design/foundations.md": "8c175888869defaaac247c330580f8ae7ffc71090c9b19401fe591d1db36b5e0",
@@ -189,7 +190,7 @@
     "docs/design/rationale/library-actions.md": "1e5a86db5c7f90a1f0f182373299483476d698f552453e11569d649ae7a4b5b0",
     "docs/design/rationale/result-notices.md": "8f7a0aa7b2f2ba37ab6cf2858d7ae972a26c35a2ccb6130a4d373b72c62c2c4f",
     "docs/design/rationale/usage-order.md": "520ff063d0a25d5aec2fd42ce61a76c02f6f08f1e6e820241417e245680e93b5",
-    "docs/design/screens.md": "7fc7ebd816475ae6be5c85f9a9977c2b4c43a028dc0b3df04f52d3bc2a395bc2",
+    "docs/design/screens.md": "bfefb11545011348215540e72ae677d33f1fd4242f64f6081fa651b06b31654c",
     "docs/product-specification.md": "8c032de6ce47ec19677216ae8d1417c13092e8c2edd3cab6af743be99a73773d",
     "flake.lock": "bd00578fee737c4bd912989f05d7a46e10d9202673c675b3ba971719e0f6e23c",
     "runtime/rive/Package.swift": "313c567ba8365ca0d8fafe70c7a5d2e12cb9173f4b7119c3fa47d6aca74fba93",
