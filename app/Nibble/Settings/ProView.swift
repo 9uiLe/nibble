@@ -26,8 +26,9 @@ struct ProView: View {
     @State private var productRequestID: UUID?
 
     private var entitlementContent: EntitlementContent {
-        if !subscription.checked { return .checking }
-        return subscription.isActive ? .active : .inactive
+        if subscription.isActive { return .active }
+        if !FeatureAccess.subscriptionsOffered || subscription.checked { return .inactive }
+        return .checking
     }
 
     private var productContent: ProductContent {
@@ -41,8 +42,10 @@ struct ProView: View {
         VStack(spacing: 0) {
             switch entitlementContent {
             case .checking:
+                Text(proDescription)
+                    .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding()
                 ProgressView("登録状態を確認中")
-                    .font(.nibbleBody).padding()
+                    .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal)
             case .active:
                 Label("nibble Proを利用中です", systemImage: "checkmark.circle.fill")
                     .font(.nibbleTitle).padding()

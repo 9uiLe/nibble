@@ -10,17 +10,15 @@ struct SettingsList: View {
     @SkipEquatable let effects: any LibraryEffects
     let onTrashReturn: () -> Void
 
+    private var proDetail: String {
+        if subscription.isActive { return "利用中・登録を管理" }
+        if !FeatureAccess.subscriptionsOffered || subscription.checked { return "新機能を準備中" }
+        return "登録状態を確認中"
+    }
+
     var body: some View {
         List {
             Section {
-                NavigationLink {
-                    ProView(subscription: subscription)
-                } label: {
-                    SettingsDisclosureLabel(title: "nibble Pro", detail: !subscription.checked ? "登録状態を確認中" : subscription.isActive ? "利用中・登録を管理" : "新機能を準備中",
-                                            systemImage: "star", showsChevron: false)
-                }
-                .accessibilityIdentifier("settings.pro")
-                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 NavigationLink {
                     KeyboardGuideView()
                 } label: {
@@ -29,7 +27,6 @@ struct SettingsList: View {
                 }
                 .accessibilityIdentifier("settings.keyboard")
                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                .listRowSeparator(.hidden, edges: .top)
                 NavigationLink {
                     DeletedSnippetsView(store: store, effects: effects, onReturn: onTrashReturn)
                 } label: {
@@ -37,6 +34,15 @@ struct SettingsList: View {
                                             systemImage: "trash", showsChevron: false)
                 }
                 .accessibilityIdentifier("library.trash")
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                .listRowSeparator(.hidden, edges: .top)
+                NavigationLink {
+                    ProView(subscription: subscription)
+                } label: {
+                    SettingsDisclosureLabel(title: "nibble Pro", detail: proDetail,
+                                            systemImage: "star", showsChevron: false)
+                }
+                .accessibilityIdentifier("settings.pro")
                 .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 NavigationLink {
                     AboutView()
