@@ -50,7 +50,9 @@ class AboutCheck:
                         # Prefer the destination and do not repeat an unchanged observation.
                         self.run.tap(target)
                         previous_navigation = navigation
-                    elif target is None and data.get("entries") and data.get("screen"):
+                    elif (target is None and data.get("entries")
+                          and data.get("screen", {}).get("width", 0) > 0
+                          and data.get("screen", {}).get("height", 0) > 0):
                         # Reveal the root's Accessibility row when Settings retained a scroll position.
                         self.scroll(data, up=True)
                 time.sleep(0.3)

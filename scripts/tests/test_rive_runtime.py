@@ -59,7 +59,8 @@ class RuntimeCacheTests(unittest.TestCase):
     def test_package_configuration_and_dependency_resolver_are_build_inputs(self):
         definition = self.package / 'definition'
         definition.mkdir()
-        expected = {'Package.swift', 'build.json', 'dependency.lua', 'drawable-acquisition.patch'}
+        expected = {'Package.swift', 'build.json', 'dependency.lua',
+                    'drawable-acquisition.patch', 'xcode27-compatibility.patch'}
         for name in expected:
             (definition / name).write_text('input')
         before = runtime.definition_hashes(definition)

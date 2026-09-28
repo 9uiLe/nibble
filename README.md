@@ -66,7 +66,7 @@ Intel Macではtree-sitter-language-packが未対応のためNix環境全体の�
 | --- | --- |
 | macOS（Apple Silicon） | Nix共通検査。製品ビルドにはmacOS 26以上、対応するXcodeと対象runtimeが必要 |
 | Linux x86_64 | Ubuntu CIでNix共通検査。ARM64は構成評価のみで実行は未確認 |
-| iOSの確認環境 | Xcode 26.5、Apple Swift 6.3.2、Swift language mode 6、Simulator SDK 26.5 |
+| iOSの確認環境 | Xcode 27.0、Apple Swift 6.4、Swift language mode 6、Simulator SDK 27.0 |
 | 対応OSと実行対象 | deployment target 26.0。ビルド・テスト・操作・性能の実行検証はiOS 26.5のみ |
 
 製品の受け入れはSimulator評価に限定し、実機検証は含めません。最低対応OS 26.0への適合はdeployment targetとAPI availabilityで確認します。
@@ -121,7 +121,7 @@ python3 scripts/verify.py plan --base origin/main
 
 ### 4. XcodeとSwift Packageを準備する
 
-iOSを検証するMacに[Xcode](https://developer.apple.com/xcode/)をインストールし、一度起動してライセンス確認と追加コンポーネントの導入を完了します。確認環境はXcode 26.5です。Settings → Locations → Command Line Toolsで使うXcodeを選び、確認します。
+iOSを検証するMacに[Xcode](https://developer.apple.com/xcode/)をインストールし、一度起動してライセンス確認と追加コンポーネントの導入を完了します。確認環境はXcode 27.0です。Settings → Locations → Command Line Toolsで使うXcodeを選び、確認します。
 
 ```sh
 xcode-select -p

@@ -1,0 +1,95 @@
+--- a/submodules/rive-runtime/build/rive_build_config.lua
++++ b/submodules/rive-runtime/build/rive_build_config.lua
+@@ -693,8 +693,8 @@
+ 
+         defines({ 'RIVE_IOS' })
+         buildoptions({
+-            '--target=arm64-apple-ios13.0.0',
+-            '-mios-version-min=13.0.0',
++            '--target=arm64-apple-ios26.0.0',
++            '-mios-version-min=26.0.0',
+             '-isysroot ' .. iphoneos_sysroot,
+         })
+     elseif _OPTIONS['variant'] == 'emulator' then
+@@ -707,8 +707,8 @@
+ 
+         defines({ 'RIVE_IOS_SIMULATOR' })
+         buildoptions({
+-            '--target=arm64-apple-ios13.0.0-simulator',
+-            '-mios-version-min=13.0.0',
++            '--target=arm64-apple-ios26.0.0-simulator',
++            '-mios-version-min=26.0.0',
+             '-isysroot ' .. iphonesimulator_sysroot,
+         })
+     elseif _OPTIONS['variant'] == 'xros' then
+--- a/submodules/rive-runtime/cg_renderer/premake5.lua
++++ b/submodules/rive-runtime/cg_renderer/premake5.lua
+@@ -31,14 +31,14 @@
+         filter({ 'system:ios', 'options:variant=system' })
+         do
+             buildoptions({
+-                '-mios-version-min=13.0 -fembed-bitcode -arch arm64 -isysroot ' .. iphoneos_sysroot,
++                '-mios-version-min=26.0 -fembed-bitcode -arch arm64 -isysroot ' .. iphoneos_sysroot,
+             })
+         end
+ 
+         filter({ 'system:ios', 'options:variant=emulator' })
+         do
+             buildoptions({
+-                '--target=arm64-apple-ios13.0.0-simulator -mios-version-min=13.0 -arch x86_64 -arch arm64 -isysroot '
++                '--target=arm64-apple-ios26.0.0-simulator -mios-version-min=26.0 -arch x86_64 -arch arm64 -isysroot '
+                     .. iphonesimulator_sysroot,
+             })
+         end
+--- a/submodules/rive-runtime/renderer/src/metal/background_shader_compiler.mm
++++ b/submodules/rive-runtime/renderer/src/metal/background_shader_compiler.mm
+@@ -299,7 +299,8 @@
+         compileOptions.languageVersion =
+             MTLLanguageVersion2_3; // On mac, we need version 2.3+
+ #endif
+-        compileOptions.fastMathEnabled = YES;
++        compileOptions.mathMode = MTLMathModeFast;
++        compileOptions.mathFloatingPointFunctions = MTLMathFloatingPointFunctionsPrecise;
+         if (@available(iOS 14, *))
+         {
+             compileOptions.preserveInvariance = YES;
+--- a/submodules/rive-runtime/renderer/src/metal/render_context_metal_impl.mm
++++ b/submodules/rive-runtime/renderer/src/metal/render_context_metal_impl.mm
+@@ -19,10 +19,6 @@
+ 
+ #include "generated/shaders/color_ramp.glsl.exports.h"
+ #include "generated/shaders/tessellate.glsl.exports.h"
+-
+-#if defined(RIVE_IOS_SIMULATOR)
+-#import <mach-o/arch.h>
+-#endif
+ 
+ namespace rive::gpu
+ {
+@@ -530,21 +526,17 @@
+     // would use rasterOrderGroups.
+     m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+ #elif defined(RIVE_IOS_SIMULATOR)
+-    const NXArchInfo* hostArchitecture = NXGetLocalArchInfo();
+-    if (strncmp(hostArchitecture->name, "arm64", 5) == 0)
+-    {
++#if defined(__arm64__)
+         // The simulator doesn't advertise support for raster order groups, but
+         // they appear to work anyway on an Apple-Silicon-hosted simulator. Use
+         // rasterOrderGroup in this case because it's much faster than
+         // renderPassBreak. (On Intel/AMD this doesn't matter anyway because
+         // renderPassBreaks are cheap and actually faster than
+         // rasterOrderGroups.)
+-        m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
+-    }
+-    else
+-    {
+-        m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
+-    }
++    m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
++#else
++    m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
++#endif
+ #else
+     // Use real memory barriers for atomic mode if they're availabile.
+     // "GPU devices in Apple3 through Apple9 families don’t support memory

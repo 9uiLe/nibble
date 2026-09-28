@@ -30,7 +30,7 @@ stdoutは呼び出し元が読む結果、stderrは進捗・診断に使う。�
 Xcodeは`xcode-select`の選択先を使う。シェル単位で切り替える場合は、実際のインストール先に合わせて`DEVELOPER_DIR`を設定する。
 
 ```sh
-export DEVELOPER_DIR=/Applications/Xcode-26.5.0.app/Contents/Developer
+export DEVELOPER_DIR=/Applications/Xcode-27.0.0.app/Contents/Developer
 python3 scripts/ios.py doctor
 python3 scripts/ios.py devices
 ```

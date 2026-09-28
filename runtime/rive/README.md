@@ -8,6 +8,7 @@ nibbleはRiveの状態機械・描画エンジンを使い、Metal描画先の�
 | --- | --- |
 | `build.json` | Riveの版、Premakeの版、iOSとSimulatorのビルド対象 |
 | `drawable-acquisition.patch` | Apple runtimeの描画先取得・フレーム要求・寿命管理 |
+| `xcode27-compatibility.patch` | 固定したcoreの対象OSを26.0へ合わせ、MetalとSimulatorの非推奨APIを置き換える |
 | `dependency.lua` | Nixで固定したcore依存だけを解決する |
 | `Package.swift` | 生成するXCFrameworkのSwift Package定義 |
 | [flake.nix](../../flake.nix) / [flake.lock](../../flake.lock) | Apple runtime 6.27.0・core・間接依存・ビルドツールの固定 |
