@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / 'artifacts/RiveRuntime'
 DEFINITION = ROOT / 'runtime/rive'
 PATCH = DEFINITION / 'drawable-acquisition.patch'
+COMPATIBILITY_PATCH = DEFINITION / 'xcode27-compatibility.patch'
 
 
 def sha256(path):
@@ -99,6 +100,8 @@ def build(identity, sources, destination):
         environment['PATH'] = str(localbin) + ':' + str(core / 'build') + ':' + environment['PATH']
     command('patch-runtime', ['git', 'apply', '--check', PATCH], source)
     command('apply-runtime', ['git', 'apply', PATCH], source)
+    command('patch-compatibility', ['git', 'apply', '--check', COMPATIBILITY_PATCH], source)
+    command('apply-compatibility', ['git', 'apply', COMPATIBILITY_PATCH], source)
     frameworks = []
     for platform in definition['platforms']:
         name = platform['name']
@@ -112,6 +115,7 @@ def build(identity, sources, destination):
                 '-scheme', 'RiveRuntime', '-configuration', 'Release', '-destination', 'generic/platform=' + platform['destination'],
                 '-archivePath', archive, '-derivedDataPath', run / 'DerivedData', 'SKIP_INSTALL=NO',
                 'BUILD_LIBRARY_FOR_DISTRIBUTION=YES', 'CODE_SIGNING_ALLOWED=NO',
+                'IPHONEOS_DEPLOYMENT_TARGET=26.0',
                 'MARKETING_VERSION=' + definition['version'], 'DEBUG_INFORMATION_FORMAT=dwarf-with-dsym'], source)
         frameworks += ['-framework', archive / 'Products/Library/Frameworks/RiveRuntime.framework',
                        '-debug-symbols', archive / 'dSYMs/RiveRuntime.framework.dSYM']

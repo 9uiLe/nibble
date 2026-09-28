@@ -39,7 +39,7 @@ App Store Connectでは本体のBundle IDでiOSアプリを1件作成する。�
 
 ### 2. Xcodeと署名資産
 
-1. [開発環境のセットアップ](../README.md#セットアップ)に従い、NixとXcode 26.5 / iPhoneOS SDK 26.5を準備する。
+1. [開発環境のセットアップ](../README.md#セットアップ)に従い、NixとXcode 27.0 / iPhoneOS SDK 27.0を準備する。
 2. 固定したAppMacros revisionをXcodeで個別に承認する。マクロ検証を一括で無効にしない。
 3. 配布担当者がXcodeのAccountsでApple Developerアカウントへサインインする。
 4. 対象TeamのApple Distribution証明書と秘密鍵をKeychainに用意する。本体・共有拡張・キーボードの配布profileとApp Groupの対応を確認する。

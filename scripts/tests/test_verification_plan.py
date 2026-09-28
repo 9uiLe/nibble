@@ -22,7 +22,8 @@ class SelectionTests(unittest.TestCase):
 
     def test_runtime_definition_changes_require_the_complete_regression(self):
         for path in ['runtime/rive/Package.swift', 'runtime/rive/build.json',
-                     'runtime/rive/dependency.lua', 'runtime/rive/drawable-acquisition.patch']:
+                     'runtime/rive/dependency.lua', 'runtime/rive/drawable-acquisition.patch',
+                     'runtime/rive/xcode27-compatibility.patch']:
             with self.subTest(path=path):
                 self.assertEqual(self.selected([path]), set(verify.REGRESSION_STEPS))
 

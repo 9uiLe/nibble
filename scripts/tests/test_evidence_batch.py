@@ -14,6 +14,7 @@ class BatchIdentityTests(unittest.TestCase):
     def test_runtime_inputs_invalidate_both_product_and_fixture_evidence(self):
         hashes = {'runtime/rive/build.json': 'build', 'runtime/rive/Package.swift': 'package',
                   'runtime/rive/dependency.lua': 'resolver', 'runtime/rive/drawable-acquisition.patch': 'patch',
+                  'runtime/rive/xcode27-compatibility.patch': 'compatibility',
                   'runtime/rive/README.md': 'documentation'}
         expected = {name: value for name, value in hashes.items() if not name.endswith('.md')}
         for project in ['app/Nibble.xcodeproj', 'validation/VerificationApp.xcodeproj']:
