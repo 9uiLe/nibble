@@ -1,7 +1,8 @@
 {
   "version": 1,
-  "summary": "設定では現在使えるキーボード案内と復元を準備中のProより先に示す。販売準備中は権利確認の完了を待たず、無料機能と提供状態を説明する。iOS 26.5の変更前後の画面で確認した。",
+  "summary": "設定では現在使えるキーボード案内と復元を準備中のProより先に示す。販売準備中は権利確認の完了を待たず、無料機能と提供状態を説明する。iOS 26.5の変更前後の画面で確認した。Xcode 27互換のためRiveランタイムのiOS最低版と非推奨APIを更新した。説明アニメーションの素材・状態・配置・操作は変更せず、iOS 26.5のアプリ情報とキーボード案内の画面・抽出フレームで表示を確認した。",
   "references": [
+    "docs/architecture/presentation.md",
     "docs/design/screens.md",
     "docs/design/components.md",
     "docs/design/copy.md",
@@ -197,6 +198,7 @@
     "runtime/rive/build.json": "3b02a9d5017cfc0cf299e25cb868f8935431e83a207b5114bee5f9d2ee43e837",
     "runtime/rive/dependency.lua": "f67c1c028fc52f561f7973f40cdad86108e1e418214e9c7a0f251b4062273286",
     "runtime/rive/drawable-acquisition.patch": "cfa7d7b9c59ea2cfe0999da79b85cfce950a9733c04861d59cce23010a7ac6e1",
+    "runtime/rive/xcode27-compatibility.patch": "c24d866a6e4595121a2ee175f79f6fcf4b35d890ee1c178a07edd2c005b125fb",
     "tools/ui-design/README.md": "fbabf5e481e06184d098868181f68619fa92ffe84af76ba6f8ec21f39595f4fc",
     "tools/ui-design/benchmarks/measure.py": "2475625ce23317975fdd6335dd914ebec1af02cbaf00504d1b82184d707b7396",
     "tools/ui-design/default.nix": "785defe5f5d45434d35fe52b9e4a9d5edc3357a229c7aab30882a80797fcd7f0",
