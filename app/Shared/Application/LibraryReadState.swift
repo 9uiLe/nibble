@@ -53,7 +53,9 @@ struct LibraryReadState {
         return error
     }
     var demand: LibraryRequest? { completion?.request == request ? nil : request }
-    var refreshOnAppearance: Bool { usesSearchSnapshot || snapshot == nil }
+    // Appearance and activation can arrive while the initial read is suspended.
+    // Keep that read alive; explicit demand changes still replace obsolete requests.
+    var refreshOnAppearance: Bool { active == nil && (usesSearchSnapshot || snapshot == nil) }
 
     mutating func select(_ filter: LibraryFilter) {
         guard surface == .library, LibrarySurface.collections.contains(filter), filter != selection || isSearching else { return }

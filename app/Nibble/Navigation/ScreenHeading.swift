@@ -21,7 +21,7 @@ struct ScreenHeading: @MainActor EquatableBodyView {
             if let subtitle {
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.nibbleSecondary)
                     .accessibilityIdentifier("navigation.subtitle")
             }
         }

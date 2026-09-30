@@ -29,7 +29,7 @@ struct SnippetRowActions: View {
                 SnippetCopyButton(item: item, perform: perform)
                 Menu { SnippetRowMenu(item: item, perform: perform) } label: {
                     Image(systemName: "ellipsis").font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.nibbleSecondary)
                         .frame(width: 44, height: 44).contentShape(.rect)
                 }
                 .menuStyle(.borderlessButton)

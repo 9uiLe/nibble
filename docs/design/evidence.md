@@ -143,3 +143,12 @@ nibbleの語彙、文体、表記と優先順位は[文言とデータの原則�
 画面外の描画省略だけでは未収束のState Machineは進む。明示pauseはcontrollerとDisplayLinkへ伝播し、時間差をリセットする。DisplayLinkはcommon modeに登録され、スクロール中もruntimeの時計を動かせる。初回・寸法変更の単発描画は、周期的なフレーム進行とは別に行われる。
 
 **適用限界**：固定revisionの実装上の根拠であり、hitch、表示完了時間、GPU・電力の実測値ではない。ホストの可視性・scene・sheetの接続と資源解放は実Canvasおよび製品導線で評価する。
+
+
+### R21 色・余白・対象から操作するUI
+
+出典：speaker-deck-slidesの[これだけは押さえておこう、UIのカラー設計基礎知識](https://github.com/9uiLe/speaker-deck-slides/blob/88f5405357d7f930befcb9ad5e7ba3b35dd5f252/ai-knowledge/%E3%81%93%E3%82%8C%E3%81%A0%E3%81%91%E3%81%AF%E6%8A%BC%E3%81%95%E3%81%88%E3%81%A6%E3%81%8A%E3%81%93%E3%81%86%E3%80%81UI%E3%81%AE%E3%82%AB%E3%83%A9%E3%83%BC%E8%A8%AD%E8%A8%88%E5%9F%BA%E7%A4%8E%E7%9F%A5%E8%AD%98/knowledge.md)、[エンジニア向けの余白の基礎](https://github.com/9uiLe/speaker-deck-slides/blob/88f5405357d7f930befcb9ad5e7ba3b35dd5f252/ai-knowledge/%E3%82%A8%E3%83%B3%E3%82%B8%E3%83%8B%E3%82%A2%E5%90%91%E3%81%91%E3%81%AE%E4%BD%99%E7%99%BD%E3%81%AE%E5%9F%BA%E7%A4%8E/knowledge.md)、[いいUIとは？初心者向けに事例をもとにUIデザインを分解](https://github.com/9uiLe/speaker-deck-slides/blob/88f5405357d7f930befcb9ad5e7ba3b35dd5f252/ai-knowledge/%E3%81%84%E3%81%84UI%E3%81%A8%E3%81%AF%EF%BC%9F%E5%88%9D%E5%BF%83%E8%80%85%E5%90%91%E3%81%91%E3%81%AB%E4%BA%8B%E4%BE%8B%E3%82%92%E3%82%82%E3%81%A8%E3%81%ABUI%E3%83%87%E3%82%B6%E3%82%A4%E3%83%B3%E3%82%92%E5%88%86%E8%A7%A3/knowledge.md)、[OOUI(オブジェクト指向UIデザイン)](https://github.com/9uiLe/speaker-deck-slides/blob/88f5405357d7f930befcb9ad5e7ba3b35dd5f252/ai-knowledge/OOUI%28%E3%82%AA%E3%83%96%E3%82%B8%E3%82%A7%E3%82%AF%E3%83%88%E6%8C%87%E5%90%91UI%E3%83%87%E3%82%B6%E3%82%A4%E3%83%B3%29/knowledge.md)。2026-09-30にGitHub認証経由で指定revisionのknowledge.mdを取得し、色のK01〜K07、余白のK01〜K04、いいUIのK01〜K04、OOUIのK01〜K04を確認した。非公開リポジトリのため閲覧には権限が必要で、元スライドの再閲覧は含めない。
+
+色は視覚的階層と役割名で整理し、背景・文字・操作の色対を検査する。アクセントの広い塗りは主要操作へ、内容に従属するコピーは淡い面へ置く。余白は項目内より項目間を広くし、先に名前と本文を確認してから対象の操作へ進む一覧を維持する。F02〜F04、C04・C06・C09・C10・C12へ適用する。
+
+**適用限界**：knowledge.mdは原資料・画像観察・推論・応用提案を区別した二次資料である。60/30/10の配分や余白係数1.25は経験則として扱い、iOSの操作領域・safe area・一覧密度を優先する。WCAGの文字4.5:1と操作境界3:1はThemeの色対の検査目標とし、アプリ全体のWCAG適合宣言や利用者の探索速度向上の証明には使わない。発見性と取り違えはG01・G04・G06・G10の利用者評価に残す。

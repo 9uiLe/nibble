@@ -37,7 +37,7 @@ struct LibraryScreen: View {
                 VStack(spacing: 0) {
                     CreateSnippetButton(model: model, prominent: true)
                         .padding(.horizontal, 20).padding(.vertical, 12)
-                        .overlay(alignment: .top) { Divider() }
+                        .overlay(alignment: .top) { Rectangle().fill(Color.nibbleSeparator).frame(height: 1) }
                 }
                 .background(Color.nibbleCanvas)
             }

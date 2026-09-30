@@ -13,7 +13,7 @@ struct DraftResumeRow: View {
             Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("下書きを再開").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        Text("下書きを再開").font(.caption.weight(.medium)).foregroundStyle(Color.nibbleSecondary)
                         Text(draft.displayTitle).font(.nibbleTitle).lineLimit(1)
                     }
                     Spacer(minLength: 0)
@@ -39,8 +39,8 @@ struct DraftResumeRow: View {
                 .accessibilityIdentifier("library.allDrafts")
             }
         }
-        .foregroundStyle(.primary)
+        .foregroundStyle(Color.nibblePrimary)
         .padding(.horizontal, 12)
-        .background(Color.primary.opacity(0.035), in: .rect(cornerRadius: 8))
+        .background(Color.nibbleSurface, in: .rect(cornerRadius: 12))
     }
 }

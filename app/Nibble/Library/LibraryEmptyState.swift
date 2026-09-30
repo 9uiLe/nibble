@@ -9,13 +9,13 @@ struct LibraryEmptyState: View {
     var body: some View {
         ContentUnavailableView {
             Label {
-                Text(model.emptyContent.title).font(.nibbleTitle)
+                Text(model.emptyContent.title).font(.nibbleTitle).foregroundStyle(Color.nibblePrimary)
             } icon: {
                 Image(systemName: model.emptyContent.symbol)
             }
         } description: {
             Text(model.emptyContent.message)
-                .font(.nibbleBody)
+                .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
         } actions: {
             if model.canShowAll {
                 Button("すべてを見る") { model.showAll() }

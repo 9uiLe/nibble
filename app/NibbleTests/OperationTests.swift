@@ -195,6 +195,27 @@ extension UIIntegrationTests {
             #expect(model.contentIsCurrent && !model.loading)
         }
 
+        @Test func appearanceRefreshKeepsAnActiveReadAndAllowsRecovery() throws {
+            let contexts: [(LibrarySurface, String)] = [(.library, ""), (.library, "検索"), (.deleted, "")]
+            for (surface, query) in contexts {
+                var state = LibraryReadState(surface: surface)
+                state.search(query)
+                #expect(state.refreshOnAppearance)
+                let cancelled = state.begin()
+                // Activation during a suspended read must not cancel it through another appearance refresh.
+                #expect(!state.refreshOnAppearance)
+                state.complete(.cancelled, from: cancelled)
+                state.end(cancelled)
+                #expect(state.interrupted && state.refreshOnAppearance)
+                let resumed = state.begin()
+                #expect(!state.refreshOnAppearance)
+                #expect(try state.accept(Array(repeating: LibraryPage(), count: resumed.requests.count), from: resumed))
+                state.end(resumed)
+                #expect(!state.interrupted && !state.loading && state.contentIsCurrent)
+                #expect(state.refreshOnAppearance == (surface == .deleted || !query.isEmpty))
+            }
+        }
+
         @Test func retainedFiltersSwitchImmediatelyAndRefreshAllCollections() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
