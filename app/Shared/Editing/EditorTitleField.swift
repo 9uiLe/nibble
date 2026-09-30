@@ -11,8 +11,8 @@ struct EditorTitleField: View {
         @Bindable var editor = model
         VStack(alignment: .leading, spacing: 8) {
             Text("タイトル（任意）").font(.nibbleTitle).foregroundStyle(Color.nibbleSecondary)
-            TextField("例：お礼のメール", text: $editor.title, axis: .vertical,
-                      prompt: Text("例：お礼のメール").foregroundStyle(Color.nibbleSecondary))
+            TextField("例：お礼のメール", text: $editor.title,
+                      prompt: Text("例：お礼のメール").foregroundStyle(Color.nibbleSecondary), axis: .vertical)
                 .foregroundStyle(Color.nibblePrimary)
                 .font(.nibbleTitle)
                 .focused(focus, equals: .title)

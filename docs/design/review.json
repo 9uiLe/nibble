@@ -140,7 +140,7 @@
     "app/Shared/Editing/EditorPresentation.swift": "3def1cd132c80de4ac3a8ee0f73f63f8a5a355f0eb8e6286b24b9ac946b5859d",
     "app/Shared/Editing/EditorSharedContentHeader.swift": "6a14a67b1a68e31d6b369dcac6f2e6bd76a8705dceccd1b0ba89c247ebeaa4ff",
     "app/Shared/Editing/EditorTaskOwner.swift": "6e066661587d5fcdf966860efd206f817bc6727113c44973392cc9d51f057ce2",
-    "app/Shared/Editing/EditorTitleField.swift": "41c39ef280df6b688fda58b926822b2f28298fe7c030fa78dc9743c84459649d",
+    "app/Shared/Editing/EditorTitleField.swift": "0837510b3d90568534661b1e68e390c6e4a4d548ee82b52b786f539af56311bf",
     "app/Shared/Editing/EditorToolbar.swift": "1092244784d26559e6f9985f9adf9d4067ef9f602888bf224b9880fe0c77a27c",
     "app/Shared/Editing/EditorVariablePicker.swift": "36ce76c0ba3a246c4748cde52cf64e6edac10d3760295608829b6f83522c0249",
     "app/Shared/Editing/Markdown/MarkdownDocument.swift": "6e6f8a47bdda72fda37458425adb8a36cee060b14d25a6a60b355a779d3c3055",
