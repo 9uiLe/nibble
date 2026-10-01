@@ -9,7 +9,7 @@ extension UIIntegrationTests {
     @Suite("AppMacros row comparison", .serialized)
     @MainActor
     struct RowComparisonTests {
-        @Test func brandColorsKeepTheSamePaletteWhenContrastSettingChanges() {
+        @Test func semanticColorsRemainReadableWhenContrastSettingChanges() {
             func luminance(_ color: UIColor, _ traits: UITraitCollection) -> Double {
                 var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
                 #expect(color.resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &a))
@@ -19,20 +19,36 @@ extension UIIntegrationTests {
                 }
                 return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
             }
+            let pairs: [(Color, Color, Double)] = [
+                (.nibblePrimary, .nibbleCanvas, 4.5),
+                (.nibblePrimary, .nibbleSurface, 4.5),
+                (.nibbleSecondary, .nibbleCanvas, 4.5),
+                (.nibbleSecondary, .nibbleSurface, 4.5),
+                (.nibbleSecondary, .nibbleSoft, 4.5),
+                (.nibbleAccent, .nibbleCanvas, 4.5),
+                (.nibbleAccent, .nibbleSurface, 4.5),
+                (.nibbleAccent, .nibbleSoft, 4.5),
+                (.nibbleOnAccent, .nibbleAccent, 4.5),
+                (.nibbleOnSelection, .nibbleSelection, 4.5),
+                (.nibbleBorder, .nibbleCanvas, 3),
+                (.nibbleBorder, .nibbleSurface, 3),
+            ]
             for style in [UIUserInterfaceStyle.light, .dark] {
-                var ratios: [Double] = []
-                for contrast in [UIAccessibilityContrast.normal, .high] {
-                    let traits = UITraitCollection(mutations: {
-                        $0.userInterfaceStyle = style
-                        $0.accessibilityContrast = contrast
-                    })
-                    let accent = luminance(UIColor(Color.nibbleAccent), traits)
-                    let canvas = luminance(UIColor(Color.nibbleCanvas), traits)
-                    let ratio = (max(accent, canvas) + 0.05) / (min(accent, canvas) + 0.05)
-                    #expect(ratio >= 4.5)
-                    ratios.append(ratio)
+                for (foreground, background, minimum) in pairs {
+                    var ratios: [Double] = []
+                    for contrast in [UIAccessibilityContrast.normal, .high] {
+                        let traits = UITraitCollection(mutations: {
+                            $0.userInterfaceStyle = style
+                            $0.accessibilityContrast = contrast
+                        })
+                        let text = luminance(UIColor(foreground), traits)
+                        let surface = luminance(UIColor(background), traits)
+                        let ratio = (max(text, surface) + 0.05) / (min(text, surface) + 0.05)
+                        #expect(ratio >= minimum)
+                        ratios.append(ratio)
+                    }
+                    #expect(ratios[1] == ratios[0])
                 }
-                #expect(ratios[1] == ratios[0])
             }
         }
 

@@ -15,15 +15,15 @@ struct SettingsDisclosureLabel: @MainActor EquatableBodyView {
                 .font(.system(size: 19))
                 .foregroundStyle(Color.nibbleAccent)
                 .frame(width: 24)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.nibbleTitle).foregroundStyle(.primary)
-                Text(detail).font(.nibbleBody).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).font(.nibbleTitle).foregroundStyle(Color.nibblePrimary)
+                Text(detail).font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
             }
             Spacer(minLength: 12)
             if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.nibbleSecondary)
                     .accessibilityHidden(true)
             }
         }

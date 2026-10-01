@@ -12,6 +12,34 @@ from ios import simulator_lock, VerificationError
 from product_ui import ProductRun as Run, identifiers
 
 
+def reveal_help_limit(run):
+    """Observe scrollable help on small screens without assuming all text fits."""
+    data = run.wait_ui('help-open', lambda d: 'editor.help.close' in identifiers(d))
+    if not any(entry.get('role') == 'Heading' and entry.get('label') == '入力と保存について'
+               for entry in data['entries']):
+        raise VerificationError('Help title must identify the same topic as its entry')
+    for attempt in range(7):
+        if 'editor.lengthLimit' in identifiers(data):
+            return data
+        if attempt == 6:
+            break
+        close = next(e['frame'] for e in data['entries']
+                     if e.get('uniqueId') == 'editor.help.close')
+        screen = data['screen']
+        top = close['y'] + close['height'] + 24
+        bottom = screen['y'] + screen['height'] - 32
+        x = screen['x'] + screen['width'] / 2
+        if screen['width'] <= 0 or bottom - top < 44:
+            raise VerificationError('Help has no usable scroll viewport')
+        run.command(['sim-use', 'swipe', '--from', f'{x},{bottom}',
+                     '--to', f'{x},{top}', '--duration', '0.3', '--post-delay', '0.3',
+                     '--device', run.args.device])
+        data = run.ui(f'help-scrolled-{attempt}')
+        if 'editor.help.close' not in identifiers(data):
+            raise VerificationError('Help disappeared while scrolling')
+    raise VerificationError('Help length limit was not reachable by scrolling')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device', required=True)
@@ -101,7 +129,7 @@ def main():
                 if actual != input_values:
                     raise VerificationError('Preview changed the editor source')
                 run.tap('editor.keyboard.help')
-                run.wait_ui('help', lambda d: 'editor.lengthLimit' in identifiers(d))
+                reveal_help_limit(run)
                 run.screenshot('editor-help')
                 run.tap('editor.help.close')
                 restored = run.wait_ui('focus-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d) and 'editor.lengthLimit' not in identifiers(d))

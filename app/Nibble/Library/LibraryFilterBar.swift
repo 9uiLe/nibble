@@ -13,22 +13,22 @@ struct LibraryFilterBar: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                HStack(spacing: 4) {
+                HStack(spacing: 8) {
                     ForEach(LibrarySurface.collections, id: \.self) { filter in
                         Button { selection = filter } label: {
                             HStack(spacing: 7) {
                                 Text(filter.title).font(.footnote.weight(.semibold))
                                 if let count = counts?.count(for: filter) {
                                     Text(count, format: .number)
-                                        .font(.caption2).monospacedDigit()
+                                        .font(.caption.weight(.medium)).monospacedDigit()
                                 }
                             }
                             .fixedSize()
                             .padding(.horizontal, 12)
                             .frame(minHeight: 44)
-                            .foregroundStyle(selection == filter ? Color.nibbleOnSelection : Color.secondary)
-                            .background(selection == filter ? Color.nibbleSelection : Color.clear,
-                                        in: .rect(cornerRadius: 8))
+                            .foregroundStyle(selection == filter ? Color.nibbleOnSelection : Color.nibbleSecondary)
+                            .background(selection == filter ? Color.nibbleSelection : Color.nibbleSurface,
+                                        in: .rect(cornerRadius: 12))
                             .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
@@ -44,7 +44,7 @@ struct LibraryFilterBar: View {
             }
             .scrollIndicators(.hidden)
             .background(Color.nibbleCanvas)
-            .overlay(alignment: .bottom) { Divider() }
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.nibbleSeparator).frame(height: 1) }
             .onChange(of: selection) { proxy.scrollTo(selection, anchor: .center) }
         }
     }

@@ -16,7 +16,7 @@ struct RootScreenHeading: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.nibbleSecondary)
             .accessibilityLabel("設定")
             .accessibilityIdentifier("navigation.settings")
         }

@@ -14,11 +14,11 @@ struct SnippetRow: View {
     let perform: (Action) -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             SnippetRowMainContent(item: item, isTrash: isTrash, unusedSince: unusedSince, perform: perform)
             SnippetRowActions(item: item, isTrash: isTrash, perform: perform)
         }
-        .padding(.vertical, isTrash ? 14 : 10)
+        .padding(.vertical, isTrash ? 14 : 12)
         .listRowInsets(EdgeInsets(top: 0, leading: isTrash ? 22 : 20, bottom: 0, trailing: isTrash ? 16 : 12))
         .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         .contextMenu {

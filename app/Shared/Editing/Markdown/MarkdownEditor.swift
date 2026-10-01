@@ -13,17 +13,25 @@ struct MarkdownEditor: View {
 
     var body: some View {
         @Bindable var editor = model
-        VStack(alignment: .leading, spacing: 16) {
-            Picker("本文の表示", selection: $mode) {
-                Text("入力").tag(MarkdownEditorMode.input)
-                Text("プレビュー").tag(MarkdownEditorMode.preview)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text("本文（必須）")
+                    .font(.nibbleTitle)
+                    .foregroundStyle(Color.nibblePrimary)
+                    .fixedSize()
+                Spacer(minLength: 0)
+                Picker("本文の表示", selection: $mode) {
+                    Text("入力").tag(MarkdownEditorMode.input)
+                    Text("プレビュー").tag(MarkdownEditorMode.preview)
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
+                .accessibilityIdentifier("editor.mode")
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("editor.mode")
             ZStack(alignment: .topLeading) {
                 if model.body.isEmpty && mode == .input {
                     Text("保存したい文章やURLを入力。Markdownも使えます。")
-                        .font(MarkdownStyle().previewFont).foregroundStyle(.tertiary)
+                        .font(MarkdownStyle().previewFont).foregroundStyle(Color.nibbleSecondary)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
@@ -42,6 +50,13 @@ struct MarkdownEditor: View {
                             .frame(maxWidth: .infinity, minHeight: 180)
                     }
                 }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.nibbleCanvas, in: .rect(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(focus.wrappedValue == .body && mode == .input ? Color.nibbleAccent : Color.nibbleBorder)
             }
         }
         .onChange(of: mode) {

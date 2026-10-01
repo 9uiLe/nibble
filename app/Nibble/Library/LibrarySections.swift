@@ -49,7 +49,7 @@ struct LibrarySections: View {
                     .font(.caption.weight(.semibold)).textCase(nil).padding(.vertical, 6)
             } footer: {
                 Text("保存すると、コピーやキーボード入力に使えます。")
-                    .font(.nibbleBody).foregroundStyle(.secondary).padding(.vertical, 8)
+                    .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary).padding(.vertical, 8)
             }
         case .none:
             EmptyView()
@@ -68,14 +68,14 @@ struct LibrarySections: View {
                         Text("コピー回数順")
                     }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.nibbleSecondary)
                     .textCase(nil)
                     .padding(.vertical, 6)
                 }
             }
             if model.contentRequest.filter == .trash {
                 Text("削除した項目は自動で消えません。復元すると、一覧からまた使えます。")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundStyle(Color.nibbleSecondary)
             }
         case .none:
             EmptyView()

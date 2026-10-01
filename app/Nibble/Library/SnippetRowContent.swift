@@ -19,18 +19,18 @@ struct SnippetRowContent: @MainActor EquatableBodyView {
     private var text: SnippetTextPresentation { SnippetTextPresentation(title: title, body: preview) }
 
     var equatableBody: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             SnippetHeading(title: text.title, pinned: pinned, style: .library)
             if text.hasExplicitTitle {
                 Text(preview.split(whereSeparator: \.isWhitespace).joined(separator: " "))
-                    .font(.nibbleBody).foregroundStyle(.secondary).lineLimit(2)
+                    .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary).lineLimit(2)
             }
             if let unusedSince {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(SnippetUsagePresentation.inactiveMessage)
                     Text("最後のコピー \(unusedSince, format: .dateTime.year().month().day())")
                 }
-                .font(.caption2).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(Color.nibbleSecondary)
                 .accessibilityIdentifier("snippet.unused")
             }
         }
