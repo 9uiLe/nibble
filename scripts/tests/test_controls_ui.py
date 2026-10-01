@@ -11,7 +11,8 @@ from ios import VerificationError
 
 
 def help_screen(visible=False, height=667):
-    entries = [{'uniqueId': 'editor.help.close',
+    entries = [{'role': 'Heading', 'label': '入力と保存について'},
+               {'uniqueId': 'editor.help.close',
                 'frame': {'x': 319, 'y': 340, 'width': 36, 'height': 36}}]
     if visible:
         entries.append({'uniqueId': 'editor.lengthLimit'})
@@ -29,6 +30,14 @@ class HelpScrollTests(unittest.TestCase):
         data = help_screen(True)
         run = self.run_fixture(data)
         self.assertIs(reveal_help_limit(run), data)
+        run.command.assert_not_called()
+
+    def test_help_title_matches_its_entry(self):
+        data = help_screen(True)
+        data['entries'][0]['label'] = '別の説明'
+        run = self.run_fixture(data)
+        with self.assertRaisesRegex(VerificationError, 'same topic'):
+            reveal_help_limit(run)
         run.command.assert_not_called()
 
     def test_below_fold_content_is_scrolled_into_view(self):

@@ -15,6 +15,9 @@ from product_ui import ProductRun as Run, identifiers
 def reveal_help_limit(run):
     """Observe scrollable help on small screens without assuming all text fits."""
     data = run.wait_ui('help-open', lambda d: 'editor.help.close' in identifiers(d))
+    if not any(entry.get('role') == 'Heading' and entry.get('label') == '入力と保存について'
+               for entry in data['entries']):
+        raise VerificationError('Help title must identify the same topic as its entry')
     for attempt in range(7):
         if 'editor.lengthLimit' in identifiers(data):
             return data
