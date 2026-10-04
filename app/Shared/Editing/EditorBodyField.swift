@@ -17,37 +17,37 @@ struct EditorBodyField: View {
     var body: some View {
         let availability = FeatureAccess.availability(.variableReplacement, pro: proIsActive())
         VStack(alignment: .leading, spacing: 12) {
-            Text("本文").font(.nibbleTitle)
+            MarkdownEditor(model: model, focus: focus, selection: $bodySelection)
+            if !model.hasBody {
+                Text(model.body.isEmpty ? "本文を入力すると保存できます。" : "空白や改行以外の本文を入力してください。")
+                    .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
+                    .accessibilityIdentifier("editor.bodyRequirement")
+            }
             HStack(spacing: 8) {
-                HStack(spacing: 4) {
-                    Text("末尾にペースト").font(.caption).foregroundStyle(.secondary)
-                    PasteButton(payloadType: String.self) { texts in
-                        if let text = texts.first { model.appendToBody(text) }
-                    }
-                    .labelStyle(.iconOnly)
-                    .controlSize(.small)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .opacity(0.55)
-                    .frame(width: InterfaceMetrics.controlSize, height: InterfaceMetrics.controlSize)
-                    .frame(minWidth: InterfaceMetrics.touchSize, minHeight: InterfaceMetrics.touchSize)
-                    .accessibilityLabel("本文の末尾にペースト")
-                    .accessibilityIdentifier("editor.paste")
-                }
                 Spacer(minLength: 0)
                 switch availability {
                 case .included:
-                    Button("変数を追加", systemImage: "curlybraces") {
+                    Button {
                         focusBeforeVariables = focus.wrappedValue
                         insertionSelection = bodySelection
                         insertedVariable = false
                         focus.wrappedValue = nil
                         showsVariablePicker = true
+                    } label: {
+                        Label("変数を追加", systemImage: "curlybraces")
+                            .frame(minHeight: InterfaceMetrics.touchSize)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("editor.addVariable")
                 case .requiresPro:
                     if let showPro {
-                        Button("変数はPro", systemImage: "lock", action: showPro)
+                        Button(action: showPro) {
+                            Label("変数はPro", systemImage: "lock")
+                                .frame(minHeight: InterfaceMetrics.touchSize)
+                                .contentShape(.rect)
+                        }
+                            .buttonStyle(.plain)
                             .accessibilityIdentifier("editor.variablePro")
                     } else {
                         Label("変数はPro", systemImage: "lock").foregroundStyle(.secondary)
@@ -57,17 +57,12 @@ struct EditorBodyField: View {
                 }
             }
             .font(.subheadline)
-            .tint(Color(uiColor: .secondaryLabel))
+            .foregroundStyle(Color.nibbleSecondary)
+            .tint(.nibbleSecondary)
             .frame(minHeight: InterfaceMetrics.touchSize)
-            MarkdownEditor(model: model, focus: focus, selection: $bodySelection)
-            if !model.hasBody {
-                Text("本文を入力すると保存できます。空白や改行だけでは保存できません。")
-                    .font(.nibbleBody).foregroundStyle(.secondary)
-                    .accessibilityIdentifier("editor.bodyRequirement")
-            }
             if availability == .included {
                 Text("変数の値は使用時に入力します。保存した本文は変わりません。")
-                    .font(.nibbleBody).foregroundStyle(.secondary)
+                    .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
             }
         }
         .sheet(isPresented: $showsVariablePicker, onDismiss: {

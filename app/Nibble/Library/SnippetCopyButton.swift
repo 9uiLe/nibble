@@ -10,8 +10,9 @@ struct SnippetCopyButton: View {
     var body: some View {
         Button { perform(.copy) } label: {
             Image(systemName: "doc.on.doc")
-                .font(.callout)
-                .frame(width: 36, height: 36)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(Color.nibbleAccent)
+                .frame(width: 40, height: 40)
                 .background(Color.nibbleSoft, in: .rect(cornerRadius: 10))
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)

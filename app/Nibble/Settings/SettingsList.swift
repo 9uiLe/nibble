@@ -56,7 +56,7 @@ struct SettingsList: View {
             } footer: {
                 Text("バージョン \(version.display)")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.nibbleSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 16)
                     .accessibilityIdentifier("settings.version")

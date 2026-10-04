@@ -13,7 +13,7 @@ struct EditorExitGuidance: @MainActor EquatableBodyView {
                 Text("閉じると下書きに残り、保存すると使えます。")
             }
         }
-        .font(.nibbleBody).foregroundStyle(.secondary)
+        .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20).padding(.vertical, 10)
         .background(Color.nibbleCanvas)

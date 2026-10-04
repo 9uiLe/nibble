@@ -19,6 +19,8 @@ nibbleは入力中の原文と保存済みの利用対象を分け、非同期�
 
 `LibraryTaskOwner`は本体scene内の操作をIDで管理する。検索・更新・コピーは同じIDの先行Taskを取消し、保存や整理などの確定操作は連打を受け付けない。編集提示は画面に属し、背景移行や画面離脱で提示要求を無効にする。保存層へ受理された書込は画面離脱後も整合性を保つ。モデルは取消要求だけに依存せず、結果を反映する直前にも要求IDと現在の状態を確認する。
 
+画面出現とsceneのactive復帰による補完的な読込は、`LibraryReadState`に実行中の読込がある間は開始しない。起動時に両イベントが続いても同じ要求を取り消さず、初回の未取得状態と取消後の回復では開始を許可する。検索語や取得範囲の変更に伴うreadDemandと明示的な更新は、古い要求を置き換える経路として維持する。
+
 `SnippetEditor`の自動保存は`.task(id: snapshot.sequence)`で入力snapshotに結び、`EditorTaskOwner`が保存・保持・破棄の終了操作を一件ずつ所有する。終了中は入力を受け付けず、成功時だけ閉じる。失敗時は入力を残して編集へ戻す。Shareの取込Taskはcontroller、Keyboardの読込Taskは入力面の表示が寿命を決める。独立した操作を一つのloadingフラグへまとめない。
 
 SwiftUIの`.task(id:)`はViewの消失やID変更に伴い取消される。取消済みTaskの完了や後始末が新しい要求を変更しないよう、結果を適用する側の照合も必要である。[Appleのtask(id:)資料](https://developer.apple.com/documentation/swiftui/view/task%28id%3Aname%3Apriority%3Afile%3Aline%3A_%3A%29)を参照する。

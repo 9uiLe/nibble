@@ -51,9 +51,6 @@ final class EditorModel {
     var hasBody: Bool { SnippetText.hasBody(draft.body) }
     var canSave: Bool { phase == .editing && hasBody }
 
-    /// Pasting uses the same editing gate and input sequence as typed text.
-    func appendToBody(_ text: String) { body += text }
-
     /// A nil selection means the body has no insertion position. A stale position never changes the body.
     func insertVariable(named name: VariableName, at selection: NSRange?) -> NSRange? {
         guard phase == .editing else { return nil }

@@ -13,16 +13,17 @@ struct EditorForm: View {
     @SkipEquatable let showPro: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 28) {
             if isShared { EditorSharedContentHeader() }
             EditorBodyField(model: model, focus: focus, proIsActive: proIsActive, showPro: showPro)
-            Divider().padding(.top, 4)
             EditorTitleField(model: model, focus: focus)
             if let failure = model.failure {
                 EditorFailureView(model: model, taskOwner: taskOwner, failure: failure)
             }
         }
+        .frame(maxWidth: 520)
         .padding(20)
+        .frame(maxWidth: .infinity)
         .animationBarrier()
     }
 }

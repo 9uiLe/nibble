@@ -14,15 +14,15 @@ struct DraftListRow: View {
                 VStack(alignment: .leading, spacing: 6) {
                     SnippetHeading(title: draft.displayTitle, pinned: false, style: .library)
                     if draft.textPresentation.hasExplicitTitle {
-                        Text(draft.preview).font(.nibbleBody).foregroundStyle(.secondary)
+                        Text(draft.preview).font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
                             .lineLimit(2)
                     }
                     Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.nibbleSecondary)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.caption).foregroundStyle(.tertiary)
+                    .font(.caption).foregroundStyle(Color.nibbleSecondary)
                     .frame(minHeight: 36)
                     .accessibilityHidden(true)
             }

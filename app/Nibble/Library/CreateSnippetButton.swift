@@ -14,11 +14,11 @@ struct CreateSnippetButton: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus").font(.system(size: 18, weight: .medium))
-                if prominent { Text("新規作成").font(.system(size: 15, weight: .semibold)) }
+                if prominent { Text("新規作成").font(.nibbleTitle) }
             }
             .frame(maxWidth: prominent ? .infinity : nil)
-            .frame(minWidth: 44, minHeight: prominent ? 48 : 44)
-            .foregroundStyle(prominent ? Color.nibbleCanvas : Color.primary)
+            .frame(minWidth: 44, minHeight: prominent ? 52 : 44)
+            .foregroundStyle(prominent ? Color.nibbleOnAccent : Color.nibblePrimary)
             .background(prominent ? Color.nibbleAccent : Color.clear, in: .rect(cornerRadius: 12))
             .contentShape(.rect)
         }

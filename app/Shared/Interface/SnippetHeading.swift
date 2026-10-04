@@ -16,7 +16,8 @@ struct SnippetHeading: @MainActor EquatableBodyView {
             }
             Text(title)
                 .font(style == .library ? .nibbleTitle : .subheadline.weight(.medium))
-                .foregroundStyle(.primary).lineLimit(style == .library ? 2 : 1)
+                .foregroundStyle(style == .library ? Color.nibblePrimary : Color.primary)
+                .lineLimit(style == .library ? 2 : 1)
             if style == .keyboard && pinned {
                 Image(systemName: "pin.fill").font(.system(size: 12)).foregroundStyle(.secondary)
                     .accessibilityHidden(true)
