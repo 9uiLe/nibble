@@ -49,6 +49,6 @@ struct KeyboardSnippetRow: View {
             .accessibilityFocused(focus, equals: "more.\(item.id)")
         }
         .buttonStyle(KeyboardRowStyle())
-        .background(model.notice?.insertedID == item.id ? Color(uiColor: .systemBlue).opacity(0.14) : .clear)
+        .background(model.notice?.insertedID == item.id ? Color.nibbleSoft : .clear)
     }
 }

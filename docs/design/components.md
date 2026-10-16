@@ -6,6 +6,8 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 項目名は`SnippetTextPresentation`で整形し、保存済み・下書き・Keyboardの行は`SnippetHeading`を使う。本体の2行・左側ピンとKeyboardの1行・右側ピンは表示文脈の差として保持する。`PinButton`は同じ状態と操作名を受け取り、メニュー／スワイプのラベルとKeyboardのアイコンを描き分ける。絞り込み・操作資格・更新処理は呼出元のモデルと保存層が担う。
 
+EvoloomからDesignTokens・IOSButtonのStyle・IOSInlineAlertをソースコピーし、色はNibbleThemeを正本とする。作成と失敗表示へ適用する。Cardは一覧密度を損なうため、InputとTextAreaはカーソル・原文・Markdown編集の既存契約を維持するため、EmptyStateは標準ContentUnavailableViewと重複するため採用しない。Badge、Separator、Switch、Skeletonは現在の状態・標準操作・読み込み文で足りるため採用しない。NavigationStack、List、Picker、シート、確認ダイアログ、標準入力はOSに任せる。
+
 実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/Library/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/Library/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/Library/LibraryFilterBar.swift)。
 
 | ID・部品 | 責務と構成 | 配置理由と制約 | 根拠・確認条件 |

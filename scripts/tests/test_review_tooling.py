@@ -240,6 +240,22 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
         self.save()
         with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
 
+    def test_only_followed_translation_read_can_be_handled(self):
+        argv = ['sim-use', 'ui', '--device', self.manifest['device']['udid'], '--json', '--no-raw']
+        failure = {'argv': argv, 'stdout': 'ui-failed.log', 'exit_code': 1, 'handled_transient_ui': True}
+        retry = {'argv': argv, 'stdout': 'command.log', 'exit_code': 0}
+        (self.run / 'ui-failed.log').write_text('{"ok":false,"error":"No translation object returned for simulator"}')
+        self.manifest['commands'].extend([failure, retry])
+        self.save()
+        check_evidence.check_run(self.run, self.hashes)
+        retry['argv'] = ['sim-use', 'tap', '--device', self.manifest['device']['udid']]
+        self.save()
+        with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
+        retry['argv'] = argv
+        (self.run / 'ui-failed.log').write_text('{"ok":false,"error":"Different failure"}')
+        self.save()
+        with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
+
     def test_standalone_media_or_build_for_another_target_cannot_certify_source(self):
         original = copy.deepcopy(self.manifest['commands'])
         for argv in [['simctl', 'screenshot'], ['xcodebuild', '-scheme', 'Another', '-destination',

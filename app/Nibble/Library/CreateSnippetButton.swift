@@ -9,24 +9,35 @@ struct CreateSnippetButton: View {
     @State private var taskOwner = LibraryTaskOwner()
 
     var body: some View {
-        Button {
-            taskOwner.startTask(.open(.new), on: model)
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus").font(.system(size: 18, weight: .medium))
-                if prominent { Text("新規作成").font(.nibbleTitle) }
+        Group {
+            if prominent {
+                Button {
+                    taskOwner.startTask(.open(.new), on: model)
+                } label: {
+                    Label("新規作成", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(IOSButtonStyle(.primary))
+                .accessibilityLabel("新規作成")
+                .accessibilityHint("編集画面を開きます")
+                .accessibilityIdentifier("library.add")
+                .keyboardShortcut("n", modifiers: .command)
+            } else {
+                Button {
+                    taskOwner.startTask(.open(.new), on: model)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .medium))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("新規作成")
+                .accessibilityHint("編集画面を開きます")
+                .accessibilityIdentifier("library.add")
+                .keyboardShortcut("n", modifiers: .command)
             }
-            .frame(maxWidth: prominent ? .infinity : nil)
-            .frame(minWidth: 44, minHeight: prominent ? 52 : 44)
-            .foregroundStyle(prominent ? Color.nibbleOnAccent : Color.nibblePrimary)
-            .background(prominent ? Color.nibbleAccent : Color.clear, in: .rect(cornerRadius: 12))
-            .contentShape(.rect)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("新規作成")
-        .accessibilityHint("編集画面を開きます")
-        .accessibilityIdentifier("library.add")
-        .keyboardShortcut("n", modifiers: .command)
         .onDisappear { taskOwner.endScreen() }
     }
 }

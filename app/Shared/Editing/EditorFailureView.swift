@@ -9,8 +9,7 @@ struct EditorFailureView: View {
     let failure: EditorModel.Failure
 
     var body: some View {
-        Label(failure.message, systemImage: "exclamationmark.circle")
-            .foregroundStyle(.red).font(.nibbleBody)
+        IOSInlineAlert("操作を完了できません", message: failure.message, variant: .error)
             .accessibilityIdentifier("editor.error")
         if failure.canSaveAsNew {
             Button("新しい項目として保存") { taskOwner.startTask(.saveAsNew, on: model) }

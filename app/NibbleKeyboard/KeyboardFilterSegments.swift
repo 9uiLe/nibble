@@ -18,7 +18,7 @@ struct KeyboardFilterSegments: View {
                         .foregroundStyle(model.request.filter == filter ? .primary : .secondary)
                         .overlay(alignment: .bottom) {
                             if model.request.filter == filter {
-                                Rectangle().fill(Color(uiColor: .systemBlue)).frame(height: 2)
+                                Rectangle().fill(Color.nibbleAccent).frame(height: 2)
                             }
                         }
                         .frame(minHeight: 44)
