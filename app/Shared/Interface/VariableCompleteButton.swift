@@ -13,7 +13,7 @@ struct VariableCompleteButton: View {
         Button(action: complete) {
             Text(isSubmitting ? "処理中…" : actionTitle)
         }
-        .buttonStyle(NibbleActionButtonStyle(role: .primary))
+        .buttonStyle(IOSButtonStyle(.primary))
         .disabled(!allValuesPresent || isSubmitting)
         .accessibilityHint(allValuesPresent ? "" : "すべての値を入力すると使えます")
         .accessibilityIdentifier("variables.complete")

@@ -14,6 +14,14 @@ public enum IOSButtonSize: Equatable {
         case .large: spacing.lg
         }
     }
+
+    func minimumHeight(_ controls: IOSControlTokens) -> CGFloat {
+        switch self {
+        case .compact: controls.minimumHeight - 4
+        case .regular: controls.minimumHeight
+        case .large: controls.minimumHeight + 4
+        }
+    }
 }
 
 /// A reusable style for native Button, including Button(role: .destructive).
@@ -38,13 +46,13 @@ public struct IOSButtonStyle: ButtonStyle {
             .font(tokens.typography.button)
             .foregroundStyle(isEnabled ? foreground(effective, colors: colors) : colors.mutedForeground)
             .padding(.vertical, tokens.spacing.xs)
-            .frame(minHeight: tokens.controls.minimumHeight)
+            .frame(maxWidth: .infinity, minHeight: size.minimumHeight(tokens.controls))
             .padding(.horizontal, size.horizontalPadding(tokens.spacing))
             .background(isEnabled ? background(effective, colors: colors) : colors.muted, in: RoundedRectangle(cornerRadius: tokens.radii.control))
             .overlay {
                 RoundedRectangle(cornerRadius: tokens.radii.control)
                     .strokeBorder(
-                        effective == .outline ? colors.border : .clear,
+                        effective == .outline || effective == .secondary || !isEnabled ? colors.border : .clear,
                         lineWidth: contrast == .increased ? tokens.controls.emphasizedBorderWidth : tokens.controls.borderWidth
                     )
             }

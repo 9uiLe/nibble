@@ -61,7 +61,7 @@ SOFTWARE.
 
 Evoloom source copy (Nibble app and extensions)
 https://github.com/9uiLe/evoloom
-Copied and adapted: IOSDesignTokens, IOSButtonStyle, IOSInlineAlert.
+Copied and adapted: IOSDesignTokens, IOSButtonStyle, IOSInlineAlert, IOSCard, IOSBadge.
 The original notice is retained in app/EVOLOOM-NOTICE.
 
 MIT License

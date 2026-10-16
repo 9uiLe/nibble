@@ -22,7 +22,7 @@ struct EditorVariablePicker: View {
         } label: {
             Text("作成して追加")
         }
-        .buttonStyle(NibbleActionButtonStyle(role: .primary))
+        .buttonStyle(IOSButtonStyle(.primary))
         .disabled(!canCreate)
         .accessibilityHint(issue ?? "新しい印を本文に追加します")
         .accessibilityIdentifier("editor.createVariable")
@@ -65,7 +65,7 @@ struct EditorVariablePicker: View {
                                                 .accessibilityHidden(true)
                                         }
                                     }
-                                    .buttonStyle(NibbleActionButtonStyle(role: .secondary))
+                                    .buttonStyle(IOSButtonStyle(.secondary, size: .compact))
                                     .accessibilityLabel("既存の変数、\(variable.text)を本文に追加")
                                     .accessibilityIdentifier("editor.reuseVariable.\(variable.text)")
                                 }
