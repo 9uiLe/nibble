@@ -36,10 +36,6 @@ class VerificationError(Exception):
     pass
 
 
-class UIObservationUnavailable(VerificationError):
-    """A transient AX translation gap while the Simulator changes screens."""
-
-
 @contextmanager
 def simulator_lock(device):
     # Shared across worktrees; only this user's nibble CLI invocations take this lock.
@@ -161,13 +157,6 @@ class Run:
         if result.returncode:
             stdout = (self.path / event["stdout"]).read_text()
             detail = stdout + (self.path / event["stderr"]).read_text()
-            if argv[:2] == ["sim-use", "ui"]:
-                try:
-                    error = json.loads(stdout).get("error", "")
-                except (ValueError, AttributeError):
-                    error = ""
-                if error.startswith("No translation object returned for simulator."):
-                    raise UIObservationUnavailable(error)
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
         return (self.path / event["stdout"]).read_text()
@@ -307,13 +296,9 @@ class Run:
         return result["data"]
 
     def wait_ui(self, name, predicate, *, attempts=20, interval=.25):
-        """Wait for a matching state across empty frames and transient AX translation gaps."""
+        """Wait for a matching state across successful but empty observations."""
         for attempt in range(attempts):
-            try:
-                data = self.ui(f"{name}-{attempt}", allow_empty=True)
-            except UIObservationUnavailable:
-                time.sleep(interval)
-                continue
+            data = self.ui(f"{name}-{attempt}", allow_empty=True)
             if data.get("entries") and predicate(data):
                 return data
             time.sleep(interval)

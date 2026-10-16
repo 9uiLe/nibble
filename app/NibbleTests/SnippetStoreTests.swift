@@ -147,11 +147,20 @@ struct SnippetTests {
         let url = database.url
         let store = SnippetStore(location: url)
         let id = try await create(store, body: "keep me")
+        let original = try await store.snippet(id)
+        await #expect(throws: StoreError.missing) { try await store.mutate(.restore, id: id) }
+        #expect(try await store.snippet(id).revision == original.revision)
         try await store.mutate(.delete, id: id)
+        let deleted = try await store.snippet(id)
+        await #expect(throws: StoreError.missing) { try await store.mutate(.delete, id: id) }
+        #expect(try await store.snippet(id).revision == deleted.revision)
         let reopened = SnippetStore(location: url)
         #expect(try await reopened.search().isEmpty)
         #expect(try await reopened.search(filter: .trash).map(\.id) == [id])
         try await reopened.mutate(.restore, id: id)
+        let restored = try await store.snippet(id)
+        await #expect(throws: StoreError.missing) { try await store.mutate(.restore, id: id) }
+        #expect(try await store.snippet(id).revision == restored.revision)
         #expect(try await store.search().map(\.id) == [id])
         let draft = try await store.editingDraft(for: id)
         await #expect(throws: StoreError.missing) { try await store.mutate(.permanentlyDelete, id: id) }

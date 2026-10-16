@@ -72,11 +72,13 @@ class ProductRun(Run):
             raise VerificationError('Workspace route did not finish')
         if clear_query and 'search.clear' in identifiers(data):
             self.tap('search.clear')
-            self.wait_ui('workspace-query-cleared', lambda d: 'search.clear' not in identifiers(d))
+            data = self.wait_ui('workspace-query-cleared', lambda d: 'search.clear' not in identifiers(d))
+        return data
 
     def open_settings(self):
-        self.workspace()
-        self.tap('navigation.settings')
+        data = self.workspace()
+        entry = next(e for e in data['entries'] if e.get('uniqueId') == 'navigation.settings')
+        self.command(['sim-use', 'tap', '@' + str(entry['aliases']['at']), '--device', self.args.device])
         self.wait_ui('settings-route', lambda d: 'settings.about' in identifiers(d))
 
     def tap_frame(self, frame, fraction=.5):

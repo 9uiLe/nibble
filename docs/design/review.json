@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "編集は本文を先に提示し、Markdown原文とプレビューを切り替える。貼り付けは本文欄の標準編集、変数挿入は選択位置の専用操作とする。タイトルは任意で本文の後に置き、保存・下書きと入力条件は一つの補足へまとめる。",
+  "summary": "編集は本文を先に提示し、Markdown原文とプレビューを切り替える。貼り付けは本文欄の標準編集、変数挿入は選択位置の専用操作とする。タイトルは任意で本文の後に置き、保存・下書きと入力条件は一つの補足へまとめる。削除は未削除、復元と完全削除は削除済みの項目だけ成功し、対象状態が変わった場合に成功通知を出さない。",
   "references": [
     "docs/product-specification.md",
     "docs/architecture/editing.md",
@@ -170,9 +170,9 @@
     "app/Shared/Persistence/KeyboardReader.swift": "9deb7d48346cf81e55ce8679940151916c523bad8c25b8a8060815bce882ce14",
     "app/Shared/Persistence/ProAccess.swift": "6ce12a673304e88899e4e61416389d803e502cf5f6722a0f409c72f681bcd59b",
     "app/Shared/Persistence/SQLiteDatabase.swift": "b86c9e320fc0dda01c3a6daba01915e6a2f7a35df99a9c58f18bce08de27da09",
-    "app/Shared/Persistence/SnippetCommands.swift": "b18c1eb998b3e9c3dbbe6e74466a55dec085af31e73f049e12a87108ddfceffd",
+    "app/Shared/Persistence/SnippetCommands.swift": "c10526af2a38e75da1034587c533c6c7e980aa37c79120b981505f90e53ca729",
     "app/Shared/Persistence/SnippetLocation.swift": "0a534947314769ef6dec351f9da1f08e63382247135e4f16761e30523ad07cbd",
-    "app/Shared/Persistence/SnippetQueries.swift": "8f3dca3961856e363e592653a06f196380e30df2dde99a7e5cfe1c0c857fde0a",
+    "app/Shared/Persistence/SnippetQueries.swift": "e2bc36c3a7520867293a2710a00cff8fcf6c66f253030967c9d03394171eaf02",
     "app/Shared/Persistence/SnippetSchema.swift": "a10a5f6de6d7ab8185eaf23695d039f085ea0bd8d8cd4b5d2b12193b40ff9b0c",
     "app/Shared/Persistence/SnippetStore.swift": "6048cea16d2a6cd5adca9373ebe82254e0138bf823b4a1d8061abade86083206",
     "app/Shared/Resources/ThirdPartyNotices.txt": "9b3c8e2501b610c8266e1d9f13681f842fda41dcdec6504c862d265a2ac94e5a",
@@ -196,7 +196,7 @@
     "docs/design/rationale/result-notices.md": "8f7a0aa7b2f2ba37ab6cf2858d7ae972a26c35a2ccb6130a4d373b72c62c2c4f",
     "docs/design/rationale/usage-order.md": "520ff063d0a25d5aec2fd42ce61a76c02f6f08f1e6e820241417e245680e93b5",
     "docs/design/screens.md": "9b65413056f5bed295b1fe1a6a720cc74aad385e17196448e7b668e9ddb0343f",
-    "docs/product-specification.md": "f4472670ea551adfb5068c8a5ca1a660b4a5e4688e620915a0ad9637a87f0ad8",
+    "docs/product-specification.md": "d3e9c3275d6ba55b3e0f0a10d806b31e34c4dc2de51603420ce676fbaa2125ed",
     "flake.lock": "bd00578fee737c4bd912989f05d7a46e10d9202673c675b3ba971719e0f6e23c",
     "runtime/rive/Package.swift": "313c567ba8365ca0d8fafe70c7a5d2e12cb9173f4b7119c3fa47d6aca74fba93",
     "runtime/rive/build.json": "3b02a9d5017cfc0cf299e25cb868f8935431e83a207b5114bee5f9d2ee43e837",

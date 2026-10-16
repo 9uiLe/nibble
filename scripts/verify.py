@@ -287,8 +287,6 @@ def run_on_temporary_device(selected, directory):
         subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, capture_output=True, text=True)
         subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True,
                        capture_output=True, text=True)
-        subprocess.run(['open', '-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device],
-                       check=True, capture_output=True, text=True)
         report = run_plan(selected, directory, device, reserved=True)
     except BaseException as error:
         failure = error
