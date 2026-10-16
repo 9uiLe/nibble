@@ -71,7 +71,9 @@ def main():
                        if e.get("role") in ("Heading", "TextField") and e["frame"]["y"] < 250), default=126) + 8
             entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
             if entry and entry["frame"]["y"] >= top and entry["frame"]["y"] + entry["frame"]["height"] <= bottom:
-                run.tap(identifier)
+                # Use this snapshot's alias while the auxiliary notice window changes.
+                run.command(["sim-use", "tap", "@" + str(entry["aliases"]["at"]),
+                             "--device", args.device])
                 return
             high, low = top + 20, min(bottom - 20, 460)
             downward = entry is not None and entry["frame"]["y"] < top

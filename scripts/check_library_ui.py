@@ -346,8 +346,8 @@ def main():
                 run.wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))
                 run.screenshot("trash-search")
                 run.tap("restore." + snippet_id)
-                run.wait_ui("trash-restored", lambda data: row not in identifiers(data))
-                data = run.wait_ui("trash-restored-notice", lambda data: "library.notice" in identifiers(data))
+                data = run.wait_ui("trash-restored", lambda data: "restore." + snippet_id not in identifiers(data)
+                                   and "library.notice" in identifiers(data))
                 notice_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
                 search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
                 if notice_frame["y"] + notice_frame["height"] > search_frame["y"] - 8:

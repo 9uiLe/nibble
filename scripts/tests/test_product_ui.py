@@ -76,3 +76,13 @@ class ProductNavigationTests(unittest.TestCase):
         with self.assertRaises(VerificationError):
             run.workspace()
         run.tap.assert_not_called()
+
+    def test_settings_uses_the_observed_button_alias(self):
+        run = object.__new__(ProductRun)
+        run.args = SimpleNamespace(device='selected')
+        run.workspace = Mock(return_value={'entries': [
+            {'uniqueId': 'navigation.settings', 'aliases': {'at': 7}}]})
+        run.command = Mock()
+        run.wait_ui = Mock(return_value={'entries': [{'uniqueId': 'settings.about'}]})
+        run.open_settings()
+        run.command.assert_called_once_with(['sim-use', 'tap', '@7', '--device', 'selected'])

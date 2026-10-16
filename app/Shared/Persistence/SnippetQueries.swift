@@ -7,11 +7,13 @@ enum SnippetQueries {
         guard deleted.first == false else { throw StoreError.missing }
     }
 
-    static func summary(_ db: SQLiteDatabase, id: UUID, includesUsage: Bool = true) throws -> SnippetSummary {
+    static func summary(_ db: SQLiteDatabase, id: UUID, includesUsage: Bool = true,
+                        requiredDeleted: Bool? = nil) throws -> SnippetSummary {
         let usage = includesUsage ? "use_count,last_used" : "NULL,NULL"
         let values = try db.rows("SELECT id,title,substr(body,1,\(SnippetText.previewLength)),pinned,revision,\(usage),deleted FROM snippets WHERE id=?",
-                                [.text(id.uuidString)]) { row in
-            _ = try row.bool(7)
+                                 [.text(id.uuidString)]) { row in
+            let deleted = try row.bool(7)
+            if let requiredDeleted, deleted != requiredDeleted { throw StoreError.missing }
             return try summaryRow(row, includesUsage: includesUsage)
         }
         guard let value = values.first else { throw StoreError.missing }

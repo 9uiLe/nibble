@@ -140,8 +140,7 @@ class SelectionTests(unittest.TestCase):
                     else:
                         result = verify.run_on_temporary_device({}, output)
                         self.assertEqual(result['temporary_device'], {'udid': device, 'deleted': True})
-                    self.assertIn(['open', '-n', '-a', 'Simulator', '--args', '-CurrentDeviceUDID', device],
-                                  [call.args[0] for call in command.call_args_list])
+                    self.assertFalse(any(call.args[0][0] == 'open' for call in command.call_args_list))
                     self.assertEqual(command.call_args_list[-1].args[0], ['xcrun', 'simctl', 'delete', device])
 
     def test_temporary_simulator_delete_failure_invalidates_the_run(self):

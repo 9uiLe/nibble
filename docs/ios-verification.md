@@ -55,10 +55,9 @@ python3 scripts/ios.py create \
 ```sh
 export NIBBLE_SIMULATOR='対象SimulatorのUDID'
 python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
-open -a Simulator
 ```
 
-画面操作の前に対象端末のウィンドウを表示する。端末名や暗黙の`booted`を操作先に使わない。手動で作成した端末は、操作が終わりrunの媒体が確定してから`xcrun simctl delete "$NIBBLE_SIMULATOR"`で削除する。再利用した既存端末は削除しない。
+自動操作と画面情報の取得にはSimulatorアプリのウィンドウを必要としない。端末名や暗黙の`booted`を操作先に使わない。手動で作成した端末は、操作が終わりrunの媒体が確定してから`xcrun simctl delete "$NIBBLE_SIMULATOR"`で削除する。再利用した既存端末は削除しない。
 
 ## 変更から検証を実行する
 
@@ -270,7 +269,7 @@ targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・
 
 ## 個別の画面読取と操作
 
-画面の要素や入力値はsim-useのaccessibility情報で確認する。外観は[画像の全体と細部の確認](review-evidence.md#画像の全体と細部の確認)、遷移や動きは録画で確認する。対象Simulatorを起動してウィンドウを表示し、同じUDIDへの操作を直列に実行する。
+画面の要素や入力値はsim-useのaccessibility情報で確認する。外観は[画像の全体と細部の確認](review-evidence.md#画像の全体と細部の確認)、遷移や動きは録画で確認する。対象Simulatorをbootし、同じUDIDへの操作を直列に実行する。
 
 ### 画面を取得して操作する
 

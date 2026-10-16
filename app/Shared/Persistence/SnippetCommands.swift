@@ -32,7 +32,11 @@ enum SnippetCommands {
 
     static func apply(_ mutation: SnippetMutation, id: UUID, to db: SQLiteDatabase) throws -> SnippetSummary {
         try db.writeTransaction {
-            let item = try SnippetQueries.summary(db, id: id)
+            let requiredDeleted: Bool = switch mutation {
+            case .delete: false
+            case .restore, .permanentlyDelete: true
+            }
+            let item = try SnippetQueries.summary(db, id: id, requiredDeleted: requiredDeleted)
             switch mutation {
             case .delete: try setDeleted(true, id: id, in: db)
             case .restore: try setDeleted(false, id: id, in: db)
