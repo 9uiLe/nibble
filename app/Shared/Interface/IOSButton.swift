@@ -1,17 +1,16 @@
 import SwiftUI
 
-public enum IOSButtonVariant: CaseIterable, Equatable {
-    case primary, secondary, outline, ghost, destructive
+enum IOSButtonVariant: Equatable {
+    case primary, secondary, destructive
 }
 
-public enum IOSButtonSize: Equatable {
-    case compact, regular, large
+enum IOSButtonSize: Equatable {
+    case compact, regular
 
     func horizontalPadding(_ spacing: IOSSpacingTokens) -> CGFloat {
         switch self {
         case .compact: spacing.sm
         case .regular: spacing.md
-        case .large: spacing.lg
         }
     }
 
@@ -19,28 +18,26 @@ public enum IOSButtonSize: Equatable {
         switch self {
         case .compact: controls.minimumHeight - 4
         case .regular: controls.minimumHeight
-        case .large: controls.minimumHeight + 4
         }
     }
 }
 
 /// A reusable style for native Button, including Button(role: .destructive).
-public struct IOSButtonStyle: ButtonStyle {
+struct IOSButtonStyle: ButtonStyle {
     @Environment(\.iosDesignTokens) private var tokens
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.isEnabled) private var isEnabled
 
-    public var variant: IOSButtonVariant
-    public var size: IOSButtonSize
+    var variant: IOSButtonVariant
+    var size: IOSButtonSize
 
-    public init(_ variant: IOSButtonVariant = .primary, size: IOSButtonSize = .regular) {
+    init(_ variant: IOSButtonVariant = .primary, size: IOSButtonSize = .regular) {
         self.variant = variant
         self.size = size
     }
 
-    public func makeBody(configuration: Configuration) -> some View {
-        let colors = tokens.palette(for: scheme)
+    func makeBody(configuration: Configuration) -> some View {
+        let colors = tokens.colors
         let effective = configuration.role == .destructive ? IOSButtonVariant.destructive : variant
         configuration.label
             .font(tokens.typography.button)
@@ -52,7 +49,7 @@ public struct IOSButtonStyle: ButtonStyle {
             .overlay {
                 RoundedRectangle(cornerRadius: tokens.radii.control)
                     .strokeBorder(
-                        effective == .outline || effective == .secondary || !isEnabled ? colors.border : .clear,
+                        effective == .secondary || !isEnabled ? colors.border : .clear,
                         lineWidth: contrast == .increased ? tokens.controls.emphasizedBorderWidth : tokens.controls.borderWidth
                     )
             }
@@ -64,7 +61,6 @@ public struct IOSButtonStyle: ButtonStyle {
         switch variant {
         case .primary: colors.primaryForeground
         case .secondary: colors.secondaryForeground
-        case .outline, .ghost: colors.foreground
         case .destructive: colors.destructiveForeground
         }
     }
@@ -73,7 +69,6 @@ public struct IOSButtonStyle: ButtonStyle {
         switch variant {
         case .primary: colors.primary
         case .secondary: colors.secondary
-        case .outline, .ghost: .clear
         case .destructive: colors.destructive
         }
     }

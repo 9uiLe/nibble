@@ -13,7 +13,7 @@ struct DraftResumeRow: View {
             HStack(spacing: 8) {
                 Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
                     VStack(alignment: .leading, spacing: 8) {
-                        IOSBadge("下書き", symbol: "square.and.pencil", variant: .neutral)
+                        IOSBadge("下書き", symbol: "square.and.pencil")
                         HStack(spacing: 8) {
                             Text(draft.displayTitle).font(.nibbleTitle).lineLimit(1)
                             Spacer(minLength: 0)

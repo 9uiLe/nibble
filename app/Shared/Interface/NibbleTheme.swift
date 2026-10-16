@@ -33,26 +33,12 @@ extension Color {
 }
 
 extension IOSDesignTokens {
-    // NibbleTheme owns the color values; copied Evoloom components use this adapter.
-    static let nibble: IOSDesignTokens = {
-        let colors = IOSColorTokens(
-            background: .nibbleCanvas, foreground: .nibblePrimary,
-            card: .nibbleSurface, cardForeground: .nibblePrimary,
-            primary: .nibbleAccent, primaryForeground: .nibbleOnAccent,
-            secondary: .nibbleSurface, secondaryForeground: .nibblePrimary,
-            muted: .nibbleSoft, mutedForeground: .nibbleSecondary,
-            border: .nibbleBorder, input: .nibbleBorder,
-            destructive: .nibbleDestructive, destructiveForeground: .white,
-            destructiveText: .nibbleErrorText, success: .nibbleSelection,
-            successForeground: .nibbleOnSelection,
-            toggleOnBackground: .nibbleAccent,
-            cardMutedForeground: .nibbleSecondary
-        )
-        var tokens = IOSDesignTokens(light: colors, dark: colors)
-        tokens.controls.minimumHeight = 52
-        tokens.controls.pressedOpacity = 0.78
-        tokens.radii.control = 12
-        tokens.typography.button = .nibbleTitle
-        return tokens
-    }()
+    static let nibble = IOSDesignTokens(colors: IOSColorTokens(
+        card: .nibbleSurface, cardForeground: .nibblePrimary,
+        primary: .nibbleAccent, primaryForeground: .nibbleOnAccent,
+        secondary: .nibbleSurface, secondaryForeground: .nibblePrimary,
+        muted: .nibbleSoft, mutedForeground: .nibbleSecondary,
+        border: .nibbleBorder, destructive: .nibbleDestructive,
+        destructiveForeground: .white, destructiveText: .nibbleErrorText
+    ))
 }

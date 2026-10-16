@@ -9,7 +9,6 @@ enum IOSAlertVariant: Equatable {
 struct IOSInlineAlert: View {
     private let inputRevision = UUID()
     @Environment(\.iosDesignTokens) private var tokens
-    @Environment(\.colorScheme) private var scheme
     let title: String
     let message: String
     let variant: IOSAlertVariant
@@ -21,7 +20,7 @@ struct IOSInlineAlert: View {
     }
 
     var body: some View {
-        let colors = tokens.palette(for: scheme)
+        let colors = tokens.colors
         HStack(alignment: .top, spacing: tokens.spacing.sm) {
             Image(systemName: variant == .error ? "exclamationmark.triangle" : "info.circle")
                 .accessibilityHidden(true)
@@ -31,7 +30,7 @@ struct IOSInlineAlert: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(variant == .error ? colors.destructiveText : colors.foreground)
+        .foregroundStyle(variant == .error ? colors.destructiveText : colors.cardForeground)
         .padding(tokens.spacing.md)
         .background(colors.muted, in: RoundedRectangle(cornerRadius: tokens.radii.control))
     }

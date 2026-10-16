@@ -8,7 +8,7 @@
 
 ## F02 色の意味
 
-本体のcanvasは読む面、surfaceは検索・未選択のフィルター・下書きの面、accentは操作、primary/secondaryは情報の主従を表す。ライトは白・オフホワイト・黒、ダークは黒・チャコール・白で揃える。暖色を製品の個性として使う旧方針は、全画面の情報階層と操作の統一を優先するため置き換えた。集合の選択にはニュートラルな濃淡反転、行のコピーには不透明な淡い面、作成にはaccentの塗りと専用のonAccentを使う。背景・文字・入力枠・装飾用区切りは役割名で参照し、塗りの変化で操作の強弱を示す。独自の半透明装飾は追加せず、標準navigationと本文のネイティブ入力・装飾の外観はOSに任せる。RGBは[Theme](../../app/Shared/Interface/NibbleTheme.swift)を正本とし、コピーしたEvoloomの[DesignTokens](../../app/Shared/Interface/IOSDesignTokens.swift)へ同じ役割を渡す。（R21）
+本体のcanvasは読む面、surfaceは検索・未選択のフィルター・下書きの面、accentは操作、primary/secondaryは情報の主従を表す。ライトは白・オフホワイト・黒、ダークは黒・チャコール・白で揃える。集合の選択にはニュートラルな濃淡反転、行のコピーには不透明な淡い面、作成にはaccentの塗りと専用のonAccentを使う。背景・文字・入力枠・装飾用区切りは役割名で参照し、塗りの変化で操作の強弱を示す。独自の半透明装飾は追加せず、標準navigationと本文のネイティブ入力・装飾の外観はOSに任せる。ライト/ダークのRGBは[Theme](../../app/Shared/Interface/NibbleTheme.swift)だけに定義し、Evoloom由来の[DesignTokens](../../app/Shared/Interface/IOSDesignTokens.swift)はその動的な色と部品の寸法・文字を保持する。（R21）
 
 Themeの通常文字の色対は4.5:1以上、検索欄と従属ボタンの識別に使うborderはcanvas/surfaceに対して3:1以上を確保する。separatorは情報や操作の唯一の手がかりにせず、項目の余白と名前を併用する。[色の回帰検査](../../app/NibbleTests/RowComparisonTests.swift)でライト/ダークと固定contrast時の色対を計算する。計算は素材・OS所有UI・実画面全体の適合を保証しないため、G06の画面確認を併用する。
 

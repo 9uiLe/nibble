@@ -6,7 +6,7 @@ C番号は操作・表示の責務を識別する。構成と理由、制約、�
 
 項目名は`SnippetTextPresentation`で整形し、保存済み・下書き・Keyboardの行は`SnippetHeading`を使う。本体の2行・左側ピンとKeyboardの1行・右側ピンは表示文脈の差として保持する。`PinButton`は同じ状態と操作名を受け取り、メニュー／スワイプのラベルとKeyboardのアイコンを描き分ける。絞り込み・操作資格・更新処理は呼出元のモデルと保存層が担う。
 
-EvoloomからDesignTokens・IOSButtonのStyle・IOSInlineAlertをソースコピーし、色はNibbleThemeを正本とする。作成と失敗表示へ適用する。Cardは一覧密度を損なうため、InputとTextAreaはカーソル・原文・Markdown編集の既存契約を維持するため、EmptyStateは標準ContentUnavailableViewと重複するため採用しない。Badge、Separator、Switch、Skeletonは現在の状態・標準操作・読み込み文で足りるため採用しない。NavigationStack、List、Picker、シート、確認ダイアログ、標準入力はOSに任せる。
+Evoloom由来のDesignTokens・IOSButtonStyle・IOSInlineAlert・IOSCard・IOSBadgeを製品内で管理する。色はNibbleThemeを正本とし、DesignTokensは部品の寸法・文字と動的な色の参照を持つ。ButtonStyleは全幅の作成・変数確定と従属操作、InlineAlertは内容内の失敗、CardとBadgeは直近1件の下書き再開だけに使う。保存済みの行は区切りで読み比べる。入力はカーソル・原文・Markdown編集の契約を持つ専用実装、空状態は標準ContentUnavailableViewを使う。NavigationStack、List、Picker、シート、確認ダイアログ、Switch、区切り線はOSの部品を使う。読み込みは測定できない進捗を表さず、状態の文言で示す。
 
 実装：[AppRootView](../../app/Nibble/Navigation/AppRootView.swift)、[LibraryScreen](../../app/Nibble/Library/LibraryScreen.swift)、[SnippetRow](../../app/Nibble/Library/SnippetRow.swift)、[SnippetRowContent](../../app/Nibble/Library/SnippetRowContent.swift)、[LibraryFilterBar](../../app/Nibble/Library/LibraryFilterBar.swift)。
 
