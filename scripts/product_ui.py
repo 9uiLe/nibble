@@ -76,9 +76,8 @@ class ProductRun(Run):
         return data
 
     def open_settings(self):
-        data = self.workspace()
-        entry = next(e for e in data['entries'] if e.get('uniqueId') == 'navigation.settings')
-        self.command(['sim-use', 'tap', '@' + str(entry['aliases']['at']), '--device', self.args.device])
+        self.workspace()
+        self.tap('navigation.settings')
         self.wait_ui('settings-route', lambda d: 'settings.about' in identifiers(d))
 
     def tap_frame(self, frame, fraction=.5):

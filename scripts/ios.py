@@ -350,7 +350,8 @@ class Run:
         return self.wait_ui(name + "-applied", reflected)
 
     def tap(self, identifier):
-        self.command(["sim-use", "tap", "--id", identifier, "--wait-timeout", "5", "--device", self.args.device])
+        self.command(["sim-use", "tap", "--id", identifier, "--wait-timeout", "5",
+                      "--duration", "0.05", "--device", self.args.device])
 
     def screenshot(self, name="screenshot"):
         path = self.artifact_path(name, ".png")
