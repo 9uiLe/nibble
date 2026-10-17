@@ -59,7 +59,11 @@ def check_run(directory, reference_hashes):
             next_ui = next((offset for offset, candidate in enumerate(later)
                             if candidate.get('argv') and candidate['argv'][0] == 'sim-use'), None)
             require(next_ui is not None and all(
-                candidate.get('argv', [])[:3] == ['/bin/ps', '-p', str(manifest.get('process_monitor', {}).get('pid'))]
+                len(candidate.get('argv', [])) == 5
+                and candidate['argv'][:2] == ['/bin/ps', '-p']
+                and str(candidate['argv'][2]).isdecimal()
+                and candidate['argv'][3:] == ['-o', 'lstart=,comm=']
+                and candidate.get('exit_code') == 0
                 for candidate in later[:next_ui]), 'Unexpected command between UI read attempts')
             require(not event.get('error') and event.get('exit_code') == 1
                     and isinstance(argv, list) and len(argv) == 6

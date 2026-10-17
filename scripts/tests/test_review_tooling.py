@@ -248,6 +248,16 @@ class EvidenceTests(EvidenceFixture, unittest.TestCase):
         self.manifest['commands'].extend([failure, retry])
         self.save()
         check_evidence.check_run(self.run, self.hashes)
+        monitor = {'argv': ['/bin/ps', '-p', '42', '-o', 'lstart=,comm='],
+                   'stdout': 'command.log', 'exit_code': 0}
+        self.manifest['process_monitor'] = {'pid': 84}
+        self.manifest['commands'].insert(-1, monitor)
+        self.save()
+        check_evidence.check_run(self.run, self.hashes)
+        monitor['argv'] = ['sim-use', 'tap', '--device', self.manifest['device']['udid']]
+        self.save()
+        with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
+        monitor['argv'] = ['/bin/ps', '-p', '42', '-o', 'lstart=,comm=']
         retry['argv'] = ['sim-use', 'tap', '--device', self.manifest['device']['udid']]
         self.save()
         with self.assertRaises(ValueError): check_evidence.check_run(self.run, self.hashes)
