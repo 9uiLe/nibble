@@ -52,9 +52,35 @@ def check_run(directory, reference_hashes):
     require(device['runtime']['version'] == '26.5' and device['runtime'].get('buildversion'), 'Expected iOS 26.5 and OS build')
     require(re.fullmatch(r'[\da-fA-F]{8}(?:-[\da-fA-F]{4}){3}-[\da-fA-F]{12}', device['udid']), 'Expected explicit Simulator UDID')
     require(manifest.get('commands'), 'No commands recorded')
-    for event in manifest['commands']:
-        require(not event.get('error') and event.get('exit_code') == 0,
-                'Command failure: ' + str(event.get('argv')))
+    for index, event in enumerate(manifest['commands']):
+        if event.get('handled_transient_ui') is True:
+            argv = event.get('argv')
+            later = manifest['commands'][index + 1:]
+            next_ui = next((offset for offset, candidate in enumerate(later)
+                            if candidate.get('argv') and candidate['argv'][0] == 'sim-use'), None)
+            require(next_ui is not None and all(
+                len(candidate.get('argv', [])) == 5
+                and candidate['argv'][:2] == ['/bin/ps', '-p']
+                and str(candidate['argv'][2]).isdecimal()
+                and candidate['argv'][3:] == ['-o', 'lstart=,comm=']
+                and candidate.get('exit_code') == 0
+                for candidate in later[:next_ui]), 'Unexpected command between UI read attempts')
+            require(not event.get('error') and event.get('exit_code') == 1
+                    and isinstance(argv, list) and len(argv) == 6
+                    and argv[:3] == ['sim-use', 'ui', '--device']
+                    and argv[4:] == ['--json', '--no-raw']
+                    and later[next_ui].get('argv') == argv,
+                    'Invalid transient UI read: ' + str(argv))
+            try:
+                failure = json.loads((directory / event['stdout']).read_text())
+            except (OSError, ValueError, KeyError) as error:
+                raise ValueError('Missing transient UI failure result') from error
+            require(failure.get('ok') is False and isinstance(failure.get('error'), str)
+                    and failure['error'].startswith('No translation object returned for simulator'),
+                    'Unexpected transient UI failure: ' + str(argv))
+        else:
+            require(not event.get('error') and event.get('exit_code') == 0,
+                    'Command failure: ' + str(event.get('argv')))
         for key in ['stdout', 'stderr']:
             if key in event:
                 path = directory / event[key]

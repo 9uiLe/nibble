@@ -32,6 +32,9 @@ extension UIIntegrationTests {
                 (.nibbleOnSelection, .nibbleSelection, 4.5),
                 (.nibbleBorder, .nibbleCanvas, 3),
                 (.nibbleBorder, .nibbleSurface, 3),
+                (.nibbleErrorText, .nibbleSoft, 4.5),
+                (.nibbleErrorText, .nibbleSurface, 4.5),
+                (.white, .nibbleDestructive, 4.5),
             ]
             for style in [UIUserInterfaceStyle.light, .dark] {
                 for (foreground, background, minimum) in pairs {

@@ -289,7 +289,30 @@ class Run:
             raise VerificationError("The target app exited or restarted during UI verification")
 
     def ui(self, name="ui", *, allow_empty=False):
-        result = json.loads(self.command(["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"], name))
+        argv = ["sim-use", "ui", "--device", self.args.device, "--json", "--no-raw"]
+        for attempt in range(3):
+            previous_commands = len(self.manifest["commands"])
+            try:
+                output = self.command(argv, name)
+                break
+            except VerificationError as error:
+                event = self.manifest["commands"][-1] if self.manifest["commands"] else {}
+                if (len(self.manifest["commands"]) == previous_commands or event.get("argv") != argv
+                        or event.get("exit_code") != 1 or event.get("error")):
+                    raise
+                try:
+                    failure = json.loads((self.path / event["stdout"]).read_text())
+                except (OSError, ValueError, KeyError):
+                    raise error
+                if not (failure.get("ok") is False and isinstance(failure.get("error"), str)
+                        and failure["error"].startswith("No translation object returned for simulator")):
+                    raise
+                if attempt == 2:
+                    raise
+                event["handled_transient_ui"] = True
+                self.save()
+                time.sleep(.25)
+        result = json.loads(output)
         if not result.get("ok") or (not result.get("data", {}).get("entries") and not allow_empty):
             raise VerificationError(f"Cannot observe UI: {result}")
         write_json(self.artifact_path(name, ".json"), result)
@@ -327,7 +350,8 @@ class Run:
         return self.wait_ui(name + "-applied", reflected)
 
     def tap(self, identifier):
-        self.command(["sim-use", "tap", "--id", identifier, "--wait-timeout", "5", "--device", self.args.device])
+        self.command(["sim-use", "tap", "--id", identifier, "--wait-timeout", "5",
+                      "--duration", "0.05", "--device", self.args.device])
 
     def screenshot(self, name="screenshot"):
         path = self.artifact_path(name, ".png")

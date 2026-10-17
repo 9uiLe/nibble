@@ -36,7 +36,7 @@ final class ShareViewController: UIViewController {
             let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: store,
                 proIsActive: ProAccess.isActive, complete: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
-            }).modifier(NibbleInterface()))
+            }).environment(\.iosDesignTokens, IOSDesignTokens.nibble).modifier(NibbleInterface()))
             NibbleInterface.apply(to: &host.traitOverrides)
             addChild(host)
             host.view.translatesAutoresizingMaskIntoConstraints = false

@@ -21,8 +21,8 @@ struct KeyboardDetailActions: View {
             Button { taskOwner.startTask(detail.item, as: .insert, on: model) } label: {
                 Text("入力先へ入力").fontWeight(.semibold)
                     .frame(maxWidth: .infinity, minHeight: 44)
-                    .foregroundStyle(.white)
-                    .background(Color(uiColor: .systemBlue), in: .rect(cornerRadius: 8))
+                    .foregroundStyle(Color.nibbleOnAccent)
+                    .background(Color.nibbleAccent, in: .rect(cornerRadius: 8))
             }
             .accessibilityIdentifier("keyboard.detail.insert")
         }

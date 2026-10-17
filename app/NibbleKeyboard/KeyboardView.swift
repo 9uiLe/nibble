@@ -62,7 +62,7 @@ struct KeyboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             KeyboardControls(model: model, globe: globe)
         }
-        .tint(Color(uiColor: .systemBlue))
+        .tint(Color.nibbleAccent)
         .task(id: model.loadID) { await model.refresh() }
         .task(id: model.detail?.id) { await model.loadDetail() }
         .task(id: model.notice?.id) {

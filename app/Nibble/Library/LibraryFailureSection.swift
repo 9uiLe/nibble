@@ -11,10 +11,8 @@ struct LibraryFailureSection: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
-                Label(failure.title, systemImage: "exclamationmark.circle")
-                    .font(.headline).foregroundStyle(.primary)
+                IOSInlineAlert(failure.title, message: failure.message, variant: .error)
                     .accessibilityIdentifier("library.error")
-                Text(failure.message).font(.callout).foregroundStyle(.primary)
                 switch failure.recovery {
                 case .reload:
                     Button("一覧を再読み込み") { taskOwner.startTask(.reload, on: model) }

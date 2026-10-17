@@ -16,7 +16,16 @@ struct SnippetRowMainContent: View {
                 .accessibilityLabel(item.displayTitle)
                 .accessibilityIdentifier("snippet.\(item.id)")
         } else {
-            Button { perform(.edit) } label: { SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned, unusedSince: unusedSince) }
+            Button { perform(.edit) } label: {
+                HStack(spacing: 6) {
+                    SnippetRowContent(title: item.title, preview: item.preview, pinned: item.pinned, unusedSince: unusedSince)
+                    Image(systemName: "square.and.pencil")
+                        .font(.caption)
+                        .foregroundStyle(Color.nibbleSecondary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(.rect)
+            }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("snippet.\(item.id)")
                 .accessibilityLabel(item.pinned ? "ピン留め、\(item.displayTitle)" : item.displayTitle)

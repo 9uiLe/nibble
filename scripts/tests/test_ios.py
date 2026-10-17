@@ -235,6 +235,42 @@ class ProcessTests(unittest.TestCase):
             with self.assertRaises(ios.VerificationError):
                 self.run.ui(allow_empty=True)
 
+    def test_ui_retries_only_recorded_translation_failures(self):
+        calls = 0
+        def observe(argv, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                kwargs['stdout'].write('{"ok":false,"error":"No translation object returned for simulator"}')
+                return Mock(returncode=1)
+            kwargs['stdout'].write('{"ok":true,"data":{"entries":[{"label":"Ready"}]}}')
+            return Mock(returncode=0)
+        with patch.object(ios.subprocess, 'run', side_effect=observe), patch.object(ios.time, 'sleep'):
+            self.assertEqual(self.run.ui()['entries'][0]['label'], 'Ready')
+        self.assertEqual(calls, 2)
+        self.assertEqual(self.run.manifest['commands'][0]['handled_transient_ui'], True)
+        self.assertEqual([event['exit_code'] for event in self.run.manifest['commands']], [1, 0])
+
+    def test_ui_does_not_retry_other_command_failures(self):
+        def fail(argv, **kwargs):
+            kwargs['stdout'].write('{"ok":false,"error":"Different failure"}')
+            return Mock(returncode=1)
+        with patch.object(ios.subprocess, 'run', side_effect=fail) as command:
+            with self.assertRaises(ios.VerificationError):
+                self.run.ui()
+        self.assertEqual(command.call_count, 1)
+
+    def test_ui_translation_retry_is_bounded(self):
+        def unavailable(argv, **kwargs):
+            kwargs['stdout'].write('{"ok":false,"error":"No translation object returned for simulator"}')
+            return Mock(returncode=1)
+        with patch.object(ios.subprocess, 'run', side_effect=unavailable) as command, patch.object(ios.time, 'sleep'):
+            with self.assertRaises(ios.VerificationError):
+                self.run.ui()
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual([event.get('handled_transient_ui') for event in self.run.manifest['commands']],
+                         [True, True, None])
+
     def test_wait_requires_a_nonempty_matching_observation_and_propagates_failures(self):
         ready = {"entries": [{"uniqueId": "ready"}]}
         with patch.object(self.run, "ui", side_effect=[{"entries": []}, ready]), patch.object(ios.time, "sleep"):
