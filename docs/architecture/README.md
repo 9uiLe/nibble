@@ -14,7 +14,7 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Nibble/Presentation/` | 説明イラストの読込・可視性・配色・再生状態 |
 | `app/NibbleShare/` | `SharedDraftLoader`の取込・下書き保存、失敗文言、controllerの共通エディター提示 |
 | `app/NibbleKeyboard/` | OS入力先・権限・キーボードのViewとcontroller |
-| `app/Shared/Domain/` | 項目・使用状況・並び順、下書きの入力順序と置換資格、原文の検証、変数の展開、機能方針、保存エラー |
+| `app/Shared/Domain/` | 項目・使用状況・並び順、下書きの入力順序と置換資格、原文の検証、変数の展開、`KeyboardValueBuffer`の局所文字編集、機能方針、保存エラー |
 | `app/Shared/Application/Contracts/` | 一覧・編集・Keyboardの要求と結果、読書込とOS作用のprotocol。具体的な接続や表示形式を持たない |
 | `app/Shared/Application/` | `LibraryModel`・`EditorModel`・`KeyboardModel`の操作、`LibraryReadState`の取得結果と採否、型で表した成功・失敗・回復 |
 | `app/Shared/Persistence/` | SQLite接続、schema、同期SQL、`SnippetStore`と既存DB専用の`KeyboardReader` actor、App Groupの権利スナップショット |
@@ -24,6 +24,8 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Shared/Resources/` | 配布する第三者ライセンスの告知 |
 | `runtime/rive/` | 描画先取得を専用キューへ分離するRive基盤の固定ソース定義・Package定義 |
 | `app/Packages/RivePresentation/` | 製品に依存しないRiveのResource・Session・Canvas |
+| `app/Packages/KeyboardHostIdentity/` | UIKitの公開getterをnullableで受け、文書同一性と純粋なadmissionを照合した一度の挿入 |
+| `app/Packages/KeyboardValueConversion/` | 局所readingから通常のかな漢字候補を返す。ホスト・入力履歴・UIから分離した変換境界 |
 
 `Shared`はソースの共有単位であり、すべてを全targetへリンクするという意味ではない。Xcode projectのSourcesが各targetの必要な部分を選ぶ。NibbleThemeがライト/ダークの色を定義し、Evoloom由来の部品は必要な色役割と寸法だけをIOSDesignTokensから受け取る。キーボードは編集StoreとRiveをリンクせず、本体・共有拡張だけがDB作成とschema移行を行う。本体のテストはKeyboardのモデルとReaderも検査する。
 
@@ -73,7 +75,7 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 | 操作結果と失敗回復 | Applicationの型付き結果。`StoreError`と操作を受けて回復経路を決める | 文言は`LibraryPresentation`・`EditorPresentation`・`KeyboardPresentation`・`SnippetPresentation`。モデル内に文言と判定を重複させない |
 | 使用記録の再試行 | `LibraryModel.PendingUse`ごとのpending / recording / failed | 記録中IDと失敗を別集合へ同期しない。コピー作用は再実行せず、確定後に一覧・検索を更新する |
 | 一覧の取得結果・選択 | `LibraryReadState`のselection・query・取得上限と、collections・searchSnapshot | Requestは入力状態から導出し、検索結果で閲覧の集合を上書きしない。件数・hasMoreは同じsnapshotのSQL結果。操作・編集終了・明示更新で集合と検索を更新する。Viewは検索対象の決定や結果の再抽出をしない |
-| Keyboardの一覧・詳細 | `KeyboardModel.rows`がUUIDごとの要約を一つだけ保持する | ページはID列、詳細は選択IDと本文読込状態。ピン変更は一つの要約を更新し、一覧と詳細へ導出する。詳細中のピン解除は選択を維持する。revision更新時は取得済み本文を無効にし、旧revisionの遅延結果を拒否する。使用状況を取得しない投影はnilで表し、0回と混同しない |
+| Keyboardの一覧・詳細 | `KeyboardModel`がUUIDごとの辞書へ要約を一つずつ保持する | ページは要求に対応するID列、詳細は選択IDと本文読込状態から導出する。ピン変更は一つの要約を更新し、一覧と詳細へ反映する。詳細中のピン解除は選択を維持する。revision更新時は取得済み本文を無効にし、旧revisionの遅延結果を拒否する。使用状況を取得しない投影はnilで表し、0回と混同しない |
 | 項目名・ピン操作の表示 | `SnippetTextPresentation`、`SnippetHeading`、`PinButton` | 本文代替名・明示タイトルの判定を共通化する。本体とKeyboardの字級・行数・ピン位置は明示的なstyleとして保持する。保存可否や操作資格は共通Viewに持ち込まない |
 
 `revision`は保存項目の変更、`sequence`は下書き入力、Markdownの解析番号は本文解析要求を識別する。意味と寿命が違うため一つの番号へ統合しない。選択・折り畳み・フォーカスなどの表示状態も永続データと分ける。
@@ -84,7 +86,7 @@ DomainはSwiftの標準ライブラリとFoundation/Darwinを使い、SwiftUI・
 
 `RootScreenHeading`は作業画面の製品名と設定への入口を配置する。文字表示は`ScreenHeading`、作成は下部の`CreateSnippetButton`が担う。本文、項目名、補足、通知などは[F03](../design/foundations.md#f03-文字と図記号)の役割で指定する。
 
-本体・共有拡張・キーボード・表示PackageのViewは責務ごとの型とファイルへ分ける。Viewを返す補助関数・算出プロパティを作らず、入力と更新境界をView型で表す。`LibraryScreen`は表示と寿命、`LibraryList`は状態に対応する描画、`LibrarySections`は集合と行、`LibrarySearchBar`は検索入力を担当する。空状態の成立、検索範囲、下書きの対象資格はApplicationから受け取る。標準NavigationStackを使い、設定と削除一覧を階層で開き、編集をシートで開く。
+本体・共有拡張・キーボード・表示PackageのViewは責務ごとの型とファイルへ分ける。Viewを返す補助関数・算出プロパティを作らず、入力と更新境界をView型で表す。`LibraryScreen`は取得状態・集合・下書き・行の構成と表示の寿命、`SnippetRow`は項目の利用と整理、`LibrarySearchBar`は検索入力を担当する。空状態の成立、検索範囲、下書きの対象資格はApplicationから受け取る。標準NavigationStackを使い、設定と削除一覧を階層で開き、編集をシートで開く。
 
 設定配下は`AboutSection`・`AboutURL`・`KeyboardGuideSection`が表示を担い、`GuidePageStyle`が背景と標準見出しを共通化する。説明内容と各ページの余白はページに残し、各イラストが自身の可視性を観測する。RiveのSwiftUI表示とUIKitの生成・更新・破棄は`RiveCanvas`と`RiveViewport`へ分け、Sessionの所有と再生状態を維持する。
 

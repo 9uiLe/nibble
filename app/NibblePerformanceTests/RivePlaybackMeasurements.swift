@@ -25,16 +25,16 @@ struct RivePlaybackMeasurements {
                 let start = ProcessInfo.processInfo.systemUptime
                 host.show(keyboard ? AnyView(KeyboardGuideView()) : AnyView(AboutView()))
                 try await host.wait { !log.advances.isEmpty }
-                weak var native = host.find(RiveUIView.self)
-                weak var rive = native?.rive
-                weak var file = rive?.file
+                let native = WeakReference(host.find(RiveUIView.self))
+                let rive = WeakReference(native.value?.rive)
+                let file = WeakReference(rive.value?.file)
                 let firstAdvance = try #require(log.advances.first)
                 try await Task.sleep(for: .milliseconds(350))
                 let displayedMemory = try riveFootprint()
                 let created = log.count("Initializing view")
                 let scroll = try #require(host.find(UIScrollView.self))
                 scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height), animated: false)
-                try await host.wait { native?.isPaused == true }
+                try await host.wait { native.value?.isPaused == true }
                 try await Task.sleep(for: .milliseconds(150))
                 let stopped = log.advances.count
                 try await Task.sleep(for: .milliseconds(300))
@@ -44,10 +44,10 @@ struct RivePlaybackMeasurements {
                 try await host.wait { log.advances.count > stopped }
                 let resumed = log.advances[stopped]
                 #expect(resumed.delta == 0)
-                #expect(host.find(RiveUIView.self) === native)
+                #expect(host.find(RiveUIView.self) === native.value)
                 #expect(log.count("Initializing view") == created)
                 host.show(AnyView(EmptyView()))
-                try await host.wait { native == nil && rive == nil && file == nil }
+                try await host.wait { native.value == nil && rive.value == nil && file.value == nil }
                 try await Task.sleep(for: .milliseconds(100))
                 let closedMemory = try riveFootprint()
                 #expect((firstAdvance.time - start) * 1000 <= (iteration == 0 ? 200 : 100))

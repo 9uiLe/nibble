@@ -4,169 +4,140 @@ import Tasking
 @testable import Nibble
 
 extension UIIntegrationTests {
-    @Suite("Owned UI actions", .serialized)
+    @Suite("Owned application work", .serialized)
     @MainActor
     struct OwnedActionTests {
-        @Test func backgroundDoesNotCancelTheSceneReload() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let id = try await create(store, body: "起動後も表示する本文")
-            let library = LibraryModel(store: store)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.refresh, on: library)
-            // Transient presentation actions stop in background; an admitted scene read can finish.
-            owner.endScreen()
-            await owner.waitForIdle()
-            #expect(library.items.map(\.id) == [id])
-            #expect(!library.loading)
-            #expect(library.failure == nil)
-        }
-
-        @Test func repeatedOpenCreatesOnlyOneDraft() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let library = LibraryModel(store: store)
-            let owner = LibraryTaskOwner()
-            let first = owner.startTask(.open(.new), on: library)
-            let duplicate = owner.startTask(.open(.new), on: library)
-            #expect(first.run != nil)
-            #expect(duplicate.skipReason == .alreadyRunning)
-            await owner.waitForIdle()
-            #expect(library.editor != nil)
-            #expect(try await store.drafts().count == 1)
-        }
-
-        @Test func cancelledScreenOpenDoesNotBlockTheNextOpen() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let library = LibraryModel(store: store)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.open(.new), on: library)
-            owner.endScreen()
-            await owner.waitForIdle()
-            #expect(library.editor == nil)
-            #expect(try await store.drafts().isEmpty)
-            owner.startTask(.open(.new), on: library)
-            await owner.waitForIdle()
-            #expect(library.editor != nil)
-            #expect(try await store.drafts().count == 1)
-        }
-
-        @Test(arguments: [false, true])
-        func leavingDuringDraftLookupDoesNotPresentOrReport(providerFails: Bool) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let opener = ControlledLibraryOpener()
-            let library = LibraryModel(store: database.store, effects: RecordingLibraryEffects(), libraryOpener: opener)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.open(.new), on: library)
-            await opener.waitForRequests(1)
-            owner.endScreen()
-            let draft = try await database.store.beginDraft()
-            opener.finish(0, with: providerFails ? .failure(StoreError.missing) : .success(draft))
-            await owner.waitForIdle()
-            #expect(library.editor == nil)
-            #expect(library.failure == nil)
-            if !providerFails { #expect(try await database.store.drafts().isEmpty) }
-        }
-
-        @Test(arguments: [false, true])
-        func cancelledOpenCanReenterBeforeTheOldLookupCompletes(oldFails: Bool) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let opener = ControlledLibraryOpener()
-            let library = LibraryModel(store: database.store, effects: RecordingLibraryEffects(), libraryOpener: opener)
+        @Test func anInvalidatedPresentationDoesNotBlockOrOverwriteItsReplacement() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let opener = OpeningProbe()
+            let model = LibraryModel(store: files.store, effects: RecordingLibraryEffects(), libraryOpener: opener)
             let oldOwner = LibraryTaskOwner()
-            oldOwner.startTask(.open(.new), on: library)
-            await opener.waitForRequests(1)
+            oldOwner.startTask(.open(.new), on: model)
+            await opener.gate.waitForAdmissions(1)
             oldOwner.endScreen()
-            let nextOwner = LibraryTaskOwner()
-            nextOwner.startTask(.open(.new), on: library)
-            await opener.waitForRequests(2)
-            // Ending the old owner again cannot invalidate the new owner's request.
+            let replacementOwner = LibraryTaskOwner()
+            replacementOwner.startTask(.open(.new), on: model)
+            await opener.gate.waitForAdmissions(2)
+            let current = try await files.store.beginDraft()
+            opener.gate.resolve(1, .success(current))
+            await replacementOwner.waitForIdle()
             oldOwner.endScreen()
-            let current = try await database.store.beginDraft()
-            opener.finish(1, with: .success(current))
-            await nextOwner.waitForIdle()
-            #expect(library.editor?.id == current.id)
-            if oldFails {
-                opener.finish(0, with: .failure(StoreError.missing))
-            } else {
-                let unused = try await database.store.beginDraft()
-                opener.finish(0, with: .success(unused))
-            }
+            let unused = try await files.store.beginDraft()
+            opener.gate.resolve(0, .success(unused))
             await oldOwner.waitForIdle()
-            #expect(library.editor?.id == current.id)
-            #expect(library.failure == nil)
-            #expect(try await database.store.drafts().map(\.id) == [current.id])
+            #expect(model.editor?.id == current.id && model.failure == nil)
+            #expect(try await files.store.drafts().map(\.id) == [current.id])
         }
 
-        @Test func cancelledResumeKeepsTheExistingDraft() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let draft = try await database.store.beginDraft(body: "保持する入力")
-            let opener = ControlledLibraryOpener()
-            let library = LibraryModel(store: database.store, effects: RecordingLibraryEffects(), libraryOpener: opener)
+        @Test func abandonedResumePreservesExistingInputAndCannotPublishFailure() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let input = try await files.store.beginDraft(body: "再開する入力")
+            let opener = OpeningProbe()
+            let model = LibraryModel(store: files.store, effects: RecordingLibraryEffects(), libraryOpener: opener)
             let owner = LibraryTaskOwner()
-            owner.startTask(.open(.draft(draft.id)), on: library)
-            await opener.waitForRequests(1)
+            owner.startTask(.open(.draft(input.id)), on: model)
+            await opener.gate.waitForAdmissions(1)
             owner.endScreen()
-            opener.finish(0, with: .success(draft))
+            opener.gate.resolve(0, .success(input))
             await owner.waitForIdle()
-            #expect(library.editor == nil && library.failure == nil)
-            #expect(try await database.store.draft(draft.id).body == "保持する入力")
+            #expect(model.editor == nil && model.failure == nil)
+            #expect(try await files.store.draft(input.id).body == input.body)
+            owner.startTask(.open(.new), on: model)
+            await opener.gate.waitForAdmissions(2)
+            owner.endScreen()
+            opener.gate.resolve(1, .failure(StoreError.database))
+            await owner.waitForIdle()
+            #expect(model.editor == nil && model.failure == nil)
         }
 
-        @Test func duplicatePolicyDoesNotDropActionsForDifferentItems() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            _ = try await create(store, body: "first")
-            _ = try await create(store, body: "second")
-            let items = try await store.search()
-            let library = LibraryModel(store: store)
+        @Test func sceneReloadSurvivesScreenExitAndDuplicatePoliciesRemainPerItem() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            _ = try await create(files.store, body: "一件目")
+            _ = try await create(files.store, body: "二件目")
+            let model = LibraryModel(store: files.store)
             let owner = LibraryTaskOwner()
-            owner.startTask(.pin(items[0]), on: library)
-            owner.startTask(.pin(items[0]), on: library)
-            owner.startTask(.pin(items[1]), on: library)
+            owner.startTask(.refresh, on: model)
+            owner.endScreen()
             await owner.waitForIdle()
-            #expect(try await store.search(filter: .pinned).count == 2)
-            #expect(library.failure == nil)
+            #expect(model.items.count == 2 && !model.loading)
+            let items = model.items
+            let first = owner.startTask(.pin(items[0]), on: model)
+            let duplicate = owner.startTask(.pin(items[0]), on: model)
+            let independent = owner.startTask(.pin(items[1]), on: model)
+            #expect(first.run != nil && independent.run != nil && duplicate.skipReason == .alreadyRunning)
+            await owner.waitForIdle()
+            #expect(try await files.store.search(filter: .pinned).count == 2)
         }
 
+        @Test func finishingFreezesInputAndCommittedSaveSucceedsAfterCancellation() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let input = try await files.store.beginDraft(body: "保存する本文")
+            let store = FinishProbe(store: files.store)
+            let model = EditorModel(draft: input, store: store)
+            let tasks = ViewTaskStore()
+            var success = false
+            tasks.start(id: "finish", lifetime: .screenBound, policy: .ignoreNew) { _ in success = await model.finish(.save) }
+            await store.gate.waitForAdmissions(1)
+            model.body = "入力を拒否する"
+            #expect(model.body == input.body && model.phase == .finishing(.save))
+            #expect(!(await model.finish(.keep)))
+            tasks.cancel(lifetime: .screenBound)
+            store.gate.resolve(0, .success(true))
+            await tasks.waitForIdle()
+            #expect(success && model.phase == .finished && model.failure == nil)
+            #expect(try await files.store.search().first?.preview == input.body)
+        }
+
+        @Test func entitlementPublicationAcceptsOnlyTheLatestNoncancelledRequest() async {
+            let reads = ApplicationGate<Date?>()
+            var published: [Date?] = []
+            let subscription = ProSubscription(readExpiration: { try? await reads.read() }, updateAccess: {
+                published.append($0)
+                return $0.map { $0 > Date() } ?? false
+            })
+            let tasks = ViewTaskStore()
+            tasks.start(id: "old", lifetime: .sceneBound, policy: .ignoreNew) { _ in await subscription.refresh() }
+            await reads.waitForAdmissions(1)
+            tasks.start(id: "new", lifetime: .sceneBound, policy: .ignoreNew) { _ in await subscription.refresh() }
+            await reads.waitForAdmissions(2)
+            let expiry = Date().addingTimeInterval(3_600)
+            reads.resolve(1, .success(expiry))
+            await reads.waitForReturns(1)
+            reads.resolve(0, .success(nil))
+            await tasks.waitForIdle()
+            #expect(published.count == 1 && published[0] == expiry && subscription.isActive && subscription.checked)
+            tasks.start(id: "cancelled", lifetime: .sceneBound, policy: .ignoreNew) { _ in await subscription.refresh() }
+            await reads.waitForAdmissions(3)
+            tasks.cancel(lifetime: .sceneBound)
+            reads.resolve(2, .success(nil))
+            await tasks.waitForIdle()
+            #expect(published.count == 1 && subscription.isActive)
+        }
     }
 }
 
 @MainActor
-private final class ControlledLibraryOpener: LibraryOpening {
-    private var requests: [CheckedContinuation<Draft, any Error>?] = []
-    private var waiting: (count: Int, continuation: CheckedContinuation<Void, Never>)?
+private final class OpeningProbe: LibraryOpening {
+    let gate = ApplicationGate<Draft>()
+    func draft(_ id: UUID) async throws -> Draft { try await gate.read() }
+    func editingDraft(for id: UUID) async throws -> Draft { try await gate.read() }
+    func beginDraft(target: DraftTarget, body: String) async throws -> Draft { try await gate.read() }
+}
 
-    func beginDraft(target: DraftTarget, body: String) async throws -> Draft { try await read() }
-    func editingDraft(for id: UUID) async throws -> Draft { try await read() }
-    func draft(_ id: UUID) async throws -> Draft { try await read() }
-
-    private func read() async throws -> Draft {
-        try await withCheckedThrowingContinuation { continuation in
-            requests.append(continuation)
-            if let waiting, requests.count >= waiting.count {
-                self.waiting = nil
-                waiting.continuation.resume()
-            }
-        }
-    }
-
-    func waitForRequests(_ count: Int) async {
-        guard requests.count < count else { return }
-        await withCheckedContinuation { waiting = (count, $0) }
-    }
-
-    func finish(_ index: Int, with result: Result<Draft, any Error>) {
-        let continuation = requests[index]
-        requests[index] = nil
-        continuation?.resume(with: result)
+@MainActor
+private final class FinishProbe: DraftEditing {
+    let store: SnippetStore
+    let gate = ApplicationGate<Bool>()
+    init(store: SnippetStore) { self.store = store }
+    func updateDraft(_ draft: Draft) async throws { try await store.updateDraft(draft) }
+    func keepDraft(_ draft: Draft) async throws { try await store.keepDraft(draft) }
+    func discardDraft(_ draft: Draft) async throws { try await store.discardDraft(draft) }
+    func save(_ draft: Draft, mode: DraftSaveMode) async throws -> UUID {
+        _ = try await gate.read()
+        return try await store.save(draft, mode: mode)
     }
 }

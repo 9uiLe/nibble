@@ -1,1 +1,4 @@
-enum EditorField: Hashable { case title, body }
+enum EditorField: Hashable {
+    case body
+    case title
+}

@@ -1,16 +1,20 @@
 import Foundation
 
-/// Owns the requested content, complete database snapshots and read admission.
-/// Browsing and searching share one owner, but search never replaces a retained collection.
 @MainActor
 struct LibraryReadState {
     struct Snapshot {
         let request: LibraryRequest
         let page: LibraryPage
     }
-    enum Outcome { case loaded, cancelled, failed(any Error) }
+
+    enum Outcome {
+        case loaded
+        case cancelled
+        case failed(any Error)
+    }
+
     struct Read {
-        let id = UUID()
+        let id: UUID
         let requested: LibraryRequest
         let requests: [LibraryRequest]
     }
@@ -18,128 +22,128 @@ struct LibraryReadState {
     let surface: LibrarySurface
     private(set) var selection: LibraryFilter
     private(set) var query = ""
-    private var limits: [LibraryFilter: Int] = [:]
+    private var retained: [LibraryFilter: Snapshot] = [:]
+    private var searched: Snapshot?
+    private var pageLimits: [LibraryFilter: Int] = [:]
     private var searchLimit = LibraryRequest.pageSize
-    private var collections: [LibraryFilter: Snapshot] = [:]
-    private var searchSnapshot: Snapshot?
-    var isSearching: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    private var usesSearchSnapshot: Bool { surface != .library || isSearching }
-    var request: LibraryRequest {
-        LibraryRequest(query: isSearching ? query : "",
-                       filter: surface == .deleted ? .trash : isSearching ? .all : selection,
-                       limit: usesSearchSnapshot ? searchLimit : limits[selection] ?? LibraryRequest.pageSize)
-    }
-    var snapshot: Snapshot? { usesSearchSnapshot ? searchSnapshot ?? collections[selection] : collections[selection] }
-    private var completion: (request: LibraryRequest, outcome: Outcome)?
-    private var active: UUID?
-    private var collectionRead: UUID?
+    private var displayedRead: UUID?
+    private var retainedRead: UUID?
+    private var settled: (LibraryRequest, Outcome)?
 
     init(surface: LibrarySurface) {
         self.surface = surface
         selection = surface == .deleted ? .trash : .all
     }
 
+    var isSearching: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var presentsSearch: Bool { isSearching || surface == .deleted }
+
+    var request: LibraryRequest {
+        let filter: LibraryFilter = surface == .deleted ? .trash : isSearching ? .all : selection
+        let limit = presentsSearch ? searchLimit : pageLimits[selection, default: LibraryRequest.pageSize]
+        return LibraryRequest(query: isSearching ? query : "", filter: filter, limit: limit)
+    }
+
+    var snapshot: Snapshot? {
+        guard presentsSearch else { return retained[selection] }
+        return searched ?? retained[selection]
+    }
+
     var contentRequest: LibraryRequest { snapshot?.request ?? request }
     var contentIsCurrent: Bool {
-        snapshot?.request.filter == request.filter && snapshot?.request.query == request.query
+        guard let shown = snapshot?.request else { return false }
+        return shown.filter == request.filter && SnippetText.hasSameBytes(shown.query, request.query)
     }
-    var loading: Bool { active != nil || completion?.request != request }
+
+    var loading: Bool { displayedRead != nil || settled?.0 != request }
+    var demand: LibraryRequest? { settled?.0 == request ? nil : request }
+    var refreshOnAppearance: Bool { displayedRead == nil && (presentsSearch || snapshot == nil) }
     var interrupted: Bool {
-        guard !loading, completion?.request == request, case .cancelled = completion?.outcome else { return false }
+        guard !loading, settled?.0 == request, case .cancelled = settled?.1 else { return false }
         return true
     }
+
     var error: (any Error)? {
-        guard completion?.request == request, case .failed(let error) = completion?.outcome else { return nil }
+        guard settled?.0 == request, case .failed(let error) = settled?.1 else { return nil }
         return error
     }
-    var demand: LibraryRequest? { completion?.request == request ? nil : request }
-    // Appearance and activation can arrive while the initial read is suspended.
-    // Keep that read alive; explicit demand changes still replace obsolete requests.
-    var refreshOnAppearance: Bool { active == nil && (usesSearchSnapshot || snapshot == nil) }
 
     mutating func select(_ filter: LibraryFilter) {
-        guard surface == .library, LibrarySurface.collections.contains(filter), filter != selection || isSearching else { return }
+        guard surface == .library, LibrarySurface.collections.contains(filter) else { return }
         selection = filter
         query = ""
-        if let retained = collections[filter], retained.request == request {
-            completion = (request, .loaded)
-        }
+        settleRetainedPage()
     }
 
     mutating func showAll() {
         guard surface == .library else { return }
         select(.all)
-        // Whitespace is not an active search, but an explicit route still clears the field.
-        if !query.isEmpty { search("") }
     }
 
-    mutating func search(_ query: String) {
-        guard !SnippetText.hasSameBytes(query, self.query) else { return }
-        let previous = request
-        self.query = query
-        guard !SnippetText.hasSameBytes(previous.query, request.query) else { return }
+    mutating func search(_ value: String) {
+        guard !SnippetText.hasSameBytes(value, query) else { return }
+        let former = request
+        query = value
+        guard !SnippetText.hasSameBytes(former.query, request.query) else { return }
         searchLimit = LibraryRequest.pageSize
-        active = nil
-        if !usesSearchSnapshot, let retained = collections[selection], retained.request == request {
-            completion = (request, .loaded)
-        }
+        displayedRead = nil
+        settleRetainedPage()
     }
 
     mutating func showMore() {
-        if usesSearchSnapshot { searchLimit = request.expanded.limit }
-        else { limits[selection] = request.expanded.limit }
+        let next = request.expanded.limit
+        if presentsSearch { searchLimit = next }
+        if !presentsSearch { pageLimits[selection] = next }
     }
 
     mutating func begin(includingCollections: Bool = false) -> Read {
-        var requests: [LibraryRequest] = []
-        if surface == .library && (!isSearching || includingCollections) {
-            requests = LibrarySurface.collections.map { filter in
-                LibraryRequest(filter: filter, limit: limits[filter] ?? LibraryRequest.pageSize)
+        let readsCollections = surface == .library && (includingCollections || !isSearching)
+        var batch = readsCollections ? LibrarySurface.collections.map {
+            LibraryRequest(filter: $0, limit: pageLimits[$0, default: LibraryRequest.pageSize])
+        } : []
+        if presentsSearch { batch.append(request) }
+        let work = Read(id: UUID(), requested: request, requests: batch)
+        displayedRead = work.id
+        if readsCollections { retainedRead = work.id }
+        return work
+    }
+
+    mutating func end(_ work: Read) {
+        if displayedRead == work.id { displayedRead = nil }
+        if retainedRead == work.id { retainedRead = nil }
+    }
+
+    mutating func accept(_ pages: [LibraryPage], from work: Read) throws -> Bool {
+        let showsResult = canDisplay(work)
+        let keepsResult = retainedRead == work.id
+        guard showsResult || keepsResult else { return false }
+        guard pages.count == work.requests.count else { throw StoreError.unavailable }
+        for (requested, page) in zip(work.requests, pages) {
+            let value = Snapshot(request: requested, page: page)
+            switch (surface, requested.query.isEmpty) {
+            case (.library, true):
+                if keepsResult { retained[requested.filter] = value }
+            default:
+                if showsResult { searched = value }
             }
         }
-        if usesSearchSnapshot { requests.append(request) }
-        let read = Read(requested: request, requests: requests)
-        active = read.id
-        if surface == .library && (!isSearching || includingCollections) { collectionRead = read.id }
-        return read
-    }
-
-    mutating func end(_ read: Read) {
-        if active == read.id { active = nil }
-        if collectionRead == read.id { collectionRead = nil }
-    }
-
-    private func admits(_ read: Read) -> Bool {
-        guard active == read.id else { return false }
-        if surface == .library {
-            // A selection can change while the same three-collection read is pending.
-            return read.requests.contains(request)
-        }
-        return request == read.requested
-    }
-
-    mutating func accept(_ pages: [LibraryPage], from read: Read) throws -> Bool {
-        let publishesCurrent = admits(read)
-        let retainsCollections = collectionRead == read.id
-        guard publishesCurrent || retainsCollections else { return false }
-        guard pages.count == read.requests.count else { throw StoreError.unavailable }
-        let snapshots = zip(read.requests, pages).map { Snapshot(request: $0, page: $1) }
-        for snapshot in snapshots {
-            if surface == .library && snapshot.request.query.isEmpty {
-                if retainsCollections { collections[snapshot.request.filter] = snapshot }
-                continue
-            }
-            if publishesCurrent { searchSnapshot = snapshot }
-        }
-        // A completed mutation must still refresh browsing after the user clears search.
-        // Only the latest collection read can replace that cache; obsolete queries never publish.
-        if publishesCurrent || (retainsCollections && !usesSearchSnapshot && snapshot?.request == request) {
-            completion = (request, .loaded)
-        }
+        if showsResult { settled = (request, .loaded) }
+        if keepsResult, !presentsSearch { settleRetainedPage() }
         return true
     }
 
-    mutating func complete(_ outcome: Outcome, from read: Read) {
-        if admits(read) { completion = (request, outcome) }
+    mutating func complete(_ outcome: Outcome, from work: Read) {
+        guard canDisplay(work) else { return }
+        settled = (request, outcome)
+    }
+
+    private func canDisplay(_ work: Read) -> Bool {
+        guard displayedRead == work.id else { return false }
+        return work.requests.contains(request)
+    }
+
+    private mutating func settleRetainedPage() {
+        guard !presentsSearch, retained[selection]?.request == request else { return }
+        settled = (request, .loaded)
     }
 }

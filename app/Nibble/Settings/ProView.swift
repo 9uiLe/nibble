@@ -2,107 +2,46 @@ import AppMacros
 import StoreKit
 import SwiftUI
 
-@Equatable
+@MainActor @Equatable
 struct ProView: View {
-    private enum EntitlementContent {
-        case checking
-        case active
-        case inactive
-    }
-
-    private enum ProductContent {
-        case unavailable
-        case loading
-        case ready([Product])
-        case failed
-    }
-
+    private enum Catalog { case unavailable, loading, ready([Product]), failed }
     private let inputRevision = UUID()
     @SkipEquatable let subscription: ProSubscription
-    @State private var showsManageSubscriptions = false
-    @State private var products: [Product] = []
-    @State private var loadingProducts = true
-    @State private var reloadID = 0
-    @State private var productRequestID: UUID?
-
-    private var entitlementContent: EntitlementContent {
-        if subscription.isActive { return .active }
-        if !FeatureAccess.subscriptionsOffered || subscription.checked { return .inactive }
-        return .checking
-    }
-
-    private var productContent: ProductContent {
-        if !FeatureAccess.subscriptionsOffered { return .unavailable }
-        if loadingProducts { return .loading }
-        if products.count == ProSubscription.productIDs.count { return .ready(products) }
-        return .failed
-    }
-
+    @State private var catalog = Catalog.unavailable
+    @State private var reload = 0
+    @State private var management = false
     var body: some View {
-        VStack(spacing: 0) {
-            switch entitlementContent {
-            case .checking:
-                Text(proDescription)
-                    .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding()
-                ProgressView("登録状態を確認中")
-                    .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal)
-            case .active:
-                Label("nibble Proを利用中です", systemImage: "checkmark.circle.fill")
-                    .font(.nibbleTitle).padding()
-                Button("登録を管理") { showsManageSubscriptions = true }
-                    .font(.nibbleTitle)
-                    .accessibilityIdentifier("pro.manage")
-            case .inactive:
-                Text(proDescription)
-                    .font(.nibbleBody).frame(maxWidth: .infinity, alignment: .leading).padding()
+        VStack(alignment: .leading, spacing: 16) {
+            Text("保存・検索・コピー・キーボード入力は、件数の上限なく利用できます。変数の差し替えも無料です。nibble Proの継続的な機能は準備中です。")
+                .font(.nibbleBody).padding()
+            if subscription.isActive {
+                Label("nibble Proを利用中です", systemImage: "checkmark.circle").font(.nibbleTitle).padding(.horizontal)
+                Button("登録を管理") { management = true }.frame(minHeight: 44).padding(.horizontal).accessibilityIdentifier("pro.manage")
             }
-            switch productContent {
-            case .unavailable:
-                Spacer()
-            case .loading:
-                ProgressView("商品を読み込み中")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .ready(let products):
-                SubscriptionStoreView(subscriptions: products)
-                    .storeButton(.visible, for: .restorePurchases)
+            switch catalog {
+            case .unavailable: Spacer()
+            case .loading: ProgressView("商品を読み込み中").frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .ready(let products): SubscriptionStoreView(subscriptions: products).storeButton(.visible, for: .restorePurchases)
             case .failed:
                 ContentUnavailableView {
-                    Label("商品を読み込めませんでした", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text("しばらくしてから再読み込みしてください。保存済みの項目と下書きは引き続き利用できます。")
-                } actions: {
-                    Button("再読み込み") { reloadID += 1 }
-                        .accessibilityIdentifier("pro.reloadProducts")
+                    Label("商品を読み込めませんでした", systemImage: "exclamationmark.triangle")
+                } description: { Text("保存した項目と下書きは引き続き利用できます。") } actions: {
+                    Button("再読み込み") { reload += 1 }.accessibilityIdentifier("pro.reloadProducts")
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color.nibbleCanvas)
-        .navigationTitle("nibble Pro")
-        .toolbarTitleDisplayMode(.inline)
-        .task(id: reloadID) {
-            guard FeatureAccess.subscriptionsOffered else { return }
-            let id = UUID()
-            productRequestID = id
-            loadingProducts = true
-            await subscription.refresh()
-            guard !Task.isCancelled, productRequestID == id else { return }
-            let loaded = (try? await Product.products(for: ProSubscription.productIDs)) ?? []
-            guard !Task.isCancelled, productRequestID == id else { return }
-            products = ProSubscription.productIDs.compactMap { id in loaded.first { $0.id == id } }
-            loadingProducts = false
-        }
-        .manageSubscriptionsSheet(isPresented: $showsManageSubscriptions)
-    }
-
-    private var proDescription: String {
-        switch FeatureAccess.availability(.variableReplacement, pro: false) {
-        case .included:
-            "保存件数の上限はありません。変数の差し替えも無料で利用できます。nibble Proの提供内容は準備中です。"
-        case .requiresPro:
-            "保存件数の上限はありません。変数の差し替えはnibble Proで利用できます。"
-        case .unavailable:
-            "保存件数の上限はありません。変数の差し替えは準備中です。"
+        .navigationTitle("nibble Pro").navigationBarTitleDisplayMode(.inline).background(Color.nibbleCanvas)
+        .manageSubscriptionsSheet(isPresented: $management)
+        .task(id: reload) {
+            guard FeatureAccess.subscriptionsOffered else { catalog = .unavailable; return }
+            catalog = .loading
+            do {
+                let loaded = try await Product.products(for: ProSubscription.productIDs)
+                try Task.checkCancellation()
+                guard loaded.count == ProSubscription.productIDs.count else { catalog = .failed; return }
+                catalog = .ready(loaded)
+            } catch is CancellationError { }
+            catch { catalog = .failed }
         }
     }
 }

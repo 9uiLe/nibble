@@ -2,62 +2,66 @@ import Foundation
 import SQLite3
 
 enum SQLValue {
-    case text(String), int(Int), real(Double)
+    case text(String)
+    case int(Int)
+    case real(Double)
 }
 
-/// Non-Sendable handle owner, confined to a store or reader actor; no pointer escapes.
+/// A connection belongs to one actor. Leased statements leave the idle pool, so
+/// nested queries can never reset a statement whose row is still being decoded.
 final class SQLiteDatabase {
     enum Access { case readWrite, readOnly, readWriteExisting }
+    private struct IdleStatement {
+        let sql: String
+        let pointer: OpaquePointer
+    }
+
     private let handle: OpaquePointer
-    private var statements: [String: OpaquePointer] = [:]
-    private var recency: [String] = []
-    private let statementLimit = 32
+    private var idle: [IdleStatement] = []
+    private let capacity = 32
     var changes: Int { Int(sqlite3_changes(handle)) }
 
     init(url: URL, access: Access = .readWrite) throws {
-        var opened: OpaquePointer?
-        let flags: Int32 = switch access {
-        case .readOnly: SQLITE_OPEN_READONLY
-        case .readWrite: SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE
-        case .readWriteExisting: SQLITE_OPEN_READWRITE
+        let mode: Int32
+        switch access {
+        case .readOnly: mode = SQLITE_OPEN_READONLY
+        case .readWriteExisting: mode = SQLITE_OPEN_READWRITE
+        case .readWrite: mode = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
         }
-        guard sqlite3_open_v2(url.path, &opened, flags | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
-              let opened else {
-            switch opened {
-            case .some(let opened): sqlite3_close_v2(opened)
-            case .none: break
-            }
+        var candidate: OpaquePointer?
+        let status = sqlite3_open_v2(url.path, &candidate, mode | SQLITE_OPEN_FULLMUTEX, nil)
+        guard status == SQLITE_OK, let candidate else {
+            sqlite3_close_v2(candidate)
             throw StoreError.database
         }
-        handle = opened
-        sqlite3_busy_timeout(handle, 2_000)
-    }
-
-    /// Readers without directory write access need the WAL and shared index to remain available.
-    func preserveWAL() throws {
-        var enabled: Int32 = 1
-        guard sqlite3_file_control(handle, "main", SQLITE_FCNTL_PERSIST_WAL, &enabled) == SQLITE_OK else {
-            throw StoreError.database
-        }
+        handle = candidate
+        sqlite3_busy_timeout(candidate, 2_000)
     }
 
     deinit {
-        for statement in statements.values { sqlite3_finalize(statement) }
+        idle.forEach { sqlite3_finalize($0.pointer) }
         sqlite3_close_v2(handle)
     }
 
-    func readTransaction<T>(_ work: () throws -> T) throws -> T {
-        try performTransaction("BEGIN", work)
+    func preserveWAL() throws {
+        var persist: Int32 = 1
+        guard sqlite3_file_control(handle, "main", SQLITE_FCNTL_PERSIST_WAL, &persist) == SQLITE_OK else {
+            throw StoreError.database
+        }
     }
 
-    func writeTransaction<T>(_ work: () throws -> T) throws -> T {
-        try performTransaction("BEGIN IMMEDIATE", work)
+    func readTransaction<Result>(_ operation: () throws -> Result) throws -> Result {
+        try performTransaction(writing: false, operation)
     }
 
-    private func performTransaction<T>(_ begin: String, _ work: () throws -> T) throws -> T {
-        try execute(begin)
+    func writeTransaction<Result>(_ operation: () throws -> Result) throws -> Result {
+        try performTransaction(writing: true, operation)
+    }
+
+    private func performTransaction<Result>(writing: Bool, _ operation: () throws -> Result) throws -> Result {
+        try execute(writing ? "BEGIN IMMEDIATE" : "BEGIN")
         do {
-            let result = try work()
+            let result = try operation()
             try execute("COMMIT")
             return result
         } catch {
@@ -66,93 +70,106 @@ final class SQLiteDatabase {
         }
     }
 
-    func execute(_ sql: String, _ values: [SQLValue] = []) throws {
-        try withStatement(sql, values) { statement in
-            while try step(statement) { }
+    func execute(_ sql: String, _ arguments: [SQLValue] = []) throws {
+        try withStatement(sql, arguments) { statement in
+            while try advance(statement) { }
         }
     }
 
-    func rows<T>(_ sql: String, _ values: [SQLValue], map: (SQLRow) throws -> T) throws -> [T] {
-        try withStatement(sql, values) { statement in
-            var output: [T] = []
-            while try step(statement) { output.append(try map(SQLRow(statement: statement))) }
-            return output
+    func rows<Result>(_ sql: String, _ arguments: [SQLValue], map: (SQLRow) throws -> Result) throws -> [Result] {
+        try withStatement(sql, arguments) { statement in
+            var results: [Result] = []
+            while try advance(statement) {
+                results.append(try map(SQLRow(statement: statement)))
+            }
+            return results
         }
     }
 
-    private func step(_ statement: OpaquePointer) throws -> Bool {
+    private func advance(_ statement: OpaquePointer) throws -> Bool {
         switch sqlite3_step(statement) {
-        case SQLITE_ROW: return true
-        case SQLITE_DONE: return false
+        case SQLITE_ROW: true
+        case SQLITE_DONE: false
         default: throw StoreError.database
         }
     }
 
-    /// A lease removes the statement from the cache, including for nested reads of the same SQL.
-    /// Reset and clear every binding before reuse so large/sensitive text is not retained.
-    private func withStatement<T>(_ sql: String, _ values: [SQLValue], _ work: (OpaquePointer) throws -> T) throws -> T {
-        let statement: OpaquePointer
-        if let cached = statements.removeValue(forKey: sql) {
-            recency.removeAll { $0 == sql }
-            statement = cached
-        } else {
-            var prepared: OpaquePointer?
-            guard sqlite3_prepare_v2(handle, sql, -1, &prepared, nil) == SQLITE_OK, let prepared else {
-                switch prepared {
-                case .some(let prepared): sqlite3_finalize(prepared)
-                case .none: break
-                }
+    private func lease(_ sql: String) throws -> OpaquePointer {
+        if let index = idle.lastIndex(where: { $0.sql == sql }) {
+            return idle.remove(at: index).pointer
+        }
+        var statement: OpaquePointer?
+        let status = sqlite3_prepare_v2(handle, sql, -1, &statement, nil)
+        guard status == SQLITE_OK, let statement else {
+            sqlite3_finalize(statement)
+            throw StoreError.database
+        }
+        return statement
+    }
+
+    private func withStatement<Result>(_ sql: String, _ arguments: [SQLValue], _ operation: (OpaquePointer) throws -> Result) throws -> Result {
+        let statement = try lease(sql)
+        do {
+            try bind(arguments, to: statement)
+            let result = try operation(statement)
+            guard sqlite3_reset(statement) == SQLITE_OK, sqlite3_clear_bindings(statement) == SQLITE_OK else {
                 throw StoreError.database
             }
-            statement = prepared
-        }
-        do {
-            guard sqlite3_bind_parameter_count(statement) == values.count else { throw StoreError.database }
-            for (offset, value) in values.enumerated() {
-                let index = Int32(offset + 1)
-                let result: Int32
-                switch value {
-                case .text(let text):
-                    result = text.utf8CString.withUnsafeBufferPointer {
-                        sqlite3_bind_text(statement, index, $0.baseAddress, Int32($0.count - 1), unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-                    }
-                case .int(let number): result = sqlite3_bind_int64(statement, index, Int64(number))
-                case .real(let number): result = sqlite3_bind_double(statement, index, number)
-                }
-                guard result == SQLITE_OK else { throw StoreError.database }
+            if let duplicate = idle.firstIndex(where: { $0.sql == sql }) {
+                sqlite3_finalize(idle.remove(at: duplicate).pointer)
             }
-            let result = try work(statement)
-            guard sqlite3_reset(statement) == SQLITE_OK,
-                  sqlite3_clear_bindings(statement) == SQLITE_OK else { throw StoreError.database }
-            // Reentrant use can leave another idle statement for the same SQL.
-            if let previous = statements.removeValue(forKey: sql) { sqlite3_finalize(previous) }
-            recency.removeAll { $0 == sql }
-            if recency.count == statementLimit, let oldest = statements.removeValue(forKey: recency.removeFirst()) {
-                sqlite3_finalize(oldest)
-            }
-            statements[sql] = statement
-            recency.append(sql)
+            if idle.count >= capacity { sqlite3_finalize(idle.removeFirst().pointer) }
+            idle.append(IdleStatement(sql: sql, pointer: statement))
             return result
         } catch {
-            // Failed statements are finalized, never returned to the pool.
             sqlite3_finalize(statement)
             throw error
+        }
+    }
+
+    private func bind(_ arguments: [SQLValue], to statement: OpaquePointer) throws {
+        guard Int(sqlite3_bind_parameter_count(statement)) == arguments.count else { throw StoreError.database }
+        for (offset, argument) in arguments.enumerated() {
+            let column = Int32(offset + 1)
+            let status: Int32
+            switch argument {
+            case .int(let value): status = sqlite3_bind_int64(statement, column, Int64(value))
+            case .real(let value): status = sqlite3_bind_double(statement, column, value)
+            case .text(let value):
+                status = value.utf8CString.withUnsafeBufferPointer { buffer in
+                    sqlite3_bind_text(statement, column, buffer.baseAddress, Int32(buffer.count - 1),
+                                      unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                }
+            }
+            guard status == SQLITE_OK else { throw StoreError.database }
         }
     }
 }
 
 struct SQLRow {
     let statement: OpaquePointer
-    func isNull(_ column: Int32) -> Bool { sqlite3_column_type(statement, column) == SQLITE_NULL }
-    func uuid(_ column: Int32) throws -> UUID {
-        guard let value = UUID(uuidString: try text(column)) else { throw StoreError.database }
-        return value
+
+    func isNull(_ column: Int32) -> Bool {
+        sqlite3_column_type(statement, column) == SQLITE_NULL
     }
+
+    func text(_ column: Int32) throws -> String {
+        guard sqlite3_column_type(statement, column) == SQLITE_TEXT else { throw StoreError.database }
+        let length = Int(sqlite3_column_bytes(statement, column))
+        guard length > 0 else { return "" }
+        guard let pointer = sqlite3_column_text(statement, column),
+              let decoded = String(bytes: UnsafeBufferPointer(start: pointer, count: length), encoding: .utf8) else {
+            throw StoreError.database
+        }
+        return decoded
+    }
+
     func int(_ column: Int32) throws -> Int {
         guard sqlite3_column_type(statement, column) == SQLITE_INTEGER,
-              let value = Int(exactly: sqlite3_column_int64(statement, column)) else { throw StoreError.database }
-        return value
+              let decoded = Int(exactly: sqlite3_column_int64(statement, column)) else { throw StoreError.database }
+        return decoded
     }
+
     func bool(_ column: Int32) throws -> Bool {
         switch try int(column) {
         case 0: false
@@ -160,21 +177,17 @@ struct SQLRow {
         default: throw StoreError.database
         }
     }
-    func double(_ column: Int32) throws -> Double {
-        let type = sqlite3_column_type(statement, column)
-        guard type == SQLITE_FLOAT || type == SQLITE_INTEGER else { throw StoreError.database }
-        let value = sqlite3_column_double(statement, column)
-        guard value.isFinite else { throw StoreError.database }
-        return value
+
+    func uuid(_ column: Int32) throws -> UUID {
+        guard let identifier = UUID(uuidString: try text(column)) else { throw StoreError.database }
+        return identifier
     }
-    func text(_ column: Int32) throws -> String {
-        guard sqlite3_column_type(statement, column) == SQLITE_TEXT else { throw StoreError.database }
-        let byteCount = Int(sqlite3_column_bytes(statement, column))
-        if byteCount == 0 { return "" }
-        guard
-              let bytes = sqlite3_column_text(statement, column),
-              let value = String(bytes: UnsafeBufferPointer(start: bytes, count: byteCount),
-                                 encoding: .utf8) else { throw StoreError.database }
-        return value
+
+    func double(_ column: Int32) throws -> Double {
+        let kind = sqlite3_column_type(statement, column)
+        guard kind == SQLITE_INTEGER || kind == SQLITE_FLOAT else { throw StoreError.database }
+        let decoded = sqlite3_column_double(statement, column)
+        guard decoded.isFinite else { throw StoreError.database }
+        return decoded
     }
 }

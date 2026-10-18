@@ -1,69 +1,72 @@
 import Foundation
 
-/// Synchronous write transactions. No UI effect or suspension can occur before commit.
 enum SnippetCommands {
-    static func recordUse(_ use: SnippetUse, in db: SQLiteDatabase) throws {
-        guard use.completedAt.timeIntervalSince1970.isFinite else { throw StoreError.database }
-        try db.writeTransaction {
-            let existing = try db.rows("SELECT snippet_id,used FROM snippet_uses WHERE id=?", [.text(use.id.uuidString)]) {
-                (snippetID: try $0.uuid(0), timestamp: try $0.double(1))
-            }
-            if let existing = existing.first {
-                // Compare in SQLite's epoch representation: converting back to Date
-                // can round away precision and reject the original operation's retry.
-                guard existing.snippetID == use.snippetID,
-                      existing.timestamp == use.completedAt.timeIntervalSince1970 else { throw StoreError.conflict }
+    static func recordUse(_ receipt: SnippetUse, in database: SQLiteDatabase) throws {
+        let timestamp = receipt.completedAt.timeIntervalSince1970
+        guard timestamp.isFinite else { throw StoreError.database }
+        try database.writeTransaction {
+            let prior = try database.rows("SELECT snippet_id,used FROM snippet_uses WHERE id = ?", [.text(receipt.id.uuidString)]) {
+                (try $0.uuid(0), try $0.double(1))
+            }.first
+            if let prior {
+                guard prior.0 == receipt.snippetID, prior.1 == timestamp else { throw StoreError.conflict }
                 return
             }
-            try db.execute("INSERT INTO snippet_uses(id,snippet_id,used) VALUES(?,?,?)",
-                           [.text(use.id.uuidString), .text(use.snippetID.uuidString), .real(use.completedAt.timeIntervalSince1970)])
-            try db.execute("""
-                UPDATE snippets SET use_count=use_count+1,
-                    last_used=CASE WHEN last_used IS NULL OR last_used<? THEN ? ELSE last_used END
-                WHERE id=? AND use_count<?
-                """, [.real(use.completedAt.timeIntervalSince1970), .real(use.completedAt.timeIntervalSince1970),
-                       .text(use.snippetID.uuidString), .int(Int.max)])
-            if db.changes != 1 {
-                let exists = try db.rows("SELECT 1 FROM snippets WHERE id=?", [.text(use.snippetID.uuidString)]) { try $0.int(0) }
-                throw exists.isEmpty ? StoreError.missing : StoreError.database
-            }
+            let item = try SnippetQueries.summary(database, id: receipt.snippetID)
+            guard let observation = item.usage, observation.count < Int.max else { throw StoreError.database }
+            try database.execute("INSERT INTO snippet_uses(id,snippet_id,used) VALUES(?,?,?)",
+                                 [.text(receipt.id.uuidString), .text(receipt.snippetID.uuidString), .real(timestamp)])
+            try database.execute("""
+                UPDATE snippets SET use_count = use_count + 1,
+                    last_used = CASE WHEN last_used IS NULL THEN ? ELSE max(last_used, ?) END
+                WHERE id = ?
+                """, [.real(timestamp), .real(timestamp), .text(receipt.snippetID.uuidString)])
+            guard database.changes == 1 else { throw StoreError.missing }
         }
     }
 
-    static func apply(_ mutation: SnippetMutation, id: UUID, to db: SQLiteDatabase) throws -> SnippetSummary {
-        try db.writeTransaction {
-            let requiredDeleted: Bool = switch mutation {
-            case .delete: false
-            case .restore, .permanentlyDelete: true
-            }
-            let item = try SnippetQueries.summary(db, id: id, requiredDeleted: requiredDeleted)
+    static func apply(_ mutation: SnippetMutation, id: UUID, to database: SQLiteDatabase) throws -> SnippetSummary {
+        try database.writeTransaction {
+            let deleted: Bool
             switch mutation {
-            case .delete: try setDeleted(true, id: id, in: db)
-            case .restore: try setDeleted(false, id: id, in: db)
-            case .permanentlyDelete: try remove(id, from: db)
+            case .delete: deleted = false
+            case .restore, .permanentlyDelete: deleted = true
             }
-            return item
+            let committedSubject = try SnippetQueries.summary(database, id: id, requiredDeleted: deleted)
+            switch mutation {
+            case .permanentlyDelete:
+                try database.execute("DELETE FROM snippets WHERE id = ? AND deleted = 1", [.text(id.uuidString)])
+                guard database.changes == 1 else { throw StoreError.missing }
+                for table in ["drafts", "snippet_uses"] {
+                    try database.execute("DELETE FROM \(table) WHERE snippet_id = ?", [.text(id.uuidString)])
+                }
+            case .delete, .restore:
+                guard committedSubject.revision < Int.max else { throw StoreError.conflict }
+                try database.execute("""
+                    UPDATE snippets SET deleted = ?, revision = revision + 1, updated = ?
+                    WHERE id = ? AND deleted = ? AND revision > 0 AND revision < ?
+                    """, [.int(deleted ? 0 : 1), .real(Date().timeIntervalSince1970), .text(id.uuidString),
+                          .int(deleted ? 1 : 0), .int(Int.max)])
+                guard database.changes == 1 else { throw StoreError.database }
+            }
+            return committedSubject
         }
     }
 
-    static func setPinned(_ pinned: Bool, id: UUID, revision: Int? = nil, in db: SQLiteDatabase) throws {
-        let matching = revision == nil ? "" : " AND revision=?"
-        var values: [SQLValue] = [.int(pinned ? 1 : 0), .text(id.uuidString)]
-        if let revision { values.append(.int(revision)) }
-        try db.execute("UPDATE snippets SET pinned=?,revision=revision+1 WHERE id=? AND deleted=0\(matching)", values)
-        guard db.changes == 1 else { throw revision == nil ? StoreError.missing : StoreError.conflict }
-    }
-
-    static func setDeleted(_ deleted: Bool, id: UUID, in db: SQLiteDatabase) throws {
-        try db.execute("UPDATE snippets SET deleted=?,updated=?,revision=revision+1 WHERE id=?",
-            [.int(deleted ? 1 : 0), .real(Date().timeIntervalSince1970), .text(id.uuidString)])
-        guard db.changes == 1 else { throw StoreError.missing }
-    }
-
-    static func remove(_ id: UUID, from db: SQLiteDatabase) throws {
-        try db.execute("DELETE FROM snippets WHERE id=? AND deleted=1", [.text(id.uuidString)])
-        guard db.changes == 1 else { throw StoreError.missing }
-        try db.execute("DELETE FROM drafts WHERE snippet_id=?", [.text(id.uuidString)])
-        try db.execute("DELETE FROM snippet_uses WHERE snippet_id=?", [.text(id.uuidString)])
+    static func setPinned(_ pinned: Bool, id: UUID, revision: Int? = nil, in database: SQLiteDatabase) throws {
+        let metadata = try database.rows("SELECT revision,deleted FROM snippets WHERE id = ?", [.text(id.uuidString)]) {
+            (try $0.int(0), try $0.bool(1))
+        }.first
+        guard let metadata, !metadata.1 else { throw revision == nil ? StoreError.missing : StoreError.conflict }
+        guard metadata.0 > 0 else { throw StoreError.database }
+        guard metadata.0 < Int.max else { throw StoreError.conflict }
+        var predicates = "id = ? AND deleted = 0 AND revision > 0 AND revision < ?"
+        var bindings: [SQLValue] = [.int(pinned ? 1 : 0), .text(id.uuidString), .int(Int.max)]
+        if let revision {
+            predicates += " AND revision = ?"
+            bindings.append(.int(revision))
+        }
+        try database.execute("UPDATE snippets SET pinned = ?, revision = revision + 1 WHERE \(predicates)", bindings)
+        guard database.changes == 1 else { throw revision == nil ? StoreError.missing : StoreError.conflict }
     }
 }

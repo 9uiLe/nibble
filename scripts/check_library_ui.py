@@ -11,6 +11,29 @@ from ios import simulator_lock, XCRUN, VerificationError
 from product_ui import ProductRun as Run, identifiers
 
 
+def restoration_notice_geometry(data):
+    """Check the submitted Trash search without assuming notice/search order."""
+    screen = data["screen"]
+    notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
+    search = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "search.field")
+    notice_bottom = notice["y"] + notice["height"]
+    search_bottom = search["y"] + search["height"]
+    if (notice["width"] <= 0 or notice["height"] <= 0 or notice["x"] < 0
+            or notice["x"] + notice["width"] > screen["width"]):
+        raise VerificationError("Restoration notice is outside the screen")
+    if notice["width"] < screen["width"] - 70:
+        raise VerificationError("Restoration notice lost its full width")
+    # Match the independent notice driver: this is a screen-relative guard,
+    # not a measurement of the native window's bottom safe-area inset.
+    if notice["y"] < screen["height"] * .6 or notice_bottom > screen["height"] - 8:
+        raise VerificationError("Restoration notice is outside its bottom presentation area")
+    if not (notice_bottom <= search["y"] - 8 or notice["y"] >= search_bottom + 8):
+        raise VerificationError("Restoration notice overlaps the search controls")
+    return {"notice": notice, "search": search, "minimum_gap": 8,
+            "bottom_guard": screen["height"] - 8,
+            "bottom_guard_method": "screen-relative; native safe-area inset not measured"}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", required=True)
@@ -340,21 +363,25 @@ def main():
                 run.wait_ui("trash-search-empty", lambda data: any(
                     e.get("label") == "見つかりませんでした" for e in data["entries"]))
                 clear_search()
-                enter_search(title.rsplit(" ", 1)[-1])
+                trash_query = title.rsplit(" ", 1)[-1]
+                enter_search(trash_query)
                 run.wait_ui("trash-search-result", lambda data: "restore." + snippet_id in identifiers(data))
                 submit_search()
-                run.wait_ui("trash-search-submitted", lambda data: "Search" not in identifiers(data))
+                run.wait_ui("trash-search-submitted", lambda data: not search_active(data))
                 run.screenshot("trash-search")
                 run.tap("restore." + snippet_id)
                 data = run.wait_ui("trash-restored", lambda data: "restore." + snippet_id not in identifiers(data)
                                    and "library.notice" in identifiers(data))
-                notice_frame = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
-                search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
-                if notice_frame["y"] + notice_frame["height"] > search_frame["y"] - 8:
-                    raise VerificationError("Restoration notice overlaps the native search controls")
+                run.manifest.setdefault("observations", {})["trash_restoration_notice_geometry"] = (
+                    restoration_notice_geometry(data))
                 run.screenshot("trash-restored-notice")
-                label("閉じる")
-                run.wait_ui("trash-search-closed", lambda data: "BackButton" in identifiers(data))
+                clear_search()
+                run.wait_ui("trash-search-cleared", lambda data: {"BackButton", "search.field"} <= identifiers(data)
+                            and "search.clear" not in identifiers(data)
+                            and "library.add" not in identifiers(data)
+                            and "restore." + snippet_id not in identifiers(data)
+                            and len(search_fields(data)) == 1
+                            and not any(trash_query in (field.get("value") or "") for field in search_fields(data)))
                 run.tap("BackButton")
                 run.wait_ui("trash-returned", lambda data: "settings.about" in identifiers(data)
                         and "library.trash" in identifiers(data))
@@ -378,6 +405,7 @@ def main():
                 "settings_navigation": True, "trailing_actions": True, "actions_after_restart": True,
                 "no_match_search_is_empty": True,
                 "trash_search": True, "trash_restore_same_id_and_utf8": True,
+                "trash_search_clear_preserves_navigation": True, "trash_back_returns_to_settings": True,
                 "data": "Dummy text only; existing snippets are retained",
             })
     except (Exception, KeyboardInterrupt) as caught:

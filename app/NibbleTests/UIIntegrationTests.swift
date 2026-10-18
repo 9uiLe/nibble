@@ -1,5 +1,5 @@
 import Testing
 
-/// Pasteboard, announcements and mounted windows are process-global test resources.
+// These suites share UIKit windows and OS effects, so they execute in one serial group.
 @Suite("UI integration", .serialized)
 struct UIIntegrationTests {}

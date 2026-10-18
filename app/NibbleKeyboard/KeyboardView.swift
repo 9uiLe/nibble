@@ -1,95 +1,60 @@
 import AppMacros
 import SwiftUI
 
-@Equatable
+@MainActor @Equatable
 struct KeyboardView: View {
-    private enum Screen {
-        case variable(KeyboardModel.VariableUse)
-        case detail(KeyboardModel.Detail)
-        case browse
-    }
-
-    private struct VariableCompletion {
-        let id = UUID()
-        let values: [VariableName: String]
-    }
+    private enum Page { case browse, detail(KeyboardModel.Detail), variables(KeyboardModel.VariableUse) }
+    private struct Completion { let id = UUID(); let values: [VariableName: String] }
     private let inputRevision = UUID()
     @SkipEquatable let model: KeyboardModel
     @SkipEquatable let globe: UIButton
     @SkipEquatable let setPreferredHeight: (CGFloat) -> Void
-    @State private var taskOwner = KeyboardTaskOwner()
-    @AccessibilityFocusState private var focusedControl: String?
+    @State private var owner = KeyboardTaskOwner()
+    @State private var position: UUID?
     @State private var detailOrigin: UUID?
-    @State private var listPosition: UUID?
-    @State private var variableCompletion: VariableCompletion?
-
-    private var screen: Screen {
-        if let pending = model.variableUse { return .variable(pending) }
+    @State private var completion: Completion?
+    @AccessibilityFocusState private var focus: String?
+    private var page: Page {
+        if let variables = model.variableUse { return .variables(variables) }
         if let detail = model.detail { return .detail(detail) }
         return .browse
     }
-
-    private var preferredHeight: CGFloat {
-        switch screen {
-        case .variable, .detail:
-            return 288
-        case .browse:
-            if !model.isCurrent || model.notice?.expires == false { return 288 }
-            let count = model.page?.items.count ?? 0
-            if count == 0 { return 196 }
-            return min(288, CGFloat(44 + count * 70 + 44 + 8))
-        }
+    private var height: CGFloat {
+        if model.variableUse != nil { return 400 }
+        guard model.detail == nil, model.variableUse == nil, model.isCurrent, model.notice?.expires != false else { return 288 }
+        return min(288, CGFloat(96 + max(1, model.page?.items.count ?? 0) * 70))
     }
-
     var body: some View {
         VStack(spacing: 0) {
-            Group {
-                switch screen {
-                case .variable(let pending):
-                    VariableFillView(template: pending.template, title: pending.item.title,
-                        actionTitle: pending.mode == .copy ? "完成文をコピー" : "完成文を入力",
-                        compact: true, availability: pending.availability,
-                        cancel: model.cancelVariableUse, valueEdited: model.noteVariableValueEditing,
-                        complete: { variableCompletion = VariableCompletion(values: $0) })
-                        .id(pending.id)
-                case .detail(let detail):
-                    KeyboardDetailView(detail: detail, model: model, taskOwner: taskOwner, focus: $focusedControl)
-                case .browse:
-                    KeyboardBrowseView(model: model, taskOwner: taskOwner, focus: $focusedControl,
-                        detailOrigin: $detailOrigin, listPosition: $listPosition)
-                }
+            switch page {
+            case .browse:
+                KeyboardBrowseView(model: model, taskOwner: owner, listPosition: $position, detailOrigin: $detailOrigin, focus: $focus)
+            case .detail(let detail):
+                KeyboardDetailView(detail: detail, model: model, taskOwner: owner, focus: $focus)
+            case .variables(let request):
+                KeyboardVariableFillView(template: request.template, title: request.item.title,
+                    actionTitle: request.mode == .insert ? "完成文を入力" : "完成文をコピー",
+                    availability: request.availability, cancel: model.cancelVariableUse,
+                    complete: { completion = Completion(values: $0) })
+                    .id(request.id)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             KeyboardControls(model: model, globe: globe)
         }
-        .tint(Color.nibbleAccent)
+        .tint(Color.nibbleKeyboardAccent).environment(\.iosDesignTokens, .nibbleKeyboard).privacySensitive()
         .task(id: model.loadID) { await model.refresh() }
         .task(id: model.detail?.id) { await model.loadDetail() }
-        .task(id: model.notice?.id) {
-            if let id = model.notice?.id { await model.expireNotice(id: id) }
+        .task(id: model.notice?.id) { if let notice = model.notice { await model.expireNotice(id: notice.id) } }
+        .onChange(of: completion?.id) {
+            if let completion { owner.startTask(completion.values, on: model) }
+            completion = nil
         }
-        .onChange(of: model.notice?.id) {
-            if let message = model.message { AccessibilityNotification.Announcement(message).post() }
-        }
-        .onChange(of: variableCompletion?.id) {
-            if let completion = variableCompletion {
-                taskOwner.startTask(completion.values, on: model)
-                variableCompletion = nil
-            }
-        }
+        .onChange(of: model.loadID) { owner.endScreen() }
+        .onChange(of: model.request) { position = nil }
+        .onChange(of: model.notice?.id) { if let message = model.message { AccessibilityNotification.Announcement(message).post() } }
         .onChange(of: model.detail?.id) {
-            if model.detail != nil {
-                focusedControl = "back"
-                return
-            }
-            if let detailOrigin, model.page?.items.contains(where: { $0.id == detailOrigin }) == true {
-                focusedControl = "more.\(detailOrigin)"
-                return
-            }
-            focusedControl = "filter.\(model.request.filter.rawValue)"
+            focus = model.detail == nil ? detailOrigin.map { "more.\($0)" } : "back"
         }
-        .onChange(of: model.loadID) { taskOwner.endScreen() }
-        .onChange(of: preferredHeight, initial: true) { _, height in setPreferredHeight(height) }
-        .onDisappear { taskOwner.endScreen() }
+        .onChange(of: height, initial: true) { setPreferredHeight(height) }
+        .onDisappear { owner.endScreen() }
     }
 }

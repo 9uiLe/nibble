@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from check_controls_ui import reveal_help_limit
+from check_controls_ui import reveal_help_limit, collection_visible
 from ios import VerificationError
 
 
@@ -67,3 +67,33 @@ class HelpScrollTests(unittest.TestCase):
         with self.assertRaisesRegex(VerificationError, 'disappeared'):
             reveal_help_limit(run)
         self.assertEqual(run.command.call_count, 1)
+
+
+class CollectionReturnTests(unittest.TestCase):
+    def screen(self, label, editing=False):
+        entries = [{'role': 'Heading', 'label': label}]
+        if editing:
+            entries.append({'uniqueId': 'editor.body'})
+        return {'entries': entries}
+
+    def test_nonempty_pinned_requires_the_ordered_collection_heading(self):
+        data = self.screen('ピン留めした項目・コピー回数順')
+        self.assertTrue(collection_visible(data, 'pinned'))
+        self.assertFalse(collection_visible(data, 'drafts'))
+
+    def test_empty_pinned_and_both_draft_states_are_recognized(self):
+        for collection, label in [('pinned', 'ピン留めした項目はありません'),
+                                  ('drafts', '編集中の項目'),
+                                  ('drafts', '下書きはありません')]:
+            with self.subTest(collection=collection, label=label):
+                self.assertTrue(collection_visible(self.screen(label), collection))
+
+    def test_an_editor_cannot_count_as_a_return_to_the_collection(self):
+        data = self.screen('ピン留めした項目・コピー回数順', editing=True)
+        self.assertFalse(collection_visible(data, 'pinned'))
+
+    def test_wrong_collection_search_and_old_unordered_heading_are_rejected(self):
+        for label in ['保存した項目・コピー回数順', '検索結果・コピー回数順',
+                      'ピン留めした項目', '編集中の項目', 'ピン留めした項目・別の順番']:
+            with self.subTest(label=label):
+                self.assertFalse(collection_visible(self.screen(label), 'pinned'))

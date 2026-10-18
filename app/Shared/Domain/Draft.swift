@@ -5,56 +5,106 @@ enum DraftTarget: Equatable, Sendable {
     case snippet(UUID)
 }
 
-/// An immutable identity and base revision with monotonically ordered input snapshots.
+/// A snapshot may replace only input from its own persisted editing session.
 struct Draft: Identifiable, Equatable, Sendable {
     enum Replacement { case newer, identical, rejected }
-    /// Persistent identity and input ordering, without allocating the stored body.
+
+    private enum InputOrder: Equatable, Sendable {
+        case serial(Int)
+        case exhausted
+    }
+
     struct Checkpoint: Equatable, Sendable {
         let id: UUID
         let target: DraftTarget
         let baseRevision: Int
         let sequence: Int
 
-        func belongsToSameSession(as other: Self) -> Bool {
-            id == other.id && target == other.target && baseRevision == other.baseRevision
+        func belongsToSameSession(as candidate: Self) -> Bool {
+            (id, baseRevision) == (candidate.id, candidate.baseRevision) && target == candidate.target
         }
     }
 
     let id: UUID
     let target: DraftTarget
     let baseRevision: Int
+    private var inputTitle: String
+    private var inputBody: String
+    private var inputOrder: InputOrder
+
+    var sequence: Int {
+        switch inputOrder {
+        case .serial(let number): number
+        case .exhausted: Int.max
+        }
+    }
+
+    var canPersistSequence: Bool {
+        guard case .serial = inputOrder else { return false }
+        return true
+    }
+
+    init(id: UUID, target: DraftTarget, baseRevision: Int, title: String, body: String, sequence: Int = 0) {
+        self.id = id
+        self.target = target
+        self.baseRevision = baseRevision
+        inputTitle = title
+        inputBody = body
+        inputOrder = (0..<Int.max).contains(sequence) ? .serial(sequence) : .exhausted
+    }
+
     var title: String {
-        didSet { if !SnippetText.hasSameBytes(oldValue, title) { sequence += 1 } }
+        get { inputTitle }
+        set {
+            guard !SnippetText.hasSameBytes(inputTitle, newValue) else { return }
+            inputTitle = newValue
+            advanceInputOrder()
+        }
     }
+
     var body: String {
-        didSet { if !SnippetText.hasSameBytes(oldValue, body) { sequence += 1 } }
+        get { inputBody }
+        set {
+            guard !SnippetText.hasSameBytes(inputBody, newValue) else { return }
+            inputBody = newValue
+            advanceInputOrder()
+        }
     }
-    private(set) var sequence: Int = 0
 
     var checkpoint: Checkpoint {
-        Checkpoint(id: id, target: target, baseRevision: baseRevision, sequence: sequence)
+        .init(id: id, target: target, baseRevision: baseRevision, sequence: sequence)
     }
 
-    func canAutosave(over stored: Checkpoint) -> Bool {
-        checkpoint.belongsToSameSession(as: stored) && sequence > stored.sequence
+    private mutating func advanceInputOrder() {
+        guard case .serial(let number) = inputOrder else { return }
+        let (next, overflowed) = number.addingReportingOverflow(1)
+        guard !overflowed, next < Int.max else {
+            inputOrder = .exhausted
+            return
+        }
+        inputOrder = .serial(next)
     }
 
-    func replacement(of stored: Checkpoint, title: String, body: String) -> Replacement {
-        if canAutosave(over: stored) { return .newer }
-        return checkpoint == stored && SnippetText.hasSameBytes(self.title, title)
-            && SnippetText.hasSameBytes(self.body, body) ? .identical : .rejected
+    func canAutosave(over previous: Checkpoint) -> Bool {
+        canPersistSequence && (0..<Int.max).contains(previous.sequence)
+            && sequence > previous.sequence && checkpoint.belongsToSameSession(as: previous)
+    }
+
+    func replacement(of previous: Checkpoint, title: String, body: String) -> Replacement {
+        guard canPersistSequence, (0..<Int.max).contains(previous.sequence),
+              checkpoint.belongsToSameSession(as: previous), sequence >= previous.sequence else { return .rejected }
+        if sequence > previous.sequence { return .newer }
+        guard SnippetText.hasSameBytes(inputTitle, title), SnippetText.hasSameBytes(inputBody, body) else { return .rejected }
+        return .identical
     }
 
     var isDisposable: Bool {
-        if title.isEmpty && body.isEmpty { return true }
-        switch target {
-        case .new: return false
-        case .snippet: return sequence == 0
-        }
+        guard !inputTitle.isEmpty || !inputBody.isEmpty else { return true }
+        guard case .snippet = target else { return false }
+        return sequence == 0
     }
 }
 
-/// Library rows retain only a bounded preview of each draft. Opening a row reads the current draft by ID.
 struct DraftSummary: Identifiable, Equatable, Sendable {
     let id: UUID
     let title: String

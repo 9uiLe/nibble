@@ -8,9 +8,9 @@
 
 行の主領域にはタイトルとプレビューを示し、一度のタップで挿入する。右端の「全文を見る」は挿入せず詳細を開き、詳細には戻る・ピン・コピー・挿入を置く。単一リストは個別カード/二列タイルより長いタイトルの幅を保てる。詳細をキーボード内に置くことで入力先との位置関係を維持する。
 
-本文に差し替え印がある場合だけ、挿入・コピー前にキーボード内で名前ごとに一度ずつ値を入力し、完成文を確認する。同名の印を複数使っても入力欄は一つで、完成文の全箇所を置き換える。機能を利用できない状態では理由を表示し、原文を送らない。取消では入力先へ何も送らない。挿入の確認中は入力文書のproxyを保持し、値の入力欄がUIKitの選択世代を更新しても、確定時に保持した文書へ送る。値の編集時に現在の文書識別子を記録し、その後に入力先の文書または読込世代が変わったら挿入を拒否する。原文と利用値はDBへ書き戻さない。
+本文に差し替え印がある場合だけ、挿入・コピー前にキーボード内で名前ごとに一度ずつ値を入力し、完成文を確認する。同名の印を複数使っても値欄は一つで、完成文の全箇所を置き換える。値欄はボタンで選び、局所キーと変換候補で編集する。拡張自身に`UITextInput`やfirst responderを作らず、外部アプリの入力先を維持する。画面の読み順と編集操作は[S11](../design/screens.md#s11-キーボード内の変数値入力)に定める。利用不可なら理由を表示し、原文を送らない。確認前の編集と取消では入力先へ何も送らず、保存済み原文と利用値をDBへ書き戻さない。
 
-OSのkeyboard背景とニュートラルな文字、主操作と挿入結果の青を使う。文字・太字・contrastは[固定表示](../design/rationale/fixed-interface.md)、hit領域は44×44pt以上を基準とする。高さはOSの必須制約を優先する。実値は[KeyboardView](../../app/NibbleKeyboard/KeyboardView.swift)と[controller](../../app/NibbleKeyboard/KeyboardViewController.swift)を正本とする。
+OSのkeyboard背景とニュートラルな文字、主操作と挿入結果の青を使う。青い文字、主操作の塗りと文字、候補・選択の背景は[NibbleTheme](../../app/Shared/Interface/NibbleTheme.swift)のKeyboard専用色で定義し、通常文字の色対4.5:1以上をライト・ダーク双方で検査する。文字・太字・contrastは[固定表示](../design/rationale/fixed-interface.md)、hit領域は44×44pt以上を基準とする。高さはOSの必須制約を優先する。実値は[KeyboardView](../../app/NibbleKeyboard/KeyboardView.swift)と[controller](../../app/NibbleKeyboard/KeyboardViewController.swift)を正本とする。
 
 ## 操作結果と失敗
 
@@ -29,7 +29,9 @@ OSのkeyboard背景とニュートラルな文字、主操作と挿入結果の�
 
 controllerは入力先・権限・OS作用、Viewは配置と表示の寿命、`KeyboardTaskOwner`は操作の開始・重複・取消、modelは要求/操作ID・ページ・全文・通知、Reader actorは短命接続によるDB操作を所有する。UI/OSはMainActor、DBはactorで扱い、[共通保存層](../product-specification.md#保存形式と接続)の原文とtransaction契約を使う。
 
-`KeyboardView`は詳細の切替・読込と通知期限のtask・アクセシビリティのフォーカスを保持する。一覧は`KeyboardBrowseView`、対象選択は`KeyboardFilterBar`、各行は`KeyboardSnippetRow`、全文は`KeyboardDetailView`、下部は`KeyboardControls`へ分割する。表示部品は個別ファイルへ置き、値だけの行要約・通知は比較可能な表示入力を受け取る。共通パネルの伸長・角丸・左右余白は`KeyboardPanelStyle`が担う。一覧と詳細を排他的に表示し、親Viewに一覧位置を保持して戻った位置を失わない。
+`KeyboardVariableFillView`は名前ごとの[KeyboardValueBuffer](../../app/Shared/Domain/KeyboardValueBuffer.swift)を所有する。bufferはUTF-8の原文、UTF-16の選択範囲と向き、未確定readingを扱い、Character境界を分断する範囲を拒否する。readingの訂正・候補選択・取消は局所値だけを変える。[KeyboardValueConversion](../../app/Packages/KeyboardValueConversion/README.md)の`JapaneseValueConverter`は通常のかな漢字候補だけを返し、host proxy・入力文脈・履歴・UIを持たない。候補要求が上限を超えても値を切り詰めず、原文のまま確定する経路を残す。辞書と変換は拡張内で利用し、通信と入力履歴の学習を行わない。
+
+`KeyboardView`は詳細の切替・読込と通知期限のtask・アクセシビリティのフォーカスを保持する。一覧は`KeyboardBrowseView`、対象選択は`KeyboardFilterBar`、各行は`KeyboardSnippetRow`、全文は`KeyboardDetailView`、下部は`KeyboardControls`へ分割する。表示部品は個別ファイルへ置き、値だけの行要約・通知は比較可能な表示入力を受け取る。一覧と詳細を排他的に表示し、親Viewに一覧位置を保持して戻った位置を失わない。
 
 ## 共有データと読み取りの契約
 
@@ -41,15 +43,21 @@ controllerは入力先・権限・OS作用、Viewは配置と表示の寿命、`
 
 書込接続は`SQLITE_FCNTL_PERSIST_WAL`でWAL・SHMを保持し、書込権限を持たない読取専用接続からも確定した更新を読めるようにする。
 
-要約は`KeyboardModel.rows`、ページはID列、詳細は選択IDと本文取得の状態で表す。revisionが変わると取得済み本文を無効にし、古いrevisionの遅延結果を拒否する。ピン解除で一覧の対象から外れても、開いている詳細の選択を維持する。使用状況は読まないため要約のusageはnilであり、0回という計測結果を作らない。`KeyboardModel.Message`は結果の意味を保持し、表示文は`KeyboardPresentation`が生成する。
+`KeyboardModel`はUUIDごとの辞書へ要約を一つずつ保持し、ページは要求に対応するID列、詳細は選択IDと本文取得の状態から導出する。revisionが変わると取得済み本文を無効にし、古いrevisionの遅延結果を拒否する。ピン解除で一覧の対象から外れても、開いている詳細の選択を維持する。使用状況は読まないため要約のusageはnilであり、0回という計測結果を作らない。`KeyboardModel.Message`は結果の意味を保持し、表示文は`KeyboardPresentation`が生成する。
 
 ## 状態と操作の寿命
 
-一覧の要求世代`loadID`と、同じ世代の読込実行を区別する`readID`を照合する。古い読込の完了・失敗は現在のページに反映しない。再表示・更新・フィルター変更は先頭ページを要求し、詳細からの復帰は元の要求を保持する。キーボードが非表示になるとページ、全文、通知を解放する。
+一覧の要求世代`loadID`と、同じ世代の読込実行を区別する読込IDを照合する。古い読込の完了・失敗は現在のページに反映しない。再表示・更新・フィルター変更は先頭ページを要求し、詳細からの復帰は元の要求を保持する。キーボードが非表示になるとページ、全文、通知を解放する。
 
 挿入・コピー・ピンは共通タスクID`keyboard.use`を使う。`screenBound`で画面の寿命に合わせてキャンセルし、`ignoreNew`で処理中の重複開始を防ぐ。モデルも操作ID、表示中であること、要求世代を照合してから結果を反映する。
 
-変数のない挿入では本文の取得前後で入力先のdocument identifierと選択位置の世代を照合する。変数のある挿入では値の入力開始前にproxyを保持し、完成文をそのproxyへ一度だけ送る。取消、画面の非表示、要求変更、完了では保持を解除する。コピーでは取得前後でフルアクセスを確認する。ピンでは権限確認後に書込を待ち、実際の共有領域へのアクセスはOSのsandbox制御に従う。commit済みの更新を後からのキャンセルで取り消さず、非表示・要求変更後には古い操作結果を表示しない。
+挿入では本文の取得前後と確定時に、入力先のdocument identifierと選択位置の世代を照合する。変数のある挿入は取得開始時の文書IDを[KeyboardInputLease](../../app/Shared/Application/Contracts/KeyboardInputLease.swift)へ固定し、値入力を開く前に現在のIDと世代を再照合する。初期資格が成立しなければフォームを開かず、入力先が変わったことを示す。proxy自体を保存して配送先にしない。本文・選択のwill／did callbackはすべて世代を進め、保持した挿入資格を失効させる。IDが取得不能または別文書になった場合も失効する。外部文書AからBへ移りAへ戻っても、失効した資格は復活しない。局所の値欄切替は外部文書へ選択操作を送らない。取消、画面の非表示、要求変更、完了では資格を解放する。
+
+値入力のフォームと挿入資格は、保存済み本文と入力先を再照合し、同期配送の判定が戻るまで維持する。終了処理は同じ確認IDのフォームだけに適用し、その後に資格を解放する。OS getterや配送中の通知で失効した資格は復活させない。
+
+[KeyboardHostIdentity](../../app/Packages/KeyboardHostIdentity/Sources/KeyboardHostIdentity/include/KeyboardHostIdentity.h)はUIKitの公開getterをObjective-Cで読み、文書IDの取得不能をnullableとしてSwiftへ返す。SDK上のnonnull宣言を根拠にSwiftの非Optional UUIDへ変換しない。`NibbleKeyboardInsertText`は確定時に現在のproxyを取得し、その文書IDが期待値と一致することを確認してからadmissionを呼び、すべて成立した場合だけ`insertText`を一度呼ぶ。admissionは可視性、modelの有効性、世代とleaseを読むだけの同期判定とし、UIKit getterや非同期処理を挟まない。getter中の再入で資格が変わっても、この最終判定で拒否する。`insertText`の呼出し中にcallbackが来た場合は既に行った一度の配送結果だけを扱い、再配送しない。
+
+コピーでは取得前後でフルアクセスを確認する。ピンでは権限確認後に書込を待ち、実際の共有領域へのアクセスはOSのsandbox制御に従う。commit済みの更新を後からのキャンセルで取り消さず、非表示・要求変更後には古い操作結果を表示しない。
 
 詳細の読込は選択項目と詳細を開いたIDを照合する。同じ項目を閉じて再度開いても、前の読込結果を採用しない。期限付き通知は自身のIDを照合して消去し、古い期限処理が新しい通知を消さないようにする。
 
@@ -64,7 +72,7 @@ secure入力、phonePad・namePhonePad、他社キーボードを禁止するア
 
 ## ビルドと評価
 
-Keyboardは共有保存コード・Tasking・AppMacrosを使い、編集用StoreとRiveをリンクしない。extension-safe API、最低iOS 26.0、Swift 6を要求する。
+Keyboardは共有保存コード・Tasking・AppMacros、文書IDと最終配送の`KeyboardHostIdentity`、局所変換の`KeyboardValueConversion`を使い、編集用StoreとRiveをリンクしない。extension-safe API、最低iOS 26.0、Swift 6を要求する。nullable getter・再入・最終配送の境界は[standalone packageテスト](../ios-verification.md#keyboardの文書境界を単独で検証する)で確認し、実ホストの受理とは分ける。
 
 1タップ1挿入、その他で0挿入、長文末尾、戻る位置、ピン変更/0件、権限不足、ページ・切替・終了を確認する。狭幅/縦横/ライト・ダーク、OS設定を変えても固定した表示、古い要求・入力先変更・書込競合を評価する。[操作手順](../ios-verification.md#キーボードの操作検証)と[条件付き測定](../performance-verification.md)に従い、未実施を完了にしない。
 

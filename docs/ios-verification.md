@@ -170,6 +170,31 @@ python3 scripts/ios.py run --configuration Release --device "$NIBBLE_SIMULATOR"
 
 ビルドは実行Mac向けのarchitectureを使い、テスト用とUI用でキャッシュを分ける。製品はApp Groupのentitlementを渡すためad hoc署名を使い、Developer Teamや証明書を必要としない。署名設定を省略したfixtureは未署名でビルドする。
 
+### Keyboardの文書境界を単独で検証する
+
+`KeyboardHostIdentity`のObjective-C境界とSwiftへのimportは、製品の通常suiteと別にpackageのiOS schemeで検証する。専用iOS 26.5 Simulatorを選び、同じUDIDを使う他のdriverと操作を停止して直列実行する。Nixシェル内で、既存の記録を上書きしない新しい出力先を作る。
+
+```sh
+mkdir -p artifacts
+NIBBLE_KEYBOARD_HOST_RUN=$(mktemp -d "$PWD/artifacts/keyboard-host-tests.XXXXXX")
+export NIBBLE_KEYBOARD_HOST_RUN
+(
+  cd app/Packages/KeyboardHostIdentity || exit
+  timeout --signal=INT --kill-after=10s 240s xcodebuild \
+    -scheme KeyboardHostIdentity -configuration Release \
+    -destination "platform=iOS Simulator,id=$NIBBLE_SIMULATOR" \
+    -parallel-testing-enabled NO \
+    -derivedDataPath "$NIBBLE_KEYBOARD_HOST_RUN/DerivedData" \
+    -resultBundlePath "$NIBBLE_KEYBOARD_HOST_RUN/tests.xcresult" \
+    CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= test
+) > "$NIBBLE_KEYBOARD_HOST_RUN/stdout.log" \
+  2> "$NIBBLE_KEYBOARD_HOST_RUN/stderr.log"
+```
+
+実行した引数、終了コード、UDIDとruntime、packageの`Package.swift`・`Sources`・`Tests`の開始／終了hashを結果へ記録する。終了コード0、成功1件以上・失敗なしのxcresult summary、入力hashの一致を確認する。timeout・失敗・ソース変更はその出力先へ残し、再実行は新しい保存先を使う。署名設定はSimulator向けad hocであり、Developer Teamや証明書を必要としない。
+
+[packageテスト](../app/Packages/KeyboardHostIdentity/Tests/KeyboardHostIdentityTests/KeyboardHostIdentityTests.swift)はnil／異なる文書、getter中の再入後のadmission拒否、許可された場合の一度の挿入と原文保持を確認する。これは注入した公開API fixtureの境界試験であり、実ホストでの文書変更タイミング・文字受理・局所値入力UIを保証しない。通常製品suiteと[Keyboard実操作](#キーボードの操作検証)も必要な範囲で行う。
+
 ## 検証対象の切り替え
 
 製品には`app/project.json`、基盤fixtureには`validation/project.json`、Rive測定には`app/performance-project.json`を指定する。設定の読込と検査は`scripts/ios_project.py`が担う。必須項目は`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`で、任意の`simulator_signing`は`disabled`または`ad-hoc`とする。未知のキー、空の値、存在しないproject、不正なbundle ID・OS版・署名方式は、Appleツールを起動する前に拒否する。
@@ -218,7 +243,7 @@ sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw
 2. 同じ名前の印を本文の別位置へ加えて保存する。一覧からコピーを選び、対象の項目名、初出順で一つだけの入力欄、値を入れる前の原文を確認する。値を入れた後は完成文と確定操作を確認し、長い文章では「全文を確認」を開く。
    複数の変数と長い本文を持つダミー項目でも、半分のシートを保ってスクロールし、本文末尾と確定操作が重ならないことを確認する。グラバーから全画面へ広げ、本文と確定操作が続くことを確認する。入力欄を選んでキーボードを表示し、入力欄と確定操作が見え、スクロールする文章が確定操作の背後へ描画されないことを確認する。
 3. 値を確定する前に「閉じる」を押し、コピー通知と使用記録が増えないことを確認する。再度開いて値を確定し、保存済み本文の印を変えずに、出力だけで同名の全箇所が置き換わることを確認する。
-4. Keyboardの変数付き項目も値の確認後に一度だけ挿入する。入力先の変更と利用不可の状態は[Keyboardの操作検証](#キーボードの操作検証)と[変数の設計](architecture/variables.md)に従い、未実施の条件を成功扱いにしない。
+4. Keyboardの変数付き項目は、外部first responderを維持する局所値入力で編集し、完成文の確認後に一度だけ挿入する。本体のTextFieldやOSかなキーボードでの入力成功を、この局所入力の代わりにしない。入力先の変更と利用不可の状態は[Keyboardの操作検証](#キーボードの操作検証)と[変数の設計](architecture/variables.md)に従い、未実施の条件を成功扱いにしない。
 
 保存したAX結果で `editor.body`、`editor.addVariable`、`variables.itemTitle`、`variables.preview`、`variables.complete` の値と順序を確認する。外観はスクリーンショットの全体と文章末尾を開いて確認し、実行ソースと媒体を[証跡手順](review-evidence.md)へ対応付ける。
 
@@ -241,6 +266,8 @@ python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard 
 
 実アセットの複数周期、本文末尾、ライト／ダーク、背景復帰、表示中のReduce Motion切替を録画する。`--interruptions`は作業画面から説明画面への往復と可視境界のスクロール、`--stress`は反復と30秒の背景滞在、`--reduce-motion enabled`は初期から有効な条件を選ぶ。driverは設定を復元する。
 
+本文末尾の到達判定は、iOS 26.5のiPhone SE（第3世代）とiPhone 17 Proの縦向き・標準画面寸法をmetadataで照合し、各機種で観測した下端除外範囲を使う。native safe areaの実測ではなく、未観測の機種・向き・寸法では失敗する。
+
 `--fault-retry`はインストール済みアセットのhashを照合し、一時的な破損・代替表示・元のバイト列の復元・実ボタンでの回復を確認する。制作ソースや配布物は変更しない。図の意味・動きは録画と時刻付き抽出画像を開いて確認し、全編再生と抽出確認を区別する。可視率、複合停止理由、全面シート、Session解放はhostedテスト、描画時間は[性能測定](performance-verification.md)が担当する。
 
 ### 共有・ペースト・呼び出しの検証
@@ -262,6 +289,8 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory validation
 3. 未許可のコピー・ピン操作は案内だけを表示し、クリップボード・入力欄・ピン状態を変えないことを確認する。許可後はコピーとピン留め・解除が成立し、コピーが挿入を伴わないことを照合する。
 4. ピン留め0件、再表示時の自動読込、読込失敗時の再読み込み、51件以上のページ、変更・削除された項目の利用拒否、標準キーボードへの復帰を確認する。本文取得中の入力先変更・離脱・連打は遅延を制御する製品テストと実操作を組み合わせる。
 5. 狭幅・長いタイトル・縦横・ライト／ダークで操作への到達を確認し、権限・外観・向きを元へ戻す。未実施の入力先と表示条件を記録する。
+6. 変数を含む項目で、局所のかなキーからreadingを入力し、候補を選んで日本語の値を確定する。英数・記号と「文字コード」も使い、結合文字・ZWJ emoji・改行等の原文、左右／先頭／末尾／範囲拡張／全選択／削除によるCharacter境界を照合する。不正なUnicode scalarでは値を変えず、変換上限を超えても原文確定を継続できることを確認する。値欄を二つ切り替え、同名の印は一欄で全出現箇所へ適用されることを確認する。候補選択まで外部欄は未変更、取消では0作用、最終確認では一度だけ出力されることを両外部欄の全文で照合する。
+7. 外部入力欄Aを維持したまま局所値欄1→2を編集する場合と、確認中に外部入力欄A→B→Aへ変更する場合を分ける。後者では元の欄へ戻っても挿入資格が復活せず、両欄へ誤送信しないことを確認する。本文または選択の変更、取得不能の文書ID、画面離脱、読込世代や項目revisionの変更はモデル／packageテストと実OSの観測範囲を分け、未観測条件を成功扱いにしない。
 
 入力欄のフォーカスだけでソフトウェアキーボードの表示を判断しない。`sim-use keyboard-state --device "$NIBBLE_SIMULATOR"`と実画面を照合する。secure入力などOSが標準キーボードへ切り替える条件やホスト側の文字数制限は[Keyboard仕様](architecture/keyboard.md)に従う。
 

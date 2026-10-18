@@ -7,49 +7,38 @@ final class ProSubscription {
     static let productIDs = ["nibble.pro.subscription.monthly", "nibble.pro.subscription.yearly"]
     private(set) var isActive = ProAccess.isActive()
     private(set) var checked = false
-    private var refreshID: UUID?
+    private var request: UUID?
     private let readExpiration: @MainActor () async -> Date?
     private let updateAccess: @MainActor (Date?) -> Bool
-
     init(readExpiration: @escaping @MainActor () async -> Date? = { await ProSubscription.currentExpiration() },
-         updateAccess: @escaping @MainActor (Date?) -> Bool = { expiration in
-             ProAccess.update(expiration: expiration)
-             return ProAccess.isActive()
-         }) {
-        self.readExpiration = readExpiration
-        self.updateAccess = updateAccess
+         updateAccess: @escaping @MainActor (Date?) -> Bool = { ProAccess.update(expiration: $0); return ProAccess.isActive() }) {
+        self.readExpiration = readExpiration; self.updateAccess = updateAccess
     }
-
     func refresh() async {
-        let id = UUID()
-        refreshID = id
+        let token = UUID()
+        request = token
         let expiration = await readExpiration()
-        guard !Task.isCancelled, refreshID == id else { return }
+        guard request == token, !Task.isCancelled else { return }
         isActive = updateAccess(expiration)
         checked = true
     }
-
     private static func currentExpiration() async -> Date? {
-        var expiration: Date?
+        var latest: Date?
         for await result in StoreKit.Transaction.currentEntitlements {
-            if Task.isCancelled { return nil }
-            guard case .verified(let transaction) = result,
-                  Self.productIDs.contains(transaction.productID), transaction.revocationDate == nil,
-                  let date = transaction.expirationDate else { continue }
-            // StoreKit also yields subscriptions in billing grace. Share can use a
-            // bounded snapshot until the containing app refreshes again.
-            let validUntil = max(date, Date().addingTimeInterval(date <= Date() ? 86_400 : 0))
-            if validUntil > (expiration ?? .distantPast) { expiration = validUntil }
+            guard !Task.isCancelled else { return nil }
+            guard case .verified(let transaction) = result, productIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil, let expiry = transaction.expirationDate else { continue }
+            let validThrough = expiry > Date() ? expiry : Date().addingTimeInterval(86_400)
+            latest = max(latest ?? .distantPast, validThrough)
         }
-        return expiration
+        return latest
     }
-
     func watchUpdates() async {
         for await result in StoreKit.Transaction.updates {
-            if case .verified(let transaction) = result {
-                await refresh()
-                await transaction.finish()
-            }
+            guard !Task.isCancelled else { return }
+            guard case .verified(let transaction) = result else { continue }
+            await refresh()
+            await transaction.finish()
         }
     }
 }

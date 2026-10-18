@@ -1,7 +1,10 @@
 import Foundation
 
-/// One source snapshot produces UTF-16 decoration spans and syntax-free preview blocks.
 struct MarkdownDocument: Equatable, Sendable {
+    struct Span: Equatable, Sendable {
+        let range: NSRange
+        let style: MarkdownStyle
+    }
     struct Block: Equatable, Identifiable, Sendable {
         let id: Int
         var text: AttributedString
@@ -10,103 +13,109 @@ struct MarkdownDocument: Equatable, Sendable {
         let listDepth: Int
     }
 
-    struct Span: Equatable, Sendable {
-        let range: NSRange
-        let style: MarkdownStyle
-    }
     private(set) var source = ""
     private(set) var sourceSpans: [Span] = []
     private(set) var previewBlocks: [Block] = []
 
     @concurrent
     static func parse(_ source: String) async -> Self {
-        guard !Task.isCancelled else { return Self(source: source) }
-        let input = SourceMap(source)
-        guard !Task.isCancelled else { return Self(source: source) }
-        guard let parsed = try? AttributedString(markdown: input.markdown, options: .init(appliesSourcePositionAttributes: true)) else {
-            return Self(source: source, previewBlocks: [Block(id: 0, text: AttributedString(source), style: MarkdownStyle(),
-                                                              listMarker: nil, listDepth: 0)])
+        var document = Self(source: source)
+        guard !Task.isCancelled else { return document }
+        let positions = Positions(source)
+        guard !Task.isCancelled else { return document }
+        let options = AttributedString.MarkdownParsingOptions(appliesSourcePositionAttributes: true)
+        guard let parsed = try? AttributedString(markdown: positions.markdown, options: options) else {
+            document.previewBlocks = [.init(id: 0, text: AttributedString(source),
+                                            style: MarkdownStyle(), listMarker: nil, listDepth: 0)]
+            return document
         }
-        var result = Self(source: source)
         for run in parsed.runs {
-            if Task.isCancelled { return Self(source: source) }
-            let inline = run.inlinePresentationIntent ?? []
-            var heading: Int?
-            var codeBlock = false
-            var quote = false
-            var listItem: Int?
-            var orderedList: Bool?
-            var listDepth = 0
-            for component in run.presentationIntent?.components ?? [] {
+            guard !Task.isCancelled else { return Self(source: source) }
+            var blockStyle = MarkdownStyle()
+            var ordinal: Int?
+            var ordered: Bool?
+            var depth = 0
+            let components = run.presentationIntent?.components ?? []
+            for component in components {
                 switch component.kind {
-                case .header(level: let level): heading = level
-                case .codeBlock: codeBlock = true
-                case .blockQuote: quote = true
-                case .listItem(ordinal: let ordinal): if listItem == nil { listItem = ordinal }
+                case .header(let level): blockStyle.heading = level
+                case .blockQuote: blockStyle.quote = true
+                case .codeBlock: blockStyle.code = true
+                case .listItem(let number): if ordinal == nil { ordinal = number }
                 case .orderedList:
-                    if orderedList == nil { orderedList = true }
-                    listDepth += 1
+                    ordered = ordered ?? true
+                    depth += 1
                 case .unorderedList:
-                    if orderedList == nil { orderedList = false }
-                    listDepth += 1
+                    ordered = ordered ?? false
+                    depth += 1
                 default: break
                 }
             }
-            let blockID = run.presentationIntent?.components.first?.identity ?? 0
-            let content = AttributedString(parsed[run.range])
-            let style = MarkdownStyle(heading: heading, code: codeBlock, quote: quote)
-            if result.previewBlocks.last?.id == blockID {
-                result.previewBlocks[result.previewBlocks.count - 1].text.append(content)
+            let identifier = components.first?.identity ?? 0
+            let text = AttributedString(parsed[run.range])
+            if document.previewBlocks.last?.id == identifier {
+                document.previewBlocks[document.previewBlocks.count - 1].text.append(text)
             } else {
-                let marker = listItem.map { orderedList == true ? "\($0)." : "•" }
-                result.previewBlocks.append(Block(id: blockID, text: content, style: style,
-                                                  listMarker: marker, listDepth: listDepth))
+                document.previewBlocks.append(.init(id: identifier, text: text, style: blockStyle,
+                    listMarker: ordinal.map { ordered == true ? "\($0)." : "•" }, listDepth: depth))
             }
-            guard let position = run.markdownSourcePosition,
-                  let range = input.range(for: position) else { continue }
-            result.sourceSpans.append(Span(range: range, style: style.applying(inline, link: run.link != nil)))
+            guard let location = run.markdownSourcePosition,
+                  let range = positions.range(location) else { continue }
+            let style = blockStyle.applying(run.inlinePresentationIntent ?? [], link: run.link != nil)
+            document.sourceSpans.append(.init(range: range, style: style))
         }
-        return result
+        return document
     }
 
-    /// Maps parser byte columns to UTF-16 ranges in the untouched editor source.
-    private struct SourceMap {
+    // Only byte/UTF-16 differences need checkpoints; ASCII does not need a per-byte table.
+    private struct Positions {
         let markdown: String
         private var lineStarts = [0]
-        private var utf16Offsets = [Int]()
+        private var differences: [(end: Int, delta: Int)] = [(0, 0)]
+        private var byteCount = 0
 
         init(_ source: String) {
-            // Markdown parses NUL as U+FFFD. Its three bytes refer to one
-            // original code unit; this copy is never written back to the editor.
             markdown = source.replacingOccurrences(of: "\0", with: "\u{FFFD}")
-            utf16Offsets.reserveCapacity(markdown.utf8.count + 1)
-            var utf16 = 0
-            var previousWasCR = false
+            var units = 0
+            var previousCR = false
             for scalar in source.unicodeScalars {
-                let byteCount = scalar == "\0" ? 3 : scalar.utf8.count
-                utf16Offsets.append(contentsOf: repeatElement(utf16, count: byteCount))
-                utf16 += scalar.utf16.count
-                switch scalar {
-                case "\r":
-                    lineStarts.append(utf16Offsets.count)
-                case "\n":
-                    if previousWasCR { lineStarts[lineStarts.count - 1] = utf16Offsets.count }
-                    else { lineStarts.append(utf16Offsets.count) }
-                default:
-                    break
+                let bytes = scalar.value == 0 ? 3 : scalar.utf8.count
+                byteCount += bytes
+                units += scalar.utf16.count
+                if bytes != scalar.utf16.count {
+                    differences.append((byteCount, byteCount - units))
                 }
-                previousWasCR = scalar == "\r"
+                switch scalar.value {
+                case 13: lineStarts.append(byteCount)
+                case 10:
+                    if previousCR { lineStarts[lineStarts.count - 1] = byteCount }
+                    if !previousCR { lineStarts.append(byteCount) }
+                default: break
+                }
+                previousCR = scalar.value == 13
             }
-            utf16Offsets.append(utf16)
         }
 
-        func range(for position: AttributedString.MarkdownSourcePosition) -> NSRange? {
-            guard position.startLine > 0, position.endLine >= position.startLine,
-                  position.endLine <= lineStarts.count, position.startColumn > 0 else { return nil }
-            let start = lineStarts[position.startLine - 1] + position.startColumn - 1
-            let end = lineStarts[position.endLine - 1] + position.endColumn
-            guard end >= start, end < utf16Offsets.count else { return nil }
-            return NSRange(location: utf16Offsets[start], length: utf16Offsets[end] - utf16Offsets[start])
+        func range(_ position: AttributedString.MarkdownSourcePosition) -> NSRange? {
+            guard position.startLine > 0, position.startLine <= lineStarts.count,
+                  position.endLine >= position.startLine, position.endLine <= lineStarts.count,
+                  position.startColumn > 0 else { return nil }
+            let lower = lineStarts[position.startLine - 1] + position.startColumn - 1
+            let upper = lineStarts[position.endLine - 1] + position.endColumn
+            guard lower >= 0, lower <= upper, upper <= byteCount else { return nil }
+            let start = utf16(lower)
+            return NSRange(location: start, length: utf16(upper) - start)
+        }
+
+        private func utf16(_ byte: Int) -> Int {
+            var lower = 0
+            var upper = differences.count
+            while lower < upper {
+                let middle = lower + (upper - lower) / 2
+                if differences[middle].end <= byte { lower = middle + 1 }
+                if differences[middle].end > byte { upper = middle }
+            }
+            return byte - differences[max(0, lower - 1)].delta
         }
     }
 }

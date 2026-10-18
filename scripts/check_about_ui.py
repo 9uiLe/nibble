@@ -18,6 +18,27 @@ def element(data, identifier):
     return next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
 
 
+def reading_viewport(data, device):
+    # sim-use's AX observation has no safe-area or native scroll viewport.
+    # SE3's observed final link retains 24pt below it; 17 Pro keeps the existing
+    # 34pt home-indicator guard. This is not a measured window safe-area inset.
+    # Other devices, orientations and display geometries require new evidence.
+    profiles = {
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation": (375, 667, 0),
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro": (402, 874, 34),
+    }
+    identifier = device.get("deviceTypeIdentifier")
+    profile = profiles.get(identifier)
+    if profile is None:
+        raise VerificationError("Reading viewport has not been verified for device type: " + str(identifier))
+    width, height, bottom_exclusion = profile
+    if data.get("orientation") != "portrait" or (data["screen"]["width"], data["screen"]["height"]) != (width, height):
+        raise VerificationError("Reading viewport does not match the verified portrait device geometry")
+    return {"source": "iOS-26.5-portrait-device-profile", "device_type": identifier,
+            "width": width, "height": height, "bottom_exclusion": bottom_exclusion,
+            "top": 75, "bottom": height - bottom_exclusion - 8}
+
+
 class AboutCheck:
     def __init__(self, run, story="about"):
         self.run = run
@@ -222,18 +243,19 @@ class AboutCheck:
         data = self.run.ui(name + "-top")
         self.run.screenshot(name + "-top")
         for index in range(30):
+            viewport = reading_viewport(data, self.run.manifest["device"])
             final_content = element(data, "about.privacyPolicy" if self.story == "about" else "keyboard.guide.limits")
             if final_content:
                 frame = final_content["frame"]
-                bar_top = data["screen"]["height"] - 34
-                if 75 <= frame["y"] and frame["y"] + frame["height"] <= bar_top - 8:
+                if viewport["top"] <= frame["y"] and frame["y"] + frame["height"] <= viewport["bottom"]:
                     break
             self.scroll(data)
             data = self.run.ui(f"{name}-scroll-{index}")
         else:
             raise VerificationError("Final content is not reachable")
         self.run.screenshot(name + "-bottom")
-        self.observations[name] = {"final_content_reachable": True, "swipes": index}
+        self.observations[name] = {"final_content_reachable": True, "swipes": index,
+                                   "viewport": viewport, "final_content_frame": frame}
         # Preserve the reading position while checking both palettes.
         self.option("appearance", "dark")
         self.run.screenshot("dark-bottom")

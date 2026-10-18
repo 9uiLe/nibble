@@ -1,75 +1,33 @@
 import SwiftUI
 
-enum IOSButtonVariant: Equatable {
-    case primary, secondary, destructive
-}
+enum IOSButtonVariant: Equatable { case primary, secondary, destructive }
+enum IOSButtonSize: Equatable { case compact, regular }
 
-enum IOSButtonSize: Equatable {
-    case compact, regular
-
-    func horizontalPadding(_ spacing: IOSSpacingTokens) -> CGFloat {
-        switch self {
-        case .compact: spacing.sm
-        case .regular: spacing.md
-        }
-    }
-
-    func minimumHeight(_ controls: IOSControlTokens) -> CGFloat {
-        switch self {
-        case .compact: controls.minimumHeight - 4
-        case .regular: controls.minimumHeight
-        }
-    }
-}
-
-/// A reusable style for native Button, including Button(role: .destructive).
 struct IOSButtonStyle: ButtonStyle {
-    @Environment(\.iosDesignTokens) private var tokens
-    @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.isEnabled) private var isEnabled
-
-    var variant: IOSButtonVariant
-    var size: IOSButtonSize
-
+    @Environment(\.iosDesignTokens) private var theme
+    @Environment(\.isEnabled) private var enabled
+    let variant: IOSButtonVariant
+    let size: IOSButtonSize
     init(_ variant: IOSButtonVariant = .primary, size: IOSButtonSize = .regular) {
         self.variant = variant
         self.size = size
     }
-
     func makeBody(configuration: Configuration) -> some View {
-        let colors = tokens.colors
-        let effective = configuration.role == .destructive ? IOSButtonVariant.destructive : variant
+        let destructive = configuration.role == .destructive || variant == .destructive
+        let filled = enabled && (variant == .primary || destructive)
         configuration.label
-            .font(tokens.typography.button)
-            .foregroundStyle(isEnabled ? foreground(effective, colors: colors) : colors.mutedForeground)
-            .padding(.vertical, tokens.spacing.xs)
-            .frame(maxWidth: .infinity, minHeight: size.minimumHeight(tokens.controls))
-            .padding(.horizontal, size.horizontalPadding(tokens.spacing))
-            .background(isEnabled ? background(effective, colors: colors) : colors.muted, in: RoundedRectangle(cornerRadius: tokens.radii.control))
+            .font(theme.typography.button)
+            .foregroundStyle(filled ? theme.colors.primaryForeground : theme.colors.cardForeground)
+            .padding(.horizontal, size == .regular ? 16 : 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: size == .regular ? 52 : 48)
+            .background(filled ? (destructive ? theme.colors.destructive : theme.colors.primary) : theme.colors.secondary,
+                        in: .rect(cornerRadius: theme.radii.control))
             .overlay {
-                RoundedRectangle(cornerRadius: tokens.radii.control)
-                    .strokeBorder(
-                        effective == .secondary || !isEnabled ? colors.border : .clear,
-                        lineWidth: contrast == .increased ? tokens.controls.emphasizedBorderWidth : tokens.controls.borderWidth
-                    )
+                RoundedRectangle(cornerRadius: theme.radii.control)
+                    .strokeBorder(filled ? .clear : theme.colors.border, lineWidth: 1)
             }
-            .opacity(configuration.isPressed ? tokens.controls.pressedOpacity : 1)
-            .contentShape(Rectangle())
-    }
-
-    private func foreground(_ variant: IOSButtonVariant, colors: IOSColorTokens) -> Color {
-        switch variant {
-        case .primary: colors.primaryForeground
-        case .secondary: colors.secondaryForeground
-        case .destructive: colors.destructiveForeground
-        }
-    }
-
-    private func background(_ variant: IOSButtonVariant, colors: IOSColorTokens) -> Color {
-        switch variant {
-        case .primary: colors.primary
-        case .secondary: colors.secondary
-        case .destructive: colors.destructive
-        }
+            .opacity(configuration.isPressed ? theme.controls.pressedOpacity : 1)
+            .contentShape(.rect)
     }
 }

@@ -1,8 +1,15 @@
 import Foundation
 
 enum KeyboardFilter: String, CaseIterable, Sendable {
-    case all, pinned
-    var libraryFilter: LibraryFilter { self == .all ? .all : .pinned }
+    case all
+    case pinned
+
+    var libraryFilter: LibraryFilter {
+        switch self {
+        case .all: .all
+        case .pinned: .pinned
+        }
+    }
 }
 
 struct KeyboardRequest: Hashable, Sendable {
@@ -12,7 +19,7 @@ struct KeyboardRequest: Hashable, Sendable {
 
     init(filter: KeyboardFilter = .all, offset: Int = 0) {
         self.filter = filter
-        self.offset = min(max(0, offset), Int.max - Self.pageSize - 1)
+        self.offset = max(0, min(offset, Int.max - Self.pageSize - 1))
     }
 }
 
@@ -22,11 +29,12 @@ struct KeyboardPage: Equatable, Sendable {
 }
 
 protocol KeyboardReading: Sendable {
-    func page(_ request: KeyboardRequest) async throws -> KeyboardPage
     func body(for item: SnippetSummary) async throws -> String
+    func page(_ request: KeyboardRequest) async throws -> KeyboardPage
     func setPinned(_ pinned: Bool, for item: SnippetSummary) async throws -> SnippetSummary
 }
 
 enum KeyboardReadError: Error, Equatable {
-    case notPrepared, changed
+    case notPrepared
+    case changed
 }

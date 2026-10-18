@@ -1,38 +1,25 @@
 import AppMacros
-import SwiftUI
 import ScopedAnimation
+import SwiftUI
 
-/// Observes transient feedback separately from the list's persisted content.
-@Equatable
+@MainActor @Equatable
 struct LibraryNotice: View {
-    // Refresh parent-owned inputs even when the macro excludes their values.
     private let inputRevision = UUID()
-
     @SkipEquatable let model: LibraryModel
-    let restore: (UUID) -> Void
-    // Keep the last card laid out while fading out; expiry must not tear down its host.
-    @State private var lastNotice: LibraryModel.Notice?
-
+    @SkipEquatable let taskOwner: LibraryTaskOwner
+    @State private var displayed: LibraryModel.Notice?
     var body: some View {
-        AnimationScope(.smooth(duration: 0.3), value: model.notice != nil, name: "Library.Notice") {
-            // Animate a persistent container, including the first card's insertion.
-            ZStack {
-                if let notice = model.notice ?? lastNotice {
-                    LibraryNoticeContent(notice: notice,
-                                         isRestoring: notice.undoID.map { model.restoringIDs.contains($0) } ?? false,
-                                         restore: restore)
+        AnimationScope(.smooth(duration: 0.3), value: model.notice?.id, name: "Library.Notice") {
+            Group {
+                if let notice = model.notice ?? displayed {
+                    LibraryNoticeContent(notice: notice, isRestoring: notice.undoID.map { model.restoringIDs.contains($0) } ?? false, model: model, taskOwner: taskOwner)
                 }
             }
             .opacity(model.notice == nil ? 0 : 1)
             .offset(y: model.notice == nil ? 8 : 0)
-            .allowsHitTesting(model.notice != nil)
-            .accessibilityHidden(model.notice == nil)
+            .allowsHitTesting(model.notice != nil).accessibilityHidden(model.notice == nil)
         }
-        .onChange(of: model.notice, initial: true) {
-            if let notice = model.notice { lastNotice = notice }
-        }
-        .task(id: model.notice?.id) {
-            if let id = model.notice?.id { await model.expireNotice(id: id) }
-        }
+        .onChange(of: model.notice, initial: true) { if let notice = model.notice { displayed = notice } }
+        .task(id: model.notice?.id) { if let notice = model.notice { await model.expireNotice(id: notice.id) } }
     }
 }

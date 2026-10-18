@@ -3,53 +3,28 @@ import Observation
 
 @MainActor @Observable
 final class LibraryModel {
-    struct VariableCopy: Identifiable {
-        let id = UUID()
-        let snippetID: UUID
-        let title: String
-        let template: SnippetVariables
-        let context: NoticeContext
-        let availability: FeatureAvailability
-    }
-    private let store: any LibraryStorage
-    private let effects: any LibraryEffects
-    private let usageRecorder: any SnippetUsageRecording
-    private let proIsActive: () -> Bool
-    private let now: () -> Date
-    private(set) var evaluatedAt: Date
-    private struct PendingUse {
-        enum State { case pending, recording, failed(StoreError) }
-        let use: SnippetUse
-        var state: State = .pending
-        var failure: StoreError? {
-            if case .failed(let message) = state { return message }
-            return nil
-        }
-    }
-    private var pendingUses: [PendingUse] = []
     enum EditorSource { case new, snippet(UUID), draft(UUID) }
 
-    /// A visit to a visible surface. Leaving invalidates even work that finishes after returning.
     struct NoticeContext: Equatable {
         let id = UUID()
         let isPresented: Bool
     }
-    private(set) var noticeContext = NoticeContext(isPresented: true)
-    private let noticeSleep: (ContinuousClock.Instant) async throws -> Void
-    private var noticeDeadline: ContinuousClock.Instant?
-    private(set) var restoringIDs: Set<UUID> = []
 
     struct Notice: Identifiable, Equatable {
         enum Origin: Equatable { case library, trash }
+        enum Result: Equatable {
+            case copied
+            case deleted(SnippetSummary)
+            case restored(SnippetSummary)
+            case permanentlyDeleted(SnippetSummary)
+        }
         let id = UUID()
         let origin: Origin
-        enum Result: Equatable {
-            case copied, deleted(SnippetSummary), restored(SnippetSummary), permanentlyDeleted(SnippetSummary)
-        }
         let result: Result
+
         var undoID: UUID? {
-            if case .deleted(let item) = result { return item.id }
-            return nil
+            guard case .deleted(let item) = result else { return nil }
+            return item.id
         }
         var duration: Duration { undoID == nil ? .seconds(2) : .seconds(6) }
     }
@@ -62,64 +37,50 @@ final class LibraryModel {
         let recovery: Recovery
     }
 
-    private var content: LibraryReadState
+    struct VariableCopy: Identifiable {
+        let id = UUID()
+        let snippetID: UUID
+        let title: String
+        let template: SnippetVariables
+        let context: NoticeContext
+        let availability: FeatureAvailability
+    }
+
+    private struct CopyRecord {
+        enum Status { case waiting, saving, failed(StoreError) }
+        let use: SnippetUse
+        var status: Status = .waiting
+    }
+
+    private struct MutationKey: Hashable {
+        enum Kind: Hashable { case pin, delete, restore, permanentlyDelete }
+        let kind: Kind
+        let id: UUID
+    }
+
     let surface: LibrarySurface
-    private let libraryReader: any LibraryReading
-    private let libraryOpener: any LibraryOpening
-    var request: LibraryRequest { content.request }
-    var snapshot: LibraryReadState.Snapshot? { content.snapshot }
-    var page: LibraryPage { snapshot?.page ?? LibraryPage() }
-    var contentRequest: LibraryRequest { content.contentRequest }
-    var contentIsCurrent: Bool { content.contentIsCurrent }
-    var loading: Bool { content.loading }
-    var loadingInterrupted: Bool { content.interrupted }
-    var readDemand: LibraryRequest? { content.demand }
-    var refreshOnAppearance: Bool { content.refreshOnAppearance }
+    private let store: any LibraryStorage
+    private let effects: any LibraryEffects
+    private let reader: any LibraryReading
+    private let opener: any LibraryOpening
+    private let recorder: any SnippetUsageRecording
+    private let proIsActive: () -> Bool
+    private let now: () -> Date
+    private let noticeSleep: (ContinuousClock.Instant) async throws -> Void
+    private var reads: LibraryReadState
+    private var openingRequest: UUID?
+    private var inFlightMutations: Set<MutationKey> = []
+    private var copies: [UUID: CopyRecord] = [:]
+    private var operationFailure: Failure?
+    private var noticeDeadline: ContinuousClock.Instant?
+    private(set) var noticeContext = NoticeContext(isPresented: true)
     private(set) var notice: Notice?
     private(set) var variableCopy: VariableCopy?
     private(set) var feedback = 0
     private(set) var mutationRevision = 0
-    private var operationFailure: Failure?
-    var failure: Failure? {
-        if let operationFailure { return operationFailure }
-        if let reason = pendingUses.lazy.compactMap(\.failure).first {
-            return Failure(operation: .recordUse, reason: reason, recovery: .retryUsage)
-        }
-        guard let error = content.error else { return nil }
-        return Failure(operation: .load, reason: error as? StoreError ?? .database, recovery: .reload)
-    }
-
+    private(set) var evaluatedAt: Date
+    private(set) var restoringIDs: Set<UUID> = []
     var editor: Draft?
-    private var opening: UUID?
-
-    var query: String {
-        get { content.query }
-        set { content.search(newValue) }
-    }
-    var filter: LibraryFilter {
-        get { content.selection }
-        set { content.select(newValue) }
-    }
-    var items: [SnippetSummary] { page.items }
-    var drafts: [DraftSummary] { page.drafts }
-    var hasMore: Bool { contentIsCurrent && page.hasMore }
-    var isSearching: Bool { content.isSearching }
-    var includesDrafts: Bool {
-        surface == .library && !isSearching && contentRequest.includesDrafts
-    }
-    var canShowAll: Bool { !isSearching && surface == .library && filter == .pinned }
-    var contentIsEmpty: Bool { items.isEmpty && (!includesDrafts || drafts.isEmpty) }
-    var showsEmptyState: Bool { contentIsCurrent && contentIsEmpty && !loading && !loadingInterrupted && failure == nil }
-
-    func unusedSince(for item: SnippetSummary) -> Date? {
-        guard contentRequest.filter != .trash,
-              let usage = item.usage, usage.isDeletionCandidate(at: evaluatedAt) else { return nil }
-        return usage.lastUsedAt
-    }
-
-    func showMore() { content.showMore() }
-    func showAll() { content.showAll() }
-    func dismissFailure() { operationFailure = nil }
 
     init(store: any LibraryStorage, effects: any LibraryEffects, surface: LibrarySurface = .library,
          libraryReader: (any LibraryReading)? = nil, libraryOpener: (any LibraryOpening)? = nil,
@@ -127,21 +88,270 @@ final class LibraryModel {
          now: @escaping () -> Date = Date.init,
          noticeSleep: @escaping (ContinuousClock.Instant) async throws -> Void = { try await ContinuousClock().sleep(until: $0) }) {
         self.store = store
-        self.surface = surface
-        content = LibraryReadState(surface: surface)
         self.effects = effects
-        self.libraryReader = libraryReader ?? store
-        self.libraryOpener = libraryOpener ?? store
-        self.usageRecorder = usageRecorder ?? store
+        self.surface = surface
+        reader = libraryReader ?? store
+        opener = libraryOpener ?? store
+        recorder = usageRecorder ?? store
         self.proIsActive = proIsActive
         self.now = now
         self.noticeSleep = noticeSleep
+        reads = LibraryReadState(surface: surface)
         evaluatedAt = now()
     }
 
-    func clearNotice() {
-        notice = nil
-        noticeDeadline = nil
+    var query: String {
+        get { reads.query }
+        set { reads.search(newValue) }
+    }
+    var filter: LibraryFilter {
+        get { reads.selection }
+        set { reads.select(newValue) }
+    }
+    var request: LibraryRequest { reads.request }
+    var snapshot: LibraryReadState.Snapshot? { reads.snapshot }
+    var page: LibraryPage { snapshot?.page ?? LibraryPage() }
+    var items: [SnippetSummary] { page.items }
+    var drafts: [DraftSummary] { page.drafts }
+    var contentRequest: LibraryRequest { reads.contentRequest }
+    var contentIsCurrent: Bool { reads.contentIsCurrent }
+    var loading: Bool { reads.loading }
+    var loadingInterrupted: Bool { reads.interrupted }
+    var readDemand: LibraryRequest? { reads.demand }
+    var refreshOnAppearance: Bool { reads.refreshOnAppearance }
+    var isSearching: Bool { reads.isSearching }
+    var hasMore: Bool { contentIsCurrent && page.hasMore }
+    var includesDrafts: Bool { surface == .library && !isSearching && contentRequest.includesDrafts }
+    var canShowAll: Bool { surface == .library && filter == .pinned && !isSearching }
+    var contentIsEmpty: Bool { items.isEmpty && (!includesDrafts || drafts.isEmpty) }
+    var showsEmptyState: Bool { contentIsCurrent && contentIsEmpty && !loading && !loadingInterrupted && failure == nil }
+
+    var failure: Failure? {
+        if let operationFailure { return operationFailure }
+        for record in copies.values {
+            if case .failed(let reason) = record.status {
+                return Failure(operation: .recordUse, reason: reason, recovery: .retryUsage)
+            }
+        }
+        guard let error = reads.error else { return nil }
+        return Failure(operation: .load, reason: storeError(error), recovery: .reload)
+    }
+
+    func unusedSince(for item: SnippetSummary) -> Date? {
+        guard contentRequest.filter != .trash, let usage = item.usage,
+              usage.isDeletionCandidate(at: evaluatedAt) else { return nil }
+        return usage.lastUsedAt
+    }
+
+    func showAll() { reads.showAll() }
+    func showMore() { reads.showMore() }
+    func dismissFailure() { operationFailure = nil }
+
+    func refresh(includingCollections: Bool = false) async {
+        await fetch(includingCollections: includingCollections, acceptsCancellation: true)
+    }
+
+    func reload() async {
+        guard !Task.isCancelled else { return }
+        operationFailure = nil
+        await refresh(includingCollections: true)
+    }
+
+    private func fetch(includingCollections: Bool, acceptsCancellation: Bool) async {
+        guard !acceptsCancellation || !Task.isCancelled else { return }
+        let work = reads.begin(includingCollections: includingCollections)
+        defer { reads.end(work) }
+        do {
+            let pages = try await reader.libraries(work.requests)
+            if acceptsCancellation { try Task.checkCancellation() }
+            if try reads.accept(pages, from: work) { evaluatedAt = now() }
+        } catch {
+            let interrupted = Task.isCancelled || error is CancellationError
+            reads.complete(interrupted ? .cancelled : .failed(error), from: work)
+        }
+    }
+
+    func cancelOpening(id: UUID) {
+        guard openingRequest == id else { return }
+        openingRequest = nil
+    }
+
+    func open(_ source: EditorSource = .new, requestID: UUID = UUID()) async {
+        guard editor == nil, openingRequest == nil, !Task.isCancelled else { return }
+        openingRequest = requestID
+        operationFailure = nil
+        defer {
+            if openingRequest == requestID { openingRequest = nil }
+        }
+        do {
+            let input = try await obtainDraft(source)
+            guard !Task.isCancelled, openingRequest == requestID else {
+                await releaseUnpresented(input, source: source)
+                return
+            }
+            setNoticePresentation(false)
+            editor = input
+        } catch {
+            guard !(error is CancellationError), !Task.isCancelled, openingRequest == requestID else { return }
+            recordFailure(.open, error)
+        }
+    }
+
+    private func releaseUnpresented(_ input: Draft, source: EditorSource) async {
+        switch source {
+        case .new: try? await store.keepDraft(input)
+        case .snippet, .draft: break
+        }
+    }
+
+    private func obtainDraft(_ source: EditorSource) async throws -> Draft {
+        switch source {
+        case .draft(let id): try await opener.draft(id)
+        case .snippet(let id): try await opener.editingDraft(for: id)
+        case .new: try await opener.beginDraft(target: .new, body: "")
+        }
+    }
+
+    func copy(_ id: UUID, context: NoticeContext? = nil) async {
+        guard !Task.isCancelled else { return }
+        operationFailure = nil
+        let visit = context ?? noticeContext
+        do {
+            let text = try await store.savedBody(id)
+            try Task.checkCancellation()
+            let template = SnippetVariables(text)
+            guard template.names.isEmpty else {
+                variableCopy = VariableCopy(snippetID: id, title: items.first { $0.id == id }?.title ?? "",
+                    template: template, context: visit,
+                    availability: FeatureAccess.availability(.variableReplacement, pro: proIsActive()))
+                return
+            }
+            await publishCopy(text, itemID: id, visit: visit)
+        } catch {
+            guard !Task.isCancelled, !(error is CancellationError) else { return }
+            recordFailure(.copy, error)
+        }
+    }
+
+    func cancelVariableCopy() { variableCopy = nil }
+
+    func completeVariableCopy(id: UUID, values: [VariableName: String]) async {
+        guard !Task.isCancelled, let pending = variableCopy, pending.id == id,
+              pending.availability.isAvailable,
+              FeatureAccess.availability(.variableReplacement, pro: proIsActive()).isAvailable,
+              let text = pending.template.filled(with: values) else { return }
+        variableCopy = nil
+        do {
+            let current = try await store.savedBody(pending.snippetID)
+            try Task.checkCancellation()
+            guard SnippetText.hasSameBytes(current, pending.template.body) else { throw StoreError.conflict }
+            await publishCopy(text, itemID: pending.snippetID, visit: pending.context)
+        } catch {
+            guard !Task.isCancelled, !(error is CancellationError) else { return }
+            recordFailure(.copy, error)
+        }
+    }
+
+    private func publishCopy(_ text: String, itemID: UUID, visit: NoticeContext) async {
+        effects.copy(text)
+        let record = SnippetUse(id: UUID(), snippetID: itemID, completedAt: now())
+        copies[record.id] = CopyRecord(use: record)
+        publish(.copied, visit: visit)
+        await recordCopy(record.id)
+        await fetch(includingCollections: true, acceptsCancellation: false)
+    }
+
+    func retryUsageRecording() async {
+        guard !Task.isCancelled else { return }
+        let ids = Array(copies.keys)
+        for id in ids { await recordCopy(id) }
+        await fetch(includingCollections: true, acceptsCancellation: false)
+    }
+
+    private func recordCopy(_ id: UUID) async {
+        guard var record = copies[id] else { return }
+        if case .saving = record.status { return }
+        record.status = .saving
+        copies[id] = record
+        do {
+            try await recorder.recordUse(record.use)
+            copies.removeValue(forKey: id)
+            mutationRevision += 1
+        } catch {
+            let reason = storeError(error)
+            guard reason != .missing else {
+                copies.removeValue(forKey: id)
+                operationFailure = Failure(operation: .recordUse, reason: reason, recovery: .dismiss)
+                return
+            }
+            copies[id]?.status = .failed(reason)
+        }
+    }
+
+    func pin(_ item: SnippetSummary) async {
+        let key = MutationKey(kind: .pin, id: item.id)
+        guard !Task.isCancelled, inFlightMutations.insert(key).inserted else { return }
+        defer { inFlightMutations.remove(key) }
+        operationFailure = nil
+        do {
+            try await store.setPinned(!item.pinned, id: item.id)
+            mutationRevision += 1
+            await fetch(includingCollections: true, acceptsCancellation: false)
+        } catch { recordFailure(.pin, error) }
+    }
+
+    func delete(_ id: UUID, context: NoticeContext? = nil) async {
+        await change(.delete, id: id, context: context)
+    }
+
+    func restore(_ id: UUID, context: NoticeContext? = nil) async {
+        await change(.restore, id: id, context: context)
+    }
+
+    func permanentlyDelete(_ id: UUID, context: NoticeContext? = nil) async {
+        await change(.permanentlyDelete, id: id, context: context)
+    }
+
+    private func change(_ kind: MutationKey.Kind, id: UUID, context: NoticeContext?) async {
+        let key = MutationKey(kind: kind, id: id)
+        guard !Task.isCancelled, inFlightMutations.insert(key).inserted else { return }
+        if kind == .restore { restoringIDs.insert(id) }
+        defer {
+            inFlightMutations.remove(key)
+            if kind == .restore { restoringIDs.remove(id) }
+        }
+        operationFailure = nil
+        let visit = context ?? noticeContext
+        let mutation: SnippetMutation
+        let operation: Failure.Operation
+        switch kind {
+        case .delete: mutation = .delete; operation = .delete
+        case .restore: mutation = .restore; operation = .restore
+        case .permanentlyDelete: mutation = .permanentlyDelete; operation = .permanentlyDelete
+        case .pin: return
+        }
+        do {
+            let item = try await store.mutate(mutation, id: id)
+            mutationRevision += 1
+            switch kind {
+            case .delete: publish(.deleted(item), visit: visit)
+            case .restore: publish(.restored(item), visit: visit)
+            case .permanentlyDelete: publish(.permanentlyDeleted(item), visit: visit)
+            case .pin: break
+            }
+            await fetch(includingCollections: true, acceptsCancellation: false)
+        } catch {
+            let reason = storeError(error)
+            let recovery: Failure.Recovery = kind == .restore && reason != .missing ? .retryRestore(id)
+                : reason == .missing ? .reload : .dismiss
+            operationFailure = Failure(operation: operation, reason: reason, recovery: recovery)
+        }
+    }
+
+    func undoNotice(_ id: UUID, context: NoticeContext? = nil) async {
+        guard let shown = notice, shown.id == id, let target = shown.undoID else { return }
+        await restore(target, context: context)
+        if operationFailure != nil, notice?.id == id { clearNotice() }
     }
 
     func setNoticePresentation(_ isPresented: Bool) {
@@ -150,214 +360,38 @@ final class LibraryModel {
         clearNotice()
     }
 
+    func clearNotice() {
+        notice = nil
+        noticeDeadline = nil
+    }
+
     func expireNotice(id: UUID) async {
-        guard let notice, notice.id == id else { return }
-        // Start when the UI displays the notice; remounts retain the original deadline.
-        let deadline = noticeDeadline ?? ContinuousClock.now.advanced(by: notice.duration)
+        guard let shown = notice, shown.id == id else { return }
+        let deadline = noticeDeadline ?? ContinuousClock.now.advanced(by: shown.duration)
         noticeDeadline = deadline
         do {
             try await noticeSleep(deadline)
             try Task.checkCancellation()
-            guard self.notice?.id == id else { return }
-            clearNotice()
-        } catch is CancellationError { }
-        catch { if self.notice?.id == id { report(.notice, error) } }
-    }
-
-    /// An explicit recovery reload clears the acknowledged operation failure.
-    func reload() async {
-        guard !Task.isCancelled else { return }
-        operationFailure = nil
-        await refresh(includingCollections: true)
-    }
-
-    func refresh(includingCollections: Bool = false) async {
-        guard !Task.isCancelled else { return }
-        let read = content.begin(includingCollections: includingCollections)
-        defer { content.end(read) }
-        do {
-            let pages = try await libraryReader.libraries(read.requests)
-            try Task.checkCancellation()
-            if try content.accept(pages, from: read) { evaluatedAt = now() }
+            if notice?.id == id { clearNotice() }
         } catch {
-            let outcome: LibraryReadState.Outcome = Task.isCancelled || error is CancellationError ? .cancelled : .failed(error)
-            content.complete(outcome, from: read)
+            guard notice?.id == id, !(error is CancellationError), !Task.isCancelled else { return }
+            recordFailure(.notice, error)
         }
     }
 
-    /// Invalidates only this owner's presentation request, without cancelling accepted writes.
-    func cancelOpening(id: UUID) {
-        if opening == id { opening = nil }
-    }
-
-    func open(_ source: EditorSource = .new, requestID: UUID = UUID()) async {
-        guard !Task.isCancelled, editor == nil, opening == nil else { return }
-        opening = requestID
-        operationFailure = nil
-        defer { if opening == requestID { opening = nil } }
-        do {
-            // Read at the time of opening; rows contain no editable snapshot.
-            let draft: Draft
-            switch source {
-            case .new: draft = try await libraryOpener.beginDraft(target: .new, body: "")
-            case .snippet(let id): draft = try await libraryOpener.editingDraft(for: id)
-            case .draft(let id): draft = try await libraryOpener.draft(id)
-            }
-            guard !Task.isCancelled, opening == requestID else {
-                // No user input exists for a new, unpresented draft. Existing drafts stay intact.
-                switch source {
-                case .new: try? await store.keepDraft(draft)
-                case .snippet(_), .draft(_): break
-                }
-                return
-            }
-            setNoticePresentation(false)
-            editor = draft
-        } catch is CancellationError { }
-        catch {
-            guard !Task.isCancelled, opening == requestID else { return }
-            report(.open, error)
-        }
-    }
-
-    func copy(_ id: UUID, context: NoticeContext? = nil) async {
-        guard !Task.isCancelled else { return }
-        let context = context ?? noticeContext
-        operationFailure = nil
-        do {
-            try Task.checkCancellation()
-            let body = try await store.savedBody(id)
-            try Task.checkCancellation()
-            let template = SnippetVariables(body)
-            if !template.names.isEmpty {
-                variableCopy = VariableCopy(snippetID: id,
-                    title: items.first(where: { $0.id == id })?.title ?? "",
-                    template: template, context: context,
-                    availability: FeatureAccess.availability(.variableReplacement, pro: proIsActive()))
-                return
-            }
-            await completeCopy(body, snippetID: id, context: context)
-        } catch is CancellationError { }
-        catch { if !Task.isCancelled { report(.copy, error) } }
-    }
-
-    func cancelVariableCopy() { variableCopy = nil }
-
-    func completeVariableCopy(id: UUID, values: [VariableName: String]) async {
-        guard let pending = variableCopy, pending.id == id, pending.availability.isAvailable,
-              let filled = pending.template.filled(with: values) else { return }
-        variableCopy = nil
-        do {
-            let current = try await store.savedBody(pending.snippetID)
-            guard current.utf8.elementsEqual(pending.template.body.utf8) else { throw StoreError.conflict }
-            try Task.checkCancellation()
-            await completeCopy(filled, snippetID: pending.snippetID, context: pending.context)
-        } catch is CancellationError { }
-        catch { if !Task.isCancelled { report(.copy, error) } }
-    }
-
-    private func completeCopy(_ text: String, snippetID: UUID, context: NoticeContext) async {
-        effects.copy(text)
-        let use = SnippetUse(id: UUID(), snippetID: snippetID, completedAt: now())
-        announce(.copied, context: context)
-        pendingUses.append(PendingUse(use: use))
-        await persistUse(use)
-        await refresh(includingCollections: true)
-    }
-
-    /// Retries the completed copy's record, never the clipboard effect.
-    func retryUsageRecording() async {
-        guard !Task.isCancelled else { return }
-        for pending in pendingUses { await persistUse(pending.use) }
-        await refresh(includingCollections: true)
-    }
-
-    private func persistUse(_ use: SnippetUse) async {
-        guard let index = pendingUses.firstIndex(where: { $0.use.id == use.id }) else { return }
-        if case .recording = pendingUses[index].state { return }
-        pendingUses[index].state = .recording
-        do {
-            try await usageRecorder.recordUse(use)
-            mutationRevision += 1
-            pendingUses.removeAll { $0.use.id == use.id }
-        } catch StoreError.missing {
-            pendingUses.removeAll { $0.use.id == use.id }
-            operationFailure = Failure(operation: .recordUse, reason: .missing, recovery: .dismiss)
-        } catch {
-            if let index = pendingUses.firstIndex(where: { $0.use.id == use.id }) {
-                pendingUses[index].state = .failed(error as? StoreError ?? .database)
-            }
-        }
-    }
-
-    func pin(_ item: SnippetSummary) async {
-        guard !Task.isCancelled else { return }
-        operationFailure = nil
-        do {
-            try await store.setPinned(!item.pinned, id: item.id)
-            mutationRevision += 1
-            await refresh(includingCollections: true)
-        }
-        catch { report(.pin, error) }
-    }
-
-    func delete(_ id: UUID, context: NoticeContext? = nil) async {
-        guard !Task.isCancelled else { return }
-        let context = context ?? noticeContext
-        operationFailure = nil
-        do {
-            let result = try await store.mutate(.delete, id: id)
-            mutationRevision += 1
-            announce(.deleted(result), context: context)
-            await refresh(includingCollections: true)
-        } catch { report(.delete, error) }
-    }
-
-    func undoNotice(_ id: UUID, context: NoticeContext? = nil) async {
-        guard let notice, notice.id == id, let target = notice.undoID else { return }
-        await restore(target, context: context)
-        if operationFailure != nil, self.notice?.id == id { clearNotice() }
-    }
-
-    func restore(_ id: UUID, context: NoticeContext? = nil) async {
-        guard !Task.isCancelled, restoringIDs.insert(id).inserted else { return }
-        defer { restoringIDs.remove(id) }
-        let context = context ?? noticeContext
-        operationFailure = nil
-        do {
-            let result = try await store.mutate(.restore, id: id)
-            mutationRevision += 1
-            announce(.restored(result), context: context)
-            await refresh(includingCollections: true)
-        } catch {
-            operationFailure = Failure(operation: .restore, reason: error as? StoreError ?? .database,
-                                       recovery: error as? StoreError == .missing ? .reload : .retryRestore(id))
-        }
-    }
-
-    func permanentlyDelete(_ id: UUID, context: NoticeContext? = nil) async {
-        guard !Task.isCancelled else { return }
-        let context = context ?? noticeContext
-        operationFailure = nil
-        do {
-            let result = try await store.mutate(.permanentlyDelete, id: id)
-            mutationRevision += 1
-            announce(.permanentlyDeleted(result), context: context)
-            await refresh(includingCollections: true)
-        } catch { report(.permanentlyDelete, error) }
-    }
-
-    private func report(_ operation: Failure.Operation, _ error: Error) {
-        operationFailure = Failure(operation: operation, reason: error as? StoreError ?? .database,
-                                   recovery: error as? StoreError == .missing ? .reload : .dismiss)
-    }
-
-    private func announce(_ result: Notice.Result, context: NoticeContext) {
-        guard context == noticeContext, context.isPresented else { return }
-        let value = Notice(origin: surface.noticeOrigin, result: result)
-        notice = value
+    private func publish(_ result: Notice.Result, visit: NoticeContext) {
+        guard visit.isPresented, visit == noticeContext else { return }
+        let message = Notice(origin: surface.noticeOrigin, result: result)
+        notice = message
         noticeDeadline = nil
         feedback += 1
-        effects.announce(value)
+        effects.announce(message)
     }
+
+    private func recordFailure(_ operation: Failure.Operation, _ error: any Error) {
+        let reason = storeError(error)
+        operationFailure = Failure(operation: operation, reason: reason, recovery: reason == .missing ? .reload : .dismiss)
+    }
+
+    private func storeError(_ error: any Error) -> StoreError { error as? StoreError ?? .database }
 }

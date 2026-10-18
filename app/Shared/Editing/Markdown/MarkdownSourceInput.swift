@@ -2,8 +2,6 @@ import AppMacros
 import SwiftUI
 import UIKit
 
-/// UIKit exposes marked text and in-place attributes so styling never replaces
-/// Japanese composition, the selection, undo history or the Markdown source.
 @Equatable(.mainActor)
 struct MarkdownSourceInput: UIViewRepresentable {
     private let inputRevision = UUID()
@@ -11,79 +9,113 @@ struct MarkdownSourceInput: UIViewRepresentable {
     @SkipEquatable let focus: FocusState<EditorField?>.Binding
     @Binding var selection: NSRange?
     let document: MarkdownDocument
+    let editing: Bool
 
     func makeUIView(context: Context) -> MarkdownSourceTextView {
-        let view = MarkdownSourceTextView()
-        view.delegate = context.coordinator
-        view.isScrollEnabled = false
-        view.backgroundColor = .clear
-        view.textContainerInset = .zero
-        view.textContainer.lineFragmentPadding = 0
-        view.typingAttributes = MarkdownStyle().inputAttributes
-        view.textColor = .label
-        view.autocapitalizationType = .none
-        view.autocorrectionType = .no
-        view.smartQuotesType = .no
-        view.smartDashesType = .no
-        view.smartInsertDeleteType = .no
-        view.adjustsFontForContentSizeCategory = false
-        view.accessibilityIdentifier = "editor.body"
-        view.accessibilityLabel = "本文"
-        view.accessibilityHint = "Markdownの見出し、太字、斜体、コードを入力できます。記号もそのまま保存します。"
-        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return view
+        let input = MarkdownSourceTextView()
+        input.delegate = context.coordinator
+        context.coordinator.attach(input)
+        input.backgroundColor = .clear
+        input.isScrollEnabled = false
+        input.textContainerInset = .zero
+        input.textContainer.lineFragmentPadding = 0
+        input.typingAttributes = MarkdownStyle().inputAttributes
+        input.adjustsFontForContentSizeCategory = false
+        input.autocorrectionType = .no
+        input.autocapitalizationType = .none
+        input.smartDashesType = .no
+        input.smartQuotesType = .no
+        input.smartInsertDeleteType = .no
+        input.accessibilityIdentifier = "editor.body"
+        input.accessibilityLabel = "本文"
+        input.accessibilityHint = "Markdown記号も空白と改行も、そのまま保存します。"
+        input.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return input
     }
 
-    func updateUIView(_ view: MarkdownSourceTextView, context: Context) {
-        context.coordinator.parent = self
-        if view.isEditable != context.environment.isEnabled { view.isEditable = context.environment.isEnabled }
-        if view.markedTextRange == nil {
-            let bodyChanged = !SnippetText.hasSameBytes(view.text, text)
-            if bodyChanged {
-                let desiredSelection = selection ?? view.selectedRange
-                view.text = text
-                let start = min(desiredSelection.location, view.textStorage.length)
-                view.selectedRange = NSRange(location: start,
-                                             length: min(desiredSelection.length, view.textStorage.length - start))
+    func updateUIView(_ input: MarkdownSourceTextView, context: Context) {
+        context.coordinator.connection = self
+        context.coordinator.synchronizing = true
+        defer { context.coordinator.synchronizing = false }
+        input.isEditable = context.environment.isEnabled && editing
+        if input.markedTextRange == nil {
+            if !SnippetText.hasSameBytes(input.text, text) {
+                let desired = selection ?? input.selectedRange
+                input.text = text
+                input.invalidateStyling()
+                let start = max(0, min(desired.location, input.textStorage.length))
+                input.selectedRange = NSRange(location: start,
+                    length: max(0, min(desired.length, input.textStorage.length - start)))
             }
-            if !bodyChanged, let selection, view.selectedRange != selection,
-               NSMaxRange(selection) <= view.textStorage.length {
-                view.selectedRange = selection
+            if let selection, selection != input.selectedRange,
+               selection.location >= 0, selection.length >= 0,
+               selection.location <= input.textStorage.length,
+               selection.length <= input.textStorage.length - selection.location {
+                input.selectedRange = selection
             }
-            view.apply(document)
+            input.apply(document)
         }
-        // Reconcile requests once; repeated updates must not reclaim focus from the title.
-        let wantsFocus = focus.wrappedValue == .body && view.isEditable
-        if context.coordinator.requestedFocus != wantsFocus {
-            context.coordinator.requestedFocus = wantsFocus
-            view.wantsFocus = wantsFocus
-            if wantsFocus {
-                if view.window != nil && !view.isFirstResponder { view.becomeFirstResponder() }
-            }
-            if !wantsFocus && view.isFirstResponder { view.resignFirstResponder() }
+        let requested = focus.wrappedValue == .body && input.isEditable
+        input.wantsFocus = requested
+        if context.coordinator.requestedFocus != requested {
+            context.coordinator.requestedFocus = requested
+            if requested && input.window != nil && !input.isFirstResponder { input.becomeFirstResponder() }
+            if !requested && input.isFirstResponder { input.resignFirstResponder() }
         }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: MarkdownSourceTextView, context: Context) -> CGSize? {
         guard let width = proposal.width, width > 0 else { return nil }
-        return CGSize(width: width, height: max(180, uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height))
+        let measured = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: max(180, measured.height))
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeCoordinator() -> Coordinator { Coordinator(connection: self) }
+
+    static func dismantleUIView(_ input: MarkdownSourceTextView, coordinator: Coordinator) {
+        input.wantsFocus = false
+        input.delegate = nil
+        coordinator.detach()
+    }
 
     final class Coordinator: NSObject, UITextViewDelegate {
-        var parent: MarkdownSourceInput
+        var connection: MarkdownSourceInput
+        var synchronizing = false
         var requestedFocus: Bool?
-        init(_ parent: MarkdownSourceInput) { self.parent = parent }
-        func textViewDidBeginEditing(_ textView: UITextView) { parent.focus.wrappedValue = .body }
+        private weak var input: UITextView?
+
+        init(connection: MarkdownSourceInput) { self.connection = connection }
+
+        func attach(_ input: UITextView) {
+            self.input = input
+            NotificationCenter.default.addObserver(self, selector: #selector(keyboardHidden(_:)),
+                                                   name: UIResponder.keyboardDidHideNotification, object: nil)
+        }
+
+        func detach() {
+            NotificationCenter.default.removeObserver(self, name: UIResponder.keyboardDidHideNotification, object: nil)
+            input = nil
+        }
+
+        @objc private func keyboardHidden(_: Notification) {
+            guard !synchronizing, let input, !input.isFirstResponder, connection.focus.wrappedValue == .body else { return }
+            connection.focus.wrappedValue = nil
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            guard !synchronizing, connection.focus.wrappedValue != .body else { return }
+            connection.focus.wrappedValue = .body
+        }
         func textViewDidChange(_ textView: UITextView) {
+            guard !synchronizing else { return }
+            connection.text = textView.text
             (textView as? MarkdownSourceTextView)?.invalidateStyling()
-            parent.text = textView.text
             textView.invalidateIntrinsicContentSize()
         }
         func textViewDidChangeSelection(_ textView: UITextView) {
-            guard textView.markedTextRange == nil, parent.selection != textView.selectedRange else { return }
-            parent.selection = textView.selectedRange
+            guard !synchronizing, textView.markedTextRange == nil,
+                  connection.selection != textView.selectedRange else { return }
+            connection.selection = textView.selectedRange
         }
     }
 }

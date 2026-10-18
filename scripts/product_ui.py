@@ -103,8 +103,21 @@ class ProductRun(Run):
                           '--duration', '.4', '--post-delay', '.5', '--device', self.args.device])
             data = self.ui('mode-' + label + f'-revealed-{attempt}')
 
+    def _settled_input(self, identifier, name):
+        previous = None
+
+        def settled(data):
+            nonlocal previous
+            entry = unique_entry([e for e in data['entries'] if e.get('uniqueId') == identifier], identifier)
+            layout = (dict(entry['frame']), editor_viewport(data)) if entry is not None else None
+            unchanged = layout is not None and layout == previous
+            previous = layout
+            return unchanged
+
+        return self.wait_ui(name, settled)
+
     def _reveal_input(self, identifier):
-        data = self.wait_ui(identifier + '-present', lambda d: identifier in identifiers(d))
+        data = self._settled_input(identifier, identifier + '-present')
         for attempt in range(5):
             frame = next(e['frame'] for e in data['entries'] if e.get('uniqueId') == identifier)
             top, bottom = editor_viewport(data)
@@ -118,7 +131,8 @@ class ProductRun(Run):
             x = data['screen']['width'] * .35
             self.command(['sim-use', 'swipe', '--from', f'{x},{start}', '--to', f'{x},{end}',
                           '--duration', '.4', '--post-delay', '.5', '--device', self.args.device])
-            data = self.ui(identifier + f'-revealed-{attempt}')
+            # Interactive keyboard dismissal can move a field after the swipe completes.
+            data = self._settled_input(identifier, identifier + f'-revealed-{attempt}')
 
     def _focus_input(self, identifier):
         x, y = input_point(self._reveal_input(identifier), identifier)

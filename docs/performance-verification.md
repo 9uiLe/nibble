@@ -112,11 +112,13 @@ xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
 
 ## Simulator計測の既知の制約
 
-説明イラストの操作条件は[製品の検証手順](ios-verification.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Riveの補助指標](#riveの補助指標)を参照する。runtimeのフレーム評価であるadvanceの観測は、以下のInstrumentsの描画指標を代替しない。
+説明イラストの操作条件は[製品の検証手順](ios-verification.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Riveの補助指標](#riveの補助指標)を参照する。advance呼出直前の観測は、以下のInstrumentsの描画指標を代替しない。
 
 macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
 
 この環境でフレーム時間・hitch・CPU・メモリ・電力を取得済みとは扱わない。環境更新時は上記の短時間接続確認から再判定する。モデルとSQLiteの測定値は、OSの入力欄への反映時間や描画指標へ換算しない。
+
+macOS 27.0・Xcode 27.0・同じiOS 26.5（23F77）での再確認では、Time Profilerの5秒接続が正常終了し、対象PIDのCPUサンプル1件をexportできた。これは待機中の接続確認であり、製品操作のCPU負荷、フレーム時間・hitch・メモリ・電力の比較を実施した結果ではない。
 
 ## Riveの補助指標
 
@@ -126,7 +128,9 @@ macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小C�
 python3 scripts/verify.py run --scope performance --device "$NIBBLE_SIMULATOR"
 ```
 
-同じ専用Simulator、iOS 26.5、Release、375×667ptで各説明画面を準備1回・再訪5回測る。録画・Instrumentsとの同時実行を避ける。View配置から最初のruntime advanceまで準備回200ms・再訪100ms以内、可視復帰から最初のadvanceまで100ms以内、再訪時に画面を閉じた後のprocess footprintの最大−最小8MiB以内を補助予算にする。サンプルはxcresultの`rive-playback-measurements.json`へ記録する。advanceはruntimeのフレーム評価であり、画面への描画完了やhitchを証明しない。
+同じ専用Simulator、iOS 26.5、Release、375×667ptで各説明画面を準備1回・再訪5回測る。録画・Instrumentsとの同時実行を避ける。View配置から最初のruntime advance呼出直前まで準備回200ms・再訪100ms以内、可視復帰から最初のadvance呼出直前まで100ms以内、再訪時に画面を閉じた後のprocess footprintの最大−最小8MiB以内を補助予算にする。サンプルはxcresultの`rive-playback-measurements.json`へ記録する。この指標の終点はadvance呼出直前のログであり、advance処理の完了、画面への描画完了、hitchを証明しない。
+
+macOS 27.0・Xcode 27.0で専用schemeを初めてビルドしたrunでは、aboutの準備回が600.838ms、可視復帰が315.723msで予算を超えた。直後の同じソース・binaryの新プロセスでは174.764ms・13.665msとなり、12サンプルすべてが予算内だった。両run以前に通常テストでRiveを実行しており、OSのshader cache状態は測定していない。Metalのコンパイラー警告だけで原因を断定せず、最初の失敗と実行履歴・専用build cacheの違いを残す。一回の合格で初回起動全般の予算を満たしたとは扱わない。
 
 反復するスクロール境界と30秒の背景滞在を観測する場合は、[説明画面の事前条件](ios-verification.md#説明イラストの検証)を満たして次を実行する。
 

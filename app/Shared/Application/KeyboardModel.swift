@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 struct KeyboardDestination: Equatable {
-    let document: UUID
+    let document: UUID?
     let revision: UUID
 }
 
@@ -10,17 +10,70 @@ struct KeyboardDestination: Equatable {
 protocol KeyboardEffects: AnyObject {
     var destination: KeyboardDestination { get }
     var canCopy: Bool { get }
-    func insert(_ text: String)
     func copy(_ text: String)
+    func insert(_ text: String, into destination: KeyboardDestination) -> Bool
     func dismiss()
-    func holdInputDocument()
-    func noteVariableValueEditing()
+    func holdInputDocument(_ destination: KeyboardDestination) -> Bool
     func releaseInputDocument()
 }
 
 @MainActor @Observable
 final class KeyboardModel {
     enum Use: Equatable { case insert, copy }
+    enum Action: Equatable { case load, insert, copy, preview, pin, reloadAfterPin, changed }
+
+    enum Reason: Equatable {
+        case store(StoreError), notPrepared, changed, unavailable
+        init(_ error: any Error) {
+            switch error {
+            case let value as StoreError: self = .store(value)
+            case KeyboardReadError.notPrepared: self = .notPrepared
+            case KeyboardReadError.changed: self = .changed
+            default: self = .unavailable
+            }
+        }
+    }
+
+    enum Message: Equatable {
+        case cancelled
+        case requiresFullAccess(Action)
+        case inputChanged
+        case inserted(UUID)
+        case copied
+        case pinChanged(Bool)
+        case failed(Action, Reason, detailIsOpen: Bool)
+    }
+
+    struct Notice: Equatable {
+        let id = UUID()
+        let result: Message
+        var insertedID: UUID? {
+            guard case .inserted(let id) = result else { return nil }
+            return id
+        }
+        var expires: Bool {
+            switch result {
+            case .inserted, .copied, .pinChanged: true
+            default: false
+            }
+        }
+    }
+
+    struct Detail: Equatable {
+        enum Content: Equatable { case loading, ready(String), failed(Message) }
+        let id: UUID
+        let item: SnippetSummary
+        let content: Content
+        var body: String? {
+            guard case .ready(let text) = content else { return nil }
+            return text
+        }
+        var error: Message? {
+            guard case .failed(let message) = content else { return nil }
+            return message
+        }
+    }
+
     struct VariableUse: Identifiable {
         let id = UUID()
         let item: SnippetSummary
@@ -30,106 +83,38 @@ final class KeyboardModel {
         let generation: UUID
         let availability: FeatureAvailability
     }
-    enum Action: Equatable { case load, insert, copy, preview, pin, reloadAfterPin, changed }
-    enum Reason: Equatable {
-        case store(StoreError), notPrepared, changed, unavailable
-        init(_ error: Error) {
-            if let error = error as? StoreError {
-                self = .store(error)
-                return
-            }
-            if let error = error as? KeyboardReadError {
-                self = error == .notPrepared ? .notPrepared : .changed
-                return
-            }
-            self = .unavailable
-        }
-    }
-    enum Message: Equatable {
-        case cancelled, requiresFullAccess(Action), inputChanged, inserted(UUID), copied, pinChanged(Bool)
-        case failed(Action, Reason, detailIsOpen: Bool)
-    }
-    struct Detail: Equatable {
-        enum Content: Equatable {
-            case loading
-            case ready(String)
-            case failed(Message)
-        }
-        let id: UUID
-        let item: SnippetSummary
-        let content: Content
-        var body: String? {
-            switch content {
-            case .ready(let body): body
-            case .loading, .failed: nil
-            }
-        }
-        var error: Message? {
-            switch content {
-            case .failed(let error): error
-            case .loading, .ready: nil
-            }
-        }
-    }
-    private struct Selection {
+
+    private enum Phase: Equatable { case hidden, pending, reading(UUID), ready, failed(Message) }
+    private struct Selected {
         let id = UUID()
         let itemID: UUID
         var content: Detail.Content = .loading
     }
-    struct Notice: Equatable {
+    private struct PageSnapshot {
+        let request: KeyboardRequest
+        var ids: [UUID]
+        let hasMore: Bool
+    }
+    private struct Operation {
         let id = UUID()
-        let result: Message
-        var insertedID: UUID? {
-            if case .inserted(let id) = result { return id }
-            return nil
-        }
-        var expires: Bool {
-            switch result {
-            case .inserted, .copied, .pinChanged: true
-            default: false
-            }
-        }
+        let generation: UUID
     }
-    private enum LoadState: Equatable {
-        case inactive, pending, loading(UUID), ready, failed(Message)
-    }
+
     private let reader: any KeyboardReading
     private weak var effects: (any KeyboardEffects)?
     private let proIsActive: () -> Bool
+    private var phase: Phase = .hidden
+    private var summaries: [UUID: SnippetSummary] = [:]
+    private var snapshot: PageSnapshot?
+    private var selected: Selected?
+    private var previewRead: UUID?
+    private var activeOperation: Operation?
     private(set) var request = KeyboardRequest()
     private(set) var loadID = UUID()
-    private var loadState = LoadState.inactive
-    private(set) var notice: Notice?
-    private(set) var variableUse: VariableUse?
-    private var selection: Selection?
-    private var rows: [UUID: SnippetSummary] = [:]
-    var detail: Detail? {
-        guard let selection, let item = rows[selection.itemID] else { return nil }
-        return Detail(id: selection.id, item: item, content: selection.content)
-    }
     private(set) var hasFullAccess = false
     private(set) var needsSwitchKey = false
-    private var operation: UUID?
-    private var snapshot: (request: KeyboardRequest, ids: [UUID], hasMore: Bool)?
-
-    var isActive: Bool { loadState != .inactive }
-    var loading: Bool {
-        switch loadState {
-        case .inactive, .pending, .loading: true
-        case .ready, .failed: false
-        }
-    }
-    var loadFailure: Message? {
-        if case .failed(let message) = loadState { return message }
-        return nil
-    }
-    var page: KeyboardPage? {
-        snapshot.map { snapshot in
-            KeyboardPage(items: snapshot.ids.compactMap { rows[$0] }, hasMore: snapshot.hasMore)
-        }
-    }
-    var isCurrent: Bool { snapshot?.request == request && loadState == .ready }
-    var isUsing: Bool { operation != nil }
+    private(set) var notice: Notice?
+    private(set) var variableUse: VariableUse?
 
     init(reader: any KeyboardReading, effects: any KeyboardEffects, proIsActive: @escaping () -> Bool = { false }) {
         self.reader = reader
@@ -137,22 +122,39 @@ final class KeyboardModel {
         self.proIsActive = proIsActive
     }
 
+    var isActive: Bool { phase != .hidden }
+    var loading: Bool {
+        switch phase {
+        case .hidden, .pending, .reading: true
+        case .ready, .failed: false
+        }
+    }
+    var isCurrent: Bool { phase == .ready && snapshot?.request == request }
+    var isUsing: Bool { activeOperation != nil }
+    var loadFailure: Message? {
+        guard case .failed(let failure) = phase else { return nil }
+        return failure
+    }
+    var page: KeyboardPage? {
+        guard let snapshot else { return nil }
+        return KeyboardPage(items: snapshot.ids.compactMap { summaries[$0] }, hasMore: snapshot.hasMore)
+    }
+    var detail: Detail? {
+        guard let selected, let item = summaries[selected.itemID] else { return nil }
+        return Detail(id: selected.id, item: item, content: selected.content)
+    }
+
     func activate() {
-        loadState = .pending
         request = KeyboardRequest()
-        requestReload()
+        phase = .pending
+        invalidateRequest()
     }
 
     func deactivate() {
-        effects?.releaseInputDocument()
-        loadState = .inactive
-        loadID = UUID()
-        operation = nil
+        phase = .hidden
+        invalidateRequest()
+        summaries.removeAll()
         snapshot = nil
-        notice = nil
-        variableUse = nil
-        selection = nil
-        rows = [:]
     }
 
     func updateCapabilities(fullAccess: Bool, needsSwitchKey: Bool) {
@@ -163,96 +165,85 @@ final class KeyboardModel {
     func select(_ filter: KeyboardFilter) {
         guard filter != request.filter else { return }
         request = KeyboardRequest(filter: filter)
-        invalidate()
+        invalidateRequest()
     }
 
     func movePage(forward: Bool) {
-        guard isCurrent, forward ? page?.hasMore == true : request.offset > 0 else { return }
-        request = KeyboardRequest(filter: request.filter,
-            offset: request.offset + (forward ? KeyboardRequest.pageSize : -KeyboardRequest.pageSize))
-        invalidate()
+        guard isCurrent else { return }
+        guard forward ? snapshot?.hasMore == true : request.offset > 0 else { return }
+        let distance = forward ? KeyboardRequest.pageSize : -KeyboardRequest.pageSize
+        request = KeyboardRequest(filter: request.filter, offset: request.offset + distance)
+        invalidateRequest()
     }
 
     func requestReload() {
         request = KeyboardRequest(filter: request.filter)
-        invalidate()
+        invalidateRequest()
     }
 
-    private func invalidate() {
-        effects?.releaseInputDocument()
+    private func invalidateRequest() {
         loadID = UUID()
-        if isActive { loadState = .pending }
+        previewRead = nil
+        selected = nil
+        activeOperation = nil
         notice = nil
-        variableUse = nil
-        selection = nil
-        operation = nil
+        cancelVariableUse()
+        if isActive { phase = .pending }
     }
 
     func refresh() async {
         guard isActive, !Task.isCancelled else { return }
-        let id = loadID
+        let generation = loadID
+        let read = UUID()
         let requested = request
-        let readID = UUID()
-        loadState = .loading(readID)
+        phase = .reading(read)
         do {
-            let page = try await reader.page(requested)
+            let result = try await reader.page(requested)
             try Task.checkCancellation()
-            guard loadID == id, loadState == .loading(readID) else { return }
-            replacePage(page, for: requested)
-            loadState = .ready
+            guard loadID == generation, phase == .reading(read) else { return }
+            applyPage(result, request: requested)
+            phase = .ready
         } catch {
-            guard loadID == id, loadState == .loading(readID) else { return }
-            loadState = .failed(Task.isCancelled || error is CancellationError
-                ? .cancelled : failure(for: .load, error: error))
+            guard loadID == generation, phase == .reading(read) else { return }
+            let message: Message = Task.isCancelled || error is CancellationError ? .cancelled : failed(.load, error)
+            phase = .failed(message)
         }
     }
 
-    func use(_ item: SnippetSummary, as use: Use) async {
-        guard isActive, isCurrent, operation == nil, !Task.isCancelled, let effects else { return }
-        guard contains(item) else { return }
-        if case .copy = use, !effects.canCopy {
-            notify(.requiresFullAccess(.copy))
-            return
-        }
-        let id = UUID()
-        let generation = loadID
+    func use(_ item: SnippetSummary, as mode: Use) async {
+        guard !Task.isCancelled, isCurrent, activeOperation == nil, owns(item), let effects else { return }
+        guard mode != .copy || effects.canCopy else { inform(.requiresFullAccess(.copy)); return }
+        let work = Operation(generation: loadID)
         let destination = effects.destination
-        operation = id
+        guard mode != .insert || destination.document != nil else { inform(.inputChanged); return }
+        activeOperation = work
         notice = nil
-        defer { if operation == id { operation = nil } }
+        defer { finishOperation(work) }
         do {
             let text = try await reader.body(for: item)
             try Task.checkCancellation()
-            guard isActive, loadID == generation, operation == id, contains(item) else { return }
+            guard admits(work), owns(item) else { return }
+            guard mode != .insert || effects.destination == destination else { inform(.inputChanged); return }
             let template = SnippetVariables(text)
-            if !template.names.isEmpty {
-                if use == .insert { effects.holdInputDocument() }
-                variableUse = VariableUse(item: item, mode: use, template: template,
-                    destination: destination, generation: generation,
-                    availability: FeatureAccess.availability(.variableReplacement, pro: proIsActive()))
+            if template.names.isEmpty {
+                deliver(text, itemID: item.id, mode: mode, expectedDocument: destination)
                 return
             }
-            switch use {
-            case .insert:
-                guard effects.destination == destination else {
-                    notify(.inputChanged)
-                    return
-                }
-                effects.insert(text)
-                closeDetail()
-                notify(.inserted(item.id))
-            case .copy:
-                guard effects.canCopy else {
-                    notify(.requiresFullAccess(.copy))
-                    return
-                }
-                effects.copy(text)
-                notify(.copied)
+            if mode == .insert, !effects.holdInputDocument(destination) {
+                effects.releaseInputDocument()
+                inform(.inputChanged)
+                return
             }
-        } catch is CancellationError { }
-        catch {
-            guard isActive, loadID == generation, operation == id, !Task.isCancelled else { return }
-            notify(failure(for: use == .copy ? .copy : .insert, error: error))
+            guard admits(work), owns(item) else {
+                effects.releaseInputDocument()
+                return
+            }
+            variableUse = VariableUse(item: item, mode: mode, template: template,
+                destination: destination, generation: loadID,
+                availability: FeatureAccess.availability(.variableReplacement, pro: proIsActive()))
+        } catch {
+            guard admits(work), !Task.isCancelled, !(error is CancellationError) else { return }
+            inform(failed(mode == .copy ? .copy : .insert, error))
         }
     }
 
@@ -261,123 +252,129 @@ final class KeyboardModel {
         effects?.releaseInputDocument()
     }
 
-    func noteVariableValueEditing() { effects?.noteVariableValueEditing() }
-
     func completeVariableUse(values: [VariableName: String]) async {
-        guard let pending = variableUse, pending.availability.isAvailable,
-              let text = pending.template.filled(with: values), isActive, isCurrent,
-              loadID == pending.generation, contains(pending.item), operation == nil,
-              let effects else { return }
-        let id = UUID()
-        operation = id
-        defer { if operation == id { operation = nil } }
-        defer { if variableUse == nil { effects.releaseInputDocument() } }
+        guard !Task.isCancelled, isCurrent, activeOperation == nil, let pending = variableUse,
+              pending.generation == loadID, owns(pending.item), pending.availability.isAvailable,
+              FeatureAccess.availability(.variableReplacement, pro: proIsActive()).isAvailable,
+              let text = pending.template.filled(with: values) else { return }
+        let work = Operation(generation: loadID)
+        activeOperation = work
+        defer {
+            finishOperation(work)
+            if variableUse == nil { effects?.releaseInputDocument() }
+        }
         do {
-            let current = try await reader.body(for: pending.item)
+            let stored = try await reader.body(for: pending.item)
             try Task.checkCancellation()
-            guard isActive, isCurrent, loadID == pending.generation, operation == id,
-                  variableUse?.id == pending.id, contains(pending.item) else { return }
-            variableUse = nil
-            guard current.utf8.elementsEqual(pending.template.body.utf8) else {
-                notify(failure(for: .changed, error: KeyboardReadError.changed))
+            guard admits(work), variableUse?.id == pending.id, owns(pending.item) else { return }
+            defer {
+                if variableUse?.id == pending.id { variableUse = nil }
+            }
+            guard SnippetText.hasSameBytes(stored, pending.template.body) else {
+                inform(failed(.changed, KeyboardReadError.changed))
                 return
             }
-            switch pending.mode {
-            case .insert:
-                // Editing a value inside the keyboard can advance UIKit's selection revision
-                // even though the host document remains the same. Keep the document boundary.
-                guard effects.destination.document == pending.destination.document else {
-                    notify(.inputChanged)
-                    return
-                }
-                effects.insert(text)
-                closeDetail()
-                notify(.inserted(pending.item.id))
-            case .copy:
-                guard effects.canCopy else { notify(.requiresFullAccess(.copy)); return }
-                effects.copy(text)
-                notify(.copied)
-            }
-        } catch is CancellationError { }
-        catch {
-            guard isActive, loadID == pending.generation, operation == id else { return }
-            variableUse = nil
-            notify(failure(for: pending.mode == .copy ? .copy : .insert, error: error))
+            deliver(text, itemID: pending.item.id, mode: pending.mode, expectedDocument: pending.destination)
+        } catch {
+            guard admits(work), !Task.isCancelled, !(error is CancellationError) else { return }
+            cancelVariableUse()
+            inform(failed(pending.mode == .copy ? .copy : .insert, error))
+        }
+    }
+
+    private func deliver(_ text: String, itemID: UUID, mode: Use, expectedDocument: KeyboardDestination) {
+        guard let effects else { return }
+        switch mode {
+        case .copy:
+            guard effects.canCopy else { inform(.requiresFullAccess(.copy)); return }
+            effects.copy(text)
+            inform(.copied)
+        case .insert:
+            let current = effects.destination
+            guard expectedDocument.document != nil, current == expectedDocument,
+                  effects.insert(text, into: expectedDocument) else { inform(.inputChanged); return }
+            closeDetail()
+            inform(.inserted(itemID))
         }
     }
 
     func openDetail(_ item: SnippetSummary) {
-        guard isCurrent, !isUsing, contains(item) else { return }
+        guard isCurrent, !isUsing, owns(item) else { return }
         notice = nil
-        selection = Selection(itemID: item.id)
+        selected = Selected(itemID: item.id)
+        previewRead = nil
     }
 
-    func closeDetail() { selection = nil }
+    func closeDetail() {
+        selected = nil
+        previewRead = nil
+    }
 
     func loadDetail() async {
-        guard let selected = detail, selected.body == nil else { return }
+        guard !Task.isCancelled, let opened = detail, opened.body == nil else { return }
         let generation = loadID
+        let read = UUID()
+        previewRead = read
         do {
-            let body = try await reader.body(for: selected.item)
+            let body = try await reader.body(for: opened.item)
             try Task.checkCancellation()
-            guard isActive, loadID == generation, detail?.id == selected.id,
-                  detail?.item.revision == selected.item.revision else { return }
-            selection?.content = .ready(body)
-        } catch is CancellationError { }
-        catch {
-            guard isActive, loadID == generation, detail?.id == selected.id,
-                  detail?.item.revision == selected.item.revision else { return }
-            let message = failure(for: .preview, error: error)
-            selection?.content = .failed(message)
+            guard admitsPreview(read, generation: generation, detail: opened) else { return }
+            selected?.content = .ready(body)
+        } catch {
+            guard !(error is CancellationError), !Task.isCancelled,
+                  admitsPreview(read, generation: generation, detail: opened) else { return }
+            let message = failed(.preview, error)
+            selected?.content = .failed(message)
         }
+    }
+
+    private func admitsPreview(_ read: UUID, generation: UUID, detail opened: Detail) -> Bool {
+        isActive && generation == loadID && previewRead == read
+            && detail?.id == opened.id && detail?.item.revision == opened.item.revision
     }
 
     func togglePin() async {
-        guard isActive, isCurrent, !isUsing, !Task.isCancelled,
-              let selected = detail, selected.body != nil, let effects else { return }
-        guard effects.canCopy else {
-            notify(.requiresFullAccess(.pin))
-            return
-        }
-        let id = UUID()
-        let generation = loadID
-        operation = id
+        guard !Task.isCancelled, isCurrent, !isUsing, let opened = detail,
+              opened.body != nil, let effects else { return }
+        guard effects.canCopy else { inform(.requiresFullAccess(.pin)); return }
+        let work = Operation(generation: loadID)
+        activeOperation = work
         notice = nil
-        var pinWasChanged = false
-        defer { if operation == id { operation = nil } }
+        var committed = false
+        defer { finishOperation(work) }
         do {
-            let updated = try await reader.setPinned(!selected.item.pinned, for: selected.item)
-            pinWasChanged = true
-            // A committed write remains a success even if cancellation arrives after commit.
-            guard isActive, loadID == generation, operation == id else { return }
-            rows[updated.id] = updated
-            if request.filter == .pinned && !updated.pinned { snapshot?.ids.removeAll { $0 == updated.id } }
-            notify(.pinChanged(updated.pinned))
-            // Reconcile ordering and page boundaries without resetting the selected filter.
-            let refreshed = try await reader.page(request)
-            guard isActive, loadID == generation, operation == id else { return }
-            replacePage(refreshed, for: request)
-        } catch is CancellationError { }
-        catch {
-            guard isActive, loadID == generation, operation == id else { return }
-            notify(failure(for: pinWasChanged ? .reloadAfterPin : .pin, error: error))
+            let updated = try await reader.setPinned(!opened.item.pinned, for: opened.item)
+            committed = true
+            guard admits(work) else { return }
+            summaries[updated.id] = updated
+            if request.filter == .pinned, !updated.pinned { snapshot?.ids.removeAll { $0 == updated.id } }
+            inform(.pinChanged(updated.pinned))
+            let reconciled = try await reader.page(request)
+            guard admits(work) else { return }
+            applyPage(reconciled, request: request)
+        } catch {
+            guard admits(work) else { return }
+            guard !(error is CancellationError) else { return }
+            inform(failed(committed ? .reloadAfterPin : .pin, error))
         }
     }
 
-    /// One value per item feeds both the list and the selected detail. A selected
-    /// item can remain outside the pinned page after unpinning, until detail closes.
-    private func replacePage(_ page: KeyboardPage, for request: KeyboardRequest) {
-        let selectedItem = selection.flatMap { rows[$0.itemID] }
-        rows = Dictionary(page.items.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
-        if let selectedItem {
-            if let current = rows[selectedItem.id] {
-                if current.revision != selectedItem.revision {
-                    let message = failure(for: .changed, error: KeyboardReadError.changed)
-                    selection?.content = .failed(message)
+    private func applyPage(_ page: KeyboardPage, request: KeyboardRequest) {
+        let oldSelection = selected.flatMap { summaries[$0.itemID] }
+        var next = Dictionary(page.items.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        if let oldSelection {
+            switch next[oldSelection.id] {
+            case .some(let current):
+                if current.revision != oldSelection.revision {
+                    previewRead = nil
+                    let message = failed(.changed, KeyboardReadError.changed)
+                    selected?.content = .failed(message)
                 }
-            } else { rows[selectedItem.id] = selectedItem }
+            case .none: next[oldSelection.id] = oldSelection
+            }
         }
-        snapshot = (request, page.items.map(\.id), page.hasMore)
+        summaries = next
+        snapshot = PageSnapshot(request: request, ids: page.items.map(\.id), hasMore: page.hasMore)
     }
 
     func expireNotice(id: UUID) async {
@@ -387,18 +384,23 @@ final class KeyboardModel {
         notice = nil
     }
 
-    private func contains(_ item: SnippetSummary) -> Bool {
-        page?.items.contains(where: { $0.id == item.id && $0.revision == item.revision }) == true
-            || (detail?.item == item && detail?.body != nil)
-    }
-
-    private func notify(_ result: Message) {
-        notice = Notice(result: result)
-    }
-
-    private func failure(for action: Action, error: Error) -> Message {
-        .failed(action, Reason(error), detailIsOpen: selection != nil)
-    }
-
     func dismiss() { effects?.dismiss() }
+
+    private func owns(_ item: SnippetSummary) -> Bool {
+        guard summaries[item.id]?.revision == item.revision else { return false }
+        return snapshot?.ids.contains(item.id) == true || (detail?.item.id == item.id && detail?.body != nil)
+    }
+
+    private func admits(_ work: Operation) -> Bool {
+        isCurrent && work.generation == loadID && activeOperation?.id == work.id
+    }
+
+    private func finishOperation(_ work: Operation) {
+        if activeOperation?.id == work.id { activeOperation = nil }
+    }
+
+    private func inform(_ result: Message) { notice = Notice(result: result) }
+    private func failed(_ action: Action, _ error: any Error) -> Message {
+        .failed(action, Reason(error), detailIsOpen: selected != nil)
+    }
 }

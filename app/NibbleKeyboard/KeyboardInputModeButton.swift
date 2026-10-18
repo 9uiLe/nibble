@@ -6,5 +6,5 @@ struct KeyboardInputModeButton: UIViewRepresentable {
     private let inputRevision = UUID()
     @SkipEquatable let button: UIButton
     func makeUIView(context: Context) -> UIButton { button }
-    func updateUIView(_ uiView: UIButton, context: Context) { }
+    func updateUIView(_ uiView: UIButton, context: Context) { NibbleInterface.apply(to: &uiView.traitOverrides) }
 }

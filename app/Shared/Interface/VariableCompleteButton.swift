@@ -1,21 +1,18 @@
 import AppMacros
 import SwiftUI
 
-@Equatable
+@MainActor @Equatable
 struct VariableCompleteButton: View {
     private let inputRevision = UUID()
     let actionTitle: String
     let allValuesPresent: Bool
     let isSubmitting: Bool
     @SkipEquatable let complete: () -> Void
-
     var body: some View {
-        Button(action: complete) {
-            Text(isSubmitting ? "処理中…" : actionTitle)
-        }
-        .buttonStyle(IOSButtonStyle(.primary))
-        .disabled(!allValuesPresent || isSubmitting)
-        .accessibilityHint(allValuesPresent ? "" : "すべての値を入力すると使えます")
-        .accessibilityIdentifier("variables.complete")
+        Button(isSubmitting ? "処理中…" : actionTitle, action: complete)
+            .buttonStyle(IOSButtonStyle(allValuesPresent ? .primary : .secondary))
+            .disabled(isSubmitting || !allValuesPresent)
+            .accessibilityHint(allValuesPresent ? "" : "すべての値を入力すると使えます")
+            .accessibilityIdentifier("variables.complete")
     }
 }

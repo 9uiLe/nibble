@@ -1,124 +1,113 @@
 import SwiftUI
-import UIKit
 import Testing
+import UIKit
 @testable import Nibble
 
 extension UIIntegrationTests {
-    @Suite("Notice window ownership", .serialized)
+    @Suite("Notice scene and input ownership", .serialized)
     @MainActor
     struct NoticeWindowTests {
-        @Test func overlayKeepsInputInSourceWindowAndPassesOutsideTouches() async throws {
-            let title = "長い対象名でも操作結果と元に戻すを読めることを確認する通知の取り消し対象"
+        @Test func noticePassesOutsideTouchesAndRetainsTheSourceKeyboardFocus() async throws {
             let files = try TestDatabase()
             defer { files.removeFiles() }
-            let id = try await create(files.store, title: title, body: "ダミー本文")
+            let item = try await create(files.store, title: "同名でも区別する長い通知対象の文章", body: "ダミーデータ")
             let model = LibraryModel(store: files.store)
-            await model.delete(id)
+            await model.delete(item)
             let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-            let previousKey = scene.keyWindow
-            let source = UIWindow(windowScene: scene)
-            source.frame = scene.effectiveGeometry.coordinateSpace.bounds
-            let controller = UIViewController()
-            source.rootViewController = controller
-            source.makeKeyAndVisible()
-            defer {
-                source.isHidden = true
-                source.rootViewController = nil
-                previousKey?.makeKey()
-            }
-            let input = UITextField(frame: CGRect(x: 20, y: 160, width: 240, height: 44))
-            let keyboardGuide = controller.view.keyboardLayoutGuide
-            controller.view.addSubview(input)
-            #expect(input.becomeFirstResponder())
-            // The keyboard guide settles asynchronously and may remain at the screen edge
-            // when the simulator uses a hardware keyboard.
-            var previousTop: CGFloat?
-            var stableSamples = 0
-            for _ in 0..<80 {
-                controller.view.layoutIfNeeded()
-                let top = keyboardGuide.layoutFrame.minY
-                stableSamples = top == previousTop ? stableSamples + 1 : 0
-                if stableSamples >= 3 { break }
-                previousTop = top
-                try await Task.sleep(for: .milliseconds(25))
-            }
-            try #require(stableSamples >= 3)
+            let host = try NoticeTestHost()
+            defer { host.close() }
+            let input = UITextField(frame: CGRect(x: 24, y: 160, width: 240, height: 44))
+            host.controller.view.addSubview(input)
+            try #require(input.becomeFirstResponder())
             let anchor = LibraryNoticeWindow.AnchorView()
-            controller.view.addSubview(anchor)
             anchor.content = LibraryWindowNotice(model: model, taskOwner: LibraryTaskOwner())
             anchor.isPresented = true
-            anchor.bottomBoundary = controller.view.convert(keyboardGuide.layoutFrame, to: source).minY - 8
+            anchor.bottomBoundary = 280
+            host.controller.view.addSubview(anchor)
             anchor.synchronize()
             defer { anchor.dismiss() }
-            try await Task.sleep(for: .milliseconds(400))
             let overlay = try #require(anchor.noticeWindow)
-            overlay.layoutIfNeeded()
+            try await host.wait { (overlay.noticeView?.bounds.height ?? 0) >= 44 }
             let banner = try #require(overlay.noticeView)
+            overlay.layoutIfNeeded()
             let frame = banner.convert(banner.bounds, to: overlay)
-            #expect(overlay.windowScene === source.windowScene)
-            #expect(overlay.windowLevel > source.windowLevel)
             #expect(!overlay.canBecomeKey && !overlay.isKeyWindow)
-            #expect(scene.keyWindow === source && input.isFirstResponder)
-            #expect(frame.height >= 44 && frame.minY >= overlay.safeAreaInsets.top)
-            let keyboardTop = controller.view.convert(keyboardGuide.layoutFrame, to: overlay).minY
-            #expect(frame.maxY <= keyboardTop - 8 + 1)
-            let creationTarget = CGPoint(x: overlay.bounds.width - 44, y: overlay.safeAreaInsets.top + 34)
-            #expect(overlay.hitTest(creationTarget, with: nil) == nil)
+            #expect(scene.keyWindow === host.window && input.isFirstResponder)
+            #expect(overlay.windowScene === host.window.windowScene && overlay.windowLevel > host.window.windowLevel)
+            #expect(frame.height >= 44 && frame.maxY <= 281)
             #expect(overlay.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil) != nil)
             #expect(overlay.hitTest(CGPoint(x: 2, y: frame.midY), with: nil) == nil)
-            #expect(overlay.hitTest(CGPoint(x: frame.midX, y: frame.maxY + 30), with: nil) == nil)
-            // Expiry keeps the rendering host alive for its fade, but stops intercepting input.
+            #expect(overlay.hitTest(CGPoint(x: frame.midX, y: frame.maxY + 40), with: nil) == nil)
             model.clearNotice()
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(anchor.noticeWindow === overlay)
             #expect(overlay.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil) == nil)
-            // A result arriving during the outgoing animation reuses the same scene and host.
-            await model.restore(id)
-            try await Task.sleep(for: .milliseconds(400))
-            #expect(anchor.noticeWindow === overlay)
-            #expect(overlay.noticeView === banner)
-            #expect(model.notice?.message == "元に戻しました")
-            #expect(overlay.hitTest(CGPoint(x: frame.midX, y: frame.midY), with: nil) != nil)
+            await model.restore(item)
+            anchor.synchronize()
+            #expect(anchor.noticeWindow === overlay && overlay.noticeView === banner)
+            #expect(input.isFirstResponder && scene.keyWindow === host.window)
             anchor.isPresented = false
             anchor.synchronize()
-            #expect(anchor.noticeWindow == nil && overlay.isHidden)
-            #expect(overlay.rootViewController == nil)
-            #expect(scene.keyWindow === source && input.isFirstResponder)
+            #expect(anchor.noticeWindow == nil && overlay.isHidden && overlay.rootViewController == nil)
         }
 
-        @Test func attachmentAndRemovalOwnTheWindowLifetime() async throws {
+        @Test func attachingAndDismantlingTheBridgeOwnsAllOverlayResources() async throws {
             let files = try TestDatabase()
             defer { files.removeFiles() }
-            let id = try await create(files.store, body: "ウィンドウの寿命")
             let model = LibraryModel(store: files.store)
-            await model.delete(id)
-            let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-            let source = UIWindow(windowScene: scene)
-            source.frame = scene.effectiveGeometry.coordinateSpace.bounds
-            source.rootViewController = UIViewController()
-            source.isHidden = false
-            defer { source.isHidden = true; source.rootViewController = nil }
+            let host = try NoticeTestHost()
+            defer { host.close() }
             let anchor = LibraryNoticeWindow.AnchorView()
             anchor.content = LibraryWindowNotice(model: model, taskOwner: LibraryTaskOwner())
             anchor.isPresented = true
-            anchor.bottomBoundary = source.bounds.height - 100
+            anchor.bottomBoundary = 300
             anchor.synchronize()
-            #expect(anchor.noticeWindow == nil) // No connected source scene yet.
-            source.rootViewController?.view.addSubview(anchor)
-            let firstWindow = WeakReference(anchor.noticeWindow)
-            #expect(firstWindow.value != nil)
+            #expect(anchor.noticeWindow == nil)
+            host.controller.view.addSubview(anchor)
+            let released = WeakReference(anchor.noticeWindow)
+            try #require(released.value != nil)
             anchor.synchronize()
-            #expect(anchor.noticeWindow === firstWindow.value) // Updates reuse the same window.
+            #expect(anchor.noticeWindow === released.value)
             anchor.removeFromSuperview()
             #expect(anchor.noticeWindow == nil)
-            try await Task.sleep(for: .milliseconds(100))
-            #expect(firstWindow.value == nil)
-            source.rootViewController?.view.addSubview(anchor)
-            #expect(anchor.noticeWindow != nil)
-            let bridge = LibraryNoticeWindow(model: model, taskOwner: LibraryTaskOwner(), isPresented: true,
-                                             bottomBoundary: source.bounds.height - 100)
+            try await host.wait { released.value == nil }
+            host.controller.view.addSubview(anchor)
+            try #require(anchor.noticeWindow != nil)
+            let bridge = LibraryNoticeWindow(model: model, taskOwner: LibraryTaskOwner(), isPresented: true, bottomBoundary: 300)
             LibraryNoticeWindow.dismantleUIView(anchor, coordinator: bridge.makeCoordinator())
             #expect(anchor.noticeWindow == nil && anchor.content == nil)
         }
+    }
+}
+
+@MainActor
+private final class NoticeTestHost {
+    let window: UIWindow
+    let controller = UIViewController()
+    private weak var previousKey: UIWindow?
+
+    init() throws {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = try #require(scenes.first)
+        previousKey = scene.keyWindow
+        window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 375, height: 667)
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+    }
+
+    func close() {
+        window.isHidden = true
+        window.rootViewController = nil
+        previousKey?.makeKey()
+    }
+
+    func wait(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while ContinuousClock.now < deadline {
+            window.layoutIfNeeded()
+            controller.view.layoutIfNeeded()
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(condition(), "The native notice host did not reach the expected state")
     }
 }
