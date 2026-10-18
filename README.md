@@ -185,6 +185,34 @@ python3 scripts/ios.py run --project-config app/project.json \
 
 [観測データの確認](docs/simulator-inspection.md)で操作の状態を要素情報から読み、外観は全体画像と必要な細部を開いて確認します。[証跡とPRの手順](docs/review-evidence.md)で、実行ソース・原本媒体・観測記録を照合します。文書だけの変更は[共通検査](CONTRIBUTING.md#実行と検査)とPR本文の確認を行い、撮影が不要な理由を記載します。
 
+### Moletta
+
+[Moletta](https://github.com/9uiLe/moletta)は、必要な能力の調査、方式の比較、実物の検証を支援するAI開発ハーネスです。重要な設計や不確かな変更に使い、明確な小変更は短い手順で進めます。nibbleの製品仕様、権限、検証手順は引き続き[エージェント向け入口](AGENTS.md)に従います。
+
+ソースは`flake.nix`の`moletta-source`と`flake.lock`で固定し、開発シェルの`NIBBLE_MOLETTA_SOURCE`から参照します。リポジトリルートのNixシェルで、worktreeごとに次を実行します。
+
+```sh
+python3 "$NIBBLE_MOLETTA_SOURCE/scripts/install.py" "$PWD" --mode copy &&
+  for skill in moletta moletta-explore moletta-compare moletta-verify moletta-learn; do
+    chmod -R u+w ".agents/skills/$skill" ".claude/skills/$skill"
+  done
+```
+
+Codexの`.agents/skills/`とClaude Codeの`.claude/skills/`へ、相互参照とruntimeを含む5技能をコピーします。コピー方式はソースディレクトリのsymlinkを拒否する検査に適合し、Nix storeの回収後も利用できます。生成した10ディレクトリだけをGit管理外とし、既存の技能とClaude Codeの権限設定を保持します。installerは既存項目を上書きしません。
+
+導入後は対象プロジェクトの新しいセッションで、Codexでは`$moletta`、Claude Codeでは`/moletta`に目的と必須条件を添えて依頼します。技能の自動選択も利用できます。追加APIやモデル、常駐サーバーの設定は不要です。
+
+構造化記録が必要な作業では、エージェントが`init`の保存先を`artifacts/moletta/<作業ID>`へ明示します。たとえば、依頼原文を保存したファイルを指定して次のように初期化します。
+
+```sh
+python3 .agents/skills/moletta/scripts/moletta.py init artifacts/moletta/task-id \
+  --brief artifacts/request.md --goal '達成したい成果'
+```
+
+記録はGit管理外の作業資料として保持し、iOSの検証・証跡には既存の[nibble検証手順](docs/ios-verification.md)を使います。
+
+更新は`nix flake update moletta-source`で行い、新しいNixシェルに入り直します。両ホストの導入済み5技能を確認して`artifacts/`へ退避した後、上のコピー導入を再実行します。Moletta以外の技能や設定は退避対象に含めません。更新後も新しいセッションから利用します。
+
 ## 他アプリで使うキーボード
 
 設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/architecture/keyboard.md)と[検証方法](docs/ios-verification.md#キーボードの操作検証)を参照してください。

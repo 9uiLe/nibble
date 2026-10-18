@@ -18,6 +18,22 @@
         "type": "github"
       }
     },
+    "moletta-source": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792302089,
+        "narHash": "sha256-jFglLS9+EWL7xeX3nLG7Vo/iBxshG9rhxu43ilna0cQ=",
+        "owner": "9uiLe",
+        "repo": "moletta",
+        "rev": "7b2cc2c73355c88f9c01c961590b9f3762db10af",
+        "type": "github"
+      },
+      "original": {
+        "owner": "9uiLe",
+        "repo": "moletta",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1789370336,
@@ -218,6 +234,7 @@
     "root": {
       "inputs": {
         "hamio": "hamio",
+        "moletta-source": "moletta-source",
         "nixpkgs": "nixpkgs_2",
         "rive-cli": "rive-cli",
         "rive-core-source": "rive-core-source",

@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "summary": "ニュートラルな表示色をNibbleThemeで一元化し、共有部品のAPIとUI台帳を現行仕様へ照合した",
+  "summary": "ニュートラルな表示色をNibbleThemeで一元化し、共有部品のAPIとUI台帳を現行仕様へ照合した開発用Molettaの入力だけをlockに追加し、既存の描画・設計ツールの固定版、UI実装、採用仕様は維持する。",
   "references": [
     "docs/design/foundations.md",
     "docs/design/components.md",
-    "docs/architecture/README.md"
+    "docs/architecture/README.md",
+    "docs/design/README.md"
   ],
   "files": {
     "app/Animations/about/.gitignore": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
@@ -198,7 +199,7 @@
     "docs/design/rationale/usage-order.md": "520ff063d0a25d5aec2fd42ce61a76c02f6f08f1e6e820241417e245680e93b5",
     "docs/design/screens.md": "3733f2c9778e35317cb1107ae0b149abc5a542800a9d82f88a0bf021e9726323",
     "docs/product-specification.md": "d3e9c3275d6ba55b3e0f0a10d806b31e34c4dc2de51603420ce676fbaa2125ed",
-    "flake.lock": "bd00578fee737c4bd912989f05d7a46e10d9202673c675b3ba971719e0f6e23c",
+    "flake.lock": "74209c0a0589986a9fcac2c023f4f82b25541b8e94d85ae1ded9ed31b1a30f02",
     "runtime/rive/Package.swift": "313c567ba8365ca0d8fafe70c7a5d2e12cb9173f4b7119c3fa47d6aca74fba93",
     "runtime/rive/build.json": "3b02a9d5017cfc0cf299e25cb868f8935431e83a207b5114bee5f9d2ee43e837",
     "runtime/rive/dependency.lua": "f67c1c028fc52f561f7973f40cdad86108e1e418214e9c7a0f251b4062273286",

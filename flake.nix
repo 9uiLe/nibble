@@ -3,6 +3,10 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   inputs.hamio.url = "github:9uiLe/hamio";
+  inputs.moletta-source = {
+    url = "github:9uiLe/moletta";
+    flake = false;
+  };
   inputs.sim-use = {
     url = "file+https://github.com/lycorp-jp/sim-use/releases/download/v0.14.0/sim-use-v0.14.0.tar.gz";
     flake = false;
@@ -141,6 +145,7 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShellNoCC {
           packages = toolsFor pkgs;
+          NIBBLE_MOLETTA_SOURCE = inputs.moletta-source;
           shellHook = ''
             if [ -f .githooks/pre-commit ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
               if [ -z "$(git config --local --get core.hooksPath 2>/dev/null || true)" ]; then
