@@ -1,36 +1,39 @@
-import Foundation
 import Darwin
+import Foundation
 
 enum SnippetText {
-    static let titleByteLimit = 512
-    static let bodyByteLimit = 1_000_000
     static let previewLength = 180
+    static let bodyByteLimit = 1_000_000
+    static let titleByteLimit = 512
 
-    static func hasBody(_ body: String) -> Bool {
-        !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    /// Compare the original bytes, including canonically equivalent Unicode.
-    /// Contiguous buffers avoid UTF8View's per-byte iteration on long input.
-    static func hasSameBytes(_ lhs: String, _ rhs: String) -> Bool {
-        var lhs = lhs, rhs = rhs
-        return lhs.withUTF8 { left in
-            rhs.withUTF8 { right in
-                guard left.count == right.count else { return false }
-                guard !left.isEmpty else { return true }
-                return memcmp(left.baseAddress!, right.baseAddress!, left.count) == 0
-            }
-        }
-    }
-
-    static func searchKey(_ text: String) -> String {
-        text.precomposedStringWithCanonicalMapping
-            .folding(options: [.caseInsensitive, .widthInsensitive], locale: Locale(identifier: "ja_JP"))
-            .replacingOccurrences(of: "\0", with: "\u{FFFD}")
+    static func hasBody(_ text: String) -> Bool {
+        text.unicodeScalars.contains { !CharacterSet.whitespacesAndNewlines.contains($0) }
     }
 
     static func validate(title: String, body: String) throws {
         guard hasBody(body) else { throw StoreError.empty }
-        guard title.utf8.count <= titleByteLimit, body.utf8.count <= bodyByteLimit else { throw StoreError.tooLarge }
+        if body.utf8.count > bodyByteLimit || title.utf8.count > titleByteLimit {
+            throw StoreError.tooLarge
+        }
+    }
+
+    static func hasSameBytes(_ first: String, _ second: String) -> Bool {
+        var first = first
+        var second = second
+        return first.withUTF8 { firstBytes in
+            second.withUTF8 { secondBytes in
+                guard firstBytes.count == secondBytes.count else { return false }
+                guard let firstAddress = firstBytes.baseAddress, let secondAddress = secondBytes.baseAddress else {
+                    return firstBytes.isEmpty
+                }
+                return memcmp(firstAddress, secondAddress, firstBytes.count) == 0
+            }
+        }
+    }
+
+    static func searchKey(_ source: String) -> String {
+        let canonical = source.precomposedStringWithCanonicalMapping
+        let folded = canonical.folding(options: [.widthInsensitive, .caseInsensitive], locale: Locale(identifier: "ja_JP"))
+        return folded.replacingOccurrences(of: "\0", with: "\u{FFFD}")
     }
 }

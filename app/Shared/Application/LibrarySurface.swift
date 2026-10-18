@@ -1,14 +1,13 @@
-/// A surface fixes its controls, permitted requests, refresh policy and notice origin.
 enum LibrarySurface {
-    case library, deleted
+    case library
+    case deleted
 
     static let collections: [LibraryFilter] = [.all, .pinned, .drafts]
 
     var noticeOrigin: LibraryModel.Notice.Origin {
         switch self {
-        case .library: .library
         case .deleted: .trash
+        case .library: .library
         }
     }
-
 }

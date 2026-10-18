@@ -2,13 +2,12 @@ import SwiftUI
 
 @main
 struct NibbleApp: App {
-    private let store = SnippetStore(location: SnippetLocation.database)
-
+    private let library = SnippetStore(location: SnippetLocation.database)
     var body: some Scene {
         WindowGroup {
-            AppRootView(store: store, effects: SystemLibraryEffects())
-                .environment(\.iosDesignTokens, IOSDesignTokens.nibble)
+            AppRootView(store: library, effects: SystemLibraryEffects())
                 .modifier(NibbleInterface())
+                .environment(\.iosDesignTokens, .nibble)
                 .background(SceneInterfaceDefaults())
         }
     }

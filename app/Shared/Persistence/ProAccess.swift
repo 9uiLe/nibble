@@ -1,6 +1,5 @@
 import Foundation
 
-/// The containing app writes only expiration dates from verified StoreKit transactions.
 enum ProEntitlement: Equatable {
     case unavailable
     case absent
@@ -9,40 +8,42 @@ enum ProEntitlement: Equatable {
     case invalid
 
     init(stored value: Any?, now: Date) {
-        guard let value else {
-            self = .absent
-            return
+        switch value {
+        case nil: self = .absent
+        case let expiration as Date:
+            guard expiration.timeIntervalSince1970.isFinite else {
+                self = .invalid
+                return
+            }
+            self = now < expiration ? .active(until: expiration) : .expired(at: expiration)
+        default: self = .invalid
         }
-        guard let expiration = value as? Date, expiration.timeIntervalSince1970.isFinite else {
-            self = .invalid
-            return
-        }
-        self = expiration > now ? .active(until: expiration) : .expired(at: expiration)
     }
 
     var isActive: Bool {
-        switch self {
-        case .active: true
-        case .unavailable, .absent, .expired, .invalid: false
-        }
+        guard case .active = self else { return false }
+        return true
     }
 }
 
-/// App Group storage is an extension-readable snapshot, never a source of StoreKit verification.
+/// This snapshot crosses the process boundary; StoreKit verification remains in
+/// the containing app and cannot be inferred from a stored expiration alone.
 enum ProAccess {
-    private static let group = "group.nibble.9uiLe.com"
-    private static let expirationKey = "pro.entitlementExpiration"
+    private static var sharedDefaults: UserDefaults? { UserDefaults(suiteName: "group.nibble.9uiLe.com") }
+    private static let key = "pro.entitlementExpiration"
 
     static func entitlement(now: Date = Date()) -> ProEntitlement {
-        guard let defaults = UserDefaults(suiteName: group) else { return .unavailable }
-        return ProEntitlement(stored: defaults.object(forKey: expirationKey), now: now)
+        guard let sharedDefaults else { return .unavailable }
+        return ProEntitlement(stored: sharedDefaults.object(forKey: key), now: now)
     }
 
     static func isActive() -> Bool { entitlement().isActive }
 
     static func update(expiration: Date?) {
-        let defaults = UserDefaults(suiteName: group)
-        if let expiration { defaults?.set(expiration, forKey: expirationKey) }
-        else { defaults?.removeObject(forKey: expirationKey) }
+        guard let defaults = sharedDefaults else { return }
+        switch expiration {
+        case .some(let expiration): defaults.set(expiration, forKey: key)
+        case .none: defaults.removeObject(forKey: key)
+        }
     }
 }

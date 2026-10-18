@@ -1,37 +1,28 @@
 import AppMacros
 import SwiftUI
 
-enum IOSAlertVariant: Equatable {
-    case information, error
-}
-
-@Equatable
+enum IOSAlertVariant: Equatable { case information, error }
+@MainActor @Equatable
 struct IOSInlineAlert: View {
     private let inputRevision = UUID()
-    @Environment(\.iosDesignTokens) private var tokens
     let title: String
     let message: String
     let variant: IOSAlertVariant
-
     init(_ title: String, message: String, variant: IOSAlertVariant = .information) {
-        self.title = title
-        self.message = message
-        self.variant = variant
+        self.title = title; self.message = message; self.variant = variant
     }
-
     var body: some View {
-        let colors = tokens.colors
-        HStack(alignment: .top, spacing: tokens.spacing.sm) {
-            Image(systemName: variant == .error ? "exclamationmark.triangle" : "info.circle")
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: tokens.spacing.xxs) {
-                Text(title).font(tokens.typography.alertTitle)
-                Text(message).font(tokens.typography.alertMessage)
+        Label {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title).font(.nibbleTitle)
+                Text(message).font(.nibbleBody).fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
+        } icon: {
+            Image(systemName: variant == .error ? "exclamationmark.triangle" : "info.circle")
         }
-        .foregroundStyle(variant == .error ? colors.destructiveText : colors.cardForeground)
-        .padding(tokens.spacing.md)
-        .background(colors.muted, in: RoundedRectangle(cornerRadius: tokens.radii.control))
+        .foregroundStyle(variant == .error ? Color.nibbleErrorText : .nibblePrimary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.nibbleSoft, in: .rect(cornerRadius: 12))
     }
 }

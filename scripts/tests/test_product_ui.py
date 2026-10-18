@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from ios import VerificationError
@@ -36,14 +36,68 @@ class ProductNavigationTests(unittest.TestCase):
             return {'screen': {'width': 375, 'height': 667}, 'entries': [
                 {'uniqueId': 'editor.body', 'frame': {'x': 24, 'y': y, 'width': 327, 'height': 40}},
                 {'uniqueId': 'editor.keyboard.help', 'frame': {'y': 355, 'height': 44}},
+                {'uniqueId': 'editor.keyboard.dismiss'},
             ]}
         run = object.__new__(ProductRun)
         run.args = SimpleNamespace(device='selected')
-        run.wait_ui = Mock(side_effect=[screen(140), screen(368), screen(368)])
-        run.ui = Mock(return_value=screen(200))
+        run.ui = Mock(side_effect=[screen(140), screen(140), screen(368), screen(368), screen(368),
+                                   screen(200), screen(200)])
         run.command = Mock()
-        self.assertEqual(run._focus_input('editor.body'), (187.5, 220))
+        with patch('ios.time.sleep'):
+            self.assertEqual(run._focus_input('editor.body'), (187.5, 220))
         self.assertEqual([call.args[0][1] for call in run.command.call_args_list], ['tap', 'swipe'])
+
+    def test_focus_waits_for_interactive_keyboard_dismissal_before_using_the_title_point(self):
+        def screen(y, keyboard):
+            entries = [
+                {'uniqueId': 'editor.title', 'frame': {'x': 20, 'y': y, 'width': 362, 'height': 34}},
+                {'uniqueId': 'editor.exitGuidance', 'frame': {'y': 140, 'height': 18}},
+                {'uniqueId': 'editor.keyboard.help' if keyboard else 'editor.help',
+                 'frame': {'y': 501 if keyboard else 803, 'height': 18}},
+            ]
+            if keyboard:
+                entries.append({'uniqueId': 'editor.keyboard.dismiss'})
+            return {'screen': {'width': 402, 'height': 874}, 'entries': entries}
+
+        run = object.__new__(ProductRun)
+        run.args = SimpleNamespace(device='selected')
+        run.ui = Mock(side_effect=[screen(584, True), screen(584, True), screen(423, True),
+                                   screen(584, False), screen(584, False), screen(448, True),
+                                   screen(448, True), screen(448, True)])
+        run.command = Mock()
+        with patch('ios.time.sleep'):
+            self.assertEqual(run._focus_input('editor.title'), (201, 465))
+        self.assertEqual([call.args[0][1] for call in run.command.call_args_list], ['swipe', 'tap'])
+        tap = run.command.call_args_list[1].args[0]
+        self.assertEqual(float(tap[tap.index('-y') + 1]), 601)
+
+    def test_reveal_waits_for_changes_to_either_the_frame_or_the_viewport(self):
+        def screen(y, bottom):
+            return {'screen': {'width': 375, 'height': 667}, 'entries': [
+                {'uniqueId': 'editor.body', 'frame': {'x': 24, 'y': y, 'width': 327, 'height': 180}},
+                {'uniqueId': 'editor.keyboard.help', 'frame': {'y': bottom, 'height': 44}},
+            ]}
+
+        for changed in [screen(280, 355), screen(300, 400)]:
+            with self.subTest(changed=changed):
+                run = object.__new__(ProductRun)
+                run.ui = Mock(side_effect=[screen(300, 355), changed, copy.deepcopy(changed)])
+                run.command = Mock()
+                with patch('ios.time.sleep'):
+                    self.assertEqual(run._reveal_input('editor.body'), changed)
+                self.assertEqual(run.ui.call_count, 3)
+                run.command.assert_not_called()
+
+    def test_unsettled_input_fails_after_bounded_observations_without_tapping(self):
+        run = object.__new__(ProductRun)
+        run.ui = Mock(side_effect=[{'screen': {'width': 375, 'height': 667}, 'entries': [
+            {'uniqueId': 'editor.title', 'frame': {'x': 20, 'y': 200 + attempt, 'width': 335, 'height': 34}},
+        ]} for attempt in range(20)])
+        run.command = Mock()
+        with patch('ios.time.sleep'), self.assertRaisesRegex(VerificationError, 'editor.title-present'):
+            run._focus_input('editor.title')
+        self.assertEqual(run.ui.call_count, 20)
+        run.command.assert_not_called()
 
     def test_editor_viewport_excludes_the_navigation_bar_and_keyboard_accessory(self):
         data = {'screen': {'height': 667}, 'entries': [

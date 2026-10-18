@@ -1,58 +1,56 @@
-import UIKit
 import SwiftUI
 import Tasking
+import UIKit
 
 @MainActor
 final class ShareViewController: UIViewController {
     private let store = SnippetStore(location: SnippetLocation.database)
     private let tasks = ViewTaskStore()
-    private static let load: ActionID = "share.load"
-
+    private var started = false
+    private var visible = false
     override func viewDidLoad() {
         super.viewDidLoad()
-        NibbleInterface.apply(to: &traitOverrides)
         view.backgroundColor = .systemBackground
+        NibbleInterface.apply(to: &traitOverrides)
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        visible = true
         startTask()
     }
-
+    override func viewDidDisappear(_ animated: Bool) {
+        visible = false
+        tasks.cancel(lifetime: .screenBound)
+        super.viewDidDisappear(animated)
+    }
     private func startTask() {
-        tasks.start(id: Self.load, lifetime: .screenBound, policy: .ignoreNew) { [weak self] _ in
-            await self?.presentEditor()
+        guard !started else { return }
+        started = true
+        tasks.start(id: "share.read", lifetime: .screenBound, policy: .ignoreNew) { [weak self] _ in
+            await self?.receiveSharedContent()
         }
     }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        tasks.cancel(lifetime: .screenBound)
-    }
-
-    private func presentEditor() async {
+    private func receiveSharedContent() async {
+        let items = extensionContext?.inputItems.compactMap { $0 as? NSExtensionItem } ?? []
         do {
-            try Task.checkCancellation()
-            let providers = (extensionContext?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
-            let draft = try await SharedDraftLoader(store: store).load(from: providers)
-            // Persisted shared text remains recoverable, but a departed host must not present UI.
-            try Task.checkCancellation()
-            let host = UIHostingController(rootView: SnippetEditor(draft: draft, store: store,
-                proIsActive: ProAccess.isActive, complete: { [weak self] in
+            let draft = try await SharedDraftLoader(store: store).load(from: items.flatMap { $0.attachments ?? [] })
+            guard visible, !Task.isCancelled else { return }
+            let content = SnippetEditor(draft: draft, store: store, proIsActive: ProAccess.isActive, complete: { [weak self] in
                 self?.extensionContext?.completeRequest(returningItems: nil)
-            }).environment(\.iosDesignTokens, IOSDesignTokens.nibble).modifier(NibbleInterface()))
+            }).modifier(NibbleInterface())
+            let host = UIHostingController(rootView: content)
             NibbleInterface.apply(to: &host.traitOverrides)
             addChild(host)
-            host.view.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(host.view)
+            host.view.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor), host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                host.view.topAnchor.constraint(equalTo: view.topAnchor), host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+                host.view.topAnchor.constraint(equalTo: view.topAnchor), host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+                host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor), host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
             ])
             host.didMove(toParent: self)
-        } catch is CancellationError {
-            extensionContext?.cancelRequest(withError: CancellationError())
-        } catch {
-            guard !Task.isCancelled else {
-                extensionContext?.cancelRequest(withError: CancellationError())
-                return
-            }
+        } catch is CancellationError { return }
+        catch {
+            guard visible, !Task.isCancelled else { return }
             let alert = UIAlertController(title: "取り込めませんでした", message: ShareFailureMessage.text(for: error), preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "閉じる", style: .cancel) { [weak self] _ in
                 self?.extensionContext?.cancelRequest(withError: ShareError.unsupported)

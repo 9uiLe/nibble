@@ -2,16 +2,15 @@ import AppMacros
 import SwiftUI
 import UIKit
 
-/// Apply native control traits at the app scene, including system presentations.
 @Equatable(.mainActor)
 struct SceneInterfaceDefaults: UIViewRepresentable {
     func makeUIView(context: Context) -> TraitView { TraitView() }
-    func updateUIView(_ view: TraitView, context: Context) {}
-
+    func updateUIView(_ uiView: TraitView, context: Context) { uiView.applyDefaults() }
     final class TraitView: UIView {
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            if let scene = window?.windowScene { NibbleInterface.apply(to: &scene.traitOverrides) }
+        func applyDefaults() {
+            guard let scene = window?.windowScene else { return }
+            NibbleInterface.apply(to: &scene.traitOverrides)
         }
+        override func didMoveToWindow() { super.didMoveToWindow(); applyDefaults() }
     }
 }

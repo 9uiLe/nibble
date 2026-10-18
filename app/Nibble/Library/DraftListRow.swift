@@ -1,42 +1,23 @@
 import AppMacros
 import SwiftUI
 
-@Equatable
+@MainActor @Equatable
 struct DraftListRow: View {
     private let inputRevision = UUID()
+    let draft: DraftSummary
     @SkipEquatable let model: LibraryModel
     @SkipEquatable let taskOwner: LibraryTaskOwner
-    let draft: DraftSummary
-
     var body: some View {
         Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
-            HStack(alignment: .top, spacing: 12) {
+            HStack {
                 VStack(alignment: .leading, spacing: 6) {
-                    SnippetHeading(title: draft.displayTitle, pinned: false, style: .library)
-                    if draft.textPresentation.hasExplicitTitle {
-                        Text(draft.preview).font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
-                            .lineLimit(2)
-                    }
-                    Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
-                        .font(.caption).foregroundStyle(Color.nibbleSecondary)
+                    Text(verbatim: draft.displayTitle).font(.nibbleTitle)
+                    Text(verbatim: draft.preview).font(.nibbleBody).lineLimit(2).foregroundStyle(Color.nibbleSecondary)
+                    Text(draft.updatedAt, format: .dateTime.year().month().day().hour().minute()).font(.caption).foregroundStyle(Color.nibbleSecondary)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.caption).foregroundStyle(Color.nibbleSecondary)
-                    .frame(minHeight: 36)
-                    .accessibilityHidden(true)
-            }
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 0, trailing: 20))
-        .accessibilityLabel("下書き、\(draft.displayTitle)")
-        .accessibilityValue(!draft.textPresentation.hasExplicitTitle
-            ? Text(draft.updatedAt, format: .dateTime.month().day().hour().minute())
-            : Text("\(draft.preview)、\(draft.updatedAt, format: .dateTime.month().day().hour().minute())"))
-        .accessibilityHint("編集を再開します")
-        .accessibilityIdentifier("draft.\(draft.id)")
+            }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+        }.buttonStyle(.plain).accessibilityLabel("下書きを再開、\(draft.displayTitle)").accessibilityIdentifier("draft.\(draft.id)")
     }
 }

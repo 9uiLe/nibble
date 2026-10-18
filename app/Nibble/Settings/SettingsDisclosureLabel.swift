@@ -1,32 +1,21 @@
 import AppMacros
 import SwiftUI
 
-/// A sheet destination uses the same disclosure cue as a pushed destination.
-@Equatable
-struct SettingsDisclosureLabel: @MainActor EquatableBodyView {
+@MainActor @Equatable
+struct SettingsDisclosureLabel: View {
+    private let inputRevision = UUID()
     let title: String
     let detail: String
     let systemImage: String
-    let showsChevron: Bool
-
-    var equatableBody: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.system(size: 19))
-                .foregroundStyle(Color.nibbleAccent)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.nibbleTitle).foregroundStyle(Color.nibblePrimary)
+    var showsChevron = false
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: systemImage).frame(width: 24).foregroundStyle(Color.nibbleSecondary)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title).font(.nibbleTitle)
                 Text(detail).font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
-            }
-            Spacer(minLength: 12)
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.nibbleSecondary)
-                    .accessibilityHidden(true)
-            }
-        }
-        .frame(minHeight: 52)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if showsChevron { Image(systemName: "chevron.right").foregroundStyle(Color.nibbleSecondary) }
+        }.padding(.vertical, 8).frame(minHeight: 44)
     }
 }

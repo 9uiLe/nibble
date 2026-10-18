@@ -1,42 +1,30 @@
 import Foundation
 
-/// All pages and counts are read in one database transaction, in request order.
-/// Implementations must not compose independent reads into a batch.
-protocol LibraryReading: Sendable {
-    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage]
-}
-
-extension LibraryReading {
-    func library(_ request: LibraryRequest) async throws -> LibraryPage {
-        let pages = try await libraries([request])
-        guard pages.count == 1, let page = pages.first else { throw StoreError.unavailable }
-        return page
-    }
-}
-
 struct LibraryRequest: Equatable, Sendable {
     static let pageSize = 100
     static let draftPreviewLimit = 1
-    let query: String
+    private let queryBytes: Data
+    var query: String { String(decoding: queryBytes, as: UTF8.self) }
     let filter: LibraryFilter
     let limit: Int
 
-    var includesDrafts: Bool {
-        query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (filter == .all || filter == .drafts)
-    }
-
     init(query: String = "", filter: LibraryFilter = .all, limit: Int = LibraryRequest.pageSize) {
-        self.query = query
         self.filter = filter
-        self.limit = min(max(1, limit), Int.max - 1)
+        queryBytes = Data(query.utf8)
+        self.limit = max(1, min(limit, Int.max - 1))
     }
 
-    var expanded: Self {
-        Self(query: query, filter: filter, limit: min(limit, Int.max - Self.pageSize - 1) + Self.pageSize)
+    var includesDrafts: Bool {
+        guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        return filter == .all || filter == .drafts
+    }
+
+    var expanded: LibraryRequest {
+        let room = Int.max - Self.pageSize - 1
+        return LibraryRequest(query: query, filter: filter, limit: min(limit, room) + Self.pageSize)
     }
 }
 
-/// Collection totals are independent of the current search and pagination limit.
 struct LibraryCounts: Equatable, Sendable {
     var saved = 0
     var pinned = 0
@@ -44,15 +32,14 @@ struct LibraryCounts: Equatable, Sendable {
 
     func count(for filter: LibraryFilter) -> Int? {
         switch filter {
-        case .all: saved
-        case .pinned: pinned
         case .drafts: drafts
+        case .pinned: pinned
+        case .all: saved
         case .trash: nil
         }
     }
 }
 
-/// Snippet rows, draft rows and pagination all describe the same database read snapshot.
 struct LibraryPage: Equatable, Sendable {
     let counts: LibraryCounts
     let items: [SnippetSummary]
@@ -60,12 +47,25 @@ struct LibraryPage: Equatable, Sendable {
     let hasMore: Bool
     let hasMoreDrafts: Bool
 
-    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false, hasMoreDrafts: Bool = false,
-         counts: LibraryCounts = LibraryCounts()) {
-        self.counts = counts
+    init(items: [SnippetSummary] = [], drafts: [DraftSummary] = [], hasMore: Bool = false,
+         hasMoreDrafts: Bool = false, counts: LibraryCounts = LibraryCounts()) {
         self.items = items
         self.drafts = drafts
         self.hasMore = hasMore
         self.hasMoreDrafts = hasMoreDrafts
+        self.counts = counts
+    }
+}
+
+protocol LibraryReading: Sendable {
+    // One read transaction supplies the ordered batch, including its counts and page boundaries.
+    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage]
+}
+
+extension LibraryReading {
+    func library(_ request: LibraryRequest) async throws -> LibraryPage {
+        let batch = try await libraries([request])
+        guard batch.count == 1 else { throw StoreError.unavailable }
+        return batch[0]
     }
 }

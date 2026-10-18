@@ -1,302 +1,121 @@
 import Foundation
 import Testing
-import SQLite3
 @testable import Nibble
 
-@Suite("Snippet persistence and recovery")
-struct SnippetTests {
-    @Test func featureAvailabilityMatchesTheConfiguredAudience() {
-        #expect(FeatureAccess.availability(.variableReplacement, pro: false) == .included)
-        let subscription = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: true)
-        #expect(subscription.availability(.variableReplacement, pro: false) == .requiresPro)
-        #expect(subscription.availability(.variableReplacement, pro: true) == .included)
-        let withheld = FeaturePolicy(proFeatures: [.variableReplacement], subscriptionsOffered: false)
-        #expect(withheld.availability(.variableReplacement, pro: false) == .unavailable)
+@Suite("Saved text contracts")
+struct SnippetStoreTests {
+    @Test func originalBytesSurviveEditingAndASecondConnection() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let source = " \tか\u{3099}\r\n行\r次\n\0👩🏽‍💻  "
+        let id = try await create(fixture.store, title: " 題名\0 ", body: source)
+        let reopened = SnippetStore(location: fixture.url)
+        let saved = try await reopened.snippet(id)
+        #expect(saved.body.utf8.elementsEqual(source.utf8))
+        #expect(saved.title.utf8.elementsEqual(" 題名\0 ".utf8))
+        var editing = try await reopened.editingDraft(for: id)
+        editing.body += "追記"
+        try await reopened.save(editing)
+        #expect(try await fixture.store.savedBody(id).utf8.elementsEqual((source + "追記").utf8))
     }
 
-    @Test func proEntitlementDistinguishesStoredStates() {
-        let now = Date(timeIntervalSince1970: 1_000)
-        #expect(ProEntitlement(stored: nil, now: now) == .absent)
-        #expect(!ProEntitlement.unavailable.isActive)
-        #expect(ProEntitlement(stored: "", now: now) == .invalid)
-        #expect(ProEntitlement(stored: 1_001, now: now) == .invalid)
-        #expect(ProEntitlement(stored: Date(timeIntervalSince1970: .nan), now: now) == .invalid)
-        #expect(ProEntitlement(stored: now, now: now) == .expired(at: now))
-        #expect(ProEntitlement(stored: now.addingTimeInterval(-1), now: now) == .expired(at: now.addingTimeInterval(-1)))
-        let future = now.addingTimeInterval(1)
-        #expect(ProEntitlement(stored: future, now: now) == .active(until: future))
-        #expect(ProEntitlement(stored: future, now: now).isActive)
-        #expect(!ProEntitlement(stored: "", now: now).isActive)
-    }
-
-    @Test func variableValuesReplaceEachOccurrenceWithoutEditingOriginal() {
-        #expect(VariableName(" 宛名 ")?.text == "宛名")
-        #expect(VariableName("") == nil)
-        #expect(VariableName("   ") == nil)
-        #expect(VariableName("波{括弧") == nil)
-        #expect(VariableName(String(repeating: "長", count: 41)) == nil)
-        #expect(VariableName("宛名")?.marker == "{{宛名}}")
-        #expect(VariableName(" 宛名 ")?.marker == "{{宛名}}")
-        #expect(VariableName.issue(String(repeating: "長", count: 41)) == .tooLong)
-        #expect(VariableName.issue("改行\nあり") == .unsupportedCharacter)
-        #expect(VariableName.issue("波{括弧") == .unsupportedCharacter)
-        let original = "{{宛名}}さん\r\n{{宛名}}へ 👩🏽‍💻 {{日付}} / {{ }} / {{未完"
-        let template = SnippetVariables(original)
-        #expect(template.names == [testVariableName("宛名"), testVariableName("日付")])
-        #expect(template.filled(with: testVariableValues(["宛名": "山田", "日付": "9月24日"])) ==
-            "山田さん\r\n山田へ 👩🏽‍💻 9月24日 / {{ }} / {{未完")
-        #expect(template.filled(with: testVariableValues(["宛名": "山田"])) == nil)
-        #expect(template.filled(with: testVariableValues(["宛名": "", "日付": "9月24日"])) == nil)
-        #expect(template.body.utf8.elementsEqual(original.utf8))
-        #expect(SnippetVariables("普通の本文").filled(with: [:]) == "普通の本文")
-    }
-
-    @Test func largeVariableBodyKeepsEveryByteOutsideMarkers() {
-        let text = String(repeating: "本文👩🏽‍💻\r\n", count: 40_000)
-        let original = "先頭{{ 宛名 }}" + text + "{{宛名}}末尾"
-        let template = SnippetVariables(original)
-        #expect(template.names == [testVariableName("宛名")])
-        #expect(template.filled(with: testVariableValues(["宛名": "山田"])) == "先頭山田" + text + "山田末尾")
-        #expect(template.body == original)
-    }
-
-    @Test func collapsedVariablePrefixMatchesCompletedTextWithoutRequiringTheWholeBody() throws {
-        let template = SnippetVariables("前{{宛名}}中{{宛名}}後" + String(repeating: "👩🏽‍💻", count: 500))
-        let values = testVariableValues(["宛名": "山田\n太郎"])
-        let completed = try #require(template.filled(with: values))
-        for limit in [0, 1, 2, 4, 8, 16, 160, 1_000] {
-            let prefix = try #require(template.filledPrefix(with: values, characterLimit: limit))
-            #expect(prefix.text == String(completed.prefix(limit)))
-            #expect(prefix.hasMore == (completed.count > limit))
+    @Test func searchNormalizesOnlyItsLookupAndTreatsMetacharactersLiterally() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let id = try await create(fixture.store, title: "題", body: "東京都 ＡＢＣ カナ か\u{3099} %_\\")
+        _ = try await create(fixture.store, body: "大阪 かな")
+        for query in ["東", "題", "abc", "ｶﾅ", "が", "%_\\"] {
+            #expect(try await fixture.store.search(query).map(\.id) == [id])
         }
-        #expect(template.filledPrefix(with: [:], characterLimit: 160) == nil)
-        #expect(template.filledPrefix(with: values, characterLimit: -1) == nil)
-        #expect(template.body.hasPrefix("前{{宛名}}"))
-
-        for (source, replacement) in [
-            ("e{{境界}}末", "\u{301}"),
-            ("👩{{境界}}末", "\u{200D}💻"),
-            ("\r{{境界}}末", "\n")
-        ] {
-            let joined = SnippetVariables(source)
-            let value = testVariableValues(["境界": replacement])
-            let completed = try #require(joined.filled(with: value))
-            for limit in 0...3 {
-                let prefix = try #require(joined.filledPrefix(with: value, characterLimit: limit))
-                #expect(prefix.text == String(completed.prefix(limit)))
-                #expect(prefix.hasMore == (completed.count > limit))
-            }
-        }
+        #expect(try await fixture.store.search("かな").map(\.id) != [id])
+        #expect(try await !fixture.store.search("か").contains { $0.id == id })
+        #expect(try await fixture.store.savedBody(id).contains("か\u{3099}"))
     }
 
-    @Test func savingHasNoPlanBasedCountLimitAndPreservesDraftsAndExistingUse() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let free = SnippetStore(location: database.url)
-        var ids: [UUID] = []
-        for number in 0..<31 {
-            ids.append(try await create(free, body: "item \(number)"))
-        }
-        var draft = try await free.beginDraft(body: "next item")
-        draft.title = "continued"
-        try await free.save(draft)
-        var edit = try await free.editingDraft(for: ids[0])
-        edit.body = "edited"
-        try await free.save(edit)
-        #expect(try await free.savedBody(ids[0]) == "edited")
-        try await free.mutate(.delete, id: ids[0])
-        try await free.mutate(.restore, id: ids[0])
-        let overflow = try await free.beginDraft(body: "overflow")
-        try await free.save(overflow)
-        #expect(try await free.search().count == 33)
+    @Test func countsAreIndependentOfSearchAndDraftsHaveTheirOwnBudget() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let first = try await create(fixture.store, body: "一致")
+        _ = try await create(fixture.store, body: "別の本文")
+        try await fixture.store.setPinned(true, id: first)
+        for index in 0..<3 { _ = try await fixture.store.beginDraft(body: "下書き \(index)") }
+        let pages = try await fixture.store.libraries([
+            LibraryRequest(limit: 1), LibraryRequest(query: "一致"), LibraryRequest(filter: .drafts, limit: 2)
+        ])
+        #expect(pages.count == 3)
+        #expect(pages.allSatisfy { $0.counts == LibraryCounts(saved: 2, pinned: 1, drafts: 3) })
+        #expect(pages[0].items.count == 1 && pages[0].hasMore && pages[0].drafts.count == 1 && pages[0].hasMoreDrafts)
+        #expect(pages[1].items.map(\.id) == [first] && pages[1].drafts.isEmpty)
+        #expect(pages[2].items.isEmpty && pages[2].drafts.count == 2 && pages[2].hasMore)
     }
 
-    @Test func exactTextSurvivesReopenAndEdit() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        let store = SnippetStore(location: url)
-        let text = "  日本語 か\u{3099}\n\t👩🏽‍💻 <code>\0tail  "
-        let id = try await create(store, title: "  住所  ", body: text)
-        let reopened = SnippetStore(location: url)
-        let value = try await reopened.snippet(id)
-        #expect(Array(value.body.utf8) == Array(text.utf8))
-        #expect(value.title == "  住所  ")
-        var draft = try await reopened.beginDraft(target: .snippet(id))
-        draft.body += "改訂"
-        try await reopened.save(draft)
-        #expect(try await store.snippet(id).body == text + "改訂")
-    }
-
-    @Test func shortJapaneseAndLiteralSearch() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let tokyo = try await create(store, title: "住所", body: "東京都 \n カナ ＡＢＣ か\u{3099} 100% _ \\")
-        _ = try await create(store, body: "大阪府")
-        for query in ["東", "東京", "住所", "ｶﾅ", "abc", "が", "%", "_", "\\"] {
-            #expect(try await store.search(query).map(\.id) == [tokyo], "\(query)")
-        }
-        #expect(try await store.search("かな").isEmpty)
-        #expect(try await store.search("存在しない").isEmpty)
-    }
-
-    @Test func deletionIsRecoverableAcrossLaunches() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        let store = SnippetStore(location: url)
-        let id = try await create(store, body: "keep me")
-        let original = try await store.snippet(id)
-        await #expect(throws: StoreError.missing) { try await store.mutate(.restore, id: id) }
-        #expect(try await store.snippet(id).revision == original.revision)
-        try await store.mutate(.delete, id: id)
-        let deleted = try await store.snippet(id)
-        await #expect(throws: StoreError.missing) { try await store.mutate(.delete, id: id) }
-        #expect(try await store.snippet(id).revision == deleted.revision)
-        let reopened = SnippetStore(location: url)
-        #expect(try await reopened.search().isEmpty)
+    @Test func trashRequiresTheExpectedStateAndPermanentDeletionIncludesDrafts() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let id = try await create(fixture.store, body: "残す本文")
+        let editing = try await fixture.store.editingDraft(for: id)
+        await #expect(throws: StoreError.missing) { try await fixture.store.mutate(.restore, id: id) }
+        try await fixture.store.setPinned(true, id: id)
+        try await fixture.store.mutate(.delete, id: id)
+        await #expect(throws: StoreError.missing) { try await fixture.store.savedBody(id) }
+        await #expect(throws: StoreError.missing) { try await fixture.store.mutate(.delete, id: id) }
+        let reopened = SnippetStore(location: fixture.url)
         #expect(try await reopened.search(filter: .trash).map(\.id) == [id])
         try await reopened.mutate(.restore, id: id)
-        let restored = try await store.snippet(id)
-        await #expect(throws: StoreError.missing) { try await store.mutate(.restore, id: id) }
-        #expect(try await store.snippet(id).revision == restored.revision)
-        #expect(try await store.search().map(\.id) == [id])
-        let draft = try await store.editingDraft(for: id)
-        await #expect(throws: StoreError.missing) { try await store.mutate(.permanentlyDelete, id: id) }
-        #expect(try await store.snippet(id).body == "keep me")
-        #expect(try await store.draft(draft.id).target == .snippet(id))
-        try await store.mutate(.delete, id: id)
-        try await store.mutate(.permanentlyDelete, id: id)
-        await #expect(throws: StoreError.missing) { try await reopened.snippet(id) }
-        await #expect(throws: StoreError.missing) { try await reopened.draft(draft.id) }
+        #expect(try await fixture.store.snippet(id).pinned)
+        #expect(try await fixture.store.savedBody(id) == "残す本文")
+        await #expect(throws: StoreError.missing) { try await fixture.store.mutate(.permanentlyDelete, id: id) }
+        try await reopened.mutate(.delete, id: id)
+        try await reopened.mutate(.permanentlyDelete, id: id)
+        await #expect(throws: StoreError.missing) { try await fixture.store.snippet(id) }
+        await #expect(throws: StoreError.missing) { try await fixture.store.draft(editing.id) }
     }
 
-    @Test func concurrentEditorsNeverSilentlyOverwrite() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        let first = SnippetStore(location: url), second = SnippetStore(location: url)
-        let id = try await create(first, body: "original")
-        var a = try await first.beginDraft(target: .snippet(id))
-        var b = try await second.beginDraft(target: .snippet(id))
-        a.body = "first edit"; b.body = "second edit"
-        try await second.updateDraft(b)
-        try await first.save(a)
-        await #expect(throws: StoreError.conflict) { try await second.save(b) }
-        #expect(try await first.snippet(id).body == "first edit")
-        #expect(try await second.draft(b.id).body == "second edit")
-        let recovered = try await second.save(b, mode: .saveAsNew)
-        #expect(recovered != id)
-        #expect(try await first.snippet(recovered).body == "second edit")
+    @Test func byteLimitsAndFreeFeaturesDoNotDiscardExistingInput() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        var input = try await fixture.store.beginDraft(body: String(repeating: "あ", count: 333_333) + "x")
+        input.title = String(repeating: "あ", count: 170) + "xy"
+        let id = try await fixture.store.save(input)
+        var changed = try await fixture.store.editingDraft(for: id)
+        changed.body += "x"
+        try await fixture.store.updateDraft(changed)
+        await #expect(throws: StoreError.tooLarge) { try await fixture.store.save(changed) }
+        #expect(try await fixture.store.savedBody(id).utf8.count == 1_000_000)
+        #expect(try await fixture.store.draft(changed.id).body.utf8.count == 1_000_001)
+        changed.body = "入力を保持"
+        changed.title += "z"
+        await #expect(throws: StoreError.tooLarge) { try await fixture.store.save(changed) }
+        changed.title = "題名"
+        changed.body = " \r\n "
+        try await fixture.store.updateDraft(changed)
+        await #expect(throws: StoreError.empty) { try await fixture.store.save(changed) }
+        #expect(try await fixture.store.draft(changed.id).body.utf8.elementsEqual(changed.body.utf8))
+        #expect(try await fixture.store.savedBody(id).utf8.count == 1_000_000)
+        #expect(FeatureAccess.availability(.variableReplacement, pro: false).isAvailable)
+        #expect(!FeatureAccess.subscriptionsOffered)
     }
 
-    @Test func draftOrderingAndLateWrites() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        let store = SnippetStore(location: url)
-        var draft = try await store.beginDraft(body: "start")
-        draft.body = "old"
-        let old = draft
-        draft.body = "latest"
-        try await store.updateDraft(draft)
-        try await store.updateDraft(old)
-        let reopened = SnippetStore(location: url)
-        #expect(try await reopened.draft(draft.id).body == "latest")
-        try await store.save(draft)
-        draft.body = "late"
-        try await store.updateDraft(draft)
-        #expect(try await reopened.drafts().isEmpty)
-        await #expect(throws: StoreError.missing) { try await store.save(draft) }
-        #expect(try await reopened.search().count == 1)
-    }
-
-    @Test func validationFailureKeepsDraftAndExistingData() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let id = try await create(store, body: "original")
-        var draft = try await store.beginDraft(target: .snippet(id))
-        draft.body = " \n "
-        try await store.updateDraft(draft)
-        await #expect(throws: StoreError.empty) { try await store.save(draft) }
-        #expect(try await store.snippet(id).body == "original")
-        #expect(try await store.drafts().first?.id == draft.id)
-        draft.body = String(repeating: "あ", count: 333_333) + "a"
-        draft.title = String(repeating: "あ", count: 170) + "ab"
-        try await store.save(draft) // Exact UTF-8 limits, not character counts.
-        let atLimit = try await store.beginDraft(target: .snippet(id))
-        var tooLong = atLimit
-        tooLong.title += "a"
-        await #expect(throws: StoreError.tooLarge) { try await store.save(tooLong) }
-        tooLong = atLimit
-        tooLong.body += "a"
-        await #expect(throws: StoreError.tooLarge) { try await store.save(tooLong) }
-        #expect(try await store.snippet(id).body.utf8.count == 1_000_000)
-        #expect(try await store.draft(atLimit.id).title.utf8.count == 512)
-    }
-
-    @Test func parallelConnectionsKeepEveryInsert() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        let a = SnippetStore(location: url), b = SnippetStore(location: url)
-        _ = try await a.search()
-        try await withThrowingTaskGroup(of: UUID.self) { group in
-            for number in 0..<4 {
-                group.addTask { try await create(number.isMultiple(of: 2) ? a : b, body: "value \(number)") }
+    @Test func variableExpansionChangesOnlyConfirmedOutputAndHandlesGraphemeBoundaries() throws {
+        let source = "{{ 宛名 }}\r\n{{宛名}}/{{未入力}}/{{ }}/{{未完"
+        let template = SnippetVariables(source)
+        #expect(template.names == [testVariableName("宛名"), testVariableName("未入力")])
+        #expect(template.filled(with: testVariableValues(["宛名": "山田"])) == nil)
+        #expect(template.filled(with: testVariableValues(["宛名": "山田", "未入力": ""])) == nil)
+        let output = try #require(template.filled(with: testVariableValues(["宛名": "山田", "未入力": "値"])))
+        #expect(output == "山田\r\n山田/値/{{ }}/{{未完")
+        #expect(template.body.utf8.elementsEqual(source.utf8))
+        for (body, value) in [("e{{境界}}末", "\u{301}"), ("👩{{境界}}末", "\u{200D}💻"), ("\r{{境界}}末", "\n")] {
+            let parsed = SnippetVariables(body)
+            let values = testVariableValues(["境界": value])
+            let complete = try #require(parsed.filled(with: values))
+            for count in 0...3 {
+                let preview = try #require(parsed.filledPrefix(with: values, characterLimit: count))
+                #expect(preview.text == String(complete.prefix(count)))
+                #expect(preview.hasMore == (complete.count > count))
             }
-            var ids = Set<UUID>()
-            for try await id in group { ids.insert(id) }
-            #expect(ids.count == 4)
         }
-        #expect(try await a.search().count == 4)
-        #expect(try await b.drafts().isEmpty)
-    }
-
-    @Test func unknownDatabaseVersionIsNotReplaced() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        var db: OpaquePointer?
-        #expect(sqlite3_open(url.path, &db) == SQLITE_OK)
-        #expect(sqlite3_exec(db, "PRAGMA user_version=99", nil, nil, nil) == SQLITE_OK)
-        sqlite3_close(db)
-        let before = try Data(contentsOf: url)
-        let store = SnippetStore(location: url)
-        await #expect(throws: StoreError.newerVersion) { try await store.search() }
-        #expect(try Data(contentsOf: url) == before)
-    }
-
-    @Test func corruptDatabaseIsNotReinitialized() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let url = database.url
-        let data = Data(repeating: 0xFF, count: 4096)
-        try data.write(to: url)
-        let store = SnippetStore(location: url)
-        await #expect(throws: StoreError.database) { try await store.search() }
-        #expect(try Data(contentsOf: url) == data)
-    }
-
-    @Test func deepLinksOnlyNavigate() {
-        #expect(AppRoute(url: URL(string: "nibble://library")!) == .library)
-        #expect(AppRoute(url: URL(string: "nibble://new")!) == .create)
-        for value in ["nibble://delete", "nibble://new?body=secret", "nibble://library/#secret", "nibble://user@new", "https://new", "nibble://new/anything"] {
-            #expect(AppRoute(url: URL(string: value)!) == nil)
-        }
-    }
-
-    @Test @MainActor func closingAnUnchangedEditorDoesNotLeaveADraft() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let id = try await create(store, body: "saved")
-        let draft = try await store.beginDraft(target: .snippet(id))
-        let editor = EditorModel(draft: draft, store: store)
-        #expect(await editor.finish(.keep))
-        #expect(try await store.drafts().isEmpty)
-        #expect(try await store.snippet(id).body == "saved")
+        #expect(VariableName.issue("改\n行") == .unsupportedCharacter)
+        #expect(VariableName.issue(String(repeating: "長", count: 41)) == .tooLong)
     }
 }

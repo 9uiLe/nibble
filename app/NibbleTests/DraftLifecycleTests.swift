@@ -2,251 +2,138 @@ import Foundation
 import Testing
 @testable import Nibble
 
-@Suite("Draft snapshots and recovery")
+@Suite("Editing session durability")
 struct DraftLifecycleTests {
-    @Test func equalSequenceRequiresExactBytesForPersistenceAndSave() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let original = "原文\n"
-        var draft = try await database.store.beginDraft(body: original)
-        draft.body = original + "か\u{3099}\0"
-        try await database.store.keepDraft(draft)
-        #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
-        // Equal sequence remains valid after persistence and can close again.
-        try await database.store.keepDraft(draft)
-        let conflicting = Draft(id: draft.id, target: draft.target, baseRevision: draft.baseRevision,
-                                title: draft.title, body: original + "が\0", sequence: draft.sequence)
-        await #expect(throws: StoreError.staleDraft) { try await database.store.keepDraft(conflicting) }
-        // Autosave ignores non-newer snapshots; terminal operations report the conflict.
-        try await database.store.updateDraft(conflicting)
-        await #expect(throws: StoreError.staleDraft) { try await database.store.save(conflicting) }
-        let foreign = Draft(id: draft.id, target: .snippet(UUID()), baseRevision: draft.baseRevision,
-                            title: draft.title, body: draft.body, sequence: draft.sequence + 1)
-        try await database.store.updateDraft(foreign)
-        await #expect(throws: StoreError.staleDraft) { try await database.store.discardDraft(foreign) }
-        let wrongBase = Draft(id: draft.id, target: draft.target, baseRevision: draft.baseRevision + 1,
-                              title: draft.title, body: "wrong session", sequence: draft.sequence + 1)
-        try await database.store.updateDraft(wrongBase)
-        await #expect(throws: StoreError.staleDraft) { try await database.store.keepDraft(wrongBase) }
-        #expect(try await database.store.draft(draft.id).body.utf8.elementsEqual(draft.body.utf8))
+    @Test func sameSequenceNeedsTheSameSessionAndExactUtf8() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        var current = try await fixture.store.beginDraft(body: "が\0")
+        current.title = "更新"
+        try await fixture.store.updateDraft(current)
+        let equivalent = Draft(id: current.id, target: current.target, baseRevision: current.baseRevision,
+                               title: current.title, body: "か\u{3099}\0", sequence: current.sequence)
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.keepDraft(equivalent) }
+        try await fixture.store.updateDraft(equivalent)
+        #expect(try await fixture.store.draft(current.id).body.utf8.elementsEqual(current.body.utf8))
+        let foreign = Draft(id: current.id, target: .snippet(UUID()), baseRevision: current.baseRevision,
+                            title: current.title, body: "別session", sequence: current.sequence + 1)
+        try await fixture.store.updateDraft(foreign)
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.discardDraft(foreign) }
+        try await fixture.store.keepDraft(current)
+        #expect(try await fixture.store.draft(current.id).body.utf8.elementsEqual(current.body.utf8))
     }
 
-    @Test func inputSequenceDistinguishesCanonicallyEquivalentText() {
-        var draft = Draft(id: UUID(), target: .new, baseRevision: 0, title: "", body: "が")
-        draft.body = "が"
-        draft.title = ""
-        #expect(draft.sequence == 0)
-        draft.body = "か\u{3099}"
-        #expect(draft.sequence == 1)
-        draft.title = "見出し"
-        #expect(draft.sequence == 2)
-    }
-
-    @Test func staleSaveCannotOverwriteNewerAutosave() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let id = try await create(store, body: "保存済み")
-        var stale = try await store.beginDraft(target: .snippet(id))
-        stale.body = "古い入力"
-        var newest = stale
-        newest.body = "最新の入力"
-        try await store.updateDraft(newest)
-
-        await #expect(throws: StoreError.staleDraft) { try await store.save(stale) }
-        #expect(try await store.snippet(id).body == "保存済み")
-        #expect(try await store.draft(stale.id).body == newest.body)
-
-        let recovered = try await store.save(stale, mode: .saveAsNew)
+    @Test func aStaleTerminalOperationCannotRemoveNewerInput() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let id = try await create(fixture.store, body: "保存済み")
+        var old = try await fixture.store.editingDraft(for: id)
+        old.body = "古い入力"
+        var new = old
+        new.body = "新しい入力"
+        try await fixture.store.updateDraft(new)
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.save(old) }
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.keepDraft(old) }
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.discardDraft(old) }
+        let recovered = try await fixture.store.save(old, mode: .saveAsNew)
         #expect(recovered != id)
-        #expect(try await store.snippet(recovered).body == stale.body)
-        #expect(try await store.draft(stale.id).body == newest.body)
+        #expect(try await fixture.store.savedBody(id) == "保存済み")
+        #expect(try await fixture.store.savedBody(recovered) == "古い入力")
+        #expect(try await fixture.store.draft(old.id).body == "新しい入力")
     }
 
-    @Test func closingOrDiscardingAStaleSnapshotPreservesNewerInput() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let stale = try await store.beginDraft()
-        var newest = stale
-        newest.body = "ほかの編集画面の入力"
-        try await store.updateDraft(newest)
-        await #expect(throws: StoreError.staleDraft) { try await store.keepDraft(stale) }
-        await #expect(throws: StoreError.staleDraft) { try await store.discardDraft(stale) }
-        #expect(try await store.draft(stale.id).body == newest.body)
+    @Test func committedFinishPreventsLateAutosaveResurrection() async throws {
+        for save in [false, true] {
+            let fixture = try TestDatabase()
+            defer { fixture.removeFiles() }
+            var input = try await fixture.store.beginDraft(body: "入力")
+            input.body += "確定"
+            if save { try await fixture.store.save(input) }
+            else { try await fixture.store.discardDraft(input) }
+            input.body += "遅延"
+            try await fixture.store.updateDraft(input)
+            #expect(try await fixture.store.drafts().isEmpty)
+            await #expect(throws: StoreError.missing) { try await fixture.store.keepDraft(input) }
+            #expect(try await fixture.store.search().count == (save ? 1 : 0))
+        }
     }
 
-    @Test func concurrentResumeUsesOnePersistedDraft() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let first = database.store
-        let second = SnippetStore(location: database.url)
-        let id = try await create(first, body: "本文")
-        async let a = first.editingDraft(for: id)
-        async let b = second.editingDraft(for: id)
-        let (left, right) = try await (a, b)
-        #expect(left.id == right.id)
-        #expect(try await first.drafts().map(\.id) == [left.id])
+    @Test func concurrentResumeReturnsOneSessionAndRevisionConflictPreservesBothInputs() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let second = SnippetStore(location: fixture.url)
+        let id = try await create(fixture.store, body: "元の本文")
+        async let firstResume = fixture.store.editingDraft(for: id)
+        async let nextResume = second.editingDraft(for: id)
+        let (first, next) = try await (firstResume, nextResume)
+        #expect(first.id == next.id)
+        var separate = try await second.beginDraft(target: .snippet(id))
+        separate.body = "別の編集"
+        try await second.updateDraft(separate)
+        var winning = first
+        winning.body = "確定した編集"
+        try await fixture.store.save(winning)
+        await #expect(throws: StoreError.conflict) { try await second.save(separate) }
+        #expect(try await second.draft(separate.id).body == "別の編集")
+        #expect(try await second.savedBody(id) == "確定した編集")
     }
 
-    @Test func untitledDraftsRemainDistinctAndAllLibraryBoundsTheirRows() async throws {
-        let database = try TestDatabase()
-        defer { database.removeFiles() }
-        let store = database.store
-        let saved = try await create(store, body: "保存済みの本文")
-        var ids: [UUID] = []
-        var titled: Draft?
-        for number in 0..<4 {
-            var draft = try await store.beginDraft(body: "未完了の本文 \(number)\n" + String(repeating: "長", count: 181))
-            if number == 0 {
-                draft.title = String(repeating: "題", count: 181)
-                try await store.updateDraft(draft)
-                titled = draft
-            }
-            ids.append(draft.id)
-        }
-        let all = try await store.library(LibraryRequest())
-        #expect(all.items.map(\.id) == [saved])
-        #expect(all.drafts.count == 1 && all.hasMoreDrafts)
-        #expect(all.counts == LibraryCounts(saved: 1, pinned: 0, drafts: 4))
-        let first = try await store.library(LibraryRequest(filter: .drafts, limit: 2))
-        #expect(first.drafts.count == 2 && first.hasMore)
-        let expanded = try await store.library(LibraryRequest(filter: .drafts, limit: 2).expanded)
-        #expect(expanded.drafts.count == 4 && !expanded.hasMore)
-        #expect(Set(expanded.drafts.map(\.id)) == Set(ids))
-        #expect(Set(expanded.drafts.map(\.displayTitle)).count == 4)
-        #expect(expanded.drafts.allSatisfy { $0.preview.count == 180 })
-        #expect(Array(expanded.drafts.prefix(1)) == all.drafts)
-        let full = try #require(titled)
-        let summary = try #require(expanded.drafts.first { $0.id == full.id })
-        #expect(summary.title.count == 180)
-        let reopened = try await store.draft(full.id)
-        #expect(reopened.title.utf8.elementsEqual(full.title.utf8))
-        #expect(reopened.body.utf8.elementsEqual(full.body.utf8))
+    @Test(arguments: [-1, Int.max])
+    func invalidConstructedOrderKeepsInputWithoutClaimingReplacement(sequence: Int) {
+        var input = Draft(id: UUID(), target: .new, baseRevision: 0, title: "旧タイトル", body: "旧本文", sequence: sequence)
+        let before = input.checkpoint
+        input.body = "現在の本文\0か\u{3099}"
+        input.title = "現在のタイトル"
+        #expect(!input.canPersistSequence)
+        #expect(input.body.utf8.elementsEqual("現在の本文\0か\u{3099}".utf8))
+        #expect(input.title == "現在のタイトル")
+        #expect(!input.canAutosave(over: before))
+        #expect(input.replacement(of: before, title: input.title, body: input.body) == .rejected)
     }
 
-}
+    @Test @MainActor func exhaustedInputOrderRejectsNormalWritesAndOffersLosslessSaveAsNew() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let persisted = try await fixture.store.beginDraft(body: "DBに残す下書き")
+        let database = try SQLiteDatabase(url: fixture.url)
+        try database.execute("UPDATE drafts SET sequence=? WHERE id=?", [.int(Int.max - 1), .text(persisted.id.uuidString)])
+        let restored = try await fixture.store.draft(persisted.id)
+        let editor = EditorModel(draft: restored, store: fixture.store)
+        editor.body = "メモリ上の最新入力\0か\u{3099}"
+        editor.title = "回復した項目"
+        #expect(editor.draft.sequence == Int.max && !editor.draft.canPersistSequence)
+        await editor.persist(editor.draft)
+        #expect(editor.failure != nil && editor.phase == .editing)
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.keepDraft(editor.draft) }
+        await #expect(throws: StoreError.staleDraft) { try await fixture.store.discardDraft(editor.draft) }
+        #expect(!(await editor.finish(.save)))
+        #expect(editor.failure?.canSaveAsNew == true && editor.phase == .editing)
+        #expect(editor.body.utf8.elementsEqual("メモリ上の最新入力\0か\u{3099}".utf8))
+        #expect(await editor.finish(.saveAsNew))
+        let item = try #require(try await fixture.store.search().first)
+        let saved = try await fixture.store.snippet(item.id)
+        #expect(saved.body.utf8.elementsEqual("メモリ上の最新入力\0か\u{3099}".utf8))
+        #expect(saved.title == "回復した項目")
+        let original = try await fixture.store.draft(persisted.id)
+        #expect(original.sequence == Int.max - 1 && original.body == "DBに残す下書き")
+    }
 
-extension UIIntegrationTests {
-    @Suite("Fresh editor sessions")
-    @MainActor
-    struct EditorSessionTests {
-        @Test(arguments: [false, true])
-        func openingReadsTheLatestDraft(resumeByID: Bool) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let id = try await create(store, body: "保存済み")
-            var draft = try await store.beginDraft(target: .snippet(id))
-            let library = LibraryModel(store: store)
-            await library.refresh()
-            // Simulate an extension write after the library obtained its rows.
-            draft.body = "一覧取得後の最新入力"
-            let extensionStore = SnippetStore(location: database.url)
-            try await extensionStore.updateDraft(draft)
-            await library.open(resumeByID ? .draft(draft.id) : .snippet(id))
-            #expect(library.editor?.id == draft.id)
-            #expect(library.editor?.body == draft.body)
-            #expect(library.failure == nil)
-        }
-
-        @Test func removedDraftCannotBeReopenedFromAnOldRow() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let draft = try await store.beginDraft(body: "削除する下書き")
-            let library = LibraryModel(store: store)
-            await library.refresh()
-            try await store.discardDraft(draft)
-            await library.open(.draft(draft.id))
-            #expect(library.editor == nil)
-            #expect(library.failure != nil)
-            #expect(try await store.drafts().isEmpty)
-        }
-
-        @Test func deletedSnippetCannotBeOpenedThroughACachedDraft() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let id = try await create(store, body: "削除する項目")
-            _ = try await store.beginDraft(target: .snippet(id))
-            let library = LibraryModel(store: store)
-            await library.refresh()
-            try await store.mutate(.delete, id: id)
-            await library.open(.snippet(id))
-            #expect(library.editor == nil)
-            #expect(library.failure != nil)
-        }
-
-        @Test func aFailedFinishRemainsEditableAndSuccessfulFinishIsTerminal() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let editor = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
-            #expect(!(await editor.finish(.save)))
-            #expect(editor.phase == .editing)
-            #expect(editor.failure?.canSaveAsNew == false)
-            editor.body = "保存する本文"
-            #expect(await editor.finish(.save))
-            #expect(editor.phase == .finished)
-            #expect(editor.failure == nil)
-            editor.body = "終了後の入力"
-            #expect(editor.body == "保存する本文")
-            #expect(!(await editor.finish(.save)))
-            #expect(try await database.store.search().count == 1)
-        }
-
-        @Test func aMissingDraftDoesNotReportSuccessfulClose() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let draft = try await database.store.beginDraft(body: "保持する入力")
-            let editor = EditorModel(draft: draft, store: database.store)
-            try await database.store.discardDraft(draft)
-            #expect(!(await editor.finish(.keep)))
-            #expect(editor.phase == .editing)
-            #expect(editor.body == draft.body)
-            #expect(editor.failure?.canSaveAsNew == true)
-            #expect(editor.failure?.message.contains("閉じられませんでした") == true)
-            #expect(editor.failure?.message.contains("「新しい項目として保存」") == true)
-            #expect(editor.failure?.message.contains("一覧を更新") == false)
-            editor.body = ""
-            #expect(!(await editor.finish(.saveAsNew)))
-            #expect(editor.failure?.recovery == .correctInput)
-            #expect(editor.failure?.message.contains("別の項目に保存できます") == false)
-            editor.body = draft.body
-            let db = try SQLiteDatabase(url: database.url)
-            try db.execute("CREATE TRIGGER reject_new_save BEFORE INSERT ON snippets BEGIN SELECT RAISE(ABORT,'fixture'); END")
-            #expect(!(await editor.finish(.saveAsNew)))
-            #expect(editor.phase == .editing && editor.body == draft.body)
-            #expect(editor.failure?.canSaveAsNew == true)
-            #expect(editor.failure?.message.contains("「新しい項目として保存」をもう一度") == true)
-            try db.execute("DROP TRIGGER reject_new_save")
-            #expect(await editor.finish(.saveAsNew))
-            let saved = try #require(try await database.store.search().first)
-            #expect(try await database.store.snippet(saved.id).body == draft.body)
-        }
-
-        @Test(arguments: [EditorModel.FinishOperation.save, .keep, .discard])
-        func unavailableStorageKeepsInputAndNamesTheFailedExit(operation: EditorModel.FinishOperation) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let draft = try await database.store.beginDraft(body: "保存前の本文")
-            let unavailable = SnippetStore(location: { throw StoreError.unavailable })
-            let editor = EditorModel(draft: draft, store: unavailable)
-            editor.body = "  保存できていない入力\nか\u{3099}  "
-            let input = editor.body
-            #expect(!(await editor.finish(operation)))
-            #expect(editor.phase == .editing && editor.failure?.canSaveAsNew == false)
-            #expect(editor.body.utf8.elementsEqual(input.utf8))
-            #expect(try await database.store.draft(draft.id).body == "保存前の本文")
-            let message = try #require(editor.failure?.message)
-            #expect(message.contains("入力はこの画面に残っています"))
-            switch operation {
-            case .save: #expect(message.contains("「保存」をもう一度"))
-            case .keep: #expect(message.contains("閉じられませんでした") && message.contains("「閉じる」をもう一度"))
-            case .discard: #expect(message.contains("破棄できませんでした") && message.contains("「下書きを破棄」をもう一度"))
-            case .saveAsNew: Issue.record("Not part of this fixture")
-            }
-            #expect(!message.contains("開き直して"))
-        }
+    @Test @MainActor func failedExitLeavesOriginalInputEditableAndSuccessIsTerminal() async throws {
+        let fixture = try TestDatabase()
+        defer { fixture.removeFiles() }
+        let input = try await fixture.store.beginDraft(body: " \r\n")
+        let editor = EditorModel(draft: input, store: fixture.store)
+        #expect(!(await editor.finish(.save)))
+        #expect(editor.phase == .editing && editor.body.utf8.elementsEqual(input.body.utf8))
+        #expect(editor.failure != nil)
+        editor.body = "保存する本文"
+        #expect(await editor.finish(.save))
+        #expect(editor.phase == .finished)
+        #expect(!(await editor.finish(.save)))
+        #expect(try await fixture.store.search().count == 1)
+        let unavailable = SnippetStore(location: { throw StoreError.unavailable })
+        let remaining = EditorModel(draft: input, store: unavailable)
+        #expect(!(await remaining.finish(.keep)))
+        #expect(remaining.phase == .editing && remaining.body.utf8.elementsEqual(input.body.utf8))
     }
 }

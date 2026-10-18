@@ -1,5 +1,10 @@
-import Foundation
-
 enum StoreError: Error, Equatable {
-    case unavailable, database, newerVersion, conflict, staleDraft, missing, empty, tooLarge
+    case unavailable
+    case database
+    case newerVersion
+    case conflict
+    case staleDraft
+    case missing
+    case empty
+    case tooLarge
 }

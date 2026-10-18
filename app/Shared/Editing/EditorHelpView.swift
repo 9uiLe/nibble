@@ -4,50 +4,30 @@ import SwiftUI
 @Equatable
 struct EditorHelpView: View {
     @Environment(\.dismiss) private var dismiss
-
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Markdownで入力").font(.nibbleTitle)
-                        Text("「プレビュー」に切り替えると、Markdownの記号を隠して見出し・太字・斜体・コードなどの見た目を確認できます。「入力」に戻ると、原文の編集を続けられます。Markdownの記号も、空白や改行と一緒にそのまま保存・コピーされます。")
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("入力の上限").font(.nibbleTitle)
-                        Text("タイトルは任意で\(SnippetInputLimits.title)まで、本文は\(SnippetInputLimits.body)まで入力できます。")
-                            .accessibilityIdentifier("editor.lengthLimit")
-                        Text("UTF-8で数えるため、文字によって使うバイト数が異なります。空白や改行は、そのまま保存されます。")
-                        Text("本文が空、または空白や改行だけの場合は保存できません。")
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("保存と下書き").font(.nibbleTitle)
-                        Text("「保存」を押すと、一覧やキーボードから使えます。")
-                        Text("「閉じる」を押すと、入力した内容が下書きに残ります。空の新規入力や、変更していない項目は下書きに残りません。")
-                        Text("下書きは一覧の「下書き」から再開できます。不要な下書きは、編集画面の「その他」から破棄できます。保存済みの項目は変わりません。")
-                    }
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("保存と下書き").font(.nibbleTitle)
+                    Text("「保存」で一覧とキーボードから使える項目になります。「閉じる」は入力を下書きに残します。空の新規入力と変更していない項目は下書きに残りません。")
+                    Text("入力の上限").font(.nibbleTitle)
+                    Text("タイトルは任意で\(SnippetInputLimits.title)まで、本文は\(SnippetInputLimits.body)まで入力できます。")
+                        .accessibilityIdentifier("editor.lengthLimit")
+                    Text("UTF-8のバイト数で数えます。空白や改行だけの本文は保存できません。")
+                    Text("Markdownで入力").font(.nibbleTitle)
+                    Text("見出し・太字・斜体・コード・引用・リンク・取り消し線を表示できます。「プレビュー」で記号を隠して読み、「入力」で続きを編集します。記号・空白・改行もそのまま保存・コピーします。")
+                    Text("不要な下書き").font(.nibbleTitle)
+                    Text("「その他」から「下書きを破棄」を選びます。保存済みの項目は変わりません。")
                 }
-                .font(.nibbleBody)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(24)
+                .font(.nibbleBody).padding(24).frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(Color.nibbleCanvas)
-            .navigationTitle("入力と保存について")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("入力と保存について").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button { dismiss() } label: {
-                        Label("編集に戻る", systemImage: "xmark")
-                    }
-                    .labelStyle(.iconOnly)
-                    .accessibilityLabel("編集に戻る")
-                    .accessibilityIdentifier("editor.help.close")
+                    Button("編集に戻る") { dismiss() }.accessibilityIdentifier("editor.help.close")
                 }
             }
         }
-        .tint(.nibbleAccent)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .animationBarrier()
     }
 }

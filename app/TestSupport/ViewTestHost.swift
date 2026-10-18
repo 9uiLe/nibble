@@ -1,25 +1,36 @@
 import SwiftUI
-import UIKit
 import Testing
+import UIKit
 @testable import Nibble
 
-/// Main-actor window hosting shared by serialized regression and performance suites.
 @MainActor
 final class ViewTestHost {
     let window: UIWindow
     let controller = UIHostingController(rootView: AnyView(EmptyView()))
 
     init() throws {
-        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = try #require(scenes.first, "A hosted test needs the application's window scene")
         window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 375, height: 667)
         window.rootViewController = controller
-        window.isHidden = false
+        window.makeKeyAndVisible()
     }
 
     func show(_ content: AnyView, phase: ScenePhase = .active, scheme: ColorScheme = .light) {
-        controller.rootView = AnyView(content.environment(\.scenePhase, phase)
-            .environment(\.colorScheme, scheme).modifier(NibbleInterface()))
+        let configured = content.environment(\.scenePhase, phase)
+            .environment(\.colorScheme, scheme).modifier(NibbleInterface())
+        controller.rootView = AnyView(configured)
+        controller.view.setNeedsLayout()
+    }
+
+    func find<T: UIView>(_ type: T.Type) -> T? {
+        var pending: [UIView] = [controller.view]
+        while let view = pending.popLast() {
+            if let result = view as? T { return result }
+            pending.append(contentsOf: view.subviews.reversed())
+        }
+        return nil
     }
 
     func close() {
@@ -28,30 +39,21 @@ final class ViewTestHost {
         window.rootViewController = nil
     }
 
-    func find<T: UIView>(_ type: T.Type) -> T? {
-        func search(_ view: UIView) -> T? {
-            if let match = view as? T { return match }
-            return view.subviews.lazy.compactMap { search($0) }.first
-        }
-        return search(controller.view)
-    }
-
     func wait(fileID: String = #fileID, filePath: String = #filePath, line: Int = #line, column: Int = #column,
               _ condition: () -> Bool) async throws {
-        for _ in 0..<200 {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while ContinuousClock.now < deadline {
             controller.view.layoutIfNeeded()
             if condition() { return }
             try await Task.sleep(for: .milliseconds(10))
         }
-        try #require(condition(), "Hosted view did not reach its expected state within two seconds",
+        try #require(condition(), "The mounted UI did not satisfy its observable condition",
                      sourceLocation: SourceLocation(fileID: fileID, filePath: filePath, line: line, column: column))
     }
 }
 
-/// Keeps a deallocation observation without retaining the observed object.
 @MainActor
 final class WeakReference<Object: AnyObject> {
     weak var value: Object?
-
     init(_ value: Object?) { self.value = value }
 }

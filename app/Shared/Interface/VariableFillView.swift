@@ -1,10 +1,8 @@
 import AppMacros
 import SwiftUI
 
-@Equatable
+@MainActor @Equatable
 struct VariableFillView: View {
-    private static let previewCharacterLimit = 160
-    private static let previewLineLimit = 4
     private let inputRevision = UUID()
     let template: SnippetVariables
     let title: String
@@ -12,165 +10,71 @@ struct VariableFillView: View {
     let compact: Bool
     let availability: FeatureAvailability
     @SkipEquatable let cancel: () -> Void
-    @SkipEquatable let valueEdited: () -> Void
     @SkipEquatable let complete: ([VariableName: String]) -> Void
     @State private var values: [VariableName: String] = [:]
-    @State private var showsFullPreview = false
-    @State private var isSubmitting = false
-    @FocusState private var focusedName: VariableName?
-
+    @State private var expanded = false
+    @State private var submitting = false
+    @FocusState private var editing: VariableName?
+    private var ready: Bool { template.names.allSatisfy { values[$0]?.isEmpty == false } }
     var body: some View {
-        let allValuesPresent = template.names.allSatisfy { values[$0]?.isEmpty == false }
-        let completedPrefix = template.filledPrefix(with: values, characterLimit: Self.previewCharacterLimit)
-        let prefix = completedPrefix ?? Self.prefix(template.body)
-        let excerpt = Self.excerpt(prefix.text)
-        let hasMore = prefix.hasMore || excerpt != prefix.text
-        let preview = showsFullPreview && hasMore
-            ? (completedPrefix == nil ? template.body : template.filled(with: values) ?? template.body)
-            : excerpt
-        let displayTitle = SnippetTextPresentation(title: title, body: template.body).title
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             if compact {
                 HStack {
-                    Text(availability == .included ? "値を入力" : "変数を利用")
-                        .font(.headline)
-                    Spacer(minLength: 8)
-                    Button("閉じる", action: cancel)
-                        .font(.subheadline)
-                        .accessibilityLabel("確定せず閉じる")
-                        .accessibilityIdentifier("variables.cancel")
-                }
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                Divider()
+                    Text("値を入力").font(.nibbleTitle)
+                    Spacer()
+                    Button(action: cancel) {
+                        Text("閉じる").font(.nibbleTitle).frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+                    }.accessibilityIdentifier("variables.cancel")
+                }.padding(.horizontal, 12)
             }
-            if availability == .included {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: compact ? 12 : 16) {
-                        Text(verbatim: displayTitle)
-                            .font(.nibbleTitle)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("variables.itemTitle")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(verbatim: SnippetTextPresentation(title: title, body: template.body).title)
+                        .font(.nibbleTitle).accessibilityIdentifier("variables.itemTitle")
+                    switch availability {
+                    case .included:
                         Text("本文中の印を入力した値に置き換えます。同じ名前の印はまとめて変わります。")
-                            .font(.nibbleBody)
-                            .foregroundStyle(.secondary)
+                            .font(.nibbleBody).foregroundStyle(Color.nibbleSecondary)
                         ForEach(template.names, id: \.self) { name in
-                            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
-                                Text("\(name.marker) に入れる値")
-                                    .font(.nibbleTitle)
-                                TextField("値を入力", text: Binding(
-                                    get: { values[name] ?? "" },
-                                    set: {
-                                        showsFullPreview = false
-                                        values[name] = $0
-                                        valueEdited()
-                                    }
-                                ), prompt: Text("値を入力").foregroundStyle(Color.primary.opacity(0.68)))
-                                .textFieldStyle(.roundedBorder)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .font(.body)
-                                .frame(minHeight: 44)
-                                .focused($focusedName, equals: name)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("\(name.marker) に入れる値").font(.nibbleTitle)
+                                TextField("値を入力", text: Binding(get: { values[name] ?? "" }, set: { value in
+                                    values[name] = value
+                                    expanded = false
+                                }))
+                                .textFieldStyle(.roundedBorder).font(.body).frame(minHeight: 44)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                .focused($editing, equals: name)
                                 .accessibilityLabel("\(name.marker) に入れる値")
                             }
                         }
-                        Divider()
-                        HStack(spacing: 8) {
-                            Text(allValuesPresent ? "完成文" : "入力前の文章")
-                                .font(.nibbleTitle)
-                            Spacer(minLength: 8)
-                            if hasMore {
-                                Button(showsFullPreview ? "短く表示" : "全文を確認") {
-                                    showsFullPreview.toggle()
-                                }
-                                .font(.nibbleBody)
-                                .frame(minHeight: 44)
-                                .buttonStyle(.plain)
-                                .foregroundStyle(.tint)
-                                .accessibilityIdentifier("variables.previewToggle")
-                            }
-                        }
-                        if !allValuesPresent {
-                            Text("すべての値を入力すると完成文に変わります。")
-                                .font(.nibbleBody)
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(verbatim: preview)
-                            .font(.subheadline)
-                            .lineLimit(showsFullPreview || !hasMore ? nil : Self.previewLineLimit)
-                            .accessibilityIdentifier("variables.preview")
-                        if focusedName == nil || compact {
-                            VariableCompleteButton(actionTitle: actionTitle,
-                                                   allValuesPresent: allValuesPresent,
-                                                   isSubmitting: isSubmitting) {
-                                isSubmitting = true
-                                complete(values)
-                            }
-                                .padding(.top, 4)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, compact ? 12 : 20)
-                    .padding(.vertical, compact ? 8 : 16)
-                }
-                .clipped()
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if focusedName != nil && !compact {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if !allValuesPresent {
-                                Text("すべての値を入力するとコピーできます。")
-                                    .font(.nibbleBody)
-                                    .foregroundStyle(.secondary)
-                            }
-                            VariableCompleteButton(actionTitle: actionTitle,
-                                                   allValuesPresent: allValuesPresent,
-                                                   isSubmitting: isSubmitting) {
-                                isSubmitting = true
+                        VariableTextPreview(template: template, values: values, expanded: $expanded)
+                        if compact || editing == nil {
+                            VariableCompleteButton(actionTitle: actionTitle, allValuesPresent: ready, isSubmitting: submitting) {
+                                submitting = true
                                 complete(values)
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background(Color.nibbleCanvas)
+                    case .requiresPro, .unavailable:
+                        Label(availability == .requiresPro ? "nibble Proで利用できます" : "変数の利用は準備中です", systemImage: "lock")
+                            .font(.nibbleTitle)
+                        Text("保存した本文は変更されず、コピーや入力も行っていません。nibbleの設定から利用条件を確認できます。")
+                            .font(.nibbleBody)
                     }
                 }
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(verbatim: displayTitle)
-                            .font(.nibbleTitle)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("variables.itemTitle")
-                        Label(availability == .requiresPro ? "nibble Proで利用できます" : "変数の利用は準備中です",
-                              systemImage: "lock")
-                            .font(.nibbleTitle)
-                        Text(availability == .requiresPro
-                             ? "この項目の変数を差し替えるにはProが必要です。nibbleの設定から確認できます。"
-                             : "この項目の変数は現在差し替えられません。")
-                            .font(.nibbleBody).foregroundStyle(.secondary)
-                        Text("保存した本文は変更されず、コピーや入力も行っていません。")
-                            .font(.nibbleBody).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(compact ? 12 : 20)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !compact && editing != nil && availability == .included {
+                    VariableCompleteButton(actionTitle: actionTitle, allValuesPresent: ready, isSubmitting: submitting) {
+                        submitting = true
+                        complete(values)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(compact ? 12 : 20)
+                    .padding(12).background(Color.nibbleCanvas)
                 }
             }
         }
-        .background(compact ? Color(uiColor: .tertiarySystemBackground) : Color.nibbleCanvas)
-        .privacySensitive()
-    }
-
-    private static func excerpt(_ text: String) -> String {
-        text.split(separator: "\n", maxSplits: previewLineLimit,
-                                omittingEmptySubsequences: false)
-            .prefix(previewLineLimit).joined(separator: "\n")
-    }
-
-    private static func prefix(_ text: String) -> (text: String, hasMore: Bool) {
-        let leading = String(text.prefix(previewCharacterLimit + 1))
-        return (String(leading.prefix(previewCharacterLimit)), leading.count > previewCharacterLimit)
+        .background(compact ? Color.clear : Color.nibbleCanvas).privacySensitive().disabled(submitting)
     }
 }

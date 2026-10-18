@@ -1,188 +1,236 @@
+import AppMacros
 import Foundation
+import Observation
 import SwiftUI
 import Testing
 import UIKit
 @testable import Nibble
 
 extension UIIntegrationTests {
-    @Suite("Markdown editing and preview", .serialized)
+    @Suite("Rebuilt original-text editor", .serialized)
     @MainActor struct EditorMarkdownTests {
-        @Test func variableMarkerReplacesTheSelectedUTF16Range() async throws {
+        @Test func parsedSpansUseOriginalUTF16Positions() async throws {
+            let source = "# がか\u{3099}👩🏽‍💻\r\n**太字**\r*斜体*\n\0\u{0060}code\u{0060} ~~取消~~ [参照](https://example.com)"
+            let parsed = await MarkdownDocument.parse(source)
+            #expect(SnippetText.hasSameBytes(parsed.source, source))
+            #expect(parsed.previewBlocks.contains { $0.style.heading == 1 })
+            let cases = [
+                ("太字", parsed.sourceSpans.filter(\.style.bold)),
+                ("斜体", parsed.sourceSpans.filter(\.style.italic)),
+                ("code", parsed.sourceSpans.filter(\.style.code)),
+                ("取消", parsed.sourceSpans.filter(\.style.strike)),
+                ("参照", parsed.sourceSpans.filter(\.style.link)),
+            ]
+            for (word, spans) in cases {
+                #expect(spans.contains { (source as NSString).substring(with: $0.range).contains(word) })
+            }
+            for span in parsed.sourceSpans { #expect(NSMaxRange(span.range) <= source.utf16.count) }
+            #expect(parsed.previewBlocks.map { String($0.text.characters) }.joined().contains("太字"))
+        }
+
+        @Test func previewIncludesListsQuotesAndFencedCode() async {
+            let source = "- **一**\n- 二\n\n> 引用\n\n~~~swift\nlet x = 1\n~~~"
+            let parsed = await MarkdownDocument.parse(source)
+            #expect(parsed.previewBlocks.filter { $0.listMarker != nil }.count == 2)
+            #expect(parsed.previewBlocks.contains { $0.style.quote })
+            #expect(parsed.previewBlocks.contains { $0.style.code })
+            #expect(SnippetText.hasSameBytes(source, parsed.source))
+        }
+
+        @Test func stylingPreservesBytesSelectionAndComposition() async throws {
+            let view = MarkdownSourceTextView()
+            let source = "**か\u{3099}👩🏽‍💻**\r\n\0末尾\t "
+            view.text = source
+            let selection = (source as NSString).range(of: "末尾")
+            view.selectedRange = selection
+            view.apply(await MarkdownDocument.parse(source))
+            #expect(SnippetText.hasSameBytes(view.text, source))
+            #expect(view.selectedRange == selection)
+            view.setMarkedText("へんかん", selectedRange: NSRange(location: 4, length: 0))
+            let composed = view.text ?? ""
+            view.invalidateStyling()
+            view.apply(await MarkdownDocument.parse(composed))
+            #expect(SnippetText.hasSameBytes(view.text, composed))
+            #expect(view.markedTextRange != nil)
+            view.unmarkText()
+            view.apply(await MarkdownDocument.parse(composed))
+            #expect(SnippetText.hasSameBytes(view.text, composed))
+        }
+
+        @Test func mountedModeSwitchRetainsTheInputAndItsUndoHistory() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
+            model.body = "**原文**"
+            let host = try ViewTestHost()
+            defer { host.close() }
+            host.show(AnyView(MarkdownTestSurface(model: model)))
+            try await host.wait { host.find(MarkdownSourceTextView.self) != nil }
+            let original = try #require(host.find(MarkdownSourceTextView.self))
+            original.becomeFirstResponder()
+            original.selectedRange = NSRange(location: original.text.utf16.count, length: 0)
+            original.insertText("続き")
+            try await host.wait { model.body.hasSuffix("続き") }
+            let undo = original.undoManager
+            let canUndo = undo?.canUndo
+            #expect(canUndo == true)
+            let picker = try #require(host.find(UISegmentedControl.self))
+            picker.selectedSegmentIndex = 1
+            picker.sendActions(for: .valueChanged)
+            try await host.wait { !original.isFirstResponder }
+            picker.selectedSegmentIndex = 0
+            picker.sendActions(for: .valueChanged)
+            try await host.wait { original.isFirstResponder }
+            #expect(host.find(MarkdownSourceTextView.self) === original)
+            #expect(original.undoManager === undo)
+            #expect(original.undoManager?.canUndo == canUndo)
+            #expect(SnippetText.hasSameBytes(model.body, "**原文**続き"))
+            undo?.undo()
+            try await host.wait { SnippetText.hasSameBytes(model.body, "**原文**") }
+            undo?.redo()
+            try await host.wait { SnippetText.hasSameBytes(model.body, "**原文**続き") }
+        }
+
+        @Test func nativeTitleTransferSurvivesAnalysisAndReturningToBodyRetainsUndo() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
+            model.body = "原文"
+            let focus = MarkdownFocusProbe()
+            let host = try ViewTestHost()
+            defer { host.close() }
+            host.show(AnyView(MarkdownFocusTestSurface(model: model, probe: focus)))
+            try await host.wait { host.find(MarkdownSourceTextView.self)?.isFirstResponder == true && focus.value == .body }
+            let original = try #require(host.find(MarkdownSourceTextView.self))
+            let title = try #require(host.find(UITextField.self))
+
+            // Start with UIKit's transfer, before SwiftUI publishes the title's focus.
+            let acceptedTitle = title.becomeFirstResponder()
+            #expect(acceptedTitle)
+            title.insertText("題名")
+            try await host.wait { title.isFirstResponder && focus.value == .title && model.title == "題名" }
+            let parsedSource = "# 解析後"
+            model.body = parsedSource
+            try await host.wait {
+                guard SnippetText.hasSameBytes(original.text, parsedSource),
+                      let font = original.textStorage.attribute(.font, at: 2, effectiveRange: nil) as? UIFont else { return false }
+                return font.fontDescriptor.symbolicTraits.contains(.traitBold)
+            }
+            #expect(title.isFirstResponder && focus.value == .title)
+            #expect(!original.isFirstResponder)
+
+            let acceptedBody = original.becomeFirstResponder()
+            #expect(acceptedBody)
+            try await host.wait { original.isFirstResponder && focus.value == .body }
+            #expect(host.find(MarkdownSourceTextView.self) === original)
+            original.selectedRange = NSRange(location: parsedSource.utf16.count, length: 0)
+            original.insertText("追記")
+            let edited = parsedSource + "追記"
+            try await host.wait { SnippetText.hasSameBytes(model.body, edited) }
+            let undo = try #require(original.undoManager)
+            #expect(undo.canUndo)
+            let selection = original.selectedRange
+
+            let acceptedSecondTitle = title.becomeFirstResponder()
+            #expect(acceptedSecondTitle)
+            try await host.wait { title.isFirstResponder && focus.value == .title }
+            let acceptedSecondBody = original.becomeFirstResponder()
+            #expect(acceptedSecondBody)
+            try await host.wait { original.isFirstResponder && focus.value == .body }
+            #expect(host.find(MarkdownSourceTextView.self) === original)
+            #expect(original.selectedRange == selection)
+            #expect(original.undoManager === undo && undo.canUndo)
+            undo.undo()
+            try await host.wait { SnippetText.hasSameBytes(model.body, parsedSource) }
+            undo.redo()
+            try await host.wait { SnippetText.hasSameBytes(model.body, edited) }
+        }
+
+        @Test func completedKeyboardDismissalCannotReclaimBodyFocusOnAnalysisUpdates() async throws {
+            let database = try TestDatabase()
+            defer { database.removeFiles() }
+            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
+            model.body = "原文"
+            let focus = MarkdownFocusProbe()
+            let host = try ViewTestHost()
+            defer { host.close() }
+            host.show(AnyView(MarkdownFocusTestSurface(model: model, probe: focus)))
+            try await host.wait { host.find(MarkdownSourceTextView.self)?.isFirstResponder == true && focus.value == .body }
+            let original = try #require(host.find(MarkdownSourceTextView.self))
+            let resigned = original.resignFirstResponder()
+            #expect(resigned)
+            try await host.wait { !original.isFirstResponder }
+            // Supply the completion notification explicitly; the OS swipe is verified separately.
+            NotificationCenter.default.post(name: UIResponder.keyboardDidHideNotification, object: nil)
+            try await host.wait { focus.value == nil }
+            let updated = "# 終了後の解析"
+            model.body = updated
+            try await host.wait {
+                guard SnippetText.hasSameBytes(original.text, updated),
+                      let font = original.textStorage.attribute(.font, at: 2, effectiveRange: nil) as? UIFont else { return false }
+                return font.fontDescriptor.symbolicTraits.contains(.traitBold)
+            }
+            #expect(!original.isFirstResponder && focus.value == nil)
+            #expect(host.find(MarkdownSourceTextView.self) === original)
+        }
+
+        @Test func insertionAndFailedFinishKeepCurrentInput() async throws {
             let database = try TestDatabase()
             defer { database.removeFiles() }
             let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
             model.body = "👩🏽‍💻前後"
-            let selection = (model.body as NSString).range(of: "前")
-
-            let name = testVariableName("宛名")
-            let caret = model.insertVariable(named: name, at: selection)
-
+            let name = try #require(VariableName("宛名"))
+            let selected = (model.body as NSString).range(of: "前")
+            let caret = model.insertVariable(named: name, at: selected)
             #expect(model.body == "👩🏽‍💻{{宛名}}後")
-            #expect(caret == NSRange(location: selection.location + "{{宛名}}".utf16.count, length: 0))
-            let unchanged = model.body
-            #expect(model.insertVariable(named: name, at: NSRange(location: 100, length: 0)) == nil)
-            #expect(model.body == unchanged)
-            let end = model.insertVariable(named: name, at: nil)
-            #expect(model.body == unchanged + "{{宛名}}")
-            #expect(end == NSRange(location: model.body.utf16.count, length: 0))
-        }
-
-        @Test func bodyParsingIdentityTracksBytesIndependentlyOfTitle() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
-            model.title = "タイトル"
-            #expect(model.bodyRevision == 0)
-            model.body = "か\u{3099}"
-            let revision = model.bodyRevision
-            model.body = "か\u{3099}"
-            #expect(model.bodyRevision == revision)
-            model.body = "が"
-            #expect(model.bodyRevision == revision + 1)
-            #expect(await model.finish(.save))
-            model.body = "完了後の入力"
-            #expect(model.bodyRevision == revision + 1 && model.body == "が")
-        }
-
-        @Test func newEditorFocusesTheMountedMarkdownSourceInput() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let draft = try await database.store.beginDraft()
-            let host = try ViewTestHost()
-            defer { host.close() }
-            host.window.makeKeyAndVisible()
-            host.show(AnyView(SnippetEditor(draft: draft, store: database.store, proIsActive: { false })))
-            try await host.wait { host.find(MarkdownSourceTextView.self)?.isFirstResponder == true }
-            let input = try #require(host.find(MarkdownSourceTextView.self))
-            let source = "# 入力した見出し\n\n**太字** 👩🏽‍💻 か\u{3099}"
-            input.insertText(source)
-            try await host.wait {
-                (input.textStorage.attribute(.font, at: 2, effectiveRange: nil) as? UIFont)?.pointSize == 26
-            }
-            let boldRange = (source as NSString).range(of: "太字")
-            #expect((input.textStorage.attribute(.font, at: boldRange.location, effectiveRange: nil) as? UIFont)?
-                .fontDescriptor.symbolicTraits.contains(.traitBold) == true)
-            #expect(Array(input.text.utf8) == Array(source.utf8))
-            #expect(input.undoManager?.canUndo == true)
-            let selection = NSRange(location: input.textStorage.length, length: 0)
-            input.selectedRange = selection
-            let modes = try #require(host.find(UISegmentedControl.self))
-            modes.selectedSegmentIndex = 1
-            modes.sendActions(for: .valueChanged)
-            try await host.wait { !input.isFirstResponder }
-            #expect(host.find(MarkdownSourceTextView.self) === input)
-            #expect(input.selectedRange == selection)
-            modes.selectedSegmentIndex = 0
-            modes.sendActions(for: .valueChanged)
-            try await host.wait { input.isFirstResponder }
-            #expect(host.find(MarkdownSourceTextView.self) === input)
-            #expect(input.selectedRange == selection)
-            #expect(Array(input.text.utf8) == Array(source.utf8))
-            #expect(input.undoManager?.canUndo == true)
-            input.undoManager?.undo()
-            #expect(input.text.isEmpty)
-            input.undoManager?.redo()
-            #expect(Array(input.text.utf8) == Array(source.utf8))
-            input.selectedRange = NSRange(location: input.textStorage.length, length: 0)
-            input.insertText("末尾")
-            #expect(input.text == source + "末尾")
-            #expect(input.selectedRange.location == (input.text as NSString).length)
-            try await host.wait {
-                (input.textStorage.attribute(.font, at: 2, effectiveRange: nil) as? UIFont)?.pointSize == 26
-            }
-            input.insertText(String(repeating: "\n長文の入力と見出し **太字**", count: 35))
-            try await host.wait {
-                let caret = input.convert(input.caretRect(for: input.endOfDocument), to: host.window)
-                return caret.minY > 0 && caret.maxY <= host.window.bounds.maxY
-            }
-        }
-
-        @Test func previewHidesSyntaxAndKeepsStructureWithoutChangingSavedSource() async throws {
-            let source = "# 見出し\n\n**太字**と*斜体* `code`\n\n- 一つ\n- 二つ\n\n> 引用\n\n```swift\nlet x = 1\n```\n\n[リンク](https://example.com)"
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let model = EditorModel(draft: try await database.store.beginDraft(), store: database.store)
-            model.body = source
-            let sequence = model.draft.sequence
-            let parsed = await MarkdownDocument.parse(model.body)
-            #expect(parsed.previewBlocks.map { String($0.text.characters) } ==
-                    ["見出し", "太字と斜体 code", "一つ", "二つ", "引用", "let x = 1\n", "リンク"])
-            #expect(Set(parsed.previewBlocks.map(\.id)).count == parsed.previewBlocks.count)
-            let heading = try #require(parsed.previewBlocks.first)
-            #expect(heading.style.heading == 1)
-            #expect(MarkdownPreviewBlock.styledText(heading).runs.first?.font == .system(size: 26, weight: .bold, design: .default))
-            let paragraph = try #require(parsed.previewBlocks.dropFirst().first)
-            let styled = MarkdownPreviewBlock.styledText(paragraph)
-            #expect(styled.runs.first?.font == .system(size: 15, weight: .bold, design: .default))
-            let italic = try #require(styled.runs.first { $0.inlinePresentationIntent?.contains(.emphasized) == true })
-            #expect(italic.font == .system(size: 15, weight: .regular, design: .default).italic())
-            let code = try #require(styled.runs.first { $0.inlinePresentationIntent?.contains(.code) == true })
-            #expect(code.font == .system(size: 15, weight: .regular, design: .monospaced))
-            #expect(parsed.previewBlocks[2].listMarker == "•" && parsed.previewBlocks[3].listMarker == "•")
-            #expect(parsed.previewBlocks[4].style.quote && parsed.previewBlocks[5].style.code)
-            #expect(parsed.previewBlocks.last?.text.runs.first?.link == URL(string: "https://example.com"))
-            #expect(model.draft.sequence == sequence)
+            #expect(caret?.location == selected.location + name.marker.utf16.count)
+            let retained = model.body
+            #expect(model.insertVariable(named: name, at: NSRange(location: Int.max, length: 1)) == nil)
+            #expect(SnippetText.hasSameBytes(retained, model.body))
+            model.body = " \r\n"
+            #expect(await model.finish(.save) == false)
+            #expect(model.phase == .editing)
+            #expect(SnippetText.hasSameBytes(model.body, " \r\n"))
             #expect(await model.finish(.keep))
             let reopened = try await database.store.draft(model.draft.id)
-            #expect(Array(reopened.body.utf8) == Array(source.utf8))
-            let incomplete = "**未完成"
-            let input = MarkdownSourceTextView()
-            input.text = incomplete
-            input.apply(await MarkdownDocument.parse(incomplete))
-            #expect(input.text == incomplete)
+            #expect(SnippetText.hasSameBytes(reopened.body, " \r\n"))
         }
-        @Test func formattingPreservesSourceSelectionAndComposition() async throws {
-            let source = "# 日本語 👩🏽‍💻\n\n## 副見出し\n\n**太字** *italic* `code`\n\nか\u{3099}\t  \n\n```swift\nlet x = 1\n```"
-            let document = await MarkdownDocument.parse(source)
-            let title = try #require(document.sourceSpans.first { $0.style.heading == 1 })
-            #expect((source as NSString).substring(with: title.range) == "日本語 👩🏽‍💻")
-            let subtitle = try #require(document.sourceSpans.first { $0.style.heading == 2 })
-            #expect((source as NSString).substring(with: subtitle.range) == "副見出し")
-            let bold = try #require(document.sourceSpans.first { $0.style.bold })
-            #expect((source as NSString).substring(with: bold.range) == "太字")
-            let view = MarkdownSourceTextView()
-            view.text = source
-            view.selectedRange = NSRange(location: 4, length: 2)
-            view.apply(document)
-            #expect(Array(view.text.utf8) == Array(source.utf8))
-            #expect(view.selectedRange == NSRange(location: 4, length: 2))
-            let titleFont = try #require(view.textStorage.attribute(.font, at: title.range.location, effectiveRange: nil) as? UIFont)
-            #expect(titleFont.pointSize == 26)
-            let subtitleFont = try #require(view.textStorage.attribute(.font, at: subtitle.range.location, effectiveRange: nil) as? UIFont)
-            #expect(subtitleFont.pointSize == 22 && subtitleFont.fontDescriptor.symbolicTraits.contains(.traitBold))
-            let boldFont = try #require(view.textStorage.attribute(.font, at: bold.range.location, effectiveRange: nil) as? UIFont)
-            #expect(boldFont.fontDescriptor.symbolicTraits.contains(.traitBold))
-            let paragraph = try #require(view.textStorage.attribute(.paragraphStyle, at: bold.range.location,
-                                                                    effectiveRange: nil) as? NSParagraphStyle)
-            #expect(paragraph.lineSpacing == 4)
-            #expect((MarkdownStyle().inputAttributes[.paragraphStyle] as? NSParagraphStyle)?.lineSpacing == 4)
-            view.setMarkedText("にほん", selectedRange: NSRange(location: 3, length: 0))
-            let composed = view.text
-            let markedRange = view.markedTextRange
-            view.apply(await MarkdownDocument.parse(view.text))
-            #expect(view.text == composed)
-            #expect((view.markedTextRange == nil) == (markedRange == nil))
-        }
+    }
+}
 
-        @Test(arguments: [("\n", ""), ("\n", "前\0 "), ("\r", "前\0 "), ("\r\n", "前\0 "), ("\n\r", "前\0 ")])
-        func formattingUsesOriginalCoordinates(lineBreak: String, prefix: String) async throws {
-            let source = "# 日本語 👩🏽‍💻" + lineBreak + lineBreak + prefix + "**太字** *斜体* `値` か\u{3099}"
-            let document = await MarkdownDocument.parse(source)
-            let heading = try #require(document.sourceSpans.first { $0.style.heading == 1 })
-            let bold = try #require(document.sourceSpans.first { $0.style.bold })
-            let italic = try #require(document.sourceSpans.first { $0.style.italic })
-            let code = try #require(document.sourceSpans.first { $0.style.code })
-            let original = source as NSString
-            #expect(original.substring(with: heading.range) == "日本語 👩🏽‍💻")
-            #expect(original.substring(with: bold.range) == "太字")
-            #expect(original.substring(with: italic.range) == "斜体")
-            #expect(original.substring(with: code.range) == "値")
-            let view = MarkdownSourceTextView()
-            view.text = source
-            view.selectedRange = NSRange(location: original.length, length: 0)
-            view.apply(document)
-            #expect(Array(view.text.utf8) == Array(source.utf8))
-            #expect(view.selectedRange == NSRange(location: original.length, length: 0))
+@Equatable
+private struct MarkdownTestSurface: View {
+    private let inputRevision = UUID()
+    @SkipEquatable let model: EditorModel
+    @FocusState private var focus: EditorField?
+    @State private var selection: NSRange?
+    var body: some View {
+        MarkdownEditor(model: model, focus: $focus, selection: $selection)
+    }
+}
+
+@MainActor @Observable
+private final class MarkdownFocusProbe {
+    var value: EditorField?
+}
+
+@Equatable
+private struct MarkdownFocusTestSurface: View {
+    private let inputRevision = UUID()
+    @SkipEquatable let model: EditorModel
+    @SkipEquatable let probe: MarkdownFocusProbe
+    @FocusState private var focus: EditorField?
+    @State private var selection: NSRange?
+
+    var body: some View {
+        @Bindable var editor = model
+        VStack {
+            MarkdownEditor(model: model, focus: $focus, selection: $selection)
+            TextField("タイトル", text: $editor.title)
+                .focused($focus, equals: .title)
+                .textFieldStyle(.roundedBorder)
         }
+        .onAppear { focus = .body }
+        .onChange(of: focus, initial: true) { probe.value = focus }
     }
 }

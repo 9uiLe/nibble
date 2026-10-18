@@ -1,32 +1,44 @@
 import AppMacros
 import SwiftUI
 
-@Equatable
+@MainActor @Equatable
 struct KeyboardBrowseView: View {
+    private enum Content { case loading, empty, rows([SnippetSummary]) }
     private let inputRevision = UUID()
     @SkipEquatable let model: KeyboardModel
     @SkipEquatable let taskOwner: KeyboardTaskOwner
-    @SkipEquatable let focus: AccessibilityFocusState<String?>.Binding
-    @Binding var detailOrigin: UUID?
     @Binding var listPosition: UUID?
-
+    @Binding var detailOrigin: UUID?
+    @SkipEquatable let focus: AccessibilityFocusState<String?>.Binding
+    private var content: Content {
+        if let rows = model.page?.items, !rows.isEmpty { return .rows(rows) }
+        return model.loading ? .loading : .empty
+    }
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                KeyboardFilterBar(model: model, focus: focus)
-                Spacer(minLength: 0)
-                if model.loadFailure != nil || model.notice?.expires == false {
-                    Button("再読み込み", systemImage: "arrow.clockwise", action: model.requestReload)
-                        .labelStyle(.titleAndIcon)
-                        .buttonStyle(KeyboardControlStyle())
-                        .accessibilityHint("選択中の一覧を先頭から読み直します")
-                        .accessibilityIdentifier("keyboard.refresh")
-                }
+            KeyboardFilterBar(model: model, focus: focus)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if let failure = model.failure { Text(failure).font(.nibbleBody).padding(12) }
+                    if let notice = model.notice, !notice.expires { KeyboardStatusMessage(notice: notice).padding(12) }
+                    switch content {
+                    case .loading: ProgressView("読み込み中").padding()
+                    case .empty:
+                        VStack(spacing: 8) {
+                            Text(model.request.filter == .pinned ? "ピン留めした項目はありません" : "保存した項目はありません").font(.nibbleTitle)
+                            Text(model.request.filter == .pinned ? "「すべて」から全文を開くとピン留めできます。" : "nibbleで文章やURLを保存してください。").font(.nibbleBody)
+                        }.padding(16)
+                    case .rows(let rows):
+                        ForEach(rows) { row in
+                            KeyboardSnippetRow(item: row, model: model, taskOwner: taskOwner, detailOrigin: $detailOrigin, focus: focus)
+                                .id(row.id)
+                        }.disabled(!model.isCurrent || model.isUsing)
+                    }
+                }.scrollTargetLayout()
             }
-            .padding(.horizontal, 10)
-            KeyboardListContent(model: model, taskOwner: taskOwner, focus: focus,
-                detailOrigin: $detailOrigin, listPosition: $listPosition)
-                .modifier(KeyboardPanelStyle())
-        }
+            .scrollPosition(id: $listPosition).id(model.request)
+            .background(Color(uiColor: .tertiarySystemBackground), in: .rect(cornerRadius: 12))
+            .padding(.horizontal, 8)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

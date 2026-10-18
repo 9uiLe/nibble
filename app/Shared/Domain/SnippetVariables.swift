@@ -1,112 +1,104 @@
 import Foundation
 
-/// Variable markers live in the original body. Expansion produces a new value only
-/// when the user explicitly uses the snippet; it never edits the saved text.
-struct SnippetVariables: Sendable, Equatable {
-    let body: String
-    let names: [VariableName]
-    private let parts: [Part]
-
-    private enum Part: Sendable, Equatable {
-        case text(Substring)
-        case variable(VariableName)
-    }
-
-    init(_ body: String) {
-        self.body = body
-        var found: [VariableName] = []
-        var seen: Set<VariableName> = []
-        var parts: [Part] = []
-        var cursor = body.startIndex
-        while let start = body.range(of: "{{", range: cursor..<body.endIndex),
-              let end = body.range(of: "}}", range: start.upperBound..<body.endIndex) {
-            parts.append(.text(body[cursor..<start.lowerBound]))
-            let name = VariableName(String(body[start.upperBound..<end.lowerBound]))
-            if let name {
-                parts.append(.variable(name))
-            } else {
-                parts.append(.text(body[start.lowerBound..<end.upperBound]))
-            }
-            if let name, seen.insert(name).inserted { found.append(name) }
-            cursor = end.upperBound
-        }
-        parts.append(.text(body[cursor...]))
-        names = found
-        self.parts = parts
-    }
-
-    func filled(with values: [VariableName: String]) -> String? {
-        guard names.allSatisfy({ values[$0]?.isEmpty == false }) else { return nil }
-        var result = ""
-        result.reserveCapacity(body.utf8.count)
-        for part in parts {
-            switch part {
-            case .text(let text): result += text
-            case .variable(let name):
-                guard let value = values[name] else { return nil }
-                result += value
-            }
-        }
-        return result
-    }
-
-    /// Expands only the characters needed by a collapsed preview. `hasMore` is
-    /// determined by observing one further character, without building the body.
-    func filledPrefix(with values: [VariableName: String], characterLimit: Int) -> (text: String, hasMore: Bool)? {
-        guard characterLimit >= 0, names.allSatisfy({ values[$0]?.isEmpty == false }) else { return nil }
-        var result = ""
-        result.reserveCapacity(characterLimit)
-        for part in parts {
-            let text: Substring
-            switch part {
-            case .text(let value): text = value
-            case .variable(let name):
-                guard let value = values[name] else { return nil }
-                text = value[...]
-            }
-            var remaining = text
-            while !remaining.isEmpty {
-                // A grapheme can span a marker boundary (for example, a base
-                // character followed by a combining mark). Count the joined
-                // string before deciding where the completed text is cut.
-                let next = remaining.prefix(max(1, characterLimit + 1 - result.count))
-                result.append(contentsOf: next)
-                remaining = remaining[next.endIndex...]
-                if result.count > characterLimit && !remaining.isEmpty {
-                    return (String(result.prefix(characterLimit)), true)
-                }
-            }
-        }
-        let hasMore = result.count > characterLimit
-        return (hasMore ? String(result.prefix(characterLimit)) : result, hasMore)
-    }
-}
-
-/// A canonical marker name. Every instance has passed the marker grammar.
 struct VariableName: Hashable, Sendable {
     enum Issue: Equatable, Sendable {
-        case empty, tooLong, unsupportedCharacter
+        case empty
+        case tooLong
+        case unsupportedCharacter
     }
 
     let text: String
-    var marker: String { "{{\(text)}}" }
+    var marker: String { "{{" + text + "}}" }
 
-    init?(_ input: String) {
-        guard Self.issue(input) == nil else { return nil }
-        text = Self.canonical(input)
+    init?(_ source: String) {
+        guard Self.issue(source) == nil else { return nil }
+        text = source.trimmingCharacters(in: .whitespaces)
     }
 
-    static func issue(_ input: String) -> Issue? {
-        let name = canonical(input)
-        if name.isEmpty { return .empty }
-        if name.count > 40 { return .tooLong }
-        if name.contains("{") || name.contains("}") || name.contains("\n") || name.contains("\r") {
-            return .unsupportedCharacter
+    static func issue(_ source: String) -> Issue? {
+        let trimmed = source.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return .empty }
+        guard trimmed.count <= 40 else { return .tooLong }
+        let forbidden = CharacterSet(charactersIn: "{}\r\n")
+        return trimmed.unicodeScalars.contains(where: forbidden.contains) ? .unsupportedCharacter : nil
+    }
+}
+
+/// Tokens reference source ranges, so only a confirmed expansion allocates the
+/// complete output. Invalid or unfinished markers remain literal source text.
+struct SnippetVariables: Equatable, Sendable {
+    private enum Token: Equatable, Sendable {
+        case literal(Range<String.Index>)
+        case value(VariableName)
+    }
+
+    let body: String
+    let names: [VariableName]
+    private let tokens: [Token]
+
+    init(_ source: String) {
+        body = source
+        var unique: [VariableName] = []
+        var parsed: [Token] = []
+        var next = source.startIndex
+        while next < source.endIndex {
+            guard let opening = source.range(of: "{{", range: next..<source.endIndex),
+                  let closing = source.range(of: "}}", range: opening.upperBound..<source.endIndex) else {
+                parsed.append(.literal(next..<source.endIndex))
+                break
+            }
+            parsed.append(.literal(next..<opening.lowerBound))
+            if let name = VariableName(String(source[opening.upperBound..<closing.lowerBound])) {
+                parsed.append(.value(name))
+                if !unique.contains(name) { unique.append(name) }
+            } else {
+                parsed.append(.literal(opening.lowerBound..<closing.upperBound))
+            }
+            next = closing.upperBound
         }
-        return nil
+        names = unique
+        tokens = parsed
     }
 
-    private static func canonical(_ input: String) -> String {
-        input.trimmingCharacters(in: .whitespaces)
+    private func prepared(_ values: [VariableName: String]) -> Bool {
+        names.allSatisfy { name in
+            guard let text = values[name] else { return false }
+            return !text.isEmpty
+        }
+    }
+
+    private func text(for token: Token, values: [VariableName: String]) -> Substring {
+        switch token {
+        case .literal(let range): body[range]
+        case .value(let name): values[name, default: ""][...]
+        }
+    }
+
+    func filled(with values: [VariableName: String]) -> String? {
+        guard prepared(values) else { return nil }
+        return tokens.reduce(into: "") { result, token in
+            result.append(contentsOf: text(for: token, values: values))
+        }
+    }
+
+    func filledPrefix(with values: [VariableName: String], characterLimit: Int) -> (text: String, hasMore: Bool)? {
+        guard characterLimit >= 0, prepared(values) else { return nil }
+        let budget = min(characterLimit, Int.max - 2)
+        var output = ""
+        for token in tokens {
+            var remaining = text(for: token, values: values)
+            while !remaining.isEmpty {
+                let available = max(1, budget - min(output.count, budget) + 2)
+                let slice = remaining.prefix(available)
+                output.append(contentsOf: slice)
+                remaining = remaining[slice.endIndex...]
+                // Keep one additional whole grapheme because the next segment
+                // can extend the final one (combining marks, ZWJ or CR + LF).
+                if output.count > characterLimit && output.count - characterLimit > 1 {
+                    return (String(output.prefix(characterLimit)), true)
+                }
+            }
+        }
+        return (String(output.prefix(characterLimit)), output.count > characterLimit)
     }
 }

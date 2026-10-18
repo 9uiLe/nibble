@@ -40,6 +40,16 @@ def reveal_help_limit(run):
     raise VerificationError('Help length limit was not reachable by scrolling')
 
 
+def collection_visible(data, collection):
+    """Recognize the collection content, including C05's ordering label."""
+    headings = {
+        'pinned': {'ピン留めした項目・コピー回数順', 'ピン留めした項目はありません'},
+        'drafts': {'編集中の項目', '下書きはありません'},
+    }[collection]
+    return ('editor.body' not in identifiers(data)
+            and any(entry.get('label') in headings for entry in data['entries']))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device', required=True)
@@ -146,19 +156,15 @@ def main():
                 run.tap('editor.close')
                 run.wait_ui('caller-preserved', lambda d: 'library.add' in identifiers(d) and 'editor.body' not in identifiers(d))
                 run.wait_ui('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
-                for collection, headings in (
-                    ('pinned', {'ピン留めした項目', 'ピン留めした項目はありません'}),
-                    ('drafts', {'編集中の項目', '下書きはありません'}),
-                ):
-                    def collection_visible(data):
-                        return ('editor.body' not in identifiers(data)
-                                and any(e.get('label') in headings for e in data['entries']))
+                for collection in ('pinned', 'drafts'):
+                    def selected_collection(data):
+                        return collection_visible(data, collection)
                     run.tap('library.filter.' + collection)
-                    run.wait_ui(collection + '-selected', collection_visible)
+                    run.wait_ui(collection + '-selected', selected_collection)
                     run.tap('library.add')
                     run.wait_ui(collection + '-new-editor', lambda d: 'editor.body' in identifiers(d))
                     run.tap('editor.close')
-                    run.wait_ui(collection + '-creation-returned', collection_visible)
+                    run.wait_ui(collection + '-creation-returned', selected_collection)
                     run.screenshot('creation-returns-to-' + collection)
                 run.tap('library.filter.all')
                 run.manifest['assertions'] = {

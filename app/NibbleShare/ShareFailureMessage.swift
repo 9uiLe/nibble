@@ -2,19 +2,20 @@ import Foundation
 
 enum ShareFailureMessage {
     static func text(for error: Error) -> String {
+        let action = "「閉じる」で共有元へ戻れます。"
         switch error {
         case ShareError.unsupported:
-            "文章またはURLを選んで共有してください。「閉じる」で共有元のアプリに戻れます。"
+            return "この内容は取り込めません。文章またはURLを選んで共有してください。" + action
         case StoreError.empty:
-            "共有する文章が空です。共有元のアプリで、空白や改行以外の文字を選んで共有してください。"
+            return "共有された文章は空白や改行だけです。共有元で文章を選び直してください。" + action
         case StoreError.tooLarge:
-            "共有する文章が長すぎます。共有元のアプリで短くしてから、もう一度共有してください。本文の上限はUTF-8で\(SnippetInputLimits.body)です。"
+            return "文章が長すぎます。本文はUTF-8で\(SnippetInputLimits.body)まで保存できます。共有元で短くしてから共有してください。" + action
         case StoreError.newerVersion:
-            "nibbleを最新バージョンに更新してから、もう一度共有してください。"
+            return "nibbleを最新バージョンに更新してから、もう一度共有してください。" + action
         case is StoreError:
-            "共有した内容を下書きに保存できませんでした。「閉じる」で共有元のアプリに戻り、もう一度共有してください。"
+            return "共有した内容を下書きに保存できませんでした。共有元に戻り、もう一度共有してください。" + action
         default:
-            "共有元のアプリから内容を読み込めませんでした。「閉じる」で戻り、もう一度共有してください。"
+            return "共有元から内容を読み込めませんでした。もう一度共有してください。" + action
         }
     }
 }

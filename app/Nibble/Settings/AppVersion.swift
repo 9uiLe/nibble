@@ -3,13 +3,11 @@ import Foundation
 struct AppVersion: Equatable {
     let release: String
     let build: String
-
     static let current = AppVersion(bundle: .main)
-
     init(bundle: Bundle) {
-        release = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
-        build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        let info = bundle.infoDictionary ?? [:]
+        release = info["CFBundleShortVersionString"] as? String ?? "—"
+        build = info["CFBundleVersion"] as? String ?? "—"
     }
-
-    var display: String { "\(release) (\(build))" }
+    var display: String { release + " (" + build + ")" }
 }

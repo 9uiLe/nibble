@@ -1,768 +1,312 @@
 import Foundation
-import UIKit
 import Testing
 import Tasking
+import UIKit
 @testable import Nibble
 
-@Suite("Entitlement refresh", .serialized)
-@MainActor
-struct EntitlementRefreshTests {
-    @Test func olderAndCancelledReadsCannotReplaceTheLatestAccess() async {
-        let gate = EntitlementReadGate()
-        let subscription = ProSubscription(readExpiration: { await gate.read() },
-                                           updateAccess: { gate.publish($0) })
-        let tasks = ViewTaskStore()
-        tasks.start(id: "entitlement.first", lifetime: .sceneBound, policy: .ignoreNew) { _ in
-            await subscription.refresh()
-        }
-        await gate.waitForReads(1)
-        tasks.start(id: "entitlement.second", lifetime: .sceneBound, policy: .ignoreNew) { _ in
-            await subscription.refresh()
-        }
-        await gate.waitForReads(2)
-        let current = Date().addingTimeInterval(3_600)
-        gate.finish(1, with: current)
-        await gate.waitForPublications(1)
-        #expect(subscription.checked && subscription.isActive)
-        gate.finish(0, with: nil)
-        await tasks.waitForIdle()
-        #expect(gate.published.count == 1 && gate.published[0] == current)
-
-        tasks.start(id: "entitlement.third", lifetime: .sceneBound, policy: .ignoreNew) { _ in
-            await subscription.refresh()
-        }
-        await gate.waitForReads(3)
-        tasks.cancel(lifetime: .sceneBound)
-        gate.finish(2, with: nil)
-        await tasks.waitForIdle()
-        #expect(gate.published.count == 1 && subscription.isActive)
-
-        tasks.start(id: "entitlement.fourth", lifetime: .sceneBound, policy: .ignoreNew) { _ in
-            await subscription.refresh()
-        }
-        await gate.waitForReads(4)
-        gate.finish(3, with: nil)
-        await tasks.waitForIdle()
-        #expect(gate.published.count == 2 && !subscription.isActive)
-    }
-}
-
-@MainActor
-private final class EntitlementReadGate {
-    private var pending: [CheckedContinuation<Date?, Never>?] = []
-    private var readWaiter: (count: Int, continuation: CheckedContinuation<Void, Never>)?
-    private var publicationWaiter: (count: Int, continuation: CheckedContinuation<Void, Never>)?
-    private(set) var published: [Date?] = []
-
-    func read() async -> Date? {
-        await withCheckedContinuation { continuation in
-            pending.append(continuation)
-            if let readWaiter, pending.count >= readWaiter.count {
-                self.readWaiter = nil
-                readWaiter.continuation.resume()
-            }
-        }
-    }
-
-    func waitForReads(_ count: Int) async {
-        guard pending.count < count else { return }
-        await withCheckedContinuation { readWaiter = (count, $0) }
-    }
-
-    func finish(_ index: Int, with expiration: Date?) {
-        let continuation = pending[index]
-        pending[index] = nil
-        continuation?.resume(returning: expiration)
-    }
-
-    func publish(_ expiration: Date?) -> Bool {
-        published.append(expiration)
-        if let publicationWaiter, published.count >= publicationWaiter.count {
-            self.publicationWaiter = nil
-            publicationWaiter.continuation.resume()
-        }
-        return expiration.map { $0 > Date() } ?? false
-    }
-
-    func waitForPublications(_ count: Int) async {
-        guard published.count < count else { return }
-        await withCheckedContinuation { publicationWaiter = (count, $0) }
-    }
-}
-
 extension UIIntegrationTests {
-    @Suite("Awaitable operations", .serialized)
+    @Suite("Application contracts", .serialized)
     @MainActor
-    struct AwaitableOperationTests {
-        @Test func variableCopyKeepsSelectedTitleAndWaitsForConfirmation() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let id = try await create(database.store, title: "送信用", body: "{{宛名}}さんへ")
-            let effects = RecordingLibraryEffects()
-            let library = LibraryModel(store: database.store, effects: effects)
-            await library.refresh()
-
-            await library.copy(id)
-            let pending = try #require(library.variableCopy)
-            #expect(pending.title == "送信用")
-            #expect(effects.events.isEmpty)
-            await library.completeVariableCopy(id: pending.id, values: testVariableValues(["宛名": "山田"]))
-            #expect(effects.events.contains(.copy("山田さんへ")))
-            #expect(try await database.store.snippet(id).body == "{{宛名}}さんへ")
+    struct ApplicationContractTests {
+        @Test func retainedPagesAndSearchHaveIndependentBudgets() throws {
+            var state = LibraryReadState(surface: .library)
+            let first = state.begin()
+            #expect(first.requests.map(\.filter) == [.all, .pinned, .drafts])
+            let pinned = SnippetSummary(id: UUID(), title: "固定", preview: "本文", pinned: true, revision: 1)
+            let initialAccepted = try state.accept([LibraryPage(), LibraryPage(items: [pinned]), LibraryPage()], from: first)
+            try #require(initialAccepted)
+            state.end(first)
+            state.select(.pinned)
+            #expect(state.snapshot?.page.items == [pinned] && !state.loading && state.demand == nil)
+            state.showMore()
+            let expanded = state.begin()
+            #expect(expanded.requests.map(\.limit) == [100, 200, 100])
+            let expansionAccepted = try state.accept([LibraryPage(), LibraryPage(items: [pinned]), LibraryPage()], from: expanded)
+            try #require(expansionAccepted)
+            state.end(expanded)
+            state.search("固定")
+            #expect(state.request.filter == .all && state.request.limit == 100)
+            let search = state.begin()
+            #expect(search.requests.count == 1)
+            let searchAccepted = try state.accept([LibraryPage(items: [pinned])], from: search)
+            try #require(searchAccepted)
+            state.end(search)
+            state.search("")
+            #expect(state.selection == .pinned && state.request.limit == 200)
+            #expect(state.snapshot?.page.items == [pinned] && state.demand == nil)
+            state.showAll()
+            #expect(state.selection == .all && state.request.limit == 100)
         }
 
-        @Test func directAwaitCopiesSavedTextToTheSystemPasteboard() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let library = LibraryModel(store: store, effects: SystemLibraryEffects())
-            await library.open()
-            let draft = try #require(library.editor)
-            let editor = EditorModel(draft: draft, store: store)
-            editor.title = "直接待機"
-            editor.body = "  日本語\n👩🏽‍💻  "
-            #expect(await editor.finish(.save))
-            library.editor = nil
-            library.setNoticePresentation(true)
-            await library.refresh()
-            let item = try #require(library.items.first)
-            await library.copy(item.id)
-            #expect(UIPasteboard.general.string == editor.body)
-            #expect(library.notice?.message == "コピーしました") // Copy does not wait for notice expiry.
+        @Test func collectionRefreshSurvivesSearchDismissalButOlderBatchesCannotOverwriteIt() throws {
+            var state = LibraryReadState(surface: .library)
+            state.search("検索")
+            let mutationRead = state.begin(includingCollections: true)
+            state.search("")
+            let newerRead = state.begin()
+            let newest = LibraryPage(counts: LibraryCounts(saved: 3))
+            let newestAccepted = try state.accept([newest, LibraryPage(), LibraryPage()], from: newerRead)
+            try #require(newestAccepted)
+            state.end(newerRead)
+            let obsoleteAccepted = try state.accept([LibraryPage(), LibraryPage(), LibraryPage(), LibraryPage()], from: mutationRead)
+            #expect(!obsoleteAccepted)
+            state.end(mutationRead)
+            #expect(state.snapshot?.page.counts.saved == 3)
+
+            state.search("検索")
+            let outstanding = state.begin(includingCollections: true)
+            state.search("")
+            let updated = LibraryPage(counts: LibraryCounts(saved: 4))
+            let refreshAccepted = try state.accept([updated, LibraryPage(), LibraryPage(), LibraryPage()], from: outstanding)
+            try #require(refreshAccepted)
+            state.end(outstanding)
+            #expect(state.snapshot?.page.counts.saved == 4 && !state.loading)
         }
 
-        @Test func libraryFiltersSeparateSavedPinnedAndDraftContent() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let pinned = try await create(store, body: "よく使う本文")
-            let other = try await create(store, body: "保存済み")
-            let deleted = try await create(store, body: "削除した本文")
-            try await store.setPinned(true, id: pinned)
-            try await store.mutate(.delete, id: deleted)
-            let draft = try await store.beginDraft(body: "  未保存\n👩🏽‍💻  ")
-            let all = try await store.library(LibraryRequest())
-            #expect(Set(all.items.map(\.id)) == [pinned, other])
-            #expect(all.drafts.map(\.id) == [draft.id])
-            #expect(all.counts == LibraryCounts(saved: 2, pinned: 1, drafts: 1))
-            let pins = try await store.library(LibraryRequest(filter: .pinned, limit: 1))
-            #expect(pins.items.map(\.id) == [pinned])
-            #expect(pins.drafts.isEmpty && !pins.hasMore)
-            let missing = try await store.library(LibraryRequest(query: "なし", limit: 1))
-            #expect(missing.items.isEmpty && !missing.hasMore)
-            let drafts = try await store.library(LibraryRequest(filter: .drafts, limit: 1))
-            #expect(drafts.items.isEmpty && !drafts.hasMore)
-            #expect(drafts.drafts.map(\.id) == [draft.id])
-            let trash = try await store.library(LibraryRequest(filter: .trash))
-            #expect(trash.items.map(\.id) == [deleted] && trash.drafts.isEmpty)
-            for page in [pins, missing, drafts, trash] {
-                #expect(page.counts == all.counts)
-            }
-            let limited = try await store.library(LibraryRequest(limit: 1))
-            #expect(limited.items.count == 1 && limited.hasMore)
-            #expect(limited.counts == all.counts)
-            #expect(try await store.search(filter: .drafts).isEmpty)
-            let model = LibraryModel(store: store)
-            model.filter = .drafts
-            await model.open(.draft(draft.id))
-            let resumed = try #require(model.editor)
-            #expect(resumed.id == draft.id && resumed.body == draft.body)
-            _ = try await store.save(resumed)
-            await model.refresh()
-            #expect(model.drafts.isEmpty && model.items.isEmpty && model.filter == .drafts)
-            model.filter = .all
-            await model.refresh()
-            #expect(model.items.count == 3)
-        }
-
-        @Test func changedQueryRetainsContentUntilTheMatchingReadCompletes() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let saved = try await create(database.store, body: "検索対象")
-            let model = LibraryModel(store: database.store)
-            await model.refresh()
-            model.showMore()
-            model.query = ""
-            #expect(model.request.limit == 200)
-            model.query = "一致しない語句"
-            #expect(model.loading && !model.contentIsCurrent && model.items.map(\.id) == [saved])
-            #expect(model.request.limit == 100)
-            await model.refresh()
-            #expect(!model.loading && model.items.isEmpty && model.contentIsCurrent)
-            model.query = "か\u{3099}"
-            await model.refresh()
-            model.query = "が"
-            #expect(model.contentIsCurrent && !model.loading)
-        }
-
-        @Test func appearanceRefreshKeepsAnActiveReadAndAllowsRecovery() throws {
-            let contexts: [(LibrarySurface, String)] = [(.library, ""), (.library, "検索"), (.deleted, "")]
-            for (surface, query) in contexts {
-                var state = LibraryReadState(surface: surface)
-                state.search(query)
-                #expect(state.refreshOnAppearance)
-                let cancelled = state.begin()
-                // Activation during a suspended read must not cancel it through another appearance refresh.
-                #expect(!state.refreshOnAppearance)
-                state.complete(.cancelled, from: cancelled)
-                state.end(cancelled)
-                #expect(state.interrupted && state.refreshOnAppearance)
-                let resumed = state.begin()
-                #expect(!state.refreshOnAppearance)
-                #expect(try state.accept(Array(repeating: LibraryPage(), count: resumed.requests.count), from: resumed))
-                state.end(resumed)
-                #expect(!state.interrupted && !state.loading && state.contentIsCurrent)
-                #expect(state.refreshOnAppearance == (surface == .deleted || !query.isEmpty))
-            }
-        }
-
-        @Test func retainedFiltersSwitchImmediatelyAndRefreshAllCollections() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let pinned = try await create(store, body: "ピン留めの原文")
-            try await store.setPinned(true, id: pinned)
-            let draft = try await store.beginDraft(body: "未保存の原文")
-            let model = LibraryModel(store: store, effects: RecordingLibraryEffects())
-            model.filter = .trash
-            #expect(model.query.isEmpty && model.filter == .all && model.refreshOnAppearance)
-            let search = LibraryModel(store: store)
-            let deleted = LibraryModel(store: store, surface: .deleted)
-            deleted.filter = .all
-            #expect(deleted.filter == .trash && deleted.refreshOnAppearance)
-            search.filter = .pinned
-            search.query = "ピン留め"
-            #expect(search.refreshOnAppearance)
-            await search.refresh()
-            #expect(search.items.map(\.id) == [pinned])
-            #expect(model.query.isEmpty && model.request.limit == LibraryRequest.pageSize)
-            await model.refresh()
-            #expect(!model.refreshOnAppearance && model.readDemand == nil)
-            model.filter = .drafts
-            #expect(!model.loading && model.contentIsCurrent && model.readDemand == nil && model.drafts.map(\.id) == [draft.id])
-            model.filter = .pinned
-            #expect(!model.loading && model.items.map(\.id) == [pinned])
-            // External writes remain invisible until the user's pull to refresh.
-            let external = try await create(store, body: "共有拡張で保存")
-            model.filter = .all
-            #expect(!model.loading && model.items.map(\.id) == [pinned])
-            await model.reload()
-            #expect(Set(model.items.map(\.id)) == [pinned, external])
-            let item = try #require(model.items.first { $0.id == external })
-            await model.pin(item)
-            model.filter = .pinned
-            #expect(!model.loading && Set(model.items.map(\.id)) == [pinned, external])
-            await model.delete(pinned)
-            await search.refresh()
-            #expect(search.items.isEmpty && search.query == "ピン留め" && model.query.isEmpty)
-            model.filter = .all
-            #expect(model.items.map(\.id) == [external])
-            model.filter = .drafts
-            #expect(!model.loading && model.drafts.map(\.id) == [draft.id])
-        }
-
-        @Test func unifiedSearchUsesAllSavedItemsAndRestoresTheRetainedCollection() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let pinned = try await create(database.store, body: "ピン留め")
-            let match = try await create(database.store, body: "検索する本文")
-            try await database.store.setPinned(true, id: pinned)
-            _ = try await database.store.beginDraft(body: "検索する下書き")
-            let model = LibraryModel(store: database.store)
-            await model.refresh()
-            model.filter = .pinned
-            model.showMore()
-            await model.refresh()
-            model.query = "検索する"
-            #expect(model.filter == .pinned && model.request.filter == .all && model.request.limit == 100)
-            await model.refresh()
-            #expect(model.items.map(\.id) == [match] && model.drafts.isEmpty && !model.includesDrafts)
-            model.query = "  "
-            #expect(!model.isSearching && model.filter == .pinned && model.request.limit == 200)
-            #expect(model.items.map(\.id) == [pinned] && model.readDemand == nil && !model.loading)
-        }
-
-        @Test func showAllRestoresTheRetainedCollectionWithoutClearingItsPageLimit() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let saved = try await create(database.store, body: "一覧へ戻す本文")
-            let model = LibraryModel(store: database.store)
-            await model.refresh()
-            model.showMore()
-            await model.refresh()
-            model.filter = .drafts
-            model.query = "一致しない検索語"
-            await model.refresh()
-            #expect(model.items.isEmpty && model.isSearching)
-            model.showAll()
-            #expect(model.filter == .all && model.query.isEmpty)
-            #expect(model.request.limit == 200 && model.items.map(\.id) == [saved])
-            #expect(model.readDemand == nil && !model.loading)
-
-            model.query = "  "
-            model.showAll()
-            #expect(model.query.isEmpty && model.request.limit == 200 && model.readDemand == nil)
-
-            let deleted = LibraryModel(store: database.store, surface: .deleted)
-            deleted.query = "削除済み"
-            deleted.showAll()
-            #expect(deleted.request.filter == .trash && deleted.query == "削除済み")
-        }
-
-        @Test func mutationsDuringSearchUpdateCollectionsBeforeSearchIsCleared() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let item = try await create(database.store, body: "検索と削除")
-            let other = try await create(database.store, body: "残す本文")
-            let model = LibraryModel(store: database.store)
-            await model.refresh()
-            model.query = "検索"
-            await model.refresh()
-            await model.delete(item)
-            #expect(model.items.isEmpty && model.query == "検索")
-            model.query = ""
-            #expect(model.items.map(\.id) == [other] && model.page.counts.saved == 1 && model.readDemand == nil)
-        }
-
-        @Test func clearingSearchRejectsItsDelayedResultWithoutReloadingTheCollection() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let reader = ControlledLibraryReader()
-            let model = LibraryModel(store: database.store, libraryReader: reader)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(1)
-            reader.finish(0, with: .success(LibraryPage(counts: LibraryCounts(saved: 2, pinned: 1))))
-            await owner.waitForIdle()
-            model.filter = .pinned
-            model.query = "遅い検索"
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(2)
-            #expect(reader.requests[1].count == 1 && reader.requests[1][0].query == "遅い検索")
-            model.query = ""
-            #expect(model.readDemand == nil && !model.loading)
-            reader.finish(1, with: .success(LibraryPage(counts: LibraryCounts(saved: 99))))
-            await owner.waitForIdle()
-            #expect(model.filter == .pinned && model.page.counts.saved == 2 && !model.loading)
-        }
-
-        @Test func delayedMutationRefreshUpdatesTheCollectionAfterSearchIsCleared() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            _ = try await create(database.store, body: "検索対象")
-            let reader = ControlledLibraryReader()
-            let model = LibraryModel(store: database.store, libraryReader: reader)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(1)
-            reader.finishBatch(0, with: .success(try await database.store.libraries(reader.requests[0])))
-            await owner.waitForIdle()
-            let item = try #require(model.items.first)
-            model.query = "検索"
-            owner.startTask(.pin(item), on: model)
-            await reader.waitForRequests(2)
-            #expect(reader.requests[1].count == 4)
-            model.query = ""
-            #expect(model.readDemand == nil && !model.loading)
-            reader.finishBatch(1, with: .success(try await database.store.libraries(reader.requests[1])))
-            await owner.waitForIdle()
-            #expect(model.items.first?.pinned == true && model.page.counts.pinned == 1)
-            model.filter = .pinned
-            #expect(model.items.map(\.id) == [item.id] && model.readDemand == nil)
-        }
-
-        @Test func retainedBatchFollowsSelectionAndDoesNotPublishPartialFailure() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let reader = ControlledLibraryReader()
-            let model = LibraryModel(store: database.store, effects: RecordingLibraryEffects(),
-                                     libraryReader: reader)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(1)
-            #expect(reader.requests[0].map(\.filter) == [.all, .pinned, .drafts])
-            model.filter = .pinned
-            reader.finish(0, with: .success(LibraryPage(counts: LibraryCounts(saved: 2, pinned: 1))))
-            await owner.waitForIdle()
-            #expect(!model.loading && model.contentRequest.filter == .pinned && model.page.counts.saved == 2)
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(2)
-            model.filter = .drafts
-            reader.finish(1, with: .failure(StoreError.unavailable))
-            await owner.waitForIdle()
-            #expect(!model.loading && model.failure != nil && model.page.counts.saved == 2)
-            model.filter = .all
-            #expect(!model.loading && model.contentIsCurrent && model.page.counts.saved == 2)
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(3)
-            reader.finishBatch(2, with: .success([LibraryPage(counts: LibraryCounts(saved: 99))]))
-            await owner.waitForIdle()
-            #expect(model.failure != nil && model.page.counts.saved == 2)
-            model.filter = .pinned
-            #expect(model.page.counts.saved == 2 && model.readDemand == nil)
-        }
-
-        @Test func retainedPagesPreserveIndependentLimitsAndEveryOrderedItem() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            _ = try await store.search()
-            let db = try SQLiteDatabase(url: database.url)
-            let ids = (1...201).map { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0))! }
-            try db.writeTransaction {
-                for id in ids {
-                    try db.execute("INSERT INTO snippets(id,title,body,search_key,pinned,revision,updated,deleted) VALUES(?,'項目','本文','本文',?,1,1000,0)",
-                                   [.text(id.uuidString), .int(id == ids.last ? 1 : 0)])
-                }
-            }
-            let model = LibraryModel(store: store, effects: RecordingLibraryEffects())
-            await model.refresh()
-            #expect(model.items.map(\.id) == Array(ids.prefix(100)) && model.hasMore)
-            model.filter = .pinned
-            #expect(model.items.map(\.id) == [ids.last!] && !model.loading && model.readDemand == nil)
-            model.filter = .all
-            model.showMore()
-            await model.refresh()
-            #expect(model.items.map(\.id) == Array(ids.prefix(200)) && model.hasMore)
-            model.showMore()
-            await model.refresh()
-            #expect(model.items.map(\.id) == ids && !model.hasMore)
-            model.filter = .pinned
-            #expect(model.request.limit == 100 && model.items.map(\.id) == [ids.last!])
-            model.filter = .all
-            #expect(model.request.limit == 300 && model.items.map(\.id) == ids && model.readDemand == nil)
+        @Test func malformedBatchCannotPublishPartialCollections() throws {
+            var state = LibraryReadState(surface: .library)
+            let batch = state.begin()
+            var refusal: StoreError?
+            do { _ = try state.accept([LibraryPage()], from: batch) }
+            catch { refusal = error as? StoreError }
+            #expect(refusal == .unavailable)
+            state.complete(.failed(StoreError.unavailable), from: batch)
+            state.end(batch)
+            #expect(state.snapshot == nil && state.error as? StoreError == .unavailable)
+            #expect(!state.loading)
         }
 
         @Test(arguments: [false, true])
-        func staleReadCannotFinishTheNextSelection(fails: Bool) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let reader = ControlledLibraryReader()
-            let model = LibraryModel(store: database.store, libraryReader: reader)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(1)
-            reader.finish(0, with: .success(LibraryPage()))
-            await owner.waitForIdle()
-            #expect(!model.loading)
-
-            model.query = "draft"
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(2)
-            // The next onChange has not started its task when the old read finishes.
-            model.query = "all"
-            reader.finish(1, with: fails ? .failure(StoreError.unavailable) : .success(LibraryPage()))
-            await owner.waitForIdle()
-            #expect(model.loading && model.failure == nil)
-            #expect(model.contentRequest.query.isEmpty && !model.contentIsCurrent)
-
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(3)
-            reader.finish(2, with: .success(LibraryPage()))
-            await owner.waitForIdle()
-            #expect(!model.loading && model.contentIsCurrent && model.failure == nil)
-            #expect(model.contentRequest.query == "all")
-        }
-
-        @Test func lateReadCannotReplaceTheLatestResult() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let reader = ControlledLibraryReader()
-            let model = LibraryModel(store: database.store, libraryReader: reader)
-            let olderOwner = LibraryTaskOwner()
-            let latestOwner = LibraryTaskOwner()
-            olderOwner.startTask(.refresh, on: model)
-            await reader.waitForRequests(1)
-            model.query = "draft"
-            latestOwner.startTask(.refresh, on: model)
-            await reader.waitForRequests(2)
-            reader.finish(1, with: .success(LibraryPage()))
-            await latestOwner.waitForIdle()
-            #expect(!model.loading && model.contentRequest.query == "draft")
-            reader.finish(0, with: .failure(StoreError.unavailable))
-            await olderOwner.waitForIdle()
-            #expect(!model.loading && model.failure == nil && model.contentIsCurrent)
-            #expect(model.contentRequest.query == "draft")
-        }
-
-        @Test func failedQueryReadDoesNotBecomeAnEmptyResultOrLeakIntoAnotherQuery() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let reader = ControlledLibraryReader()
-            let model = LibraryModel(store: database.store, libraryReader: reader)
-            let owner = LibraryTaskOwner()
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(1)
-            reader.finish(0, with: .failure(StoreError.unavailable))
-            await owner.waitForIdle()
-            #expect(!model.loading && !model.contentIsCurrent && model.failure != nil)
-            model.query = "draft"
-            #expect(model.loading && model.failure == nil && !model.contentIsCurrent)
-            owner.startTask(.refresh, on: model)
-            await reader.waitForRequests(2)
-            reader.finish(1, with: .success(LibraryPage()))
-            await owner.waitForIdle()
-            #expect(!model.loading && model.contentIsCurrent && model.drafts.isEmpty)
-            model.showMore()
-            #expect(model.loading && model.contentIsCurrent)
-            #expect(model.contentRequest.limit == LibraryRequest.pageSize)
-        }
-
-        @Test(arguments: [LibraryFilter.pinned, .drafts])
-        func creatingKeepsTheSelectedCollection(filter: LibraryFilter) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let model = LibraryModel(store: database.store)
-            await model.refresh()
-            model.filter = filter
-            await model.open(.new)
-            let draft = try #require(model.editor)
-            #expect(model.filter == filter && model.readDemand == nil)
-            model.editor = nil
-            await model.refresh()
-            #expect(model.filter == filter)
-            model.filter = .drafts
-            #expect(model.drafts.map(\.id) == [draft.id])
-        }
-
-        @Test func settersOnlyChangeMemoryAndPersistenceIsAwaitable() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let editor = EditorModel(draft: try await store.beginDraft(), store: store)
-            editor.body = "最初"
-            let older = editor.draft
-            editor.body = "最新"
-            let newest = editor.draft
-            #expect(try await store.draft(editor.draft.id).body.isEmpty)
-            await editor.persist(newest)
-            await editor.persist(older)
-            #expect(try await store.draft(editor.draft.id).body == "最新")
-        }
-
-        @Test(arguments: [EditorModel.FinishOperation.save, .discard])
-        func finishingRejectsAdmittedAndLateAutosaves(operation: EditorModel.FinishOperation) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let storage = PausedDraftEditing(store: store)
-            let editor = EditorModel(draft: try await store.beginDraft(), store: storage)
-            editor.body = "途中"
-            let snapshot = editor.draft
-            async let autosave: Void = editor.persist(snapshot)
-            await storage.waitForUpdate()
-            editor.body = "保存する最新値"
-            #expect(await editor.finish(operation))
-            storage.resumeUpdate()
-            await autosave
-            await editor.persist(snapshot)
-            #expect(try await store.drafts().isEmpty)
-            let items = try await store.search()
-            if operation == .save {
-                #expect(items.count == 1)
-                let item = try #require(items.first)
-                #expect(try await store.snippet(item.id).body == "保存する最新値")
-            } else {
-                #expect(items.isEmpty)
-            }
-        }
-
-        @Test(arguments: [false, true])
-        func cancelledReadSettlesWithoutReportingAnError(providerFails: Bool) async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let reader = ControlledLibraryReader()
-            let library = LibraryModel(store: database.store, libraryReader: reader)
+        func delayedReadCannotReplaceANewerSuccess(oldFails: Bool) async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let reader = ApplicationLibraryReader()
+            let model = LibraryModel(store: files.store, libraryReader: reader)
             let tasks = ViewTaskStore()
-            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
-            await reader.waitForRequests(1)
-            tasks.cancelAll()
-            reader.finish(0, with: providerFails ? .failure(StoreError.missing) : .success(LibraryPage()))
+            tasks.start(id: "old", lifetime: .sceneBound, policy: .ignoreNew) { _ in await model.refresh() }
+            await reader.gate.waitForAdmissions(1)
+            model.query = "新しい検索"
+            tasks.start(id: "new", lifetime: .sceneBound, policy: .ignoreNew) { _ in await model.refresh() }
+            await reader.gate.waitForAdmissions(2)
+            let row = SnippetSummary(id: UUID(), title: "結果", preview: "全文", pinned: false, revision: 1)
+            reader.gate.resolve(1, .success([LibraryPage(items: [row])]))
+            await reader.gate.waitForReturns(1)
+            reader.gate.resolve(0, oldFails ? .failure(StoreError.database) : .success([LibraryPage(), LibraryPage(), LibraryPage()]))
             await tasks.waitForIdle()
-            #expect(!library.loading)
-            #expect(library.failure == nil)
-            #expect(library.snapshot == nil)
-            #expect(library.loadingInterrupted)
-            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
-            await reader.waitForRequests(2)
-            #expect(library.loading && !library.loadingInterrupted)
-            reader.finish(1, with: .success(LibraryPage()))
-            await tasks.waitForIdle()
-            #expect(library.contentIsCurrent && !library.loading && !library.loadingInterrupted)
-            #expect(library.failure == nil)
+            #expect(model.items == [row] && model.contentIsCurrent && !model.loading)
+            #expect(model.failure == nil && !model.showsEmptyState)
         }
 
-        @Test func cancelledQueryReadRetainsThePreviousSnapshotUntilRetry() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let id = try await create(database.store, body: "前の表示")
-            let page = try await database.store.library(LibraryRequest())
-            let reader = ControlledLibraryReader()
-            let library = LibraryModel(store: database.store, libraryReader: reader)
+        @Test func cancellationRetainsTheOldPageAndAllowsRetry() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let id = try await create(files.store, body: "保存済み")
+            let reader = ApplicationLibraryReader()
+            let model = LibraryModel(store: files.store, libraryReader: reader)
             let tasks = ViewTaskStore()
-            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
-            await reader.waitForRequests(1)
-            reader.finish(0, with: .success(page))
+            tasks.start(id: "read", lifetime: .sceneBound, policy: .ignoreNew) { _ in await model.refresh() }
+            await reader.gate.waitForAdmissions(1)
+            let original = try await files.store.libraries(reader.requests[0])
+            reader.gate.resolve(0, .success(original))
             await tasks.waitForIdle()
-            library.query = "見つからない"
-            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
-            await reader.waitForRequests(2)
-            tasks.cancelAll()
-            reader.finish(1, with: .success(LibraryPage()))
+            model.query = "検索中"
+            tasks.start(id: "read", lifetime: .sceneBound, policy: .ignoreNew) { _ in await model.refresh() }
+            await reader.gate.waitForAdmissions(2)
+            tasks.cancel(lifetime: .sceneBound)
+            reader.gate.resolve(1, .success([LibraryPage()]))
             await tasks.waitForIdle()
-            #expect(library.items.map(\.id) == [id])
-            #expect(library.contentRequest.query.isEmpty && library.query == "見つからない")
-            #expect(!library.contentIsCurrent && library.loadingInterrupted && !library.loading)
-            tasks.start(id: "read", lifetime: .screenBound) { _ in await library.refresh() }
-            await reader.waitForRequests(3)
-            reader.finish(2, with: .success(LibraryPage()))
+            #expect(model.items.map(\.id) == [id] && !model.contentIsCurrent)
+            #expect(model.loadingInterrupted && !model.loading && model.failure == nil)
+            tasks.start(id: "retry", lifetime: .sceneBound, policy: .ignoreNew) { _ in await model.refresh() }
+            await reader.gate.waitForAdmissions(3)
+            reader.gate.resolve(2, .success([LibraryPage()]))
             await tasks.waitForIdle()
-            #expect(library.contentIsCurrent && library.items.isEmpty && !library.loadingInterrupted)
+            #expect(model.showsEmptyState && !model.loadingInterrupted)
         }
 
-        @Test func cancelledCallerCannotBeginAnOperation() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let store = database.store
-            let id = try await create(store, body: "維持する本文")
-            let library = LibraryModel(store: store)
-            // Cancel synchronously before the MainActor operation can start. The
-            // closure still calls the model, so the model's own contract is tested.
-            let tasks = ViewTaskStore()
-            tasks.start(id: "cancelled.operations", lifetime: .screenBound) { _ in
-                await library.open()
-                await library.delete(id)
-                await library.copy(id)
-            }
-            tasks.cancelAll()
-            await tasks.waitForIdle()
-            #expect(library.editor == nil)
-            #expect(library.notice == nil)
-            #expect(library.feedback == 0)
-            #expect(try await store.snippet(id).usage.count == 0)
-            #expect(try await store.drafts().isEmpty)
-            #expect(try await store.snippet(id).deleted == false)
-        }
-
-        @Test func emptySearchPreservesOperationFailureUntilExplicitRecovery() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let library = LibraryModel(store: database.store)
-            library.query = "  "
-            await library.copy(UUID())
-            let failure = try #require(library.failure)
-            #expect(failure.title == "コピーできませんでした")
-            #expect(failure.recovery == .reload)
-            await library.refresh()
-            #expect(library.failure == failure)
-            #expect(library.query == "  " && !library.loading)
-            let feedback = library.feedback
-            await library.reload()
-            #expect(library.failure == nil && library.notice == nil)
-            #expect(library.feedback == feedback) // Reload never retries a clipboard operation.
-            #expect(library.query == "  ")
-        }
-
-        @Test func loadingFailureIsSeparateFromFailedCreation() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let directory = database.url.deletingLastPathComponent()
-            let file = directory.appending(path: "not-a-directory")
-            try Data([1]).write(to: file)
+        @Test func copyCommitsOSOutputAndRetriesOnlyItsUsageRecord() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let text = "\tか\u{3099}\r\n\0😀\n"
+            let id = try await create(files.store, title: "使う本文", body: text)
             let effects = RecordingLibraryEffects()
-            let library = LibraryModel(store: SnippetStore(location: file.appending(path: "db.sqlite")), effects: effects)
-            await library.refresh()
-            #expect(library.failure?.title == "一覧を読み込めませんでした")
-            #expect(library.failure?.recovery == .reload)
-            await library.open()
-            #expect(library.failure?.title == "編集を始められませんでした")
-            #expect(library.editor == nil)
+            let recorder = ApplicationUsageRecorder(store: files.store)
+            let model = LibraryModel(store: files.store, effects: effects, usageRecorder: recorder)
+            await model.copy(id)
+            #expect(effects.events.filter { if case .copy = $0 { true } else { false } } == [.copy(text)])
+            #expect(model.notice?.result == .copied && model.failure?.recovery == .retryUsage)
+            #expect(try await files.store.search().first?.usage?.count == 0)
+            await model.retryUsageRecording()
+            #expect(recorder.attempts.count == 2 && recorder.attempts[0].id == recorder.attempts[1].id)
+            #expect(effects.events.filter { if case .copy = $0 { true } else { false } }.count == 1)
+            #expect(try await files.store.search().first?.usage?.count == 1)
+            #expect(model.failure == nil && model.items.first?.usage?.count == 1)
+        }
+
+        @Test func returningFromCopyHasAlreadyWrittenOnlyTheBodyToThePasteboard() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let text = " \tが\r\nか\u{3099}\0😀 "
+            let id = try await create(files.store, title: "本文へ含めないタイトル", body: text)
+            UIPasteboard.general.string = "置き換えるダミー"
+            let model = LibraryModel(store: files.store, effects: SystemLibraryEffects())
+            await model.copy(id)
+            let result = try #require(UIPasteboard.general.string)
+            #expect(SnippetText.hasSameBytes(result, text))
+            #expect(try await files.store.snippet(id).usage.count == 1)
+        }
+
+        @Test func variablesRequireConfirmationRevalidateOriginalAndNeverEditSavedText() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let original = "{{相手}}さんへ\n{{相手}}さん、こんにちは"
+            let id = try await create(files.store, title: "返信", body: original)
+            let effects = RecordingLibraryEffects()
+            let model = LibraryModel(store: files.store, effects: effects)
+            await model.refresh()
+            await model.copy(id)
+            let pending = try #require(model.variableCopy)
+            #expect(pending.title == "返信" && effects.events.isEmpty)
+            await model.completeVariableCopy(id: pending.id, values: [:])
+            #expect(model.variableCopy != nil && effects.events.isEmpty)
+            model.cancelVariableCopy()
             #expect(effects.events.isEmpty)
-            library.dismissFailure()
-            #expect(library.failure?.title == "一覧を読み込めませんでした")
-            try FileManager.default.removeItem(at: file)
-            await library.reload()
-            #expect(library.failure == nil && !library.loading)
+            await model.copy(id)
+            let confirmed = try #require(model.variableCopy)
+            await model.completeVariableCopy(id: confirmed.id, values: testVariableValues(["相手": "田中"]))
+            #expect(effects.events.contains(.copy("田中さんへ\n田中さん、こんにちは")))
+            #expect(try await files.store.savedBody(id).utf8.elementsEqual(original.utf8))
+            await model.copy(id)
+            let stale = try #require(model.variableCopy)
+            var update = try await files.store.editingDraft(for: id)
+            update.body = "別の本文"
+            try await files.store.save(update)
+            let before = effects.events.count
+            await model.completeVariableCopy(id: stale.id, values: testVariableValues(["相手": "佐藤"]))
+            #expect(effects.events.count == before && model.failure?.reason == .conflict)
         }
 
-        @Test func editorExplainsRequiredBodyWithoutChangingOriginalInput() async throws {
-            let database = try TestDatabase()
-            defer { database.removeFiles() }
-            let draft = try await database.store.beginDraft()
-            let editor = EditorModel(draft: draft, store: database.store)
-            editor.title = "名前だけ"
-            for body in ["", " \n\t"] {
-                editor.body = body
-                #expect(!editor.hasBody && !editor.canSave)
-                #expect(editor.body.utf8.elementsEqual(body.utf8))
-            }
-            let original = "  原文\n👩🏽‍💻  "
-            editor.body = "途中の入力"
-            editor.body = original
-            #expect(editor.hasBody && editor.canSave)
-            #expect(await editor.finish(.keep))
-            let reopened = SnippetStore(location: database.url)
-            #expect(try await reopened.draft(draft.id).body.utf8.elementsEqual(original.utf8))
-            #expect(try await reopened.search().isEmpty)
+        @Test func editorSeparatesInputAnalysisPersistenceAndConflictRecovery() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let id = try await create(files.store, body: "以前の本文")
+            let draft = try await files.store.editingDraft(for: id)
+            let editor = EditorModel(draft: draft, store: files.store)
+            editor.title = "新しい題"
+            #expect(editor.bodyRevision == 0 && editor.draft.sequence == 1)
+            editor.body = "か\u{3099}\r\n編集"
+            #expect(editor.bodyRevision == 1 && editor.draft.sequence == 2)
+            #expect(try await files.store.draft(draft.id).title.isEmpty)
+            await editor.persist(editor.draft)
+            #expect(try await files.store.draft(draft.id).title == "新しい題")
+            try await files.store.setPinned(true, id: id)
+            #expect(!(await editor.finish(.save)))
+            #expect(editor.phase == .editing && editor.failure?.canSaveAsNew == true)
+            let input = editor.body
+            #expect(await editor.finish(.saveAsNew))
+            #expect(editor.phase == .finished)
+            #expect(try await files.store.search().count == 2)
+            editor.body = "終了後の入力"
+            #expect(SnippetText.hasSameBytes(editor.body, input))
         }
 
+        @Test func aFinishingEditorRejectsInputAndLateAutosaveCannotResurrectTheDraft() async throws {
+            let files = try TestDatabase()
+            defer { files.removeFiles() }
+            let draft = try await files.store.beginDraft(body: "編集中")
+            let store = ApplicationDraftEditor(store: files.store)
+            let model = EditorModel(draft: draft, store: store)
+            model.body = "確定する本文"
+            let tasks = ViewTaskStore()
+            tasks.start(id: "autosave", lifetime: .screenBound, policy: .ignoreNew) { _ in await model.persist(model.draft) }
+            await store.updateGate.waitForAdmissions(1)
+            #expect(await model.finish(.save))
+            store.updateGate.resolve(0, .success(true))
+            await tasks.waitForIdle()
+            #expect(try await files.store.drafts().isEmpty)
+            #expect(try await files.store.search().first?.preview == "確定する本文")
+            #expect(model.phase == .finished && model.failure == nil)
+        }
     }
 }
 
-/// Explicit completion gates reproduce request ordering without sleeps or scheduler assumptions.
 @MainActor
-private final class ControlledLibraryReader: LibraryReading {
-    private var reads: [CheckedContinuation<[LibraryPage], any Error>?] = []
-    private(set) var requests: [[LibraryRequest]] = []
-    private var waiting: (count: Int, continuation: CheckedContinuation<Void, Never>)?
+final class ApplicationGate<Value: Sendable> {
+    private var continuations: [CheckedContinuation<Value, any Error>?] = []
+    private var admissions: [(Int, CheckedContinuation<Void, Never>)] = []
+    private var returns: [(Int, CheckedContinuation<Void, Never>)] = []
+    private(set) var returned = 0
 
-    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage] {
-        try await withCheckedThrowingContinuation { continuation in
-            self.requests.append(requests)
-            reads.append(continuation)
-            if let waiting, reads.count >= waiting.count {
-                self.waiting = nil
-                waiting.continuation.resume()
+    func read() async throws -> Value {
+        do {
+            let value = try await withCheckedThrowingContinuation { continuation in
+                continuations.append(continuation)
+                resumeSatisfied(&admissions, count: continuations.count)
             }
+            returned += 1
+            resumeSatisfied(&returns, count: returned)
+            return value
+        } catch {
+            returned += 1
+            resumeSatisfied(&returns, count: returned)
+            throw error
         }
     }
 
-    func waitForRequests(_ count: Int) async {
-        guard reads.count < count else { return }
-        await withCheckedContinuation { waiting = (count, $0) }
+    func waitForAdmissions(_ count: Int) async {
+        guard continuations.count < count else { return }
+        await withCheckedContinuation { admissions.append((count, $0)) }
     }
 
-    func finish(_ index: Int, with result: Result<LibraryPage, any Error>) {
-        finishBatch(index, with: result.map { Array(repeating: $0, count: requests[index].count) })
+    func waitForReturns(_ count: Int) async {
+        guard returned < count else { return }
+        await withCheckedContinuation { returns.append((count, $0)) }
     }
 
-    func finishBatch(_ index: Int, with result: Result<[LibraryPage], any Error>) {
-        let continuation = reads[index]
-        reads[index] = nil
+    func resolve(_ index: Int, _ result: Result<Value, any Error>) {
+        let continuation = continuations[index]
+        continuations[index] = nil
         continuation?.resume(with: result)
     }
+
+    private func resumeSatisfied(_ waiters: inout [(Int, CheckedContinuation<Void, Never>)], count: Int) {
+        let ready = waiters.filter { $0.0 <= count }
+        waiters.removeAll { $0.0 <= count }
+        for (_, waiter) in ready { waiter.resume() }
+    }
 }
 
-/// Hold an admitted autosave until the editor has committed its terminal operation.
 @MainActor
-private final class PausedDraftEditing: DraftEditing {
+private final class ApplicationLibraryReader: LibraryReading {
+    let gate = ApplicationGate<[LibraryPage]>()
+    private(set) var requests: [[LibraryRequest]] = []
+    func libraries(_ requests: [LibraryRequest]) async throws -> [LibraryPage] {
+        self.requests.append(requests)
+        return try await gate.read()
+    }
+}
+
+@MainActor
+private final class ApplicationUsageRecorder: SnippetUsageRecording {
     let store: SnippetStore
-    private var update: CheckedContinuation<Void, Never>?
-    private var admitted: CheckedContinuation<Void, Never>?
+    private(set) var attempts: [SnippetUse] = []
+    init(store: SnippetStore) { self.store = store }
+    func recordUse(_ use: SnippetUse) async throws {
+        attempts.append(use)
+        guard attempts.count > 1 else { throw StoreError.database }
+        try await store.recordUse(use)
+    }
+}
+
+@MainActor
+private final class ApplicationDraftEditor: DraftEditing {
+    let store: SnippetStore
+    let updateGate = ApplicationGate<Bool>()
     init(store: SnippetStore) { self.store = store }
     func updateDraft(_ draft: Draft) async throws {
-        await withCheckedContinuation { continuation in
-            update = continuation
-            admitted?.resume()
-            admitted = nil
-        }
+        _ = try await updateGate.read()
         try await store.updateDraft(draft)
     }
-    func waitForUpdate() async {
-        guard update == nil else { return }
-        await withCheckedContinuation { admitted = $0 }
-    }
-    func resumeUpdate() { update?.resume(); update = nil }
     func keepDraft(_ draft: Draft) async throws { try await store.keepDraft(draft) }
     func discardDraft(_ draft: Draft) async throws { try await store.discardDraft(draft) }
     func save(_ draft: Draft, mode: DraftSaveMode) async throws -> UUID { try await store.save(draft, mode: mode) }
