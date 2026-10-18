@@ -26,6 +26,18 @@ xcuserdata/
 *.dSYM/
 *.dSYM.zip
 
+# Moletta skills are local copies of the source pinned by flake.lock.
+/.agents/skills/moletta/
+/.agents/skills/moletta-explore/
+/.agents/skills/moletta-compare/
+/.agents/skills/moletta-verify/
+/.agents/skills/moletta-learn/
+/.claude/skills/moletta/
+/.claude/skills/moletta-explore/
+/.claude/skills/moletta-compare/
+/.claude/skills/moletta-verify/
+/.claude/skills/moletta-learn/
+
 # Local environment values; share only example/template files
 .env
 .env.*
