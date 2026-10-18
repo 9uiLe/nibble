@@ -20,12 +20,12 @@ nibbleは、本体・共有拡張・キーボードの三つの入口と、App G
 | `app/Shared/Persistence/` | SQLite接続、schema、同期SQL、`SnippetStore`と既存DB専用の`KeyboardReader` actor、App Groupの権利スナップショット |
 | `app/Shared/Editing/` | `EditorTaskOwner`、`SnippetEditor`と入力・操作・補足の表示部品、`EditorPresentation`の文言。本体と共有拡張で使用 |
 | `app/Shared/Editing/Markdown/` | 原文からの解析、共通の文字スタイル、入力とプレビュー、UIKitの編集接続 |
-| `app/Shared/Interface/` | 項目名・上限・失敗の表示形式、共通見出しとピン操作、色、文字役割、操作領域、固定表示のSwiftUI・UIKit境界 |
+| `app/Shared/Interface/` | 項目名・上限・失敗の表示形式、共通見出しとピン操作、色・部品トークン、操作領域、固定表示のSwiftUI・UIKit境界 |
 | `app/Shared/Resources/` | 配布する第三者ライセンスの告知 |
 | `runtime/rive/` | 描画先取得を専用キューへ分離するRive基盤の固定ソース定義・Package定義 |
 | `app/Packages/RivePresentation/` | 製品に依存しないRiveのResource・Session・Canvas |
 
-`Shared`はソースの共有単位であり、すべてを全targetへリンクするという意味ではない。Xcode projectのSourcesが各targetの必要な部分を選ぶ。キーボードは編集StoreとRiveをリンクせず、本体・共有拡張だけがDB作成とschema移行を行う。本体のテストはKeyboardのモデルとReaderも検査する。
+`Shared`はソースの共有単位であり、すべてを全targetへリンクするという意味ではない。Xcode projectのSourcesが各targetの必要な部分を選ぶ。NibbleThemeがライト/ダークの色を定義し、Evoloom由来の部品は必要な色役割と寸法だけをIOSDesignTokensから受け取る。キーボードは編集StoreとRiveをリンクせず、本体・共有拡張だけがDB作成とschema移行を行う。本体のテストはKeyboardのモデルとReaderも検査する。
 
 ## 依存と操作の境界
 

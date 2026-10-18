@@ -66,7 +66,7 @@ class AboutCheck:
             # The observed iOS 26.5 switch sits in the trailing 60 pt of that frame.
             frame = switch["frame"]
             point = f"{frame['x'] + frame['width'] - 30},{frame['y'] + frame['height'] / 2}"
-            self.run.command(["sim-use", "tap", "--point", point, "--duration", "0.05", "--device", self.device])
+            self.run.command(["sim-use", "tap", "--point", point, "--duration", "0.15", "--device", self.device])
             switch = wait_switch(requested)
         self.run.manifest.setdefault("motion_observations", []).append({
             "before": current, "requested": requested, "observed": switch["value"] == "1"

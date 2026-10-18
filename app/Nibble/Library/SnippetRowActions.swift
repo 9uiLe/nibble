@@ -30,10 +30,11 @@ struct SnippetRowActions: View {
                 Menu { SnippetRowMenu(item: item, perform: perform) } label: {
                     Image(systemName: "ellipsis").font(.callout)
                         .foregroundStyle(Color.nibbleSecondary)
-                        .frame(width: 44, height: 44).contentShape(.rect)
+                        .frame(width: 44, height: 56).contentShape(.rect)
                 }
                 .menuStyle(.borderlessButton)
                 .accessibilityLabel("\(item.displayTitle)のその他の操作")
+                .accessibilityHint("編集、ピン留め、削除")
                 .accessibilityIdentifier("more.\(item.id)")
             }
         }

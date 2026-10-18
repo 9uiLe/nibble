@@ -9,38 +9,36 @@ struct DraftResumeRow: View {
     let draft: DraftSummary
 
     var body: some View {
-        HStack(spacing: 4) {
-            Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("下書きを再開").font(.caption.weight(.medium)).foregroundStyle(Color.nibbleSecondary)
-                        Text(draft.displayTitle).font(.nibbleTitle).lineLimit(1)
+        IOSCard {
+            HStack(spacing: 8) {
+                Button { taskOwner.startTask(.open(.draft(draft.id)), on: model) } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        IOSBadge("下書き", symbol: "square.and.pencil")
+                        HStack(spacing: 8) {
+                            Text(draft.displayTitle).font(.nibbleTitle).lineLimit(1)
+                            Spacer(minLength: 0)
+                            Text("再開").font(.caption.weight(.semibold))
+                            Image(systemName: "chevron.right").font(.caption2)
+                        }
                     }
-                    Spacer(minLength: 0)
-                    if !model.page.hasMoreDrafts {
-                        Image(systemName: "chevron.right").font(.caption2)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("下書きを再開、\(draft.displayTitle)")
-            .accessibilityIdentifier("draft.\(draft.id)")
-            if model.page.hasMoreDrafts {
-                Button { model.filter = .drafts } label: {
-                    Text("ほか\(model.page.counts.drafts - 1)件")
-                        .font(.caption2)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(.rect)
+                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("下書きをすべて見る、\(model.page.counts.drafts)件")
-                .accessibilityIdentifier("library.allDrafts")
+                .accessibilityLabel("下書きを再開、\(draft.displayTitle)")
+                .accessibilityIdentifier("draft.\(draft.id)")
+                if model.page.hasMoreDrafts {
+                    Button { model.filter = .drafts } label: {
+                        Text("ほか\(model.page.counts.drafts - 1)件")
+                            .font(.caption2)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("下書きをすべて見る、\(model.page.counts.drafts)件")
+                    .accessibilityIdentifier("library.allDrafts")
+                }
             }
         }
-        .foregroundStyle(Color.nibblePrimary)
-        .padding(.horizontal, 12)
-        .background(Color.nibbleSurface, in: .rect(cornerRadius: 12))
     }
 }

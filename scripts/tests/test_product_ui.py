@@ -77,12 +77,12 @@ class ProductNavigationTests(unittest.TestCase):
             run.workspace()
         run.tap.assert_not_called()
 
-    def test_settings_uses_the_observed_button_alias(self):
+    def test_settings_uses_the_workspace_control_and_waits_for_destination(self):
         run = object.__new__(ProductRun)
-        run.args = SimpleNamespace(device='selected')
-        run.workspace = Mock(return_value={'entries': [
-            {'uniqueId': 'navigation.settings', 'aliases': {'at': 7}}]})
-        run.command = Mock()
+        run.workspace = Mock(return_value={'entries': [{'uniqueId': 'navigation.settings'}]})
+        run.tap = Mock()
         run.wait_ui = Mock(return_value={'entries': [{'uniqueId': 'settings.about'}]})
         run.open_settings()
-        run.command.assert_called_once_with(['sim-use', 'tap', '@7', '--device', 'selected'])
+        run.workspace.assert_called_once_with()
+        run.tap.assert_called_once_with('navigation.settings')
+        self.assertEqual(run.wait_ui.call_args.args[0], 'settings-route')

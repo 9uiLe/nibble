@@ -32,7 +32,7 @@ def main():
             data = run.ui(f"{mode}-{screen}-{attempt}")
             if any(e.get("label") == "“nibble”で開きますか?" for e in data["entries"]):
                 run.command(["sim-use", "tap", "--label", "開く", "--element-type", "Button",
-                             "--device", args.device])
+                             "--duration", "0.05", "--device", args.device])
                 time.sleep(0.5)
                 continue
             found = {e["uniqueId"]: e["frame"] for e in data["entries"]
