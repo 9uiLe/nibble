@@ -1,5 +1,7 @@
 import Foundation
+import SwiftUI
 import Testing
+import UIKit
 @testable import Nibble
 
 @Suite("Workspace sessions reach durable and external results")
@@ -574,6 +576,110 @@ struct WorkspaceSessionTests {
     }
 }
 
+extension UIIntegrationTests {
+    @Suite("Home entry remains available during refresh", .serialized)
+    @MainActor
+    struct WorkspaceHomeActionTests {
+        @Test func creatingFromTheMountedToolbarDoesNotWaitForAnActivationRefresh() async throws {
+            let fixture = try SessionWorkspaceFixture()
+            defer { fixture.removeFiles() }
+            let created = try await fixture.create(body: "既存の原文\r\nか\u{3099}👩🏽‍💻")
+            let original = try await fixture.repository.card(id: created.id)
+            let storage = SessionStorageProbe(base: fixture.repository)
+            let model = WorkspaceModel(storage: storage)
+            let host = try ViewTestHost()
+            defer { host.close() }
+            let view = WorkspaceHomeView(model: model, storage: storage, delivery: SessionTextDeliverySpy())
+            host.show(AnyView(view), phase: .inactive)
+            try await host.wait {
+                model.total == 1 && !model.loading && mountedHomeCreateAction(in: host.window) != nil
+            }
+
+            let refresh = SessionOperationGate()
+            await storage.pauseNextList(at: refresh)
+            do {
+                host.show(AnyView(view), phase: .active)
+                let deadline = ContinuousClock.now + .seconds(3)
+                while !(await refresh.isEntered), ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                try #require(await refresh.isEntered, "The mounted active transition must begin a refresh")
+                try #require(model.loading && model.route == nil)
+                try #require(mountedHomeCreateAction(in: host.window)).activate()
+                let presentationDeadline = ContinuousClock.now + .seconds(3)
+                while !mountedHomeEditorIsVisible(in: host.window), ContinuousClock.now < presentationDeadline {
+                    host.controller.view.layoutIfNeeded()
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                let openedDuringRefresh = mountedHomeEditorIsVisible(in: host.window)
+                await refresh.release()
+                try await host.wait { !model.loading }
+                if !openedDuringRefresh {
+                    // Prove this same public UIKit action reaches the product once
+                    // the read finishes, rather than blaming an undispatchable tap.
+                    try #require(mountedHomeCreateAction(in: host.window)).activate()
+                    try await host.wait { mountedHomeEditorIsVisible(in: host.window) }
+                }
+                guard case .editor(let editor) = model.route else {
+                    Issue.record("The toolbar action must present the new editing session")
+                    return
+                }
+                let work = try await fixture.repository.drafts()
+                #expect(work.count == 1 && work.first?.id == editor.id)
+                #expect(work.first?.body.isEmpty == true)
+                #expect(try await fixture.repository.card(id: original.id) == original)
+                #expect(openedDuringRefresh, "A background activation read must not silently discard the user's create action")
+            } catch {
+                await refresh.release()
+                throw error
+            }
+        }
+    }
+}
+
+@MainActor
+private enum MountedHomeCreateAction {
+    case control(UIControl, UIControl.Event)
+    case barItem(UIBarButtonItem, Selector)
+
+    func activate() throws {
+        switch self {
+        case .control(let control, let event):
+            try #require(control.isEnabled && control.window != nil)
+            control.sendActions(for: event)
+        case .barItem(let item, let action):
+            try #require(item.isEnabled)
+            try #require(UIApplication.shared.sendAction(action, to: item.target, from: item, for: nil))
+        }
+    }
+}
+
+@MainActor
+private func mountedHomeCreateAction(in view: UIView) -> MountedHomeCreateAction? {
+    if view.accessibilityIdentifier == "workspace.create" {
+        var candidate: UIView? = view
+        while let current = candidate {
+            if let control = current as? UIControl {
+                if control.allControlEvents.contains(.primaryActionTriggered) { return .control(control, .primaryActionTriggered) }
+                if control.allControlEvents.contains(.touchUpInside) { return .control(control, .touchUpInside) }
+            }
+            candidate = current.superview
+        }
+    }
+    if let bar = view as? UINavigationBar,
+       let item = bar.topItem?.rightBarButtonItems?.first(where: { $0.accessibilityIdentifier == "workspace.create" }),
+       let action = item.action {
+        return .barItem(item, action)
+    }
+    return view.subviews.lazy.compactMap { mountedHomeCreateAction(in: $0) }.first
+}
+
+@MainActor
+private func mountedHomeEditorIsVisible(in view: UIView) -> Bool {
+    if view.accessibilityIdentifier == "workspace.editor.body", view is UITextView, view.window != nil { return true }
+    return view.subviews.contains { mountedHomeEditorIsVisible(in: $0) }
+}
+
 @MainActor
 private final class SessionTextDeliverySpy: TextDelivery {
     private(set) var bodies: [String] = []
@@ -582,6 +688,7 @@ private final class SessionTextDeliverySpy: TextDelivery {
 
 private actor SessionOperationGate {
     private var entered = false
+    var isEntered: Bool { entered }
     private var enteredWaiter: CheckedContinuation<Void, Never>?
     private var released = false
     private var releaseWaiter: CheckedContinuation<Void, Never>?

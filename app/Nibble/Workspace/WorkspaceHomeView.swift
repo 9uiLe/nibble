@@ -135,7 +135,12 @@ struct WorkspaceHomeView: View {
     }
 
     private func startTask(_ action: Action) {
-        tasks.start(id: "workspace.home.action", lifetime: .screenBound, policy: .ignoreNew) { cancellation in
+        let id: ActionID
+        switch action {
+        case .more, .retry: id = "workspace.home.read"
+        default: id = "workspace.home.action"
+        }
+        tasks.start(id: id, lifetime: .screenBound, policy: .ignoreNew) { cancellation in
             try cancellation.check()
             switch action {
             case .create: await model.create()

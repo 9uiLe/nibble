@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "summary": "目的を準備・発見・文字どおりの完成文確認・明示配送・回復へ分け直し、標準IMEを本体へ、任意Keyboardをピン留め固定文へ限定。公開版と作業をSQLiteで分離し、複数再開の基点照合・救出再試行の同一性・非activeな本体の非key window保護・操作色の不透明化を実装と契約で照合。性能、全体UX、OS作用は最終ソースの実操作で別に判定する。 同じ作業の更新・終了で閉じられない経路を確認し、他画面の作業を残す明示的な局所破棄と、中断した救出作業の再開案内を追加した。 Keyboard初回・再表示の読込開始をcontrollerのactivate後へ移し、Viewの重複taskを除いた。表示構造と明示挿入の契約を独立読取レビューで照合し、初回読込・入力先変更・実挿入は対象OSの新runで別に確認する。",
+  "summary": "目的を準備・発見・文字どおりの完成文確認・明示配送・回復へ分け直し、標準IMEを本体へ、任意Keyboardをピン留め固定文へ限定。公開版と作業をSQLiteで分離し、複数再開の基点照合・救出再試行の同一性・非activeな本体の非key window保護・操作色の不透明化を実装と契約で照合。性能、全体UX、OS作用は最終ソースの実操作で別に判定する。 同じ作業の更新・終了で閉じられない経路を確認し、他画面の作業を残す明示的な局所破棄と、中断した救出作業の再開案内を追加した。 Keyboard初回・再表示の読込開始をcontrollerのactivate後へ移し、Viewの重複taskを除いた。表示構造と明示挿入の契約を独立読取レビューで照合し、初回読込・入力先変更・実挿入は対象OSの新runで別に確認する。 mounted Homeの復帰時の一覧読込を停止した条件で、作成操作が同じignoreNew IDに捨てられることを公開UIKit操作で再現した。読込と文章の操作のIDを分け、読込未完了のまま単一作業を開けることを回帰で確認する。表示構造・文言・配置は変えておらず、この更新を最終ソースの実操作や性能の合格とは扱わない。",
   "references": [
     "docs/design/foundations.md",
     "docs/design/screens.md",
@@ -42,7 +42,7 @@
     "app/Nibble/Workspace/WorkspaceCardRow.swift": "21957b6105399c0a5a1334ff4921b3724e7d81a4b9cfafe535c068b1d29c4874",
     "app/Nibble/Workspace/WorkspaceDraftsView.swift": "085d41fc47aa9687166954b5a28074db7b980eacc2c89e545285fc997d04a3e4",
     "app/Nibble/Workspace/WorkspaceEntryView.swift": "afba46b134bd3a3d4b07d1834e7bf2b9a43a715a4325562fdc52fe87b2ea6237",
-    "app/Nibble/Workspace/WorkspaceHomeView.swift": "06dd1bd03cd9b1433634612f56941d3e927cd5fd4ad66530d070971b65e5e235",
+    "app/Nibble/Workspace/WorkspaceHomeView.swift": "01a8cf1171fcf1588785194ea66eccb123359a796416a70cf1db370bda495443",
     "app/Nibble/Workspace/WorkspaceNoticeView.swift": "8dc802fc5837af9289eeab797dd27a6bdf955721bfefc86dfc42c00c719eb94e",
     "app/Nibble/Workspace/WorkspaceSettingsView.swift": "ac6af72c5be048b6613e7aad3d081118f6f22b910376b9449900658abaa1fe7c",
     "app/Nibble/Workspace/WorkspaceTrashView.swift": "2154ef8e848cc703cf54835cf9a8b2447f1ef7fa094f8085070fdb9f43c3f1b8",
