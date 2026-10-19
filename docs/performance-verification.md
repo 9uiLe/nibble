@@ -1,142 +1,63 @@
-# UIとモデルの性能検証
+# UIと保存の性能検証
 
 ## 目的と評価単位
 
-nibbleの性能検証は、入力・検索・保存・画面遷移の応答と、表示内容の整合性を評価する。最低対応OSはiOS 26.0、製品の実行評価はiOS 26.5 Simulatorとする。実機の性能を評価する場合は端末と手順を別に定義する。
+検索して正しい文章を確認し、意図した内容で使うまでの応答と資源消費を評価する。正しい原文・入力・対象UUIDを保持した条件で測る。件数、body評価回数、タップ数だけを成果にしない。実行は専用iOS 26.5 Simulator、Releaseを使い、実機の性能は受入に含めない。
 
-設計上の責務は[製品仕様・要件](product-specification.md)、ビルドと操作は[製品の検証手順](ios-verification.md)、測定の適用範囲と未確認事項は[検証範囲](testing.md#検証範囲と制約)を参照する。
+| 指標 | 終点と適用限界 |
+| --- | --- |
+| 保存層の検索 | 公開APIをawaitして50件以下のページを受け取るまで。描画や利用者の発見時間を含まない |
+| 全ページ走査 | 5,000件・100ページの取得とID・バイト数集計の終了まで。通常の一覧が全件取得する意味ではない |
+| 長文確認の安定 | 実WorkspaceUseViewを配置し、25ms以上離れた2回のPNGが一致するまで。描画・PNG圧縮・ポーリングを含む |
+| 反復の保持量 | 各回の表示中と終了後のprocess physical footprint、モデルとscroll viewの解放。allocatorのcacheを含む |
+| 利用完了時間・hitch | 別の利用課題・traceで測る。上の補助指標から換算しない |
 
-| 評価単位 | 調べること | 結果の意味 |
-| --- | --- | --- |
-| View値の生成 | initializerから呼ぶ処理、生成するオブジェクト、頻度 | View構造を作るCPU負荷 |
-| bodyの評価 | 状態の読取、派生値の計算、更新範囲と頻度 | 表示内容を決める処理の負荷 |
-| レイアウト | サイズ提案・決定・配置、内容や利用領域の変化 | 要素の配置にかかる負荷と安定性 |
-| 描画・合成 | フレーム時間、hitch、GPU、画面外の処理 | 実際に画面を表示する負荷 |
-| モデル・保存層 | 要求から結果反映までの時間、SQL、並行操作 | データ処理の負荷。描画の結果は含まない |
-| メモリ・容量 | 保持期間、ピーク、archive内のファイル量 | 常駐負荷と配布物の大きさ |
+## 専用Release測定
 
-bodyの実行回数、画像の一致、自動操作の録画時間だけで応答や描画の改善を判定しない。症状が現れる操作と、その操作に関係する時間・頻度・更新範囲を対応させる。
+[NibblePerformanceの測定](../app/NibblePerformanceTests/WorkspaceMeasurements.swift)は製品をホストする独立targetで、通常の`Nibble` schemeに時間の閾値を混ぜない。[共通host](../app/TestSupport/ViewTestHost.swift)を使い、Rive依存はない。
+
+```sh
+nix develop --command env NIBBLE_UI_FORMAT=json python3 scripts/verify.py run \
+  --scope performance --device "$NIBBLE_SIMULATOR"
+```
+
+5,000件のDBを計測区間外で作る。1件は製品の公開保存APIで作り、残りは同じschemaへの一括fixture投入を使う。検索4種類を8回、全ページ走査を4回行う。約200 KBのUnicode原文を使う全文確認は、初回と再訪6回で実windowへ配置し、終了後に所有資源が解放されることを確認する。
+
+xcresultの`workspace-repository-measurements.json`と`workspace-preview-measurements.json`へ、各回のms、UTF-8バイト数、件数、実際のhost寸法、OS、process footprintを残す。計測区間へseedingを混ぜない。録画・Instruments・別の負荷試験と同時に実行しない。
+
+| 保守的な回帰上限 | 値 |
+| --- | --- |
+| 1ページの検索 | 750 ms |
+| 5,000件全ページの走査 | 8,000 ms |
+| 配置から2回の同一renderまで | 6,000 ms |
+| 準備回を除く終了後footprintの最大−最小 | 96 MiB |
+
+これらは異常な劣化を見つける上限であり、快適な入力・描画・利用完了時間を保証する値ではない。値が上限内でも原文や対象のassertionが失敗すれば不合格とする。上限を超えたrunを残し、表示障害や計測結果を理由に成功扱いへ変えない。
 
 ## 比較条件
 
-比較する版ごとに、コミットと入力ファイルのhash、Xcode・Swift・SDK、OS build、端末UDID、ビルド構成、データ、操作、測定回数を記録する。原則として同じRelease条件を使い、最適化・テスト可能性・署名条件に違いがあれば明記する。
-
-1. 起動、検索、入力、スクロール、連続操作、背景復帰から評価対象を選ぶ。
-2. 同じダミーデータ、検索語、件数、本文長、表示設定、操作順を用意する。
-3. ウォームアップと測定を分け、比較する版の実行順を交互にする。
-4. 個別サンプルを保存し、代表値とばらつきを示す。p95は95パーセンタイルを意味する。
-5. 応答とともに、入力・選択・原文・対象UUIDが保持されることを確認する。
-
-Simulatorのホスト負荷と実機の条件は一致しない。モデル単体の時間、SwiftUIのフレーム時間、端末全体のメモリを混ぜて集計しない。容量は同じarchive条件で本体・拡張・runtime・アセットを比較し、dSYM・テスト・DerivedDataを除く。
-
-## 保存層の比較
-
-```sh
-nix develop --command python3 scripts/benchmark_store.py \
-  --device "$NIBBLE_SIMULATOR" --baseline-ref HEAD \
-  --output artifacts/store-benchmark-comparison
-```
-
-出力先は未作成のディレクトリを使う。比較元にも測定harnessが呼ぶ保存APIが必要である。Domain・Persistenceと編集モデル・保存契約を役割で選ぶため、フォルダーの配置は一致しなくてよい。必要な入力がない、またはファイル名が衝突する版は拒否する。HEADを比較元にすると、コミット済みソースと作業ツリーの差を測れる。両版を同じ`-Osize`、専用Simulator、seedで測定し、10,000件の検索・一覧・入力についてソースhashと各回の値を残す。端末はUI driverと同じ排他制御で所有し、中断・compile失敗にも失敗理由と取得済みサンプルを保存する。通常回帰とは別の測定であり、合否閾値のない値を回帰テストの成功として扱わない。
+コミット・入力hash、Xcode/Swift/SDK、OS build、Simulator UDID、ビルド構成、最適化、テスト可能性、署名、件数・長さ、操作順と測定回数をそろえる。準備と本計測を分け、版の実行順を交互にし、各サンプルとばらつきを残す。前版の保存モデルと互換性がない場合は、同じ上位課題を各版の実入口で実行する。新しいAPIの値だけから前版より速いと述べない。
 
 ## Instrumentsの構成と成立条件
 
-Instrumentsは計測結果を表示・分析するアプリ、`xctrace`は記録・exportを行うCLIである。`.trace`は記録ファイルのまとまりを指す。Time ProfilerはCPUのサンプルを取得する計測テンプレートである。
+`xctrace`は記録とexportを行うCLI、`.trace`は記録のまとまりである。対象のUDID・bundle ID・PID・起動時刻・実行ファイルを照合し、記録開始、対象操作、正常停止、保存、export、対象PIDの実サンプルまで確認する。ファイルの存在や終了コード0だけでは計測成功にならない。
 
-計測は、対象の識別、サービス接続、記録開始、時間経過、停止、保存、exportの順に進む。`--time-limit`による記録時間と、開始待ち・保存待ちを含むコマンド全体の期限を分ける。
-
-| 判定 | 必要な確認 |
-| --- | --- |
-| 対象が正しい | UDID、bundle ID、PID、起動時刻、実行ファイルが一致する |
-| 記録が成立する | 開始と停止を確認し、期限による強制終了がなく正常終了する |
-| 保存物が使える | traceをexportでき、必要なテーブルに対象プロセスの実データがある |
-| 性能を比較できる | 記録区間に対象操作が含まれ、端末・版・データ・操作条件を照合できる |
-
-ファイルの存在や正常終了だけでは、指定した操作の計測成功にならない。開始待ち、保存待ち、記録エラー、空テーブル、対象違いは別々の失敗として残す。
-
-## 短時間の接続確認
-
-Nixの開発環境とローカルのApple CLIを使う。`xcode-select -p`、`xcodebuild -version`、`xcrun xctrace version`、`xcrun xctrace list templates`で使用環境を記録する。コマンドの仕様は導入版の`xcrun xctrace help record`と`help export`で確認する。
-
-専用Simulatorの起動とアプリのインストールは[製品の検証手順](ios-verification.md)に従う。`simctl launch`が返したPIDを`ps -p <PID> -o pid=,lstart=,comm=`で照合する。アプリを再起動した場合はPIDを取り直す。SimulatorのPIDをホストの計測対象として扱わない。
-
-次の変数へ確認済みの値を設定する。出力パスは毎回未使用のものを選ぶ。
-
-| 変数 | 値 |
-| --- | --- |
-| `NIBBLE_TRACE_DEVICE` | 専用SimulatorのUDID |
-| `NIBBLE_TRACE_PID` | 起動時刻と実行ファイルを照合したアプリのPID |
-| `NIBBLE_TRACE_OUTPUT` | 保存する`.trace`のパス |
-| `NIBBLE_TRACE_TOC` | exportするテーブル一覧XMLのパス |
-| `NIBBLE_TRACE_SAMPLES` | exportするCPUサンプルXMLのパス |
-
-5秒の記録、45秒の外側の期限、割り込み後5秒での強制終了は接続確認用の値である。本計測では操作区間と通常の開始・保存時間に合わせて期限を決める。`timeout`はNix環境内のGNU coreutilsを使う。
+導入版の`xcrun xctrace help record`と`help export`で仕様を確認する。新しい出力先を使い、接続確認と製品操作の本計測を分ける。次は5秒の接続確認例で、45秒は開始・保存待ちを含めた外側の期限である。
 
 ```sh
 nix develop --command timeout --signal=INT --kill-after=5s 45s \
   xcrun xctrace record --template 'Time Profiler' \
   --device "$NIBBLE_TRACE_DEVICE" --attach "$NIBBLE_TRACE_PID" \
   --time-limit 5s --output "$NIBBLE_TRACE_OUTPUT"
+xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" --toc --output "$NIBBLE_TRACE_TOC"
 ```
 
-正常終了したtraceに対して、テーブル一覧とサンプルをexportする。
-
-```sh
-xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" --toc \
-  --output "$NIBBLE_TRACE_TOC"
-xcrun xctrace export --input "$NIBBLE_TRACE_OUTPUT" \
-  --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' \
-  --output "$NIBBLE_TRACE_SAMPLES"
-```
-
-このXPathは1回目のrunの`time-profile`テーブルを選ぶ。導入版のテーブル一覧に存在することを確認して使い、サンプルの対象PIDと記録区間まで照合する。成功した接続確認は、製品操作の性能評価とは別の記録にする。
-
-## 失敗時の切り分け
-
-| 確認する境界 | 方法 | 残す情報 |
-| --- | --- | --- |
-| 対象の識別 | PID・パス・起動時刻・UDIDを照合 | コマンドと対象識別情報 |
-| 停止した段階 | 記録ログと計測プロセスの短いスタックを確認 | 開始前・記録中・停止中・保存中の別 |
-| アプリへの依存 | 同じ端末でデータを持たない最小プログラムを計測 | ソース、compile条件、成否 |
-| 計測器への依存 | 導入版に存在する別テンプレート・単体計測器を使用 | 各計測器の対応状況と結果 |
-| 端末・サービスへの依存 | 別の専用端末、専用サービスの再起動、データを消さない再起動で比較 | 変更した条件と同時刻のサービスログ |
-| ホストへの依存 | Mac用の最小プログラムで記録・exportを確認 | Simulatorとは別の対照結果 |
-
-一度に一つの条件を変える。権限設定・署名・OS更新を原因と断定するには、その条件を変えた比較が必要になる。ホスト側の成功をSimulatorの成功として扱わない。`sample`で取得したcall graphは停止箇所の切り分けに使い、フレーム時間やhitchの評価へ換算しない。
-
-計測用プロセスは識別して停止し、ユーザーの別端末・作業・保存データへ影響を広げない。認証情報・Keychain・配布用設定・認証ログは調査対象に含めない。
+導入版のTOCに存在するtableを選んでexportし、対象PIDと操作区間のデータを読む。開始前・記録中・保存中・exportの失敗を区別する。権限・署名・OSが原因という判断には条件を変えた実験が必要である。Macの最小プログラムが動くことをSimulatorの成功へ読み替えない。
 
 ## 検証記録
 
-`artifacts/`へコマンド、対象ソース、端末、開始時刻、終了コード、打ち切り、ログ、trace、export結果を保存する。確認した事実、原因の仮説、未実施条件を分け、[証跡の契約](review-evidence.md)に従って対象と結果を対応させる。
-
-## Simulator計測の既知の制約
-
-説明イラストの操作条件は[製品の検証手順](ios-verification.md#説明イラストの検証)、補助指標と性能予算の評価範囲は[Riveの補助指標](#riveの補助指標)を参照する。advance呼出直前の観測は、以下のInstrumentsの描画指標を代替しない。
-
-macOS 26.2・Xcode 26.5・iOS 26.5 Simulatorの診断では、製品と最小Cプログラムの双方でTime Profilerの記録が成立せず、`dtsecurity` / `coreprofilesessiontap`の接続・保存段階で停止した。Mac用の最小プログラムは記録・exportに成功した。専用Simulator・計測サービス・ホストの再起動でも解消を確認できず、原因は未特定である。製品のSwiftUI実装が原因とは判定できない。
-
-この環境でフレーム時間・hitch・CPU・メモリ・電力を取得済みとは扱わない。環境更新時は上記の短時間接続確認から再判定する。モデルとSQLiteの測定値は、OSの入力欄への反映時間や描画指標へ換算しない。
-
-macOS 27.0・Xcode 27.0・同じiOS 26.5（23F77）での再確認では、Time Profilerの5秒接続が正常終了し、対象PIDのCPUサンプル1件をexportできた。これは待機中の接続確認であり、製品操作のCPU負荷、フレーム時間・hitch・メモリ・電力の比較を実施した結果ではない。
+`artifacts/`へソース、環境、コマンド、開始終了、終了コード、打ち切り、raw JSON、trace/exportと観測を保存する。現在の実行結果は[証跡手順](review-evidence.md)で照合する。未実施のフレーム時間、hitch、CPU、電力や実機性能を推定しない。
 
 ## Riveの補助指標
 
-`NibblePerformance` schemeは本体をホストし、`NibblePerformanceTests`だけを実行する。通常回帰の`Nibble` schemeには時間・メモリの閾値を含めない。共通のwindowとruntime loggerは`app/TestSupport/`、測定は[専用target](../app/NibblePerformanceTests/RivePlaybackMeasurements.swift)に置く。
-
-```sh
-python3 scripts/verify.py run --scope performance --device "$NIBBLE_SIMULATOR"
-```
-
-同じ専用Simulator、iOS 26.5、Release、375×667ptで各説明画面を準備1回・再訪5回測る。録画・Instrumentsとの同時実行を避ける。View配置から最初のruntime advance呼出直前まで準備回200ms・再訪100ms以内、可視復帰から最初のadvance呼出直前まで100ms以内、再訪時に画面を閉じた後のprocess footprintの最大−最小8MiB以内を補助予算にする。サンプルはxcresultの`rive-playback-measurements.json`へ記録する。この指標の終点はadvance呼出直前のログであり、advance処理の完了、画面への描画完了、hitchを証明しない。
-
-macOS 27.0・Xcode 27.0で専用schemeを初めてビルドしたrunでは、aboutの準備回が600.838ms、可視復帰が315.723msで予算を超えた。直後の同じソース・binaryの新プロセスでは174.764ms・13.665msとなり、12サンプルすべてが予算内だった。両run以前に通常テストでRiveを実行しており、OSのshader cache状態は測定していない。Metalのコンパイラー警告だけで原因を断定せず、最初の失敗と実行履歴・専用build cacheの違いを残す。一回の合格で初回起動全般の予算を満たしたとは扱わない。
-
-反復するスクロール境界と30秒の背景滞在を観測する場合は、[説明画面の事前条件](ios-verification.md#説明イラストの検証)を満たして次を実行する。
-
-```sh
-python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --stress
-python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --stress
-```
-
-設計ツールの性能は`python3 tools/ui-design/benchmarks/measure.py --toolkit tools/ui-design --samples 7`で測る。アセットの全量保持を防ぐメモリ予算と測定条件は[ツールの仕様](../tools/ui-design/README.md#テストと測定)に定義する。保存層は`scripts/benchmark_store.py`で扱う。
+この見出しは既存の参照を保つために残す。再設計した製品はRive演出を採用しておらず、旧Rive測定の結果・予算は現在の製品の合格証拠ではない。現在の測定入口は上記の専用Release測定である。

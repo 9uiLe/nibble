@@ -1,192 +1,80 @@
 #!/usr/bin/env python3
-"""Verify settings, search entry and editor controls on an explicit iOS Simulator."""
+"""Exercise long literal input and adaptive standard text on the selected Simulator."""
 import argparse
-import plistlib
-from pathlib import Path
-import time
 from types import SimpleNamespace
+from uuid import uuid4
 
-from ios import simulator_lock, VerificationError
-
-
-from product_ui import ProductRun as Run, identifiers
-
-
-def reveal_help_limit(run):
-    """Observe scrollable help on small screens without assuming all text fits."""
-    data = run.wait_ui('help-open', lambda d: 'editor.help.close' in identifiers(d))
-    if not any(entry.get('role') == 'Heading' and entry.get('label') == '入力と保存について'
-               for entry in data['entries']):
-        raise VerificationError('Help title must identify the same topic as its entry')
-    for attempt in range(7):
-        if 'editor.lengthLimit' in identifiers(data):
-            return data
-        if attempt == 6:
-            break
-        close = next(e['frame'] for e in data['entries']
-                     if e.get('uniqueId') == 'editor.help.close')
-        screen = data['screen']
-        top = close['y'] + close['height'] + 24
-        bottom = screen['y'] + screen['height'] - 32
-        x = screen['x'] + screen['width'] / 2
-        if screen['width'] <= 0 or bottom - top < 44:
-            raise VerificationError('Help has no usable scroll viewport')
-        run.command(['sim-use', 'swipe', '--from', f'{x},{bottom}',
-                     '--to', f'{x},{top}', '--duration', '0.3', '--post-delay', '0.3',
-                     '--device', run.args.device])
-        data = run.ui(f'help-scrolled-{attempt}')
-        if 'editor.help.close' not in identifiers(data):
-            raise VerificationError('Help disappeared while scrolling')
-    raise VerificationError('Help length limit was not reachable by scrolling')
+from ios import XCRUN, VerificationError, simulator_lock
+from product_ui import WorkspaceRun as Run, identifiers, workspace_entry, workspace_text
+from check_about_ui import read_setting_topic
+from check_library_ui import assert_copy_receipt
 
 
-def collection_visible(data, collection):
-    """Recognize the collection content, including C05's ordering label."""
-    headings = {
-        'pinned': {'ピン留めした項目・コピー回数順', 'ピン留めした項目はありません'},
-        'drafts': {'編集中の項目', '下書きはありません'},
-    }[collection]
-    return ('editor.body' not in identifiers(data)
-            and any(entry.get('label') in headings for entry in data['entries']))
+def assert_adaptive_text(standard, enlarged):
+    if enlarged['height'] <= standard['height'] + 1:
+        raise VerificationError('Standard body text did not adapt to the larger system text size')
+
+
+def exercise_controls(run):
+    title = '長文と文字サイズ ' + uuid4().hex[:8]
+    body = ('  # 記号を残す\r\n**か\u3099** 👩🏽‍💻 {{ literal }}\n' * 90) + '\t終端  '
+    card = run.create_workspace_card(title, body)
+    run.reveal_workspace(card)
+    run.tap(card)
+    run.wait_ui('long-literal-confirmation', lambda d: {'workspace.use.preview', 'workspace.use.copy'} <= identifiers(d))
+    run.screenshot('long-literal-preview-top')
+    run.tap('workspace.use.copy')
+    copied = run.wait_ui('long-literal-copy-receipt', lambda d: 'workspace.use.receipt' in identifiers(d))
+    assert_copy_receipt(copied)
+    if run.command([XCRUN, 'simctl', 'pbpaste', run.args.device], 'long-literal-exact-copy').encode('utf-8') != body.encode('utf-8'):
+        raise VerificationError('Long literal text changed during native input, save, preview or copy')
+    run.workspace()
+    run.open_settings()
+    standard = read_setting_topic(run, 'workspace.settings.copyGuide')
+    run.command([XCRUN, 'simctl', 'ui', run.args.device, 'content_size', 'accessibility-extra-extra-extra-large'])
+    run.workspace()
+    run.open_settings()
+    enlarged = read_setting_topic(run, 'workspace.settings.copyGuide')
+    assert_adaptive_text(standard, enlarged)
+    run.reveal_workspace('workspace.trash')
+    run.tap('workspace.trash')
+    run.wait_ui('large-text-trash-route', lambda d: 'BackButton' in identifiers(d))
+    run.screenshot('large-text-management-usable')
+    data = run.workspace()
+    if workspace_entry(data, 'workspace.create') is None:
+        raise VerificationError('Adaptive navigation did not return to an operable workspace')
+    run.manifest['assertions'] = {'native_input_saved_and_copied_exact_long_literal': True,
+        'body_utf8_bytes': len(body.encode('utf-8')), 'system_text_size_changes_layout': True,
+        'standard_guidance': standard, 'enlarged_guidance': enlarged,
+        'observed_screen_width': data['screen']['width'],
+        'narrow_screen_exercised': data['screen']['width'] <= 375,
+        'large_text_management_operable': True,
+        'japanese_ime': 'not established by paste; separately exercise OS conversion, correction and commit'}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--device', required=True)
     args = parser.parse_args()
-    run = Run(SimpleNamespace(command='controls-ui', device=args.device,
-                              configuration='Release', project_config='app/project.json'))
-    error = None
-
-    def controls(data, expected, absent=()):
-        present = identifiers(data)
-        if not set(expected) <= present or set(absent) & present:
-            raise VerificationError('Unexpected controls: ' + str(present))
-        entries = {entry.get('uniqueId'): entry for entry in data['entries'] if entry.get('uniqueId')}
-        for identifier, entry in entries.items():
-            if identifier in expected:
-                frame = entry['frame']
-                # Native navigation items expose their 36pt visual bounds in AX;
-                # UIKit owns the surrounding hit area. Exercise each actual action.
-                native = identifier in ('editor.close', 'editor.save', 'editor.help.close', 'BackButton')
-                minimum = 36 if native else 44
-                if frame['width'] < minimum or frame['height'] < minimum:
-                    raise VerificationError('Control is smaller than its touch target: ' + str(entry))
-
-
+    run = Run(SimpleNamespace(command='controls-ui', device=args.device, configuration='Release', project_config='app/project.json'))
+    error, original = None, None
     try:
         run.setup()
         with simulator_lock(args.device):
+            run.boot()
+            original = run.command([XCRUN, 'simctl', 'ui', args.device, 'content_size']).strip()
+            run.command([XCRUN, 'simctl', 'ui', args.device, 'content_size', 'large'])
             run.launch()
-            root = run.wait_ui('root', lambda d: 'navigation.settings' in identifiers(d))
             with run.recording():
-                # Observe beyond presentation completion to catch delayed auto-focus.
-                time.sleep(.5)
-                data = run.ui('search-idle')
-                controls(data, ('navigation.settings', 'library.add'),
-                         ('search.done', 'Search'))
-                idle_search = next(entry['frame'] for entry in data['entries'] if entry.get('uniqueId') == 'search.field')
-                run.screenshot('search-without-keyboard')
-                run.tap('search.field')
-                focused = run.wait_ui('search-focused', lambda d: 'search.done' in identifiers(d))
-                focused_search = next(entry['frame'] for entry in focused['entries'] if entry.get('uniqueId') == 'search.field')
-                if any(abs(idle_search[key] - focused_search[key]) > 1 for key in ('x', 'width')):
-                    raise VerificationError('Search input width changes when keyboard dismissal appears')
-                run.tap('search.done')
-                run.wait_ui('search-unfocused', lambda d: 'search.done' not in identifiers(d))
-                run.open_settings()
-                data = run.wait_ui('settings', lambda d: 'settings.version' in identifiers(d))
-                if 'library.add' in identifiers(data):
-                    raise VerificationError('Settings must not show the creation button')
-                info = plistlib.loads((run.derived / 'Build/Products/Release-iphonesimulator/Nibble.app/Info.plist').read_bytes())
-                if info['UISupportedInterfaceOrientations'] != ['UIInterfaceOrientationPortrait']:
-                    raise VerificationError('The application must support portrait only')
-                expected = f"バージョン {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})"
-                version = next(e for e in data['entries'] if e.get('uniqueId') == 'settings.version')
-                if version['label'] != expected:
-                    raise VerificationError('Settings version differs from the installed bundle')
-                run.screenshot('settings-version-disclosures')
-                run.tap('library.trash')
-                data = run.wait_ui('deleted', lambda d: 'BackButton' in identifiers(d)
-                                   and any(e.get('role') == 'Heading' and e.get('label') == '削除した項目'
-                                           for e in d['entries']))
-                controls(data, ('BackButton',))
-                run.screenshot('deleted-back')
-                run.tap('BackButton')
-                run.wait_ui('settings-returned', lambda d: 'settings.version' in identifiers(d)
-                            and 'library.trash' in identifiers(d))
-                run.workspace()
-                run.tap('library.add')
-                data = run.wait_ui('editor-focused', lambda d: 'editor.keyboard.dismiss' in identifiers(d))
-                controls(data, ('editor.close', 'editor.save', 'editor.keyboard.help', 'editor.keyboard.dismiss'),
-                         ('editor.help', 'editor.more'))
-                input_values = {'editor.title': '入力保持の確認', 'editor.body': (Path(__file__).resolve().parents[1] / 'validation/EditorMarkdown.txt').read_text()}
-                for identifier, value in input_values.items():
-                    run.paste_editor(identifier, value)
-                run.screenshot('editor-keyboard-controls')
-                run.select_editor_mode('プレビュー')
-                preview = run.wait_ui('markdown-preview', lambda d: 'editor.body' not in identifiers(d)
-                                      and 'editor.keyboard.dismiss' not in identifiers(d)
-                                      and any(e.get('role') == 'Heading' and e.get('label') == '見出し' for e in d['entries']))
-                labels = {entry.get('label') for entry in preview['entries']}
-                if not {'見出し', '太字と本文 👩🏽‍💻'} <= labels or 'editor.body' in identifiers(preview):
-                    raise VerificationError('Markdown preview must show rendered text and hide source input')
-                run.screenshot('editor-markdown-preview')
-                run.select_editor_mode('入力')
-                editing = run.wait_ui('markdown-input-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d)
-                                      and 'editor.body' in identifiers(d))
-                actual = {e['uniqueId']: e.get('value') for e in editing['entries'] if e.get('uniqueId') in input_values}
-                if actual != input_values:
-                    raise VerificationError('Preview changed the editor source')
-                run.tap('editor.keyboard.help')
-                reveal_help_limit(run)
-                run.screenshot('editor-help')
-                run.tap('editor.help.close')
-                restored = run.wait_ui('focus-restored', lambda d: 'editor.keyboard.dismiss' in identifiers(d) and 'editor.lengthLimit' not in identifiers(d))
-                actual = {e['uniqueId']: e.get('value') for e in restored['entries'] if e.get('uniqueId') in input_values}
-                if actual != input_values:
-                    raise VerificationError('Help changed the populated editor title or body')
-                run.tap('editor.keyboard.dismiss')
-                data = run.wait_ui('editor-unfocused', lambda d: 'editor.help' in identifiers(d) and 'editor.keyboard.dismiss' not in identifiers(d))
-                controls(data, ('editor.close', 'editor.save', 'editor.help', 'editor.more'),
-                         ('editor.keyboard.help', 'editor.keyboard.dismiss'))
-                if not any(e.get('label', '').startswith('閉じると下書き') for e in data['entries']):
-                    raise VerificationError('Preservation guidance must explain save and close')
-                run.screenshot('editor-guidance')
-                run.tap('editor.close')
-                run.wait_ui('caller-preserved', lambda d: 'library.add' in identifiers(d) and 'editor.body' not in identifiers(d))
-                run.wait_ui('library-returned', lambda d: 'library.filter.pinned' in identifiers(d))
-                for collection in ('pinned', 'drafts'):
-                    def selected_collection(data):
-                        return collection_visible(data, collection)
-                    run.tap('library.filter.' + collection)
-                    run.wait_ui(collection + '-selected', selected_collection)
-                    run.tap('library.add')
-                    run.wait_ui(collection + '-new-editor', lambda d: 'editor.body' in identifiers(d))
-                    run.tap('editor.close')
-                    run.wait_ui(collection + '-creation-returned', selected_collection)
-                    run.screenshot('creation-returns-to-' + collection)
-                run.tap('library.filter.all')
-                run.manifest['assertions'] = {
-                    'search_does_not_focus_on_entry': True,
-                    'search_input_width_stable_across_focus': True,
-                    'settings_version_matches_bundle': expected,
-                    'settings_has_no_create_action': True,
-                    'settings_deleted_returns': True,
-                    'workspace_controls_at_least_44pt': True,
-                    'settings_hierarchical_navigation': True,
-                    'native_toolbar_and_custom_action_bounds': True,
-                    'keyboard_and_screen_actions_exclusive': True,
-                    'help_restores_focus': True,
-                    'editor_returns_to_caller': True,
-                    'help_preserves_title_and_body': True,
-                    'markdown_preview_hides_syntax_and_restores_source': True,
-                    'creation_preserves_collection': True,
-                    'portrait_only_bundle': True,
-                }
-    except (Exception, KeyboardInterrupt) as exc:
-        error = exc
+                exercise_controls(run)
+    except (Exception, KeyboardInterrupt) as caught:
+        error = caught
     finally:
+        if original is not None:
+            try:
+                run.command([XCRUN, 'simctl', 'ui', args.device, 'content_size', original])
+            except (Exception, KeyboardInterrupt) as caught:
+                error = error or caught
         run.finish(error)
     if error is not None:
         raise SystemExit(repr(error))

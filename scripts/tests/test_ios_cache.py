@@ -59,13 +59,12 @@ class BuildCacheTests(unittest.TestCase):
         self.assertEqual(argv[-1], 'build')
         self.assertIn('ONLY_ACTIVE_ARCH=YES', argv)
         self.assertIn('-disableAutomaticPackageResolution', argv)
-        first = self.run.command.call_args_list[0]
-        self.assertEqual(first.args[1], 'prepare-rive-runtime')
-        self.assertEqual(first.args[0][-2:], [ios.ROOT / 'scripts/rive_runtime.py', 'prepare'])
+        self.assertEqual(self.run.command.call_count, 1)
+        self.assertNotIn('prepare-rive-runtime', str(self.run.command.call_args_list))
 
-    def test_runtime_preparation_failure_stops_before_xcodebuild(self):
-        self.run.command.side_effect = ios.VerificationError('runtime build failed')
-        with self.assertRaisesRegex(ios.VerificationError, 'runtime build failed'):
+    def test_build_failure_is_not_reported_as_a_cache_hit(self):
+        self.run.command.side_effect = ios.VerificationError('compiler failed')
+        with self.assertRaisesRegex(ios.VerificationError, 'compiler failed'):
             self.build()
         self.assertEqual(self.run.command.call_count, 1)
 

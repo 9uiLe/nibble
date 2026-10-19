@@ -1,399 +1,142 @@
 # ローカルiOS検証の手順
 
-この手順は、専用Simulatorで検査を実行し、操作結果と画面の確認に必要な記録を取得するためのもの。`verify.py`で検査を計画・実行し、個別の調査には`ios.py`と対象別UI driverを使う。保存済みの画面情報は`inspect_ui.py`で要約できる。構成と保証範囲は[検証基盤の設計](architecture/verification.md)に定義する。
-
-一連の検証実行の結果は`result.json`、個別のiOSコマンドの記録であるrunは`manifest.json`へ保存する。自動工程の成功を確認した後、画像・録画を開いて観測を記録する。
+`verify.py`で計画・実行し、個別調査には`ios.py`とUI driverを使う。結果は`artifacts/verify/`の`result.json`、各iOS runは`manifest.json`へ保存する。正しい入力・保存・OS作用を一連の操作で確かめたうえで、媒体を実際に開いて観測を残す。基盤と証跡の契約は[検証基盤](architecture/verification.md)と[証跡手順](review-evidence.md)を参照する。
 
 ## 検証対象と前提
 
-[READMEのセットアップ](../README.md#セットアップ)を完了し、Xcodeのライセンス・追加コンポーネント・iOS 26.5 Simulator runtimeを用意する。補助ツールはNixで管理するが、XcodeはローカルMacへ別途導入する。
+[セットアップ](../README.md#セットアップ)を完了し、ローカルMacのXcode・iOS 26.5 Simulatorを使う。最低対応OSは26.0、実行検証は26.5だけで、実機を製品の受入に含めない。自分が確保した専用Simulatorとダミーデータを使い、既存端末を消去・削除しない。秘密情報・Keychain・配布設定は対象にしない。
 
-| 対象 | 目的 | project / shared scheme | 設定ファイル |
-| --- | --- | --- | --- |
-| Nibble・NibbleShare・NibbleKeyboard | 製品の保存・画面・共有・キーボード | `app/Nibble.xcodeproj` / `Nibble` | [app/project.json](../app/project.json) |
-| VerificationApp | 共通コマンド・文字列照合・撮影を試験するfixture | `validation/VerificationApp.xcodeproj` / `VerificationApp` | [validation/project.json](../validation/project.json) |
-| NibblePerformance | Riveの時間・メモリ測定 | `app/Nibble.xcodeproj` / `NibblePerformance` | [app/performance-project.json](../app/performance-project.json) |
+| 対象 | shared scheme / 設定 | 目的 |
+| --- | --- | --- |
+| 製品・共有・任意のKeyboard | `Nibble` / [app/project.json](../app/project.json) | 原文の再利用と回復 |
+| 外部入力先fixture | `VerificationApp` / [validation/project.json](../validation/project.json) | 独立したA/B入力先と結果のUTF-8照合 |
+| 性能 | `NibblePerformance` / [app/performance-project.json](../app/performance-project.json) | 検索・ページ取得・長文表示・反復の保持量 |
 
-最低対応OSはiOS 26.0、実行対象はiOS 26.5。製品の期待動作は[製品仕様・要件](product-specification.md)、自動工程の責務は[テスト設計](testing.md)を参照する。`ios.py`の対象設定を省略すると製品のNibbleを選ぶ。`fixture-smoke`は基盤試験用のVerificationAppを選び、このfixtureだけに使用できる。
-
-以下のコマンドは、リポジトリルートで開いたNixシェル内で実行する。エージェントとCIはJSON形式を指定する。
+以下はリポジトリルートのNix環境で行う。
 
 ```sh
 nix develop
 export NIBBLE_UI_FORMAT=json
-```
-
-stdoutは呼び出し元が読む結果、stderrは進捗・診断に使う。表示障害を理由に実行済みの操作を再試行しない。詳細は[スクリプトの出力契約](script-tooling.md#出力と成否の契約)を参照する。
-
-## 環境の確認
-
-Xcodeは`xcode-select`の選択先を使う。シェル単位で切り替える場合は、実際のインストール先に合わせて`DEVELOPER_DIR`を設定する。
-
-```sh
-export DEVELOPER_DIR=/Applications/Xcode-27.0.0.app/Contents/Developer
 python3 scripts/ios.py doctor
 python3 scripts/ios.py devices
 ```
 
-`doctor`はツール・runtime・shared scheme、`devices`は利用可能なSimulatorをJSONで返す。runtimeのversionが26.5であることを確認し、buildversionも検証条件に残す。
+stdoutの結果とstderrの進捗を分ける。表示障害を理由に実行済みの業務操作を再試行しない。Xcodeを切り替える場合は、実際に導入した場所を`DEVELOPER_DIR`へ指定する。
 
 ## Simulatorの作成と選択
 
-通常の一連の検証は`verify.py run --temporary-device`を使う。このモードは結果ディレクトリを先に確保し、iOS 26.5のiPhone 17 Pro Simulatorを作成する。正常終了、工程失敗、起動失敗、割り込み時には結果を記録して端末を削除する。削除の成否は`result.json`の`temporary_device`で確認する。削除できなかった場合は記録されたUDIDを調べ、専用端末だけを削除する。既存端末は削除しない。強制終了や電源断では後処理を実行できないため、端末一覧で`nibble Verification`から始まる専用端末の残存を確認する。画面を手動で調べる場合は専用SimulatorのUDIDを明示する。UDIDは端末の一意な識別子で、同名のSimulatorも区別できる。
+通常は`verify.py run --temporary-device`を使う。結果先を確保してiOS 26.5の専用Simulatorを作成し、失敗・中断を含めて回収結果を記録する。回収に失敗した場合は記録されたUDIDの所有端末だけを調べる。強制終了後は残存する所有端末を照合し、回収まで完了扱いにしない。
 
-手動操作用の端末を新しく用意する場合は、利用可能なruntimeとdevice typeを選んで作成する。device typeは`xcrun simctl list devicetypes`で確認できる。作成したUDIDを記録し、操作と証跡取得が終わったらその端末を削除する。
+手動操作ではUDIDを明示する。狭幅はiPhone SE（第3世代）、通常幅はiPhone 17 Proを別々に確保する。暗黙の`booted`や端末名で操作しない。
 
 ```sh
-python3 scripts/ios.py create \
-  --runtime com.apple.CoreSimulator.SimRuntime.iOS-26-5 \
+python3 scripts/ios.py create --runtime com.apple.CoreSimulator.SimRuntime.iOS-26-5 \
   --device-type com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro \
   --name 'nibble Verification 26.5'
-```
-
-`create`は毎回新しい端末を作り、stdoutへUDIDを返す。得られた値を次の変数へ設定する。作成・実行ともiOS 26.5以外は拒否される。
-
-```sh
-export NIBBLE_SIMULATOR='対象SimulatorのUDID'
+export NIBBLE_SIMULATOR='作成結果のUDID'
 python3 scripts/ios.py boot --device "$NIBBLE_SIMULATOR"
 ```
 
-自動操作と画面情報の取得にはSimulatorアプリのウィンドウを必要としない。端末名や暗黙の`booted`を操作先に使わない。手動で作成した端末は、操作が終わりrunの媒体が確定してから`xcrun simctl delete "$NIBBLE_SIMULATOR"`で削除する。再利用した既存端末は削除しない。
+自分で作成した端末は媒体の確定後に回収する。再利用した既存端末を削除しない。UI操作は端末ごとの既存排他制御で直列実行し、ビルド・操作中にソースを変えない。
 
 ## 変更から検証を実行する
 
-比較元を指定して計画を確認する。差分には比較元からのコミット済み変更、ステージ済み・未ステージの変更、未追跡ファイル、削除を含む。
-
 ```sh
 python3 scripts/verify.py plan --base origin/main
-```
-
-`plan`は`artifacts/verify/<計画ID>/plan.json`へ詳細を保存し、stdoutには工程ID・変更件数・準備事項・手動確認と参照先を返す。`--output`で任意の新しい保存先を指定できる。既存ディレクトリは上書きしない。選択・除外理由やソースsnapshotが必要なときは、返されたパスの計画を開く。
-
-| 操作 | 引数 | 成功時の動作 |
-| --- | --- | --- |
-| `plan` | `--base`または`--since`、`--scope`、`--output` | 検査を実行せず、計画を保存して要約を返す |
-| `run` | 計画と同じ引数、iOS工程用の`--temporary-device`または`--device` | 実行時に再計画し、工程結果・ログ・run参照を保存する |
-| `status` | 必須の`--result` | 保存済み結果と現在ソースを読み、状態の要約を返す |
-
-`--base`と`--since`は比較元の指定で、同時には使わない。省略時は`origin/main`を使う。`--since`は結果内のソースsnapshotと比較するためGitの比較元ブランチを必要としない。操作に対応しない引数は拒否する。引数は各操作の`--help`でも確認できる。
-
-完全な計画の`steps`は選択した工程と理由、`excluded`は対象外の工程と理由、`preconditions`は実行前の準備、`manual_review`は自動工程とは別に判断する確認事項を示す。主な選択規則は次のとおりで、複数の変更に該当すると必要な工程を合わせて選ぶ。
-
-| 変更の区分 | 共通静的検査に加える工程 |
-| --- | --- |
-| Markdown・Webサイト・`.gitignore`・エージェント指示、分類済みの静的検査・画面要素の解析・その回帰テスト | なし |
-| 画面確認CLI・画像加工・macOSの画像試験 | ローカルMacの`preview-native`。Simulatorは不要 |
-| `app/NibbleTests/` | 製品targetの全テスト |
-| `validation/VerificationAppTests/` | fixtureの全テスト |
-| 製品の実装・アセット・Xcode設定 | 製品テスト、基本操作・通知・固定表示・説明画面のUI |
-| 個別の製品UI driver | そのdriverのUI導線 |
-| その他の`validation/`（保存層の測定harnessを除く） | fixtureのテスト・fixture-smoke |
-| `app/NibblePerformanceTests/`、保存層の測定harness | 手動確認欄に測定・比較の実行先を表示。通常回帰へは追加しない |
-| `app/TestSupport/` | 製品回帰と、手動確認欄への性能測定の案内 |
-| 共通基盤・依存設定・分類できない変更 | `preview-native`とfixture・製品の通常回帰全体 |
-
-製品UIを含む一連の検証は、Nibbleを初期化した状態から開始する。`--temporary-device`なら新しい端末により初期状態が得られる。通常の入力工程ではOS標準の英語キーボードを選ぶ。nibbleキーボードを追加済みの場合は地球儀から切り替え、通常キーが表示されることを画面で確認する。Keyboard拡張の検証は専用の操作手順で別に行う。基本操作のdriverは一巡ごとにダミー項目を残す。項目が蓄積して対象行が画面下部の操作領域に隠れると、コピー確認が成立しない。インストール済みの検証用Nibbleを次のコマンドで削除し、アプリのダミーデータを初期化する。端末のOS設定とDerivedDataは維持され、次のdriverがビルド・installする。
-
-```sh
-xcrun simctl uninstall "$NIBBLE_SIMULATOR" nibble.9uiLe.com
-```
-
-説明画面のdriverは、専用Simulatorの設定を開き、観測したコントロールから「アクセシビリティ > 動作」へ移動する。「視差効果を減らす」の現在値を確認して操作し、終了時に元へ戻す。設定画面へ到達できない場合は有限回の観測で失敗とする。共有拡張・キーボードのOS導線は、変更した責務と本書の操作手順に照らして確認する。
-
-準備ができたら実行する。`run`は実行時のソースから計画を作るので、先に表示した`plan`の結果を固定して実行するコマンドではない。
-
-```sh
 python3 scripts/verify.py run --base origin/main --temporary-device
 ```
 
-共通静的検査、選択されたmacOSの画像試験、対象targetの全テスト、UI操作を順に実行する。iOS工程はReleaseを使う。文書だけの計画では`--device`を省略でき、Simulatorを起動しない。実行中はソースを編集しない。
+計画はコミット済み・未コミット・未追跡・削除を含む差分から必要な工程を選ぶ。`run`は実行時に再計画する。`--scope regression`は共通静的検査、基盤、製品target全テスト、各UI工程を選び、`--scope performance`は専用Release測定を選ぶ。文書・静的検査だけならSimulatorを使わない。合格後は追加変更・失敗・未解決の懸念へ絞って再計画する。
 
-stdoutに成否と結果ファイルのパスを返す。既定の保存先は`artifacts/verify/<検証実行ID>/result.json`で、任意の新しいディレクトリを`--output`で指定できる。既存の結果は上書きしない。
+個別実行は原因調査や、計画で残った責務の確認に使う。
 
-| 結果の項目 | 確認する内容 |
-| --- | --- |
-| `status`・`error` | 検証実行全体の成否と失敗理由 |
-| `steps` | 工程ごとのコマンド、成否、時間、ログ、生成したrun、証跡照合 |
-| `source_start`・`source_end` | 開始・終了時のソース内容 |
-| `manual_review` | 自動成功に含まれない確認事項 |
-| `temporary_device` | 自動作成した端末のUDIDと削除の成否 |
+```sh
+python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR" --configuration Release
+python3 scripts/ios.py run --device "$NIBBLE_SIMULATOR" --configuration Release \
+  --project-config validation/project.json
+python3 scripts/check_library_ui.py --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_notice_ui.py --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard
+```
 
-失敗・中断・ソース変更では後続を開始せず、失敗と未開始工程を残す。該当する工程ログとrunを調べ、原因を修正して新しい保存先で実行する。媒体の目視と未解決事項の確認は、自動工程の`passed`とは別に完了させる。
+`library-ui`の外部PasteにはVerificationAppの事前インストールが必要である。通常回帰はfixture工程を先に行う。製品だけのscopeや個別実行では上のfixture `run`を先に実行する。未準備なら失敗を残し、クリップボードへの書込みだけで外部利用の成功にしない。
+
+各driverは固有名のダミー文章だけを操作する。`library-ui`の保存失敗は、`simctl get_app_container`が返した製品のApp Group内の既存DBへ、対象の固有名だけに作用するSQLite ABORT triggerを入れる。失敗UIと同じ下書きの完全なUTF-8を照合し、finallyでtriggerを除去してから同じ画面の保存を再試行する。製品の試験用入口や、無関係な保存物の破壊を使わない。
+
+公開工程名`about-ui`と`keyboard-guide-ui`のrun名は互換性のため`rive-about` / `rive-keyboard`を維持する。現在は説明の読取と管理への到達を確認する工程で、演出再生の検査ではない。
 
 ### 検証状態を確認する
-
-実行中・中断後の状態は、ソースsnapshot全体やログ全文を読む前に要約する。
 
 ```sh
 python3 scripts/verify.py status --result artifacts/verify/対象ID/result.json
 ```
 
-記録された成否・失敗理由、工程ごとの時間・ログ・run、開始時からの変更ファイル、手動確認事項を返す。ログは`result.json`の親ディレクトリ、runは実行したリポジトリのルート基準。`source_stable`は記録内の開始・終了ソースの一致、`source_matches_current`は終了ソースと現在の作業ツリーの一致で、終了記録がなければ両方`null`となる。結果は完全なJSONを一時ファイルから置換して保存するため、実行中も読み取れる。
-
-`status`の終了コード0は読み取り成功を意味する。`status: failed`を成功へ変えず、`running`はプロセスの生存を保証しない。媒体hashや観測の真実性は検査しない。作業を再開するときはソース不一致を確認し、必要なログ・runだけを開く。待機には起動元のプロセス待機を使い、状態の短周期ポーリングを繰り返さない。
+成否・失敗理由、開始時からの変更、工程とrun、未実施の手動確認を読む。`status`の終了コード0は読取成功で、検証成功の意味ではない。現在ソースと終了snapshot、媒体hash、最終headのCIは[証跡手順](review-evidence.md)で照合する。
 
 ### 成功結果からの再計画
 
-合格後の追加差分には、成功結果のパスを指定する。
-
 ```sh
 python3 scripts/verify.py plan --since artifacts/verify/対象ID/result.json
-python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json \
-  --device "$NIBBLE_SIMULATOR"
+python3 scripts/verify.py run --since artifacts/verify/対象ID/result.json --device "$NIBBLE_SIMULATOR"
 ```
 
-`--since`は全工程が成功し、開始・終了ソースが一致する結果だけを受理する。共通静的検査は再計画にも含む。参照元の実行範囲が拡大するわけではなく、過去の媒体を現在のソースへ自動で認定するものでもない。runの再利用は[ソース照合](review-evidence.md#runのソースと結果)で確認する。
+`--since`は開始と終了ソースが一致する成功結果を使う。過去の媒体を新しいソースの合格へ読み替えない。失敗run・未開始工程を残し、修正後は新しい保存先で実行する。
 
-対象を明示する場合は`--scope inspection`、`--scope fixture`、`--scope product`、`--scope regression`、`--scope performance`を使う。`regression`は通常回帰全体、`performance`はRiveの測定targetを選ぶ。`inspection`は共通検査とmacOSの画像試験を選び、`--device`を必要としない。これは自動選択した範囲への追加ではなく、指定した範囲への切り替えである。未解決事項がある導線はscope指定または個別コマンドで確認し、一部の範囲の成功を全対象の合格として扱わない。
+### 検証時間を比較する
 
-## ビルド・テスト・動作確認
-
-製品のビルド前に、CLIがRive描画基盤を準備する。初回はローカルMacでiOS・Simulator向けにコンパイルし、以後は入力と完成物のhashが一致する場合に再利用する。Xcodeから直接開く場合は、先に次を実行する。認証情報と署名は使用しない。
-
-```sh
-nix develop --command env NIBBLE_UI_FORMAT=json python3 scripts/rive_runtime.py prepare
-```
-
-生成先と更新条件は[描画先の取得](architecture/presentation.md#描画先の取得)を参照する。
-
-個別コマンドは特定工程の調査や明示的な再検査に使う。計画に従って合格した工程を、追加の変更や懸念なしに繰り返す必要はない。次は製品のNibbleをReleaseで検証する例である。
-
-```sh
-python3 scripts/ios.py build --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py test --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py run --configuration Release --device "$NIBBLE_SIMULATOR"
-```
-
-`build`はビルド、`test`はビルドとSwift Testing、`run`はビルド・インストール・起動・画面読取を行う。`--configuration`の省略値はDebugなので、受け入れ検証ではReleaseを明示する。`test`は終了コードとxcresult summaryを確認し、成功1件以上・失敗なしを要求する。0件と全skipは合格にならない。
-
-`fixture-smoke`はfixtureの画面読取、リセット、入力欄選択、ダミーテキスト貼り付け、反映、出力値の完全一致を検査し、画像と録画を生成する。既定の入力は`日本語 👩🏽‍💻`、改行、`Hello, nibble!`で、`--text`で変更できる。専用端末のクリップボードとfixtureの入力状態を書き換える。
-
-ビルドは実行Mac向けのarchitectureを使い、テスト用とUI用でキャッシュを分ける。製品はApp Groupのentitlementを渡すためad hoc署名を使い、Developer Teamや証明書を必要としない。署名設定を省略したfixtureは未署名でビルドする。
-
-### Keyboardの文書境界を単独で検証する
-
-`KeyboardHostIdentity`のObjective-C境界とSwiftへのimportは、製品の通常suiteと別にpackageのiOS schemeで検証する。専用iOS 26.5 Simulatorを選び、同じUDIDを使う他のdriverと操作を停止して直列実行する。Nixシェル内で、既存の記録を上書きしない新しい出力先を作る。
-
-```sh
-mkdir -p artifacts
-NIBBLE_KEYBOARD_HOST_RUN=$(mktemp -d "$PWD/artifacts/keyboard-host-tests.XXXXXX")
-export NIBBLE_KEYBOARD_HOST_RUN
-(
-  cd app/Packages/KeyboardHostIdentity || exit
-  timeout --signal=INT --kill-after=10s 240s xcodebuild \
-    -scheme KeyboardHostIdentity -configuration Release \
-    -destination "platform=iOS Simulator,id=$NIBBLE_SIMULATOR" \
-    -parallel-testing-enabled NO \
-    -derivedDataPath "$NIBBLE_KEYBOARD_HOST_RUN/DerivedData" \
-    -resultBundlePath "$NIBBLE_KEYBOARD_HOST_RUN/tests.xcresult" \
-    CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= test
-) > "$NIBBLE_KEYBOARD_HOST_RUN/stdout.log" \
-  2> "$NIBBLE_KEYBOARD_HOST_RUN/stderr.log"
-```
-
-実行した引数、終了コード、UDIDとruntime、packageの`Package.swift`・`Sources`・`Tests`の開始／終了hashを結果へ記録する。終了コード0、成功1件以上・失敗なしのxcresult summary、入力hashの一致を確認する。timeout・失敗・ソース変更はその出力先へ残し、再実行は新しい保存先を使う。署名設定はSimulator向けad hocであり、Developer Teamや証明書を必要としない。
-
-[packageテスト](../app/Packages/KeyboardHostIdentity/Tests/KeyboardHostIdentityTests/KeyboardHostIdentityTests.swift)はnil／異なる文書、getter中の再入後のadmission拒否、許可された場合の一度の挿入と原文保持を確認する。これは注入した公開API fixtureの境界試験であり、実ホストでの文書変更タイミング・文字受理・局所値入力UIを保証しない。通常製品suiteと[Keyboard実操作](#キーボードの操作検証)も必要な範囲で行う。
+resultの各工程時間、runのコマンド時間、build cacheの有無を区別する。同じデータ・端末・Release構成・測定回数をそろえ、初回準備と反復を分ける。driver全体の時間を利用者の課題完了時間やフレーム時間へ換算しない。詳細は[性能検証](performance-verification.md)。
 
 ## 検証対象の切り替え
 
-製品には`app/project.json`、基盤fixtureには`validation/project.json`、Rive測定には`app/performance-project.json`を指定する。設定の読込と検査は`scripts/ios_project.py`が担う。必須項目は`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`で、任意の`simulator_signing`は`disabled`または`ad-hoc`とする。未知のキー、空の値、存在しないproject、不正なbundle ID・OS版・署名方式は、Appleツールを起動する前に拒否する。
-
-```sh
-python3 scripts/ios.py test --project-config app/project.json \
-  --configuration Release --device "$NIBBLE_SIMULATOR"
-python3 scripts/check_library_ui.py --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py fixture-smoke --configuration Release --device "$NIBBLE_SIMULATOR"
-```
-
-`build`や`run`にも同じ`--project-config`を指定できる。製品の通知・説明画面・OS連携は次節を参照する。
-
-## 製品の操作検証
-
-通常は`verify.py run --scope product`で製品テストとUI工程を実行する。`library-ui`工程は`check_library_ui.py`で基本操作を検査する。作成・下書き・編集・検索・原文コピー・ピン・削除と復元を確認し、期待結果は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)へ対応させる。
-
-`library-ui`は本体の検索欄で日本語の貼り付けと部分一致を確認する。削除一覧のOS検索欄では専用Simulatorの貼り付け操作で識別用文字列を入力し、検索・復元を確認する。初回のOS貼り付け許可は検証CLIが確認して進める。この工程は削除一覧での日本語入力を検証しない。
-
-固定表示は`check_interface_ui.py --device "$NIBBLE_SIMULATOR"`で一覧・編集・設定・両説明画面を巡回する。標準と最大文字サイズ・高コントラストの配置を比較し、最小文字はhostedテストで確認する。OS所有の入力UIやVoiceOver音声を画像比較の合格に含めない。
-
-### 検索・設定・編集操作の検証
-
-```sh
-python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
-```
-
-`controls-ui`は作業画面の検索欄が初期状態で入力を開始しないこと、設定のバージョンとインストール済みbundleの一致、削除一覧への往復、設定に作成入口がないこと、作業画面からの新規作成と呼出元への復帰を確認する。設定との階層移動と縦向きのみのbundle設定、編集の独自操作の44pt以上の領域、標準NavigationBarの実操作、キーボードと画面側の操作の排他、補足から戻った時の入力フォーカス復元を検査する。標準幅と狭幅の専用Simulatorで同じコマンドを実行し、本文へのOS標準メニューからの貼り付け、タイトルから本文への移動、Markdownの見出し・太字と記号を隠したプレビュー、原文への復帰を確認する。入力例は`validation/EditorMarkdown.txt`を使う。OS標準のNavigationBarはAXへ36ptの外観領域を報告するため、独自部品の44pt検査と区別する。
-
-貼り付け位置はダミー本文 `前 後` の両語の間にカーソルを置いて `中央` を貼り付け、`前 中央後` になることを確認する。次に `中央` を選択して `置換` を貼り付け、`前 置換後` になることを確認する。どちらも保存後の本文を再び開いて、原文のUTF-8が一致することを照合する。
-
-設定末尾の区切り線がないこと、アイコンの外観、キーボード上の8ptの間隔、背景の連続性、案内文のまとまりは保存した画像を全体と細部で確認する。標準幅と狭幅の専用Simulatorで実行し、AXの成功だけで外観を確認済みにしない。
-
-### 変数の編集と利用を確認する
-
-`product-test`は印の生成・展開・選択範囲と、コピー・Keyboardの確定境界を検査する。画面上のカーソル、シート、文章確認は専用iOS 26.5 Simulatorで次の順に確認する。ダミーの新規項目を使い、既存の端末や保存済みデータを消去しない。
-
-```sh
-python3 scripts/ios.py run --project-config app/project.json \
-  --configuration Release --device "$NIBBLE_SIMULATOR"
-sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw
-```
-
-1. 新規作成で本文に `前 後` を入力し、両語の間へカーソルを置く。「変数を追加」で `宛名` を作り、本文が `前 {{宛名}}後` のように**選んだ位置**へ変わることを確認する。印の直後で文字を入力し、カーソルもその位置にあることを確認する。文字を選択した状態では、その範囲だけが印に置き換わることを確認する。
-   追加シートでは既存名がない案内、名前が空・重複・長すぎる・波括弧か改行を含む場合の理由とボタン状態、名前欄を選んだキーボード表示を確認する。シート右上の「閉じる」は追加シートだけを閉じ、編集画面の入力を残すことを確認する。既存名がある場合は追加できる行として見えることと、選択すると同じ印が本文に増えることを確認する。通常の高さと全画面で行・名前欄・確定操作が隠れないか確認する。
-2. 同じ名前の印を本文の別位置へ加えて保存する。一覧からコピーを選び、対象の項目名、初出順で一つだけの入力欄、値を入れる前の原文を確認する。値を入れた後は完成文と確定操作を確認し、長い文章では「全文を確認」を開く。
-   複数の変数と長い本文を持つダミー項目でも、半分のシートを保ってスクロールし、本文末尾と確定操作が重ならないことを確認する。グラバーから全画面へ広げ、本文と確定操作が続くことを確認する。入力欄を選んでキーボードを表示し、入力欄と確定操作が見え、スクロールする文章が確定操作の背後へ描画されないことを確認する。
-3. 値を確定する前に「閉じる」を押し、コピー通知と使用記録が増えないことを確認する。再度開いて値を確定し、保存済み本文の印を変えずに、出力だけで同名の全箇所が置き換わることを確認する。
-4. Keyboardの変数付き項目は、外部first responderを維持する局所値入力で編集し、完成文の確認後に一度だけ挿入する。本体のTextFieldやOSかなキーボードでの入力成功を、この局所入力の代わりにしない。入力先の変更と利用不可の状態は[Keyboardの操作検証](#キーボードの操作検証)と[変数の設計](architecture/variables.md)に従い、未実施の条件を成功扱いにしない。
-
-保存したAX結果で `editor.body`、`editor.addVariable`、`variables.itemTitle`、`variables.preview`、`variables.complete` の値と順序を確認する。外観はスクリーンショットの全体と文章末尾を開いて確認し、実行ソースと媒体を[証跡手順](review-evidence.md)へ対応付ける。
-
-### 操作完了通知の検証
-
-```sh
-python3 scripts/check_notice_ui.py --device "$NIBBLE_SIMULATOR"
-```
-
-起動直後のコピー、連続操作による通知の置換、削除と取り消し、検索入力中のフォーカス、期限、設定・シート・背景への離脱を確認する。表示前・表示中・消去後の検索欄・集合選択・作成ボタンに1ptを超える変化があれば失敗する。`--geometry-only`は起動直後のコピーと配置に絞り、`--scroll`は8件を追加して末尾行の位置保持も確認する。`--appearance dark`でダークを選ぶ。表示・録画・読み上げ・実機の触覚は別々の検証範囲として記録する。
-
-### 説明イラストの検証
-
-設定アプリの「アクセシビリティ > 動作」でReduce Motionスイッチを読み取れる状態にして実行する。
-
-```sh
-python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story about --interruptions --fault-retry
-python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard --interruptions --fault-retry
-```
-
-実アセットの複数周期、本文末尾、ライト／ダーク、背景復帰、表示中のReduce Motion切替を録画する。`--interruptions`は作業画面から説明画面への往復と可視境界のスクロール、`--stress`は反復と30秒の背景滞在、`--reduce-motion enabled`は初期から有効な条件を選ぶ。driverは設定を復元する。
-
-本文末尾の到達判定は、iOS 26.5のiPhone SE（第3世代）とiPhone 17 Proの縦向き・標準画面寸法をmetadataで照合し、各機種で観測した下端除外範囲を使う。native safe areaの実測ではなく、未観測の機種・向き・寸法では失敗する。
-
-`--fault-retry`はインストール済みアセットのhashを照合し、一時的な破損・代替表示・元のバイト列の復元・実ボタンでの回復を確認する。制作ソースや配布物は変更しない。図の意味・動きは録画と時刻付き抽出画像を開いて確認し、全編再生と抽出確認を区別する。可視率、複合停止理由、全面シート、Session解放はhostedテスト、描画時間は[性能測定](performance-verification.md)が担当する。
-
-### 共有・ペースト・呼び出しの検証
-
-```sh
-python3 -m http.server 8766 --bind 127.0.0.1 --directory validation
-```
-
-専用SimulatorのSafariで`http://127.0.0.1:8766/ShareHost.html`を開く。「Markdownの入力例を使う」で共通の入力例を読み込み、テキスト共有→nibbleのプレビュー→入力へ戻る→保存→本体のPull to Refresh→コピー→Safariの標準編集メニューからペーストし、「本文のUTF-8を表示」で全バイトを照合する。URL共有も保存・コピー後のURLと照合する。共有を閉じた下書きは本体で再開する。終了後はサーバーを停止する。
-
-ペースト結果の検証にクリップボードを上書きする`sim-use paste`を使わない。日本語のかな入力・変換確定はペーストと別に操作する。ショートカットの「URLを開く」から`nibble://library`と`nibble://new`を呼び出し、前者は一覧を初期化、後者は新規作成、編集中はいずれも既存入力を維持することを確認する。
-
-### キーボードの操作検証
-
-本体UI driverとは別に、入力先アプリ、本文、フルアクセス権限、端末・OS・ビルドを記録して確認する。
-
-1. 空白・改行・タブ・結合文字・絵文字を含む本文とピン留め項目を本体で保存する。OS設定でnibbleキーボードを追加する。
-2. フルアクセスなしで行のタイトルとプレビューを含む主領域をタップし、1回の挿入と原文のUTF-8を照合する。「全文を見る」は挿入せず詳細へ進み、「すべて」「ピン留め」の双方で戻った後の集合・ページ・スクロール位置と長文末尾を確認する。同じ変数を複数箇所で使う本文は値の入力欄が一つだけで、完成文の全箇所が置き換わることを確認する。
-3. 未許可のコピー・ピン操作は案内だけを表示し、クリップボード・入力欄・ピン状態を変えないことを確認する。許可後はコピーとピン留め・解除が成立し、コピーが挿入を伴わないことを照合する。
-4. ピン留め0件、再表示時の自動読込、読込失敗時の再読み込み、51件以上のページ、変更・削除された項目の利用拒否、標準キーボードへの復帰を確認する。本文取得中の入力先変更・離脱・連打は遅延を制御する製品テストと実操作を組み合わせる。
-5. 狭幅・長いタイトル・縦横・ライト／ダークで操作への到達を確認し、権限・外観・向きを元へ戻す。未実施の入力先と表示条件を記録する。
-6. 変数を含む項目で、局所のかなキーからreadingを入力し、候補を選んで日本語の値を確定する。英数・記号と「文字コード」も使い、結合文字・ZWJ emoji・改行等の原文、左右／先頭／末尾／範囲拡張／全選択／削除によるCharacter境界を照合する。不正なUnicode scalarでは値を変えず、変換上限を超えても原文確定を継続できることを確認する。値欄を二つ切り替え、同名の印は一欄で全出現箇所へ適用されることを確認する。候補選択まで外部欄は未変更、取消では0作用、最終確認では一度だけ出力されることを両外部欄の全文で照合する。
-7. 外部入力欄Aを維持したまま局所値欄1→2を編集する場合と、確認中に外部入力欄A→B→Aへ変更する場合を分ける。後者では元の欄へ戻っても挿入資格が復活せず、両欄へ誤送信しないことを確認する。本文または選択の変更、取得不能の文書ID、画面離脱、読込世代や項目revisionの変更はモデル／packageテストと実OSの観測範囲を分け、未観測条件を成功扱いにしない。
-
-入力欄のフォーカスだけでソフトウェアキーボードの表示を判断しない。`sim-use keyboard-state --device "$NIBBLE_SIMULATOR"`と実画面を照合する。secure入力などOSが標準キーボードへ切り替える条件やホスト側の文字数制限は[Keyboard仕様](architecture/keyboard.md)に従う。
-
-targetを定義する際は、`project`・`scheme`・`bundle_id`・`app_name`・`minimum_ios`を持つ設定を用意する。実行管理と撮影は共通driver、操作と期待結果は対象別driverへ置く。
+`--project-config app/project.json`が製品、`validation/project.json`が外部fixture、`app/performance-project.json`が性能targetである。設定ファイルとscheme、bundle IDを照合する。fixtureの合格は製品targetの合格ではない。
 
 ## 個別の画面読取と操作
 
-画面の要素や入力値はsim-useのaccessibility情報で確認する。外観は[画像の全体と細部の確認](review-evidence.md#画像の全体と細部の確認)、遷移や動きは録画で確認する。対象Simulatorをbootし、同じUDIDへの操作を直列に実行する。
-
-### 画面を取得して操作する
-
 ```sh
-python3 scripts/ios.py ui --project-config validation/project.json --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py tap --project-config validation/project.json --device "$NIBBLE_SIMULATOR" fixture.input
-python3 scripts/ios.py paste --project-config validation/project.json --device "$NIBBLE_SIMULATOR" \
-  --target-id fixture.input --text '日本語の確認 🧪'
-python3 scripts/ios.py tap --project-config validation/project.json --device "$NIBBLE_SIMULATOR" fixture.apply
+python3 scripts/ios.py ui --device "$NIBBLE_SIMULATOR"
+python3 scripts/inspect_ui.py tree artifacts/ios/対象run/画面.json --text-limit 0 --frames
 ```
 
-この例は起動済みのVerificationAppを操作する。`ui`は画面情報を読み取り、`tap`と`paste`は操作前後の画面情報を保存する。操作先には直前の観測で確認した`uniqueId`を使う。コマンド成功後は、操作後の値や状態を期待結果と照合する。
+[画面観測CLI](simulator-inspection.md)の既存入口を使い、観測していないラベル・座標を操作に使わない。実データ・原画像はrunの中で保持し、閲覧用の加工物は別ディレクトリへ保存する。
 
-`paste --via-menu`はネイティブ編集メニューを通すため、Simulatorのハードウェアキーボード接続に依存しない。貼り付けによる日本語入力の確認範囲は貼り付けた値とその反映である。IMEの変換・未確定文字・候補選択は別の操作で確認する。許可ダイアログや想定外の画面が出た場合は、その状態を読み取って対応し、権限を一括許可しない。
+## 画面要素の要約と差分
 
-### 画面要素の要約と差分
+`inspect_ui.py tree`で必要なIDを`--id`へ指定し、`--before`で比較する。要約で切り詰めた値を原文一致の証拠にしない。原文は保存DB、コピー後の`pbpaste`、外部fixtureの反映結果とUTF-8ラベルで照合する。画像は全体と細部を確認し、動画は対象操作の連続性まで読む。
 
-画面情報をファイルに保存し、`inspect_ui.py tree`で必要な要素を読む。既存runの`ui.json`や操作前後のJSONも入力に使える。直接sim-useを使う場合は、観測ごとに異なる保存先を選ぶ。
+## 製品の操作検証
 
-```sh
-export NIBBLE_OBSERVATION='artifacts/ui-observations/対象の観測ID'
-mkdir -p "$NIBBLE_OBSERVATION"
-sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw \
-  > "$NIBBLE_OBSERVATION/before.json"
-python3 scripts/inspect_ui.py tree "$NIBBLE_OBSERVATION/before.json"
-```
+自動driverの成否に加えて、次の利用全体を実際の操作で確認する。
 
-対象の操作を実行した後、同じSimulatorから新しい画面情報を取得して比較する。
+1. 自分で作成、または他アプリの共有から取り込む。保存して後から検索し、全文を確認して使う。
+2. 編集中に閉じる・背景へ移る。作業中から再開し、元の保存文を取り違えず意図した文面で使う。
+3. 差し替えを明示的に有効にし、相手と用件を入れる。中断・再開して完成文を確認し、一度コピーする。取消ではコピーもカード公開も起きない。
+4. 固有名の文章を削除してUndoする。ごみ箱から同じ原文を戻し、通常一覧とキーボードへの復帰を確認する。
+5. 保存障害、元カードの版変更、入力先変更、OSの利用制約を起こす。入力と意図を保持し、失敗の説明から続行する。
 
-```sh
-sim-use ui --device "$NIBBLE_SIMULATOR" --json --no-raw \
-  > "$NIBBLE_OBSERVATION/after.json"
-python3 scripts/inspect_ui.py tree "$NIBBLE_OBSERVATION/after.json" \
-  --before "$NIBBLE_OBSERVATION/before.json"
-```
+少量・5,000件、短文・長文、Unicode、通常幅・狭幅、標準・最大文字サイズで条件を分ける。正しい原文、意図しない作用の防止、作業保持が成立してから時間・操作判断の負担・読みやすさを評価する。
 
-結果は原本hash、選択条件、省略した件数・文字列長を含む。原文照合には対象IDと`--text-limit 0`を指定して完全な`value`を読む。コマンドの引数、結果JSON、判断の限界は[観測データの確認](simulator-inspection.md#画面要素の読取)を参照する。
+### 日本語IMEを確認する
 
-### 遷移中の画面取得
+OSの日本語かな／ローマ字キーボードを選び、実際のキーから日本語を新規入力する。変換候補を選び、未確定文字の訂正・選択置換・確定、タイトルと本文の移動、背景復帰、閉じて再開を行う。未確定中は保存・コピーを実行せず、確定後の全文を確認してコピーする。外部入力先へのPaste後、反映したUTF-8を照合する。
 
-状態遷移を待つdriverは`Run.wait_ui`へ到達条件を渡す。要素0件を有限回待ち、到達しなければ失敗にする。単発読取は空を失敗とする。`Run.ui`はsim-useのAX変換不可という既知の結果JSONに限り、読み取りを最大3回試す。その他のツールの失敗や対象processの終了は待機中も失敗させる。保存済みJSONの要約は待機や期待結果の判定を行わない。
+`sim-use paste`、`setMarkedText`、入力欄の存在は、このOS入力・訂正・確定の証拠にならない。操作したキー、候補、訂正前後、保存・作用の結果を動画と観測に残す。
 
-操作コマンドの成功は、画面で操作が成立したことを保証しない。OS設定・共有シート・キーボードでは、画面全体の画像とAXの矩形を照合し、操作後の画面や入力値で成立を確かめる。拡張のAX座標が拡張内の原点を基準にする場合は、その値を画面全体のタップ位置として使わない。タップが反映されない場合は、専用Simulatorの対象アプリを再起動して観測し直す。入力経路の調査にはsim-useの`SIM_USE_NO_DAEMON=1`と`SIM_USE_HID_TRANSPORT=indigo`を実行環境へ指定できる。使用した環境と操作後の観測をrunへ記録し、失敗したrunを残す。保存・削除などの操作は、結果を確認せずに繰り返さない。
+### 変数の編集と利用を確認する
 
-## スクリーンショットと画面録画
+本文へ`{{宛名}}`を入れ、編集の「差し替えを使う」を有効にして保存する。無効のままなら印を含む原文が文字どおり使われることも確認する。有効な文章を選び、値の未入力・空白、中断・再開、完成文確認、取消、コピー、元の版変更からの回復を確かめる。完成文を別カードへ保存した場合は、元のひな型を変えず、名前と由来で識別できることを確認する。
 
-```sh
-python3 scripts/ios.py screenshot --device "$NIBBLE_SIMULATOR"
-python3 scripts/ios.py record --device "$NIBBLE_SIMULATOR" --seconds 10
-```
+### 共有の操作検証
 
-静止画は`simctl io screenshot`、動画は`simctl io recordVideo`で取得する。録画は開始通知を待ち、SIGINTで確定する。`--seconds`は0より大きく60以下を指定する。動画の長さと代表フレーム3枚はSwift・AVFoundation・AppKitで取得する。
+Safariや[ShareHost](../validation/ShareHost.html)でダミー文章を選び、OS共有シートからnibbleを開く。受け取った文章・URLを確認し、閉じて再開、保存失敗と再試行、保存後の検索・原文コピーまで行う。共有を取消した場合は意図しないカード公開やコピーがないことを確認する。
 
-fixture-smokeでは、録画の確定後に操作後の静止画を撮影する。同時取得によってボタン文字が欠ける場合を避け、静止画と録画を独立して確認できる順序にする。
+### キーボードの操作検証
 
-任意の操作を記録する場合は、一つのターミナルで`record`を実行し、別のターミナルでNixのsim-useを使う。直接のsim-useやXcode操作はdriverの端末ロックに参加しない。同じUDIDへ別の検証を同時に流さない。
+OS設定から任意のnibbleキーボードを追加し、フルアクセスを許可せずに使う。ピン留めした固定文だけが候補に出ることを確認する。外部fixtureのAで候補を選び、全文を確認して一度挿入し、Aの完全な内容とBの不変を照合する。
 
-## 成果物とレビュー
+確認中にAからBへ入力先を変える、選択範囲を変える、元カードを編集・削除する、キーボードを切り替える操作を行い、古い確認から挿入されないことを確認する。パスワード欄、キーボードを拒否するホスト、共有領域へ到達できない場合は入力を変えず、本体のコピーとOSのPasteで続ける。地球儀から通常の日本語入力へ戻れることまで確認する。入力欄の表示だけで拡張内の日本語編集能力を認定しない。
 
-| 保存先 | 内容 |
-| --- | --- |
-| `artifacts/verify/<検証実行ID>/` | 計画・工程結果・所要時間・工程ログ・runへの参照 |
-| `artifacts/ios/<UTC日時>-<コマンド>-<ID>/` | 個別runのmanifest・ネイティブログ・xcresult・画面情報・媒体 |
-| `artifacts/ios/DerivedData/<UDID>/<ビルド条件のhash>/` | 構成別のビルドキャッシュ |
-| `artifacts/ui-observations/<観測ID>/` | sim-useを直接使って保存した画面情報 |
-| `artifacts/ui-review/<確認ID>/` | 閲覧用画像と原本・変換条件を示す`preview.json` |
+### 説明イラストの検証
 
-すべてGit管理対象外で、新しいcheckoutには含まれない。失敗した記録も残す。キャッシュの存在だけではソースとの対応を保証できず、各build・test・launchでXcodeの増分検査を行う。
-
-[証跡手順](review-evidence.md)に従い、対象ソース・実行結果・媒体を照合し、実際に開いた画像・録画の観測と閲覧条件を`review.json`へ記録する。単独撮影は補助資料であり、インストール済みアプリのソースを証明しない。
-
-## 検証時間を比較する
-
-[benchmark_verification.py](../scripts/benchmark_verification.py)は、JSONで指定したコマンド列を一巡の検証サイクルとして連続実行する。各工程とサイクルの時間、成功回の中央値・最小・最大・ばらつき、測定時間窓内の完了数を`results.json`へ保存する。失敗は記録して停止し、自動再試行しない。
-
-次は起動済みの専用端末でfixtureのtestとfixture-smokeを測る例。測定するキャッシュ条件に合わせて準備実行を済ませ、`--condition`へ実際の条件を記載する。
-
-```sh
-mkdir -p artifacts
-cat > artifacts/verification-commands.json <<JSON
-[
-  ["python3", "scripts/ios.py", "test", "--project-config", "validation/project.json", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"],
-  ["python3", "scripts/ios.py", "fixture-smoke", "--device", "$NIBBLE_SIMULATOR", "--configuration", "Release"]
-]
-JSON
-python3 scripts/benchmark_verification.py \
-  --commands artifacts/verification-commands.json \
-  --output artifacts/verification-benchmark --samples 3 \
-  --condition 'Release、起動済み専用Simulator、依存取得済み、準備実行済みのキャッシュ、ソース変更なし'
-```
-
-出力先には新しいディレクトリを使い、測定中はソースを固定する。初回、ソース変更なし、代表編集、失敗と修正後は別条件にする。対象ソース・依存lock・端末・構成・キャッシュ状態・データ・負荷・試行数を記録し、初回の依存取得や人による修正・媒体レビューを通常反復の時間と混ぜない。各コマンドの個別時間と一巡の合計を記録する。アプリ自身の性能は[性能手順](performance-verification.md)で別に測定する。
-
-runの`timing`は経過時間、外部コマンドの合計、manifest書込、終了処理の内訳を持つ。入れ子の工程があるため単純に合算しない。`xcodebuild`ログの`-showBuildTimingSummary`も工程分析に使える。benchmarkはコマンドの成否とソースの安定を集計するもので、媒体の整合性や目視は[証跡手順](review-evidence.md)で確認する。
-
-## 検証範囲
-
-共通fixtureの合格は製品の操作・権限・表示の合格を意味しない。製品の受け入れ条件は[製品仕様・要件](product-specification.md#機能要件と受け入れ条件)、未確認条件は[検証範囲](testing.md#検証範囲と制約)に従う。Simulatorと実機の性能は異なる条件として扱う。製品の受け入れに実機は含めず、配布後の確認は[TestFlight手順](testflight.md)の担当者が行う。
+この見出しは既存参照用に残す。現在の製品は説明イラストを採用していない。説明工程は、使い方・データの扱いを読み、実際の作成・コピー・Paste、任意のKeyboard追加、管理の利用開始まで到達することを確認する。

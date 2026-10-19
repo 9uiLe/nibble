@@ -53,7 +53,7 @@ def plan(paths, scope='auto'):
     select('static', '仕上げの共通検査')
     for path in paths:
         if path in VARIABLE_WORKFLOW_SOURCES:
-            manual.append('変数の選択位置・原文/完成文・取消・Keyboard入力: docs/ios-verification.md#変数の編集と利用を確認する')
+            manual.append('差し替えの明示指定・標準日本語入力・原文/完成文・取消・固定文Keyboardとの分担: docs/ios-verification.md#変数の編集と利用を確認する')
         if path in PRODUCT_UI_INPUTS:
             select('controls-ui', path + ': 編集の入力例')
             manual.append('共有拡張の入力・プレビュー・保存と原文コピー: docs/ios-verification.md（' + path + '）')
@@ -67,7 +67,7 @@ def plan(paths, scope='auto'):
             continue
         if path.startswith(('app/NibblePerformanceTests/', 'app/TestSupport/')) or path in {
                 'app/performance-project.json', 'app/Nibble.xcodeproj/xcshareddata/xcschemes/NibblePerformance.xcscheme'}:
-            manual.append('再生の時間・メモリ: --scope performance（' + path + '）')
+            manual.append('検索・全文表示・反復の時間とメモリ: --scope performance（' + path + '）')
             if path.startswith('app/TestSupport/'):
                 select('product-test', path + ': 共有する画面ホスト')
         elif path.startswith('app/NibbleTests/'):

@@ -69,7 +69,7 @@ DerivedDataはXcodeの中間生成物と増分ビルド情報を保存するキ�
 
 すべてのbuild・test・launchで`xcodebuild`を実行する。ソース、Xcode project、依存lockの変更はXcodeが増分検査し、必要な再ビルドまたは失敗を返す。lockにない依存版の自動解決は許可しない。ビルド成功後にbundle IDとapp内の実行ファイルを確認してからインストールする。
 
-Rive描画基盤は各ビルド前に同じ`prepare`で照合する。証跡の入力には対象target・scripts・runtime・flake/lockを含め、基盤定義の変更もiOS検証の結果を無効にする。
+製品のビルドは採用している依存だけを解決し、制作資産のRive描画基盤を準備しない。資産を検証する場合は専用の`rive_runtime.py prepare`を使う。証跡の入力には対象target・scripts・flake/lockを含め、基盤定義の変更もiOS検証の結果を無効にする。
 
 キャッシュの存在、インストール済みアプリ、別runの成功は実行ソースの証明には使わない。証跡の根拠は同じrun内の対象scheme・UDIDへの成功したbuildまたはtestと、そのrunのソース照合である。
 

@@ -9,6 +9,8 @@ Firebase Hostingで`https://nibble-10d8b.web.app`へ配信する静的サイト�
 | `/privacy.html` | プライバシーポリシー |
 | `/contact.html` | 問い合わせ先と連絡時の注意 |
 
+操作とデータの意味は[製品仕様・要件](../docs/product-specification.md)を正本とし、このサイトは利用者向けの案内を担う。
+
 `/support`、`/privacy`、`/contact` は対応する `.html` へリダイレクトする。App Store ConnectのSupport URLには`/support.html`、Privacy Policy URLには`/privacy.html`を指定する。
 
 ## アプリ提出時に確認すること

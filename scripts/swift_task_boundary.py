@@ -52,7 +52,7 @@ def owner_kind(node):
     inherited = {text(c).split(".")[-1] for c in owner.named_children if c.type == "inheritance_specifier"}
     if "View" in inherited:
         return "view"
-    if "UIViewController" in inherited:
+    if inherited & {"UIViewController", "UIInputViewController"}:
         return "controller"
     if name(owner).endswith("TaskOwner") and "@MainActor" in attributes(owner):
         return "owner"
