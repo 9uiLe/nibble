@@ -1,348 +1,190 @@
 #!/usr/bin/env python3
-"""Verify operation result notifications on an explicitly selected iOS 26.5 Simulator."""
-
+"""Verify named deletion, cancellation, undo and trash recovery through actual controls."""
+from contextlib import closing
 import argparse
-import time
+import sqlite3
 from types import SimpleNamespace
 from uuid import uuid4
 
-from ios import simulator_lock, XCRUN, VerificationError
-from product_ui import ProductRun as Run, identifiers
+from ios import XCRUN, VerificationError, simulator_lock
+from product_ui import WorkspaceRun as Run, identifiers, workspace_entry, workspace_text
+from check_library_ui import workspace_database, assert_copy_receipt
 
 
-def trash_back_frame(data):
-    """Use the visible frame; iOS can duplicate this control or omit its label."""
+def assert_completed_notice(data, *fragments):
+    text = workspace_text(data, 'workspace.notice.text')
+    if not all(fragment in text for fragment in fragments):
+        raise VerificationError('Notice does not identify the actual completed effect: ' + text)
+    return text
+
+
+def stored_card(database, card_id):
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=2)) as connection, connection:
+        rows = connection.execute('SELECT id,title,body,version,deleted_at FROM cards WHERE id=?', (card_id,)).fetchall()
+    if len(rows) != 1:
+        raise VerificationError('A repeated command duplicated or lost the named card')
+    return rows[0]
+
+
+def delete_cancellation_frame(data, title):
+    """Use an observed Cancel button or the native popover's dismiss region."""
+    def contains(outer, inner):
+        return (all(key in outer and key in inner for key in ('x', 'y', 'width', 'height'))
+                and outer['width'] > 0 and outer['height'] > 0 and inner['width'] > 0 and inner['height'] > 0
+                and outer['x'] <= inner['x'] and outer['y'] <= inner['y']
+                and inner['x'] + inner['width'] <= outer['x'] + outer['width']
+                and inner['y'] + inner['height'] <= outer['y'] + outer['height'])
+
+    def unique_frame(matches, description):
+        if len(matches) != 1 or not contains(data.get('screen', {}), matches[0].get('frame', {})):
+            raise VerificationError('No unique visible ' + description)
+        if any(state.lower() in ('hidden', 'disabled') for state in matches[0].get('states', [])):
+            raise VerificationError('Unavailable ' + description)
+        return matches[0]['frame']
+
+    entries = data.get('entries', [])
+    named = unique_frame([entry for entry in entries if entry.get('role') == 'StaticText'
+                          and entry.get('label') == f'「{title}」をごみ箱へ移しますか？ 後から戻せます。'],
+                         'named delete confirmation')
+    destructive = unique_frame([entry for entry in entries if entry.get('role') == 'Button'
+                                and entry.get('label') == 'ごみ箱へ移す'], 'delete action')
+    cancel = [entry for entry in entries if entry.get('role') == 'Button'
+              and entry.get('label') in ('キャンセル', 'Cancel')]
+    if cancel:
+        return unique_frame(cancel, 'Cancel action')
+    popup = unique_frame([entry for entry in entries if entry.get('role') == 'Group'
+                          and entry.get('region') == {'kind': 'Group', 'label': 'ポップアップを閉じる'}
+                          and contains(entry.get('frame', {}), named)
+                          and contains(entry.get('frame', {}), destructive)], 'native dismiss popover')
     screen = data['screen']
-    matches = [entry for entry in data['entries']
-               if entry.get('uniqueId') == 'BackButton'
-               and (frame := entry.get('frame', {})).get('width', 0) > 0
-               and frame.get('height', 0) > 0
-               and 0 <= frame.get('x', -1) < screen['width']
-               and 0 <= frame.get('y', -1) < screen['height'] / 4]
-    frames = [entry['frame'] for entry in matches]
-    if not frames or any(frame != frames[0] for frame in frames[1:]):
-        raise VerificationError('Deleted-items navigation has no unique visible back frame')
-    return frames[0]
+    x, y, width, height = (screen[key] for key in ('x', 'y', 'width', 'height'))
+    right, bottom = popup['x'] + popup['width'], popup['y'] + popup['height']
+    bands = [dict(x=x, y=bottom, width=width, height=y + height - bottom),
+             dict(x=x, y=y, width=width, height=popup['y'] - y),
+             dict(x=x, y=y, width=popup['x'] - x, height=height),
+             dict(x=right, y=y, width=x + width - right, height=height)]
+    for band in sorted(bands, key=lambda frame: frame['width'] * frame['height'], reverse=True):
+        if band['width'] < 44 or band['height'] < 44:
+            continue
+        point = dict(x=band['x'] + band['width'] / 2, y=band['y'] + band['height'] / 2,
+                     width=1, height=1)
+        if not any(contains(entry.get('frame', {}), point) for entry in entries):
+            return band
+    raise VerificationError('No observed popup-free area for native dismissal')
+
+
+def delete_named(run, card, title, *, cancel=False):
+    run.reveal_workspace('workspace.manage.' + card)
+    run.tap('workspace.manage.' + card)
+    run.wait_ui('management-menu', lambda d: any(e.get('label') == 'ごみ箱へ移す' for e in d['entries']))
+    run.tap_workspace_label('ごみ箱へ移す')
+    confirmation = run.wait_ui('named-delete-confirmation', lambda d: any(title in e.get('label', '') and '後から戻せます' in e.get('label', '') for e in d['entries']))
+    if cancel:
+        run.tap_frame(delete_cancellation_frame(confirmation, title))
+    else:
+        run.tap_workspace_label('ごみ箱へ移す')
+
+
+def use_recovered_card(run, identifier, body):
+    run.reveal_workspace(identifier)
+    run.tap(identifier)
+    preview = run.wait_ui('recovered-full-preview', lambda data:
+                          {'workspace.use.preview', 'workspace.use.copy'} <= identifiers(data))
+    # AX can trim whitespace; the actual copy bytes below remain authoritative.
+    if ''.join(workspace_text(preview, 'workspace.use.preview').split()) != ''.join(body.split()):
+        raise VerificationError('Recovered confirmation identifies another source')
+    run.screenshot('recovered-full-original-preview')
+    run.tap('workspace.use.copy')
+    receipt = run.wait_ui('recovered-copy-completed', lambda data: 'workspace.use.receipt' in identifiers(data))
+    assert_copy_receipt(receipt)
+    copied = run.command([XCRUN, 'simctl', 'pbpaste', run.args.device], 'recovered-exact-completed-copy')
+    if copied.encode('utf-8') != body.encode('utf-8'):
+        raise VerificationError('Recovered copy differs from the original UTF-8')
+    run.screenshot('recovered-copy-receipt')
+    assert_copy_receipt(run.ui('recovered-copy-still-completed'))
+
+
+def run_notice_flow(run, title, body):
+    identifier = run.create_workspace_card(title, body)
+    card = identifier.removeprefix('workspace.card.')
+    database = workspace_database(run)
+    initial = stored_card(database, card)
+    delete_named(run, card, title, cancel=True)
+    run.wait_ui('cancelled-delete-target-kept', lambda d: identifier in identifiers(d))
+    if stored_card(database, card) != initial:
+        raise VerificationError('Cancel changed the saved card')
+    delete_named(run, card, title)
+    removed = run.wait_ui('named-deletion-completed', lambda d: identifier not in identifiers(d) and 'workspace.undo' in identifiers(d))
+    assert_completed_notice(removed, title, 'ごみ箱へ移しました')
+    deleted = stored_card(database, card)
+    if deleted[4] is None or deleted[3] != initial[3] + 1:
+        raise VerificationError('Delete notice did not match exactly one versioned move to trash')
+    run.screenshot('named-delete-with-undo')
+    run.tap('workspace.undo')
+    undone = run.wait_ui('same-card-restored', lambda d: identifier in identifiers(d) and 'workspace.undo' not in identifiers(d))
+    assert_completed_notice(undone, 'ごみ箱から戻しました')
+    restored = stored_card(database, card)
+    if restored[4] is not None or restored[3] != deleted[3] + 1 or restored[2].encode('utf-8') != body.encode('utf-8'):
+        raise VerificationError('Undo did not restore the same exact card once')
+    run.screenshot('undo-completed-same-card')
+    delete_named(run, card, title)
+    run.wait_ui('second-delete-completed', lambda d: identifier not in identifiers(d) and 'workspace.undo' in identifiers(d))
+    deleted_again = stored_card(database, card)
+    run.open_settings()
+    run.reveal_workspace('workspace.trash')
+    run.tap('workspace.trash')
+    restore = 'workspace.restore.' + card
+    run.reveal_workspace(restore)
+    run.wait_ui('named-trash-target', lambda d: restore in identifiers(d) and 'workspace.trashed.' + card in identifiers(d))
+    run.screenshot('trash-target-identifiable')
+    run.tap(restore)
+    recovered = run.wait_ui('trash-restore-completed', lambda d: restore not in identifiers(d) and 'workspace.notice.text' in identifiers(d))
+    assert_completed_notice(recovered, 'ごみ箱から戻しました')
+    final = stored_card(database, card)
+    if final[4] is not None or final[3] != deleted_again[3] + 1 or final[0:3] != initial[0:3]:
+        raise VerificationError('Trash restore duplicated, changed or lost the named source')
+    run.screenshot('trash-restore-receipt')
+    run.workspace()
+    run.paste_editor('workspace.search', title, replace=True)
+    if run.matching_workspace_id('workspace.card.', title) != identifier:
+        raise VerificationError('Recovered search target changed identity')
+    use_recovered_card(run, identifier, body)
+    run.manifest['assertions'] = {'card_id': card, 'cancel_left_card_unchanged': True,
+        'restored_card_reused_exact_utf8': True, 'completed_copy_not_offered_again': True,
+        'delete_receipt_names_target': True, 'undo_same_card_exact_once': True,
+        'repeated_named_delete_restore_did_not_duplicate': True, 'trash_restore_same_original_bytes': True,
+        'completed_restore_control_removed': True,
+        'version_sequence': [initial[3], deleted[3], restored[3], deleted_again[3], final[3]]}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--device", required=True)
-    parser.add_argument("--geometry-only", action="store_true", help="Check workspace and create-button stability during one copy notice")
-    parser.add_argument("--scroll", action="store_true", help="Also seed a scrollable list and check its final row")
-    parser.add_argument("--appearance", choices=("light", "dark"), default="light")
-    parser.add_argument("--cold-launches", type=int, choices=range(1, 21), default=1,
-                        metavar="1..20", help="Cold-launch samples; use more than one for explicit stress observation")
+    parser.add_argument('--device', required=True)
+    parser.add_argument('--appearance', choices=('light', 'dark'), default='light')
     args = parser.parse_args()
-    run = Run(SimpleNamespace(command="notice-ui", device=args.device, configuration="Release",
-                              project_config="app/project.json"))
-    term = "通知検証" + uuid4().hex[:8]
-    title = term + " 長い対象名でも操作結果と元に戻すを読めることを確認します"
-    error = None
-    appearance = None
-
-    def label(text, role="Button"):
-        run.command(["sim-use", "tap", "--label", text, "--element-type", role,
-                     "--wait-timeout", "5", "--device", args.device])
-
-    def navigate(text):
-        if text == "設定":
-            run.open_settings()
-        else:
-            run.workspace(clear_query=text == "一覧")
-
-    def assert_no_notice(name):
-        return run.wait_ui(name, lambda data: "library.notice" not in identifiers(data) and "library.undo" not in identifiers(data))
-
-    def navigation_frames(data):
-        frames = {e["uniqueId"]: e["frame"] for e in data["entries"]
-                  if e.get("uniqueId") in ("navigation.settings", "search.field", "library.add")
-                  or e.get("uniqueId", "").startswith("library.filter.")}
-        if not {"navigation.settings", "search.field", "library.add"}.issubset(frames):
-            raise VerificationError("Workspace controls are missing")
-        return frames
-
-    def tap_row(identifier):
-        for attempt in range(12):
-            data = run.ui(f"reveal-{attempt}")
-            bottom = min((e["frame"]["y"] for e in data["entries"]
-                          if e.get("uniqueId") == "library.add" or (e.get("role") == "TextField" and e["frame"]["y"] > data["screen"]["height"] / 2)), default=data["screen"]["height"] * 0.6)
-            top = max((e["frame"]["y"] + e["frame"]["height"] for e in data["entries"]
-                       if e.get("role") in ("Heading", "TextField") and e["frame"]["y"] < 250), default=126) + 8
-            entry = next((e for e in data["entries"] if e.get("uniqueId") == identifier), None)
-            if entry and entry["frame"]["y"] >= top and entry["frame"]["y"] + entry["frame"]["height"] <= bottom:
-                # Use this snapshot's alias while the auxiliary notice window changes.
-                run.command(["sim-use", "tap", "@" + str(entry["aliases"]["at"]),
-                             "--device", args.device])
-                return
-            high, low = top + 20, min(bottom - 20, 460)
-            downward = entry is not None and entry["frame"]["y"] < top
-            run.command(["sim-use", "swipe", "--from", f"180,{high if downward else low}",
-                         "--to", f"180,{low if downward else high}",
-                         "--duration", "0.4", "--post-delay", "0.3", "--device", args.device])
-        raise VerificationError("Could not reveal row control: " + identifier)
-
-    def delete(snippet):
-        tap_row("more." + snippet)
-        run.wait_ui("delete-menu", lambda data: "delete." + snippet in identifiers(data))
-        run.tap("delete." + snippet)
-
-    def undo():
-        data = run.wait_ui("undo", lambda data: "library.undo" in identifiers(data))
-        entry = next(e for e in data["entries"] if e.get("uniqueId") == "library.undo")
-        if entry["frame"]["height"] < 44:
-            raise VerificationError("Undo hit target is shorter than 44 points")
-        for field in (e for e in data["entries"] if e.get("role") == "TextField"):
-            button, text = entry["frame"], field["frame"]
-            if (button["x"] < text["x"] + text["width"] and text["x"] < button["x"] + button["width"]
-                    and button["y"] < text["y"] + text["height"] and text["y"] < button["y"] + button["height"]):
-                raise VerificationError("Undo overlaps the search field")
-        run.command(["sim-use", "tap", "@" + str(entry["aliases"]["at"]), "--device", args.device])
-        run.wait_ui("undo-succeeded", lambda data: any(e.get("uniqueId") == "library.notice"
-             and e.get("label", "").endswith("元に戻しました") for e in data["entries"]))
-
-    def create_item(title, data):
-        run.tap("library.add" if "library.add" in identifiers(data) else "library.createFirst")
-        data = run.wait_ui("editor", lambda data: "editor.body" in identifiers(data))
-        run.paste_editor("editor.title", title)
-        run.paste_editor("editor.body", "通知を確認するダミー本文")
-        run.tap("editor.keyboard.dismiss")
-        run.tap("editor.save")
-        run.wait_ui("created-list", lambda data: "library.add" in identifiers(data) and "editor.body" not in identifiers(data))
-        for attempt in range(15):
-            data = run.ui(f"created-row-{attempt}")
-            entry = next((e for e in data["entries"] if e.get("uniqueId", "").startswith("snippet.")
-                          and title in e.get("label", "")), None)
-            if entry:
-                return entry["uniqueId"].removeprefix("snippet.")
-            run.command(["sim-use", "swipe", "--from", "180,460", "--to", "180,180",
-                         "--duration", "0.4", "--post-delay", "0.3", "--device", args.device])
-        raise VerificationError("Created row was not found in the list")
-
+    run = Run(SimpleNamespace(command='notice-ui', device=args.device, configuration='Release', project_config='app/project.json'))
+    error, original = None, None
     try:
         run.setup()
         with simulator_lock(args.device):
             run.boot()
-            appearance = run.command([XCRUN, "simctl", "ui", args.device, "appearance"]).strip()
-            run.command([XCRUN, "simctl", "ui", args.device, "appearance", args.appearance])
+            original = run.command([XCRUN, 'simctl', 'ui', args.device, 'appearance']).strip()
+            run.command([XCRUN, 'simctl', 'ui', args.device, 'appearance', args.appearance])
             run.launch()
-            data = run.wait_ui("library", lambda data: "library.add" in identifiers(data) or "library.createFirst" in identifiers(data) or "editor.close" in identifiers(data))
-            if "editor.close" in identifiers(data):
-                run.tap("editor.close")
-                data = run.wait_ui("editor-closed", lambda data: "library.add" in identifiers(data) or "library.createFirst" in identifiers(data))
-            existing_copy = next((e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")), None)
-            if args.geometry_only and existing_copy:
-                snippet = existing_copy["uniqueId"].removeprefix("copy.")
-            else:
-                snippet = create_item(title, data)
-                # Reveal the new row before establishing the notification-free baseline.
-                tap_row("copy." + snippet)
-                time.sleep(2.3)
-            # Copy before any sheet presentation in this process. Creating/editing first
-            # can hide a missing initial connection to the notification window.
-            # Each sample starts before a sheet can connect the notification host.
-            for attempt in range(args.cold_launches):
-                run.command([XCRUN, "simctl", "terminate", args.device, run.config["bundle_id"]])
-                run.command([XCRUN, "simctl", "launch", args.device, run.config["bundle_id"]])
-                run.wait_for_launch()
-                run.wait_ui(f"cold-launch-{attempt}-library", lambda data: "library.add" in identifiers(data))
-                tap_row("copy." + snippet)
-                run.wait_ui(f"cold-launch-{attempt}-notice", lambda data: "library.notice" in identifiers(data))
-                run.screenshot(f"cold-launch-{attempt}-copy")
-                time.sleep(2.3)
-            data = assert_no_notice("initial-copy-expired")
-            before_frames = navigation_frames(data)
-            run.screenshot("notice-before")
             with run.recording():
-                tap_row("copy." + snippet)
-                data = run.wait_ui("copy-notice-visible", lambda data: "library.notice" in identifiers(data))
-                during_frames = navigation_frames(data)
-                run.screenshot("notice-copy")
-                time.sleep(2.3)
-                data = assert_no_notice("copy-expired")
-                after_frames = navigation_frames(data)
-                run.screenshot("notice-after")
-                run.manifest["navigation_frames"] = {"before": before_frames, "during": during_frames, "after": after_frames}
-                movements = {phase: {label: {axis: current[label][axis] - frame[axis]
-                                            for axis in ("x", "y", "width", "height")
-                                            if abs(current[label][axis] - frame[axis]) > 1}
-                                      for label, frame in before_frames.items()}
-                             for phase, current in (("during", during_frames), ("after", after_frames))}
-                run.manifest["navigation_movements"] = movements
-                run.save()
-                if any(delta for phase in movements.values() for delta in phase.values()):
-                    raise VerificationError("Navigation controls moved with the notice: " + str(movements))
-                if args.geometry_only:
-                    run.manifest["assertions"] = {"cold_launch_copy_notice": True,
-                                                  "navigation_frames_stable": True, "copy_expired": True}
-                    return
-                tap_row("copy." + snippet)
-                delete(snippet)
-                run.screenshot("notice-deleted")
-                undo()
-                run.screenshot("notice-restored")
-                run.wait_ui("restored-row", lambda data: "snippet." + snippet in identifiers(data))
-                navigate("検索")
-                data = run.wait_ui("search-field", lambda data: any(e.get("role") == "TextField" for e in data["entries"]))
-                field = next(e for e in data["entries"] if e.get("role") == "TextField")
-                frame = field["frame"]
-                run.paste_text(term, ["--target-x", str(frame["x"] + frame["width"] / 2),
-                                      "--target-y", str(frame["y"] + frame["height"] / 2)],
-                               lambda d: any(e.get("role") == "TextField" and e.get("value") == term
-                                             for e in d["entries"]), name="search-query")
-                data = run.wait_ui("search-result", lambda data: "copy." + snippet in identifiers(data) and "search.done" in identifiers(data))
-                search_frame = next(e["frame"] for e in data["entries"] if e.get("role") == "TextField")
-                run.screenshot("search-before")
-                tap_row("copy." + snippet)
-                run.wait_ui("search-notice", lambda data: "library.notice" in identifiers(data) and "search.done" in identifiers(data))
-                run.screenshot("search-copy-keyboard")
-                time.sleep(2.3)
-                data = assert_no_notice("search-expired")
-                if not any(e.get("role") == "TextField" and e.get("value") == term for e in data["entries"]):
-                    raise VerificationError("Search query was lost on notification expiry")
-                field_after = next(e for e in data["entries"] if e.get("role") == "TextField")
-                if "search.done" not in identifiers(data) or any(abs(field_after["frame"][key] - search_frame[key]) > 1 for key in ("x", "y", "width", "height")):
-                    raise VerificationError("Search keyboard or field placement changed on expiry")
-                run.screenshot("search-after")
-                delete(snippet)
-                run.screenshot("search-delete-keyboard")
-                undo()
-                data = run.wait_ui("search-undo-input-preserved", lambda data: "search.done" in identifiers(data)
-                            and any(e.get("role") == "TextField" and e.get("value") == term
-                                    for e in data["entries"]))
-                run.screenshot("search-restored-keyboard")
-                run.tap("search.done")
-                run.wait_ui("search-input-ended", lambda d: "library.add" in identifiers(d))
-                navigate("一覧")
-                run.wait_ui("library-restored", lambda data: "snippet." + snippet in identifiers(data))
-                delete(snippet)
-                navigate("設定")
-                assert_no_notice("settings-left-workspace")
-                navigate("一覧")
-                assert_no_notice("returned-workspace")
-                navigate("設定")
-                run.tap("library.trash")
-                data = run.wait_ui("trash", lambda data: "restore." + snippet in identifiers(data)
-                                   and "permanentlyDelete." + snippet in identifiers(data))
-                if "more." + snippet in identifiers(data):
-                    raise VerificationError("Deleted item has a redundant menu button")
-                for action in ("restore.", "permanentlyDelete."):
-                    frame = next(e["frame"] for e in data["entries"]
-                                 if e.get("uniqueId") == action + snippet)
-                    if frame["width"] < 44 or frame["height"] < 44:
-                        raise VerificationError("Deleted item action is smaller than 44pt: " + action)
-                back_before = trash_back_frame(data)
-                run.tap("permanentlyDelete." + snippet)
-                run.wait_ui("trash-delete-confirmation", lambda d: "library.confirmPermanentDelete" in identifiers(d))
-                run.tap("library.cancelPermanentDelete")
-                run.wait_ui("trash-delete-cancelled", lambda d: "restore." + snippet in identifiers(d)
-                            and "library.confirmPermanentDelete" not in identifiers(d))
-                run.tap("restore." + snippet)
-                data = run.wait_ui("trash-notice", lambda d: "library.notice" in identifiers(d))
-                back_during = trash_back_frame(data)
-                notice = next(e["frame"] for e in data["entries"] if e.get("uniqueId") == "library.notice")
-                if back_before != back_during or notice["width"] < data["screen"]["width"] - 70:
-                    raise VerificationError("Deleted-item notice changed navigation or lost its full width")
-                if notice["y"] < data["screen"]["height"] * .6 or notice["y"] + notice["height"] > data["screen"]["height"] - 8:
-                    raise VerificationError("Deleted-item notice is outside its bottom presentation area")
-                run.screenshot("trash-restored")
-                run.tap_frame(back_during)
-                assert_no_notice("deleted-items-left")
-                navigate("一覧")
-                run.wait_ui("restored-from-trash", lambda data: "snippet." + snippet in identifiers(data))
-                tap_row("copy." + snippet)
-                run.tap("library.add")
-                run.wait_ui("editor-opened", lambda data: "editor.body" in identifiers(data))
-                run.screenshot("editor-no-notice")
-                run.tap("editor.close")
-                assert_no_notice("editor-dismissed")
-                delete(snippet)
-                run.command(["sim-use", "button", "home", "--device", args.device])
-                run.wait_ui("home-settled", lambda data: data.get("appPackage") == "com.apple.springboard"
-                     and "navigation.title" not in identifiers(data))
-                run.command([XCRUN, "simctl", "launch", args.device, run.config["bundle_id"]])
-                def library_is_active(data):
-                    return (data.get("appPackage") == run.config["bundle_id"]
-                            and any(e.get("uniqueId") == "navigation.title" and e.get("label") == "nibble" for e in data["entries"])
-                            and "navigation.settings" in identifiers(data)
-                            and ("library.add" in identifiers(data) or "library.createFirst" in identifiers(data)))
-                run.wait_ui("foreground-root", library_is_active)
-                time.sleep(0.3)
-                run.wait_ui("foreground-stable", library_is_active)
-                assert_no_notice("foreground")
-                run.screenshot("foreground-no-notice")
-                if args.scroll:
-                    for index in range(8):
-                        data = run.wait_ui("seed-list", lambda data: "library.add" in identifiers(data) or "library.createFirst" in identifiers(data))
-                        seeded_id = create_item(f"{term} スクロール確認 {index + 1}", data)
-                        if index > 0:
-                            tap_row("copy." + seeded_id)
-                            run.wait_ui("seed-copy", lambda data: "library.notice" in identifiers(data))
-                    previous = None
-                    for attempt in range(12):
-                        data = run.ui(f"scroll-{attempt}")
-                        controls_top = next(e["frame"]["y"] for e in data["entries"] if e.get("uniqueId") == "library.add")
-                        controls = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")
-                                    and 140 < e["frame"]["y"] and e["frame"]["y"] + e["frame"]["height"] <= controls_top]
-                        signature = [(e["uniqueId"], round(e["frame"]["y"])) for e in controls]
-                        if signature and signature == previous:
-                            break
-                        previous = signature
-                        run.command(["sim-use", "swipe", "--from", "180,460", "--to", "180,160",
-                                     "--duration", "0.5", "--post-delay", "0.5", "--device", args.device])
-                    else:
-                        raise VerificationError("Scrollable list did not reach a stable final row")
-                    if not controls:
-                        raise VerificationError("No final row is operable above the bottom controls")
-                    final_control = [e for e in data["entries"] if e.get("uniqueId", "").startswith("copy.")][-1]
-                    if final_control not in controls:
-                        raise VerificationError("Final row is hidden behind the bottom controls")
-                    final_id = final_control["uniqueId"]
-                    run.screenshot("scroll-before")
-                    # Every newer fixture row has already been copied once. The oldest row
-                    # goes from zero uses to one and stays last (the tie uses update time).
-                    # The separate window must preserve the viewport during the notice as
-                    # well as after expiry. This also catches accidental safe-area insertion.
-                    anchors = [e for e in data["entries"] if e.get("uniqueId", "").startswith("snippet.")
-                               and e["uniqueId"] != "snippet." + final_id.removeprefix("copy.")
-                               and 170 < e["frame"]["y"] < 400]
-                    if not anchors:
-                        raise VerificationError("No visible anchor before final-row copy")
-                    anchor = anchors[0]
-                    run.tap(final_id)
-                    data = run.wait_ui("scroll-copy-rendered", lambda data: "library.notice" in identifiers(data))
-                    during = next((e for e in data["entries"] if e.get("uniqueId") == anchor["uniqueId"]), None)
-                    if during is None or abs(during["frame"]["y"] - anchor["frame"]["y"]) > 1:
-                        raise VerificationError("Scroll anchor changed while the notification was visible")
-                    run.screenshot("scroll-copy")
-                    time.sleep(2.3)
-                    data = assert_no_notice("scroll-expired")
-                    after = next((e for e in data["entries"] if e.get("uniqueId") == anchor["uniqueId"]), None)
-                    if after is None or abs(after["frame"]["y"] - anchor["frame"]["y"]) > 1:
-                        raise VerificationError("Scroll anchor changed on notification expiry")
-                    run.screenshot("scroll-after")
-                    run.manifest["scroll_assertions"] = {"seeded_rows": 8, "operated_control": final_id,
-                        "anchor_id": anchor["uniqueId"],
-                        "before_y": anchor["frame"]["y"], "during_y": during["frame"]["y"], "after_y": after["frame"]["y"],
-                        "notice_expiry_preserved_scroll": True}
-
-            run.manifest["assertions"] = {"created_id": snippet,
-                "search_term": term, "appearance": args.appearance, "copy_expired": True,
-                "cold_launch_copy_notice": True,
-                "undo_same_id": True, "search_and_lifecycle": True,
-                "navigation_frames_stable": True}
+                run_notice_flow(run, '整理と回復 ' + uuid4().hex[:8], '失わない原文 か\u3099\r\n👩🏽‍💻  ')
     except (Exception, KeyboardInterrupt) as caught:
         error = caught
     finally:
-        if appearance in ("light", "dark"):
+        if original in ('light', 'dark'):
             try:
-                run.command([XCRUN, "simctl", "ui", args.device, "appearance", appearance])
+                run.command([XCRUN, 'simctl', 'ui', args.device, 'appearance', original])
             except (Exception, KeyboardInterrupt) as caught:
                 error = error or caught
         run.finish(error)
-    if error:
+    if error is not None:
         raise SystemExit(repr(error))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

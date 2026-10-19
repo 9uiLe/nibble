@@ -19,7 +19,7 @@ final class ViewTestHost {
 
     func show(_ content: AnyView, phase: ScenePhase = .active, scheme: ColorScheme = .light) {
         let configured = content.environment(\.scenePhase, phase)
-            .environment(\.colorScheme, scheme).modifier(NibbleInterface())
+            .environment(\.colorScheme, scheme)
         controller.rootView = AnyView(configured)
         controller.view.setNeedsLayout()
     }

@@ -140,3 +140,323 @@ class ProductNavigationTests(unittest.TestCase):
         run.workspace.assert_called_once_with()
         run.tap.assert_called_once_with('navigation.settings')
         self.assertEqual(run.wait_ui.call_args.args[0], 'settings-route')
+
+
+class WorkspaceKeyboardGeometryTests(unittest.TestCase):
+    def narrow_editor(self):
+        return {'screen': {'width': 375, 'height': 667}, 'entries': [
+            {'uniqueId': '文章を編集', 'role': 'Group', 'region': {'kind': 'Top'},
+             'frame': {'x': 0, 'y': 46, 'width': 375, 'height': 54}},
+            {'uniqueId': 'workspace.editor.close', 'role': 'Button',
+             'frame': {'x': 20, 'y': 50, 'width': 72, 'height': 36}},
+            {'uniqueId': 'workspace.editor.title', 'role': 'TextArea',
+             'frame': {'x': 32, 'y': 272, 'width': 311, 'height': 48}},
+            {'uniqueId': 'workspace.editor.body', 'role': 'TextArea',
+             'frame': {'x': 32, 'y': 408, 'width': 311, 'height': 260}},
+            {'role': 'Group', 'frame': {'x': 0, 'y': 399, 'width': 331, 'height': 54}},
+            {'uniqueId': 'delete', 'label': '削除', 'role': 'Button',
+             'frame': {'x': 298, 'y': 450, 'width': 73, 'height': 54}},
+            {'uniqueId': 'Return', 'label': '改行', 'role': 'Button',
+             'frame': {'x': 293, 'y': 551, 'width': 73, 'height': 108}},
+            {'label': 'か', 'role': 'Button', 'frame': {'x': 151, 'y': 450, 'width': 73, 'height': 54}},
+        ]}
+
+    def test_normalized_keyboard_excludes_its_candidate_group_without_a_keyboard_role(self):
+        from product_ui import workspace_keyboard_top, workspace_viewport
+        data = self.narrow_editor()
+        self.assertEqual(workspace_keyboard_top(data), 399)
+        self.assertEqual(workspace_viewport(data), (100, 399))
+        self.assertNotIn('Keyboard', {entry['role'] for entry in data['entries']})
+
+    def test_only_a_large_exposed_input_intersection_is_tapped(self):
+        from product_ui import workspace_entry, workspace_input_point, workspace_visible
+        data = self.narrow_editor()
+        with self.assertRaisesRegex(VerificationError, '44pt'):
+            workspace_input_point(data, 'workspace.editor.body')
+        body = workspace_entry(data, 'workspace.editor.body')
+        body['frame']['y'] = 200
+        self.assertTrue(workspace_visible(data, body))
+        self.assertEqual(workspace_input_point(data, 'workspace.editor.body'), (187.5, 299.5))
+        body['frame']['y'] = 370
+        self.assertFalse(workspace_visible(data, body))
+        with self.assertRaises(VerificationError):
+            workspace_input_point(data, 'workspace.editor.body')
+        self.assertTrue(workspace_visible(data, workspace_entry(data, 'workspace.editor.close')))
+        self.assertFalse(workspace_visible(data, {'role': 'Button',
+            'frame': {'x': 32, 'y': 360, 'width': 311, 'height': 50}}))
+
+    def test_scroll_uses_the_observed_form_gutter_and_never_crosses_the_keyboard(self):
+        from product_ui import WorkspaceRun, workspace_viewport
+        data = self.narrow_editor()
+        run = object.__new__(WorkspaceRun)
+        run.args = SimpleNamespace(device='narrow-owned')
+        run.command = Mock()
+        run.scroll_workspace(data)
+        argv = run.command.call_args.args[0]
+        top, bottom = workspace_viewport(data)
+        for flag in ('--from', '--to'):
+            x, y = map(float, argv[argv.index(flag) + 1].split(','))
+            self.assertEqual(x, 16)
+            self.assertGreater(y, top)
+            self.assertLess(y, bottom)
+            self.assertLess(x, 32)
+        self.assertEqual(argv[-2:], ['--device', 'narrow-owned'])
+
+    def test_english_letter_rows_are_not_missed_when_delete_is_on_a_later_row(self):
+        from product_ui import workspace_keyboard_top
+        data = self.narrow_editor()
+        data['entries'] = [entry for entry in data['entries'] if entry.get('label') != 'か']
+        next(entry for entry in data['entries'] if entry.get('uniqueId') == 'delete')['frame']['y'] = 558
+        data['entries'].append({'uniqueId': 'q', 'label': 'q', 'role': 'Button',
+                                'frame': {'x': 2, 'y': 450, 'width': 34, 'height': 54}})
+        self.assertEqual(workspace_keyboard_top(data), 399)
+
+    def test_clipped_long_guidance_keeps_its_observed_side_gutter(self):
+        from product_ui import workspace_scroll_gutter
+        data = {'screen': {'width': 375, 'height': 667}, 'entries': [
+            {'role': 'StaticText', 'uniqueId': 'workspace.settings.keyboardGuide',
+             'region': {'kind': 'Top'}, 'frame': {'x': 16, 'y': -1069, 'width': 343, 'height': 1768}}]}
+        self.assertEqual(workspace_scroll_gutter(data), 8)
+
+    def test_missing_safe_gutter_fails_instead_of_swiping_inside_a_text_view(self):
+        from product_ui import WorkspaceRun
+        data = self.narrow_editor()
+        for entry in data['entries']:
+            if entry['role'] == 'TextArea':
+                entry['frame'].update(x=0, width=375)
+        run = object.__new__(WorkspaceRun)
+        run.args = SimpleNamespace(device='narrow-owned')
+        run.command = Mock()
+        with self.assertRaisesRegex(VerificationError, 'gutter'):
+            run.scroll_workspace(data)
+        run.command.assert_not_called()
+
+    def test_native_paste_resolves_an_exposed_point_instead_of_using_the_full_field_center(self):
+        from product_ui import WorkspaceRun
+        data = self.narrow_editor()
+        next(entry for entry in data['entries'] if entry.get('uniqueId') == 'workspace.editor.body')['frame']['y'] = 200
+        run = object.__new__(WorkspaceRun)
+        run._focus_workspace_input = Mock(return_value=data)
+        with patch('product_ui.ProductRun.paste_text', return_value='observed') as paste:
+            self.assertEqual(run.paste_text('body', ['--target-id', 'workspace.editor.body'], lambda _: True), 'observed')
+        self.assertEqual(paste.call_args.args[1], ['--target-x', '187.5', '--target-y', '299.5'])
+
+    def test_native_search_uses_its_fully_exposed_observed_34pt_frame(self):
+        from product_ui import workspace_entry, workspace_input_point, workspace_visible
+        data = self.narrow_editor()
+        data['entries'].append({'uniqueId': 'workspace.search', 'role': 'TextField',
+                                'frame': {'x': 16, 'y': 126, 'width': 343, 'height': 34}})
+        search = workspace_entry(data, 'workspace.search')
+        self.assertTrue(workspace_visible(data, search))
+        self.assertEqual(workspace_input_point(data, 'workspace.search'), (187.5, 143))
+        for y in (99, 370):
+            search['frame']['y'] = y
+            self.assertFalse(workspace_visible(data, search))
+            with self.assertRaisesRegex(VerificationError, 'fully exposed'):
+                workspace_input_point(data, 'workspace.search')
+
+    def test_search_at_actual_navigation_group_bottom_needs_no_invented_clearance(self):
+        from product_ui import workspace_entry, workspace_input_point, workspace_viewport, workspace_visible
+        data = {'screen': {'x': 0, 'y': 0, 'width': 402, 'height': 874}, 'entries': [
+            {'uniqueId': 'workspace.settings', 'role': 'Button',
+             'frame': {'x': 20, 'y': 66, 'width': 36, 'height': 36}},
+            {'uniqueId': 'workspace.create', 'role': 'Button',
+             'frame': {'x': 346, 'y': 66, 'width': 36, 'height': 36}},
+            {'uniqueId': 'nibble', 'role': 'Group', 'region': {'kind': 'Top'},
+             'frame': {'x': 0, 'y': 62, 'width': 402, 'height': 106}},
+            {'uniqueId': 'workspace.search', 'role': 'TextField',
+             'frame': {'x': 16, 'y': 168, 'width': 370, 'height': 34}},
+        ]}
+        self.assertEqual(workspace_viewport(data), (168, 874))
+        self.assertTrue(workspace_visible(data, workspace_entry(data, 'workspace.search')))
+        self.assertEqual(workspace_input_point(data, 'workspace.search'), (201, 185))
+        workspace_entry(data, 'workspace.search')['frame']['y'] = 167
+        self.assertFalse(workspace_visible(data, workspace_entry(data, 'workspace.search')))
+
+    def test_content_controls_cannot_overlap_navigation_but_toolbar_actions_remain_visible(self):
+        from product_ui import workspace_entry, workspace_visible
+        data = self.narrow_editor()
+        self.assertTrue(workspace_visible(data, workspace_entry(data, 'workspace.editor.close')))
+        content = {'uniqueId': 'workspace.trash', 'role': 'Button',
+                   'frame': {'x': 16, 'y': 82, 'width': 343, 'height': 156}}
+        self.assertFalse(workspace_visible(data, content))
+        content['frame']['y'] = 100
+        self.assertTrue(workspace_visible(data, content))
+        content['frame']['x'] = 33
+        self.assertFalse(workspace_visible(data, content))
+        toolbar = copy.deepcopy(workspace_entry(data, 'workspace.editor.close'))
+        toolbar['frame']['y'] = -1
+        self.assertFalse(workspace_visible(data, toolbar))
+
+    def test_reveal_waits_for_inertia_then_reveals_again_if_control_settles_under_navigation(self):
+        from product_ui import WorkspaceRun
+
+        def observation(y):
+            return {'screen': {'width': 375, 'height': 667}, 'entries': [
+                {'role': 'Heading', 'region': {'kind': 'Top'},
+                 'frame': {'x': 129, 'y': 55, 'width': 118, 'height': 26}},
+                {'uniqueId': 'workspace.settings.close', 'role': 'Button',
+                 'frame': {'x': 272, 'y': 50, 'width': 83, 'height': 36}},
+                {'uniqueId': 'workspace.trash', 'role': 'Button',
+                 'frame': {'x': 16, 'y': y, 'width': 343, 'height': 156}},
+            ]}
+
+        run = object.__new__(WorkspaceRun)
+        run.args = SimpleNamespace(device='owned')
+        run.ui = Mock(side_effect=[observation(y) for y in (221, 130, 82, 82, 140, 140, 140)])
+        run.command = Mock()
+        with patch('ios.time.sleep'):
+            settled = run.reveal_workspace('workspace.trash')
+        self.assertEqual(settled['entries'][-1]['frame']['y'], 140)
+        self.assertEqual(run.ui.call_count, 7)
+        argv = run.command.call_args.args[0]
+        self.assertEqual(argv[:2], ['sim-use', 'swipe'])
+        # A tall, clipped control on the SE3 oscillated under the former fast
+        # 60%-viewport gesture. Revealing uses the measured 30% reading step.
+        self.assertEqual(float(argv[argv.index('--from') + 1].split(',')[0]), 8)
+        self.assertAlmostEqual(float(argv[argv.index('--from') + 1].split(',')[1]), 86 + (667 - 86) * .35)
+        self.assertAlmostEqual(float(argv[argv.index('--to') + 1].split(',')[1]), 86 + (667 - 86) * .65)
+        self.assertEqual(argv[argv.index('--duration') + 1], '.7')
+
+    def test_reveal_uses_the_same_short_slow_step_to_bring_up_a_control_below_screen(self):
+        from product_ui import WorkspaceRun
+
+        def observation(y):
+            return {'screen': {'width': 375, 'height': 667}, 'entries': [
+                {'uniqueId': 'workspace.settings.close', 'role': 'Button',
+                 'frame': {'x': 272, 'y': 50, 'width': 83, 'height': 36}},
+                {'uniqueId': 'workspace.trash', 'role': 'Button',
+                 'frame': {'x': 16, 'y': y, 'width': 343, 'height': 156}},
+            ]}
+
+        run = object.__new__(WorkspaceRun)
+        run.args = SimpleNamespace(device='owned')
+        run.ui = Mock(side_effect=[observation(y) for y in (552, 300, 300, 300)])
+        run.command = Mock()
+        with patch('ios.time.sleep'):
+            self.assertEqual(run.reveal_workspace('workspace.trash')['entries'][-1]['frame']['y'], 300)
+        self.assertEqual(run.command.call_count, 1)
+        argv = run.command.call_args.args[0]
+        self.assertAlmostEqual(float(argv[argv.index('--from') + 1].split(',')[1]), 86 + (667 - 86) * .65)
+        self.assertAlmostEqual(float(argv[argv.index('--to') + 1].split(',')[1]), 86 + (667 - 86) * .35)
+        self.assertEqual(argv[argv.index('--duration') + 1], '.7')
+
+    def test_reveal_requires_both_target_frame_and_viewport_to_settle(self):
+        from product_ui import WorkspaceRun
+        first, changed = self.narrow_editor(), self.narrow_editor()
+        next(entry for entry in changed['entries'] if entry.get('role') == 'Group'
+             and entry['frame']['y'] == 399)['frame']['y'] = 380
+        run = object.__new__(WorkspaceRun)
+        run.ui = Mock(side_effect=[first, copy.deepcopy(first), changed, copy.deepcopy(changed)])
+        run.command = Mock()
+        with patch('ios.time.sleep'):
+            self.assertEqual(run.reveal_workspace('workspace.editor.title'), changed)
+        self.assertEqual(run.ui.call_count, 4)
+        run.command.assert_not_called()
+
+    def test_absent_lazy_target_is_found_above_after_observing_the_settings_bottom(self):
+        from product_ui import WorkspaceRun
+
+        def observation(identifier, y, height=900):
+            return {'screen': {'width': 375, 'height': 667}, 'entries': [
+                {'uniqueId': 'workspace.settings.close', 'role': 'Button',
+                 'frame': {'x': 272, 'y': 50, 'width': 83, 'height': 36}},
+                {'uniqueId': identifier, 'role': 'Button' if identifier == 'workspace.trash' else 'StaticText',
+                 'frame': {'x': 16, 'y': y, 'width': 343, 'height': height}},
+            ]}
+
+        bottom = observation('workspace.settings.privacy', -678)
+        reordered_bottom = copy.deepcopy(bottom)
+        reordered_bottom['entries'].reverse()
+        found = observation('workspace.trash', 300, 156)
+        run = object.__new__(WorkspaceRun)
+        run.args = SimpleNamespace(device='owned')
+        run.ui = Mock(side_effect=[observation('workspace.settings.privacy', -422), bottom,
+                                   reordered_bottom, observation('workspace.settings.privacy', -350),
+                                   found, copy.deepcopy(found), copy.deepcopy(found)])
+        run.command, run.tap = Mock(), Mock()
+        with patch('ios.time.sleep'):
+            self.assertEqual(run.reveal_workspace('workspace.trash'), found)
+        self.assertEqual(run.ui.call_count, 7)
+        directions = []
+        for call in run.command.call_args_list:
+            argv = call.args[0]
+            start = list(map(float, argv[argv.index('--from') + 1].split(',')))
+            end = list(map(float, argv[argv.index('--to') + 1].split(',')))
+            self.assertEqual((start[0], end[0]), (8, 8))
+            self.assertTrue(all(86 < y < 667 for y in (start[1], end[1])))
+            self.assertEqual(argv[argv.index('--duration') + 1], '.7')
+            directions.append(start[1] < end[1])
+        self.assertEqual(directions, [False, False, True, True])
+        run.tap.assert_not_called()
+
+    def test_missing_target_stops_after_observed_content_stalls_in_both_directions(self):
+        from product_ui import WorkspaceRun
+        data = self.narrow_editor()
+        run = object.__new__(WorkspaceRun)
+        run.ui = Mock(return_value=data)
+        run.scroll_workspace, run.tap = Mock(), Mock()
+        with self.assertRaisesRegex(VerificationError, 'Element is not reachable: workspace.trash'):
+            run.reveal_workspace('workspace.trash', attempts=24)
+        self.assertEqual(run.ui.call_count, 3)
+        self.assertEqual([call.kwargs for call in run.scroll_workspace.call_args_list],
+                         [{'up': False, 'reading': True}, {'up': True, 'reading': True}])
+        run.tap.assert_not_called()
+
+    def test_default_budget_can_pass_twelve_viewports_then_reverse_to_a_lazy_target(self):
+        from product_ui import WorkspaceRun
+
+        def observation(step):
+            return {'screen': {'width': 375, 'height': 667}, 'entries': [
+                {'uniqueId': 'workspace.settings.close', 'role': 'Button',
+                 'frame': {'x': 272, 'y': 50, 'width': 83, 'height': 36}},
+                {'role': 'StaticText', 'label': '最大文字サイズの長い説明',
+                 'frame': {'x': 16, 'y': -400 - step * 320, 'width': 343, 'height': 7300}},
+            ]}
+
+        found = observation(0)
+        found['entries'].append({'uniqueId': 'workspace.trash', 'role': 'Button',
+                                  'frame': {'x': 16, 'y': 300, 'width': 343, 'height': 156}})
+        run = object.__new__(WorkspaceRun)
+        run.ui = Mock(side_effect=[*[observation(step) for step in range(21)], observation(20),
+                                   *[observation(step) for step in range(19, -1, -1)],
+                                   found, copy.deepcopy(found), copy.deepcopy(found)])
+        run.scroll_workspace, run.tap = Mock(), Mock()
+        with patch('ios.time.sleep'):
+            self.assertEqual(run.reveal_workspace('workspace.trash'), found)
+        self.assertEqual(run.ui.call_count, 45)
+        directions = [call.kwargs['up'] for call in run.scroll_workspace.call_args_list]
+        self.assertEqual(directions, [False] * 21 + [True] * 21)
+        self.assertTrue(all(call.kwargs['reading'] for call in run.scroll_workspace.call_args_list))
+        run.tap.assert_not_called()
+
+    def test_absent_target_exploration_still_obeys_the_observation_budget(self):
+        from product_ui import WorkspaceRun
+        observations = []
+        for attempt in range(4):
+            data = self.narrow_editor()
+            next(entry for entry in data['entries'] if entry.get('uniqueId') == 'workspace.editor.title')['frame']['y'] -= attempt
+            observations.append(data)
+        run = object.__new__(WorkspaceRun)
+        run.ui = Mock(side_effect=observations)
+        run.scroll_workspace, run.tap = Mock(), Mock()
+        with self.assertRaisesRegex(VerificationError, 'Element is not reachable'):
+            run.reveal_workspace('workspace.trash', attempts=4)
+        self.assertEqual(run.ui.call_count, 4)
+        self.assertEqual(run.scroll_workspace.call_count, 3)
+        run.tap.assert_not_called()
+
+    def test_perpetually_moving_control_fails_without_tapping(self):
+        from product_ui import WorkspaceRun
+        run = object.__new__(WorkspaceRun)
+        observations = []
+        for attempt in range(21):
+            data = self.narrow_editor()
+            next(entry for entry in data['entries'] if entry.get('uniqueId') == 'workspace.editor.title')['frame']['y'] += attempt
+            observations.append(data)
+        run.ui = Mock(side_effect=observations)
+        run.command = Mock()
+        with patch('ios.time.sleep'), self.assertRaisesRegex(VerificationError, 'reveal-settled'):
+            run.reveal_workspace('workspace.editor.title')
+        self.assertEqual(run.ui.call_count, 21)
+        run.command.assert_not_called()

@@ -187,6 +187,17 @@ class SwiftPolicyTests(unittest.TestCase):
                                    f'{view}({label}: {{ consume {{ startTask() }} }})']:
                     self.assertTrue(violations(prefix + expression + ' } }'))
 
+    def test_keyboard_controller_uses_the_same_explicit_lifecycle_boundary(self):
+        for parent in ('UIInputViewController', 'UIKit.UIInputViewController'):
+            prefix = 'class Keyboard: ' + parent + ' { '
+            with self.subTest(parent=parent):
+                self.assertEqual(violations(prefix + 'override func viewWillAppear(_ animated: Bool) { owner.startTask(.reload) } }'), [])
+                for declaration in ('func viewWillAppear(_ animated: Bool)',
+                                    'override func viewWillAppear(_ animated: Bool) async',
+                                    'func prepare()'):
+                    self.assertTrue(violations(prefix + declaration + ' { owner.startTask(.reload) } }'))
+        self.assertTrue(violations('class Keyboard: CustomController { override func viewWillAppear(_ animated: Bool) { owner.startTask(.reload) } }'))
+
     def test_models_cannot_own_or_accept_task_creation_capabilities(self):
         for source in [
             'class LibraryModel { private let tasks = ViewTaskStore(); func startTask() {} }',

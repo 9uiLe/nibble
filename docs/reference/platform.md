@@ -1,6 +1,6 @@
 # 呼び出し・共有・挿入のOS境界
 
-nibbleは本体のコピー、Share Extension、一覧・作成URL、Keyboard Extensionを提供する。採用仕様は[製品仕様・要件](../product-specification.md)と[Keyboard設計](../architecture/keyboard.md)に定める。以下は2026-09-13に確認した公開APIの制約で、実機と各ホストでの動作保証ではない。
+nibbleは本体のコピー、Share Extension、一覧・作成・内容確認URL、Keyboard Extensionを提供する。採用仕様は[製品仕様・要件](../product-specification.md)と[Keyboard設計](../architecture/keyboard.md)に定める。以下は2026-09-13に確認した公開APIの制約で、実機と各ホストでの動作保証ではない。
 
 ## 入口ごとの能力
 
@@ -8,14 +8,16 @@ nibbleは本体のコピー、Share Extension、一覧・作成URL、Keyboard Ex
 | --- | --- | --- |
 | 本体＋コピー | 利用者が選んだ本文をpasteboardへ書く | 他アプリへの自動ペースト、入力focusの復元 [I15][I18] |
 | Share Extension | ホストが渡すテキスト・URLを確認して保存 | 任意の選択範囲の取得、相手の入力欄への書込 [I13] |
-| custom URL | 検証したURLから一覧・作成を開く | schemeの独占、呼出元の操作。Universal Linksには関連ドメインの運用が必要 [I16][I17] |
+| custom URL | 検証したURLから一覧・作成・内容確認を開く。保存・コピー・挿入は明示操作を待つ | schemeの独占、呼出元の操作。Universal Linksには関連ドメインの運用が必要 [I16][I17] |
 | Custom Keyboard | 対応欄へ`textDocumentProxy`で本文を挿入 | secure欄、一部電話番号欄、第三者キーボードを拒否するホスト [I07][I08][I10] |
 
 本体は他アプリの画面・選択範囲・入力欄を自由に読み書きできない。[I18] App Intents・Widget・ControlsのSDKコンパイル成功も汎用挿入権限を与えない。これらは製品に採用していない。
 
 ## Keyboardの権限
 
-UIKitの公開契約では、Full Accessなしでも共有group containerを読み取り専用で利用できる。書き込みとネットワークにはFull Accessが必要。[I09] nibbleは本体がDBを初期化し、Keyboardは既存DBを読む。権限を許可した場合だけコピーとピン更新を提供する。WAL・schema・競合の契約は[Keyboard設計](../architecture/keyboard.md#共有データと読み取りの契約)に従う。
+UIKitの公開契約では、Full Accessなしでも共有group containerを読み取り専用で利用できる。書き込みとネットワークにはFull Accessが必要。[I09] nibbleは本体がDBを初期化し、Keyboardは既存DBのピン留め固定文を読取専用で使う。Keyboardにコピー・ピン更新・ネットワークを持たず、利用者のFull Access許可を必須にしない構成である。extensionの`RequestsOpenAccess`宣言、OS上の許可状態、実際の共有読取成功は別に確認する。WAL・schema・競合の契約は[Keyboard設計](../architecture/keyboard.md#共有データと読み取りの契約)に従う。
+
+標準入力欄をKeyboard内部へ置いた日本語入力の試作は不成立で、読取専用・入力先変更の失効・一度の挿入は独立試作で観測した。条件と適用限界は[設計根拠](../design/evidence.md#r04-keyboard内部の標準入力試作)に記録する。独立試作を製品SQLite/WALの検証へ流用せず、本体の標準入力と固定文Keyboardの分担を対象版で確認する。
 
 キーボードは別プロセスで、非表示が終了を意味しない。メモリ上限を全端末共通の固定値とは扱わない。[I07] 本体起動を編集導線にしない理由、入力機能・切替・権限なし動作の審査条件は[公開条件](security.md#keyboardの公開条件)を参照する。全ホスト・実機・再ロック後の成立は未確認。
 
