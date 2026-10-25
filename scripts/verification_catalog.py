@@ -5,17 +5,27 @@ from ios_project import FIXTURE_CONFIG, PERFORMANCE_CONFIG, PRODUCT_CONFIG
 
 PRODUCT_UI_INPUTS = frozenset({'validation/EditorMarkdown.txt', 'validation/ShareHost.html'})
 VARIABLE_WORKFLOW_SOURCES = frozenset({
-    'app/Shared/Domain/SnippetVariables.swift',
-    'app/Shared/Application/EditorModel.swift',
-    'app/Shared/Application/LibraryModel.swift',
-    'app/Shared/Application/KeyboardModel.swift',
-    'app/Shared/Editing/EditorBodyField.swift',
-    'app/Shared/Editing/EditorVariablePicker.swift',
-    'app/Shared/Editing/Markdown/MarkdownEditor.swift',
-    'app/Shared/Editing/Markdown/MarkdownSourceInput.swift',
-    'app/Shared/Interface/VariableFillView.swift',
-    'app/Nibble/Navigation/AppRootView.swift',
-    'app/NibbleKeyboard/KeyboardView.swift',
+    'app/Shared/Domain/TextCard.swift',
+    'app/Shared/Domain/WorkDraft.swift',
+    'app/Shared/Domain/TextTemplate.swift',
+    'app/Shared/Domain/PreparedCardSummary.swift',
+    'app/Shared/Application/Contracts/WorkspaceStorage.swift',
+    'app/Shared/Application/DraftSessionModel.swift',
+    'app/Shared/Application/UseSessionModel.swift',
+    'app/Shared/Application/WorkspaceModel.swift',
+    'app/Shared/Persistence/WorkspaceRepository.swift',
+    'app/Shared/Editing/NativeDocumentField.swift',
+    'app/Shared/Editing/WorkspaceEditorView.swift',
+    'app/Shared/Interface/WorkspacePresentation.swift',
+    'app/Nibble/Workspace/WorkspaceEntryView.swift',
+    'app/Nibble/Workspace/WorkspaceHomeView.swift',
+    'app/Nibble/Workspace/WorkspaceUseView.swift',
+    'app/Nibble/Workspace/ClipboardDelivery.swift',
+    'app/NibbleKeyboard/PreparedKeyboardModel.swift',
+    'app/NibbleKeyboard/PreparedKeyboardTaskOwner.swift',
+    'app/NibbleKeyboard/PreparedKeyboardPreviewView.swift',
+    'app/NibbleKeyboard/PreparedKeyboardView.swift',
+    'app/NibbleKeyboard/KeyboardViewController.swift',
 })
 
 

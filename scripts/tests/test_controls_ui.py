@@ -1,4 +1,4 @@
-"""Help verification must work below the fold and fail on missing content."""
+"""Adaptive verification checks real change rather than preserving old fixed frames."""
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -6,94 +6,40 @@ import unittest
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from check_controls_ui import reveal_help_limit, collection_visible
+from check_controls_ui import assert_adaptive_text
 from ios import VerificationError
+from product_ui import WorkspaceRun, workspace_visible
 
 
-def help_screen(visible=False, height=667):
-    entries = [{'role': 'Heading', 'label': '入力と保存について'},
-               {'uniqueId': 'editor.help.close',
-                'frame': {'x': 319, 'y': 340, 'width': 36, 'height': 36}}]
-    if visible:
-        entries.append({'uniqueId': 'editor.lengthLimit'})
-    return {'screen': {'x': 0, 'y': 0, 'width': 375, 'height': height},
-            'entries': entries}
+class AdaptiveControlTests(unittest.TestCase):
+    def test_larger_standard_text_must_change_its_measured_height(self):
+        assert_adaptive_text({'height': 80}, {'height': 200})
+        for height in (0, 79, 80, 81):
+            with self.subTest(height=height), self.assertRaises(VerificationError):
+                assert_adaptive_text({'height': 80}, {'height': height})
 
+    def test_visibility_rejects_clipped_or_unobserved_controls(self):
+        data = {'screen': {'width': 375, 'height': 667}}
+        self.assertTrue(workspace_visible(data, {'frame': {'x': 16, 'y': 100, 'width': 343, 'height': 44}}))
+        for frame in ({'x': -1, 'y': 100, 'width': 343, 'height': 44},
+                      {'x': 16, 'y': 650, 'width': 343, 'height': 44},
+                      {'x': 16, 'y': 100, 'width': 0, 'height': 44}):
+            self.assertFalse(workspace_visible(data, {'frame': frame}))
+        self.assertFalse(workspace_visible(data, None))
 
-class HelpScrollTests(unittest.TestCase):
-    def run_fixture(self, initial, following=()):
-        return SimpleNamespace(args=SimpleNamespace(device='dedicated'),
-                               wait_ui=Mock(return_value=initial),
-                               ui=Mock(side_effect=following), command=Mock())
-
-    def test_visible_content_needs_no_scroll(self):
-        data = help_screen(True)
-        run = self.run_fixture(data)
-        self.assertIs(reveal_help_limit(run), data)
-        run.command.assert_not_called()
-
-    def test_help_title_matches_its_entry(self):
-        data = help_screen(True)
-        data['entries'][0]['label'] = '別の説明'
-        run = self.run_fixture(data)
-        with self.assertRaisesRegex(VerificationError, 'same topic'):
-            reveal_help_limit(run)
-        run.command.assert_not_called()
-
-    def test_below_fold_content_is_scrolled_into_view(self):
-        visible = help_screen(True)
-        run = self.run_fixture(help_screen(), [visible])
-        self.assertIs(reveal_help_limit(run), visible)
-        argv = run.command.call_args.args[0]
-        self.assertEqual(argv[0:2], ['sim-use', 'swipe'])
-        self.assertEqual(argv[-2:], ['--device', 'dedicated'])
-        self.assertEqual(argv[argv.index('--from') + 1], '187.5,635')
-        self.assertEqual(argv[argv.index('--to') + 1], '187.5,400')
-
-    def test_missing_content_fails_after_bounded_scrolling(self):
-        run = self.run_fixture(help_screen(), [help_screen()] * 6)
+    def test_unreachable_control_fails_after_finite_observed_swipes(self):
+        run = object.__new__(WorkspaceRun)
+        run.args = SimpleNamespace(device='owned')
+        run.ui = Mock(return_value={'screen': {'width': 375, 'height': 667}, 'entries': [
+            {'uniqueId': 'workspace.editor.title', 'role': 'TextArea',
+             'frame': {'x': 32, 'y': 200, 'width': 311, 'height': 48}}]})
+        run.command = Mock()
         with self.assertRaisesRegex(VerificationError, 'not reachable'):
-            reveal_help_limit(run)
-        self.assertEqual(run.command.call_count, 6)
-
-    def test_invalid_viewport_is_not_swiped(self):
-        run = self.run_fixture(help_screen(height=410))
-        with self.assertRaisesRegex(VerificationError, 'viewport'):
-            reveal_help_limit(run)
-        run.command.assert_not_called()
-
-    def test_departed_help_is_not_swiped_again(self):
-        run = self.run_fixture(help_screen(), [{'entries': []}])
-        with self.assertRaisesRegex(VerificationError, 'disappeared'):
-            reveal_help_limit(run)
-        self.assertEqual(run.command.call_count, 1)
+            run.reveal_workspace('workspace.editor.body', attempts=3)
+        self.assertEqual(run.ui.call_count, 3)
+        self.assertEqual(run.command.call_count, 2)
+        self.assertTrue(all(call.args[0][-2:] == ['--device', 'owned'] for call in run.command.call_args_list))
 
 
-class CollectionReturnTests(unittest.TestCase):
-    def screen(self, label, editing=False):
-        entries = [{'role': 'Heading', 'label': label}]
-        if editing:
-            entries.append({'uniqueId': 'editor.body'})
-        return {'entries': entries}
-
-    def test_nonempty_pinned_requires_the_ordered_collection_heading(self):
-        data = self.screen('ピン留めした項目・コピー回数順')
-        self.assertTrue(collection_visible(data, 'pinned'))
-        self.assertFalse(collection_visible(data, 'drafts'))
-
-    def test_empty_pinned_and_both_draft_states_are_recognized(self):
-        for collection, label in [('pinned', 'ピン留めした項目はありません'),
-                                  ('drafts', '編集中の項目'),
-                                  ('drafts', '下書きはありません')]:
-            with self.subTest(collection=collection, label=label):
-                self.assertTrue(collection_visible(self.screen(label), collection))
-
-    def test_an_editor_cannot_count_as_a_return_to_the_collection(self):
-        data = self.screen('ピン留めした項目・コピー回数順', editing=True)
-        self.assertFalse(collection_visible(data, 'pinned'))
-
-    def test_wrong_collection_search_and_old_unordered_heading_are_rejected(self):
-        for label in ['保存した項目・コピー回数順', '検索結果・コピー回数順',
-                      'ピン留めした項目', '編集中の項目', 'ピン留めした項目・別の順番']:
-            with self.subTest(label=label):
-                self.assertFalse(collection_visible(self.screen(label), 'pinned'))
+if __name__ == '__main__':
+    unittest.main()

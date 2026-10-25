@@ -118,6 +118,18 @@ class ProcessTests(unittest.TestCase):
         self.run.manifest = {"commands": []}
         self.run.args = Mock(device="explicit-udid")
 
+    def test_command_returns_exact_utf8_newlines_and_keeps_stderr_separate(self):
+        expected = '  か\u3099\r\nline\rnext\n\0👩🏽‍💻  '
+        diagnostic = b'diagnostic\r\n'
+        script = ('import sys; sys.stdout.buffer.write(' + repr(expected.encode('utf-8'))
+                  + '); sys.stderr.buffer.write(' + repr(diagnostic) + ')')
+        actual = self.run.command([sys.executable, '-c', script], 'exact-command-output')
+        event = self.run.manifest['commands'][-1]
+        self.assertEqual(actual.encode('utf-8'), expected.encode('utf-8'))
+        self.assertEqual((self.run.path / event['stdout']).read_bytes(), expected.encode('utf-8'))
+        self.assertEqual((self.run.path / event['stderr']).read_bytes(), diagnostic)
+        self.assertEqual(event['exit_code'], 0)
+
     def test_testability_override_is_limited_to_test_actions(self):
         self.run.config = {"project": "app/Nibble.xcodeproj", "scheme": "Nibble"}
         self.run.args.configuration = "Release"
@@ -125,7 +137,10 @@ class ProcessTests(unittest.TestCase):
             with self.subTest(test=test), patch.object(self.run, "boot"), patch.object(self.run, "command") as command, patch.object(ios, "validate_summary"):
                 command.return_value = '{}'
                 self.run.build(test=test)
-                arguments = command.call_args_list[1].args[0]
+                builds = [call.args[0] for call in command.call_args_list
+                          if call.args[0][0] == ios.XCODEBUILD]
+                self.assertEqual(len(builds), 1)
+                arguments = builds[0]
                 self.assertEqual("ENABLE_TESTABILITY=YES" in arguments, test)
                 self.assertEqual(arguments[-1], "test" if test else "build")
 

@@ -159,7 +159,9 @@ class Run:
             detail = stdout + (self.path / event["stderr"]).read_text()
             raise VerificationError(f"Command failed ({result.returncode}): {shlex.join(argv)}\n"
                                     + "\n".join(detail.splitlines()[-25:]))
-        return (self.path / event["stdout"]).read_text()
+        # Preserve the command's UTF-8 bytes, including CRLF and lone CR. Text
+        # mode's universal-newline conversion would corrupt clipboard proof.
+        return (self.path / event["stdout"]).read_bytes().decode("utf-8")
 
     def setup(self):
         if platform.system() != "Darwin":
@@ -202,10 +204,6 @@ class Run:
 
     def build(self, test=False):
         self.boot()
-        if self.config["project"].startswith("app/"):
-            runtime = self.command([sys.executable, ROOT / "scripts/rive_runtime.py", "prepare"],
-                                   "prepare-rive-runtime", timeout=3600)
-            self.manifest["rive_runtime"] = json.loads(runtime)
         # Xcode still validates every build. Cache partitioning avoids toggling
         # testability/architectures in the same intermediate products.
         environment = self.manifest.get("environment", {})

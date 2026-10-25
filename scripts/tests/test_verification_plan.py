@@ -52,14 +52,25 @@ class SelectionTests(unittest.TestCase):
                          {'static'} | (verify.PRODUCT_STEPS - {'product-test'}))
 
     def test_variable_sources_require_real_editor_and_use_review(self):
-        for path in ('app/Shared/Editing/EditorBodyField.swift',
-                     'app/Shared/Domain/SnippetVariables.swift',
-                     'app/Shared/Interface/VariableFillView.swift'):
+        for path in ('app/Shared/Editing/NativeDocumentField.swift',
+                     'app/Shared/Editing/WorkspaceEditorView.swift',
+                     'app/Shared/Domain/TextTemplate.swift',
+                     'app/Shared/Domain/WorkDraft.swift',
+                     'app/Shared/Application/UseSessionModel.swift',
+                     'app/Shared/Persistence/WorkspaceRepository.swift',
+                     'app/Nibble/Workspace/WorkspaceUseView.swift',
+                     'app/NibbleKeyboard/PreparedKeyboardModel.swift'):
             with self.subTest(path=path):
                 selected = verify.plan([path])
                 self.assertIn('product-test', {step['id'] for step in selected['steps']})
                 self.assertIn('docs/ios-verification.md#変数の編集と利用を確認する',
                               ' '.join(selected['manual_review']))
+
+    def test_variable_source_catalog_does_not_reference_deleted_product_inputs(self):
+        root = Path(__file__).resolve().parents[2]
+        for path in verify.VARIABLE_WORKFLOW_SOURCES:
+            with self.subTest(path=path):
+                self.assertTrue((root / path).is_file(), path)
 
     def test_saved_observation_tool_does_not_start_ios(self):
         self.assertEqual(self.selected(['scripts/ui_observation.py']), {'static'})

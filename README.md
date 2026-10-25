@@ -1,28 +1,33 @@
 # nibble
 
-nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0以上向けアプリです。端末内で動作し、アカウント・同期・独自バックアップを持ちません。保存・編集・挿入・コピーでは原文の空白・改行・Unicodeを保持します。
+nibbleは、繰り返し使う文章を用意し、必要な場面で意図した内容を再利用するiOS 26.0以上向けアプリです。保存済み文章と途中作業を分け、空白・改行・Unicodeを原文として保持します。
 
-## 画面と基本操作
+## 文章を用意して使う
 
-| 場所 | できること |
-| --- | --- |
-| 作業画面 | 保存済みを使用回数順に表示し、編集・コピー・整理する。すべて・ピン留め・下書きを切り替え、上部の検索欄から保存済み全体を日本語1文字で探す。Pull to Refreshで外部からの更新を取り込む |
-| 設定 | 「削除した項目」へ階層移動して復元・完全削除を行い、キーボード案内と製品情報を開き、バージョンを確認する |
-| 編集 | 必須の本文を先に、任意タイトルを後に入力する。本文ではOS標準の選択・貼り付けとMarkdown原文の「入力」／「プレビュー」を使い、原文のまま保存する。「保存」は利用対象へ確定、「閉じる」は下書きを保持する |
-| 共有拡張 | 他アプリの共有シートからテキスト・URLを取り込む |
-| キーボード | 「すべて」を初期表示し、ピン留めを先頭に置く。行タップで本文を入力先へ挿入し、右端の「全文を見る」でキーボード内の詳細を開く。詳細では本文を末尾まで読み、入力先への挿入とクリップボードへのコピーを選べる。フルアクセスを許可するとコピー・ピン更新も使える |
+1. 本体で作成するか、他アプリの共有から文章・URLを取り込みます。
+2. 名前と本文をOS標準の日本語入力で編集し、保存します。「閉じる」は作業を保持し、後から「作業中」で再開できます。
+3. 名前・本文から探すか、ピン留めした文章を選び、使う全文を確認します。
+4. 明示的にコピーし、入力先のアプリへ戻って欄を選び、OSのペーストを行います。
 
-## 変数
+保存・コピー・入力先への挿入は別の処理です。コピー後に自動で貼り付けたり送信したりしません。失敗・競合では現在入力を残し、再試行や別文章への保存で続けられるようにします。不要な文章はごみ箱へ移して戻せます。作業中の入力はごみ箱移動に巻き込まず、完全消去のUIは設けていません。
 
-本文の「変数を追加」で既存名を再利用するか、新しい名前を作ります。`{{宛名}}`のような印は本文のカーソル位置に入り、文字を選択中なら置き換えます。本文に位置を選んでいない場合は末尾へ加えます。同じ名前の印を複数置いても、利用時の入力欄は一つです。
+## 相手や用件に合わせる
 
-コピーまたはキーボード入力の前に、項目名・原文・変数の入力欄を確認します。値が揃うと完成文が表示され、長い文章は必要なときに全文を開けます。値の確定前に戻ると、コピー・挿入・使用記録は行いません。保存済みの本文は差し替え後も原文のままです。[変数の構成と状態](docs/architecture/variables.md)に責務と状態をまとめています。
+編集画面で「差し替えを使う」をオンにして本文へ`{{宛名}}`のような印を入れると、使うときに本体の標準入力で値を用意できます。既定はオフで、コード例などに含まれる`{{…}}`も文字どおりに保存・利用します。同名の印は一つの入力で差し替えます。ひな型を変えず、文字どおりの完成文全文を確認してコピーします。Markdown記号を隠す描画切替はありません。
 
-## 利用プラン
+途中の値も作業として保持し、再利用カードを保存しなくても中断・再開・コピーできます。同じ完成文を繰り返し使う場合だけ、名前を確認して別の固定文に保存できます。由来となるひな型名は保存時の記録で、元ひな型が変わっても固定文は自動で変わりません。
 
-保存、検索、コピー、キーボード挿入、変数の差し替えは件数制限なく利用できます。設定の「nibble Pro」は権利状態と提供状況を表示します。Proの販売は、継続的な提供内容と公開用の規約・プライバシーポリシーが揃ったときに開始します。無料版の広告も配信設定とプライバシー対応が揃ってから作業画面へ導入します。編集、変数入力、キーボード、コピー完了の面には広告を置きません。機能の利用条件、StoreKit、広告を導入する条件は[収益と機能アクセス](docs/architecture/monetization.md)を参照してください。
+## 他アプリで使うキーボード
 
-操作・保存・失敗回復の詳細は[製品仕様・要件](docs/product-specification.md)に定義します。
+任意で追加するnibbleキーボードは、ピン留めした固定文の全文確認・挿入を担当します。更新が新しい最大50件を表示し、差し替えが有効で印の値が必要なひな型や、作業中の入力は渡しません。差し替えをオフにした文章中の`{{…}}`は固定文としてそのまま使えます。未掲載の文章の検索や、毎回変わる差し替えは本体で行い、コピーして入力先でペーストします。
+
+追加と切替は「使い方と管理」から案内します。Full Access許可を必須にしない読取専用構成で、Keyboardには本文編集、独自かな漢字入力、コピー、ピン更新、通信を持たせません。パスワード欄や第三者キーボードを許可しないホストでは、コピーとペーストを使います。[設計とOS境界](docs/architecture/keyboard.md)を参照してください。
+
+## 保存と提供範囲
+
+文章と作業は端末内に保存し、アカウント・サーバー同期・独自バックアップを持ちません。OSのバックアップに含まれる可能性はありますが、nibble独自の復旧として保証しません。アプリ削除後の復旧と旧保存形式からの移行は提供しません。
+
+課金、広告、Rive、独自IMEは製品構成に含めません。採用する仕様と実装の責務は[製品仕様・要件](docs/product-specification.md)と[アーキテクチャ](docs/architecture/README.md)、実施した検証は対象sourceと条件を持つrunで確認します。説明や画面の実装を受入完了とは扱いません。
 
 ## 開発を始めるときに読む資料
 
@@ -33,8 +38,8 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 | データ・状態・失敗回復を理解する | [製品仕様・要件](docs/product-specification.md)、[Swift規約](docs/library-policy.md) |
 | 画面の状態・非同期処理・描画を変更する | [画面の状態と応答性](docs/architecture/responsiveness.md)、[性能検証](docs/performance-verification.md) |
 | 変数の編集・入力・出力を理解する | [変数の編集と利用](docs/architecture/variables.md)、[操作検証](docs/ios-verification.md#変数の編集と利用を確認する) |
-| 無料・Proの機能と収益の構成を理解する | [収益と機能アクセス](docs/architecture/monetization.md) |
-| UIや説明イラストを変える | [UI設計](docs/design/README.md)、[Rive制作](app/Animations/README.md) |
+| 課金・広告を採用しない範囲を理解する | [収益と機能アクセス](docs/architecture/monetization.md) |
+| UIや保持する制作資産を扱う | [UI設計](docs/design/README.md)、[製品と制作資産の境界](docs/architecture/presentation.md) |
 | 実行・証跡・PRを確認する | [検証基盤](docs/ios-verification.md)、[証跡とPR](docs/review-evidence.md) |
 | AIでSimulatorの動作・外観を確認する | [観測データの確認](docs/simulator-inspection.md)。原本を保存し、要素情報と必要な領域の画像を読む |
 | 外部の制約・未確認条件を調べる | [OSの境界](docs/reference/platform.md)、[保存と検索](docs/reference/storage.md)、[保護と公開](docs/reference/security.md)、[検証範囲](docs/testing.md#検証範囲と制約) |
@@ -47,10 +52,10 @@ nibbleは、よく使うテキストを保存して素早く利用するiOS 26.0
 
 | 配置 | 内容 |
 | --- | --- |
-| `app/` | 本体、共有拡張、キーボード、共有モデル・保存層、Rive、製品回帰と性能target |
-| `runtime/rive/` | Rive描画基盤のソース加工・依存解決・ビルド対象・Package定義 |
+| `app/` | 本体、共有拡張、固定文キーボード、共有モデル・保存層、製品回帰と保持する制作資産 |
+| `runtime/rive/` | 保持するRive制作・検証基盤。現製品では使用しない |
 | `scripts/` | ビルド・検証・証跡・配布のCLIと回帰テスト |
-| `validation/` | 実行基盤のVerificationApp、保存層の測定harness、Markdownの入力例とOS連携用の入力ページ |
+| `validation/` | 実行基盤のVerificationApp、保存層の測定harness、OS連携の入力fixture |
 | `tools/ui-design/` | 製品に依存しない設計照合ツール |
 | `marketing/` | Firebase Hostingで配信するサポート・プライバシー・問い合わせページ |
 | `docs/` | 仕様、構成、UI設計、開発・検証手順、外部仕様の参照 |
@@ -103,7 +108,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | `workflow-policy` | runner方針、workflow構文、埋め込みシェル |
 | `nix-format` | Nix定義の書式 |
 | `ios-tooling` | driver、証跡、画面要素の解析、画像加工の拒否・失敗契約、CLI入出力、PR、文書、Swift規約のPython回帰テスト |
-| `swift-library-policy` | 所有するSwiftソースのTasking・ScopedAnimation・AppMacros使用、レイヤー依存・タスク開始・View比較・型とファイルによるView構成の境界 |
+| `swift-library-policy` | 所有するSwiftソースの依存方向・禁止API・タスク開始・View比較・型とファイルによるView構成の境界 |
 | `swift-style` / `swift-build-settings` | SwiftLint・SwiftFormatの規則と、Swift・Clang警告をエラーにするビルド設定 |
 | `documentation` | Markdownの相対リンク・見出し、Skill、Swift記載例、shell例のコマンド・設定パス、UI設計IDと照合記録 |
 | `ui-design` | 製品に依存しない設計ツールの照合・設定・移設・別製品の回帰テスト |
@@ -136,15 +141,12 @@ Swift Package Manager（SPM）がアプリのライブラリ依存を解決し�
 | 依存 | 採用版 | 用途 |
 | --- | --- | --- |
 | swift-tasking | 0.3.0 | UIが開始するタスクの所有・寿命・重複管理 |
-| swift-scoped-animation | 0.2.2 | アニメーションの適用範囲と伝播の制御 |
-| swift-app-macros | 0.3.0 | 本体・共有拡張・キーボード・RivePresentationのViewにMainActor上の比較を定義 |
+| swift-app-macros | 0.3.0 | 本体・共有拡張・KeyboardのViewの比較境界 |
 | swift-syntax | 603.0.2 | Mac上でAppMacrosのマクロを構築する間接依存 |
-| RiveRuntime | 6.27.0の固定ソースから構築 | [描画基盤](runtime/rive/README.md)がMetal描画先の取得を専用キューで実行。RivePresentation経由で本体だけに組み込む |
 
 swift-syntaxはAppMacrosのmanifestが指定する版を使います。製品の構成と依存の対応条件は[依存とビルド](docs/library-policy.md#依存とビルド)に定義しています。ネットワーク接続のあるMacで依存を解決してください。
 
 ```sh
-python3 scripts/rive_runtime.py prepare
 xcodebuild -resolvePackageDependencies \
   -project app/Nibble.xcodeproj -scheme Nibble \
   -clonedSourcePackagesDirPath artifacts/SourcePackages
@@ -170,7 +172,7 @@ python3 scripts/verify.py status --result artifacts/verify/対象ID/result.json
 
 結果ファイルのパスは`run`のstdoutから取得します。`status`で成否、未開始工程、端末の削除結果を確認します。
 
-通常回帰は`--scope regression`、製品は`--scope product`、Riveの時間・メモリ測定は`--scope performance`で選べます。測定は目的と条件を決めて実行します。
+通常回帰は`--scope regression`、製品は`--scope product`で選べます。性能測定は目的と条件、対象の工程を[性能手順](docs/performance-verification.md)で確認します。
 
 製品の期待動作は[製品仕様・要件](docs/product-specification.md)、操作とVerificationAppの実行は[共通手順](docs/ios-verification.md)を参照します。
 
@@ -212,7 +214,3 @@ python3 .agents/skills/moletta/scripts/moletta.py init artifacts/moletta/task-id
 記録はGit管理外の作業資料として保持し、iOSの検証・証跡には既存の[nibble検証手順](docs/ios-verification.md)を使います。
 
 更新は`nix flake update moletta-source`で行い、新しいNixシェルに入り直します。両ホストの導入済み5技能を確認して`artifacts/`へ退避した後、上のコピー導入を再実行します。Moletta以外の技能や設定は退避対象に含めません。更新後も新しいセッションから利用します。
-
-## 他アプリで使うキーボード
-
-設定のキーボード利用案内からOS設定で追加します。入力欄のキーボード切替でnibbleを選びます。secure入力等では利用できないことがあります。[権限と操作](docs/architecture/keyboard.md)と[検証方法](docs/ios-verification.md#キーボードの操作検証)を参照してください。

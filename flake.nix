@@ -286,6 +286,7 @@
             }
             ''
               cp -R ${./scripts} scripts
+              cp -R ${./app} app
               mkdir -p tools
               cp -R ${./tools/ui-design} tools/ui-design
               chmod -R u+w scripts tools

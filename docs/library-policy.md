@@ -7,11 +7,9 @@
 | 役割 | 採用する入口 |
 | --- | --- |
 | UIタスクの所有・寿命・重複 | TaskingのViewTaskStore / TaskingCoreのTaskSlot |
-| SwiftUIの表示変化と伝播遮断 | ScopedAnimationのAnimationScope / animationBarrier |
 | View比較の生成 | AppMacrosの@Equatable / EquatableBodyView |
-| RMLの表示 | ローカルPackageのRivePresentation経由でrive-iosのApple runtime API |
 
-SPMの直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。RiveRuntimeは[Rive描画基盤](../runtime/rive/README.md)のローカルPackageとし、ソース・間接依存をflake.lockで固定してビルドする。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
+SPMの直接依存はexact version、全依存は[共有lock](../app/Nibble.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)で固定する。現製品はTaskingとAppMacrosを使い、ScopedAnimation・Rive・StoreKit・広告・独自かな漢字入力を製品依存へ含めない。制作資産のRivePresentationと[Rive描画基盤](../runtime/rive/README.md)は製品外で保持する。AppMacrosが要求するswift-syntaxを独立に選び直さない。swift-syntaxはMacのmacroビルド用で、iOS runtimeではない。
 
 製品はSwift 6、strict concurrency complete、default isolation nonisolatedを使う。UIに必要なMainActorを明示する。Xcodeの本体・検証用projectはDebug/ReleaseともSwift・Clangのコンパイラ警告をエラーにする。PackageのコンパイルはXcode側の警告抑制と衝突するため、このビルド設定の対象はproject内のtargetとする。AppMacrosの実行にはmacOS 26以上・Swift 6.3以上が必要で、取得したsource/revisionを確認して[個別にmacroを承認](../README.md#4-xcodeとswift-packageを準備する)。一括で検証を無効化しない。
 
@@ -77,7 +75,7 @@ Swiftソースでは`else`に続く`if`と、`else`ブロック直下の`if`を�
 
 Viewは表示値、選択、フォーカス、シート、可視性など表示に必要な状態を扱う。保存・検索の取得・競合判定・共有入力の変換・OSへの作用はモデルまたは専用の境界へ渡す。UIイベントからの非同期処理はタスク所有者の`startTask`で開始する。共通の外観と表示観測はModifier、内容と入力のまとまりはView、寸法は用途別の値として定義する。
 
-レイアウトは親の提案サイズ、内容の自然なサイズ、Stackの整列、伸長・折返し・スクロール、safe areaの制約から組み立てる。画面サイズを読み取った絶対座標で部品を配置しない。SwiftUIとUIKitの接続に必要な座標変換とAuto Layoutは接続型へ閉じ込める。固定寸法は記号・操作領域・占有領域など仕様に意味のある値に限る。`InterfaceMetrics`は操作と通知の寸法を所有する。作業画面は検索・集合選択・一覧と下部の作成操作を同じsafe area内に配置する。
+レイアウトは親の提案サイズ、内容の自然なサイズ、Stackの整列、伸長・折返し・スクロール、safe areaの制約から組み立てる。画面サイズを読み取った絶対座標で部品を配置しない。SwiftUIとUIKitの接続に必要な座標変換とAuto Layoutは接続型へ閉じ込める。固定寸法は記号・操作領域・占有領域など仕様に意味のある値に限る。作業画面は検索・集合選択・一覧を同じ作業領域へ、作成と管理の入口をtoolbarへ配置する。入力はForm内でスクロールでき、終了操作は標準NavigationBarへ置く。
 
 [構成検査](../scripts/swift_view_structure.py)は製品ソースのView型とファイル名、明示したView結果型、`@ViewBuilder`宣言をASTで検査する。[違反例の回帰](../scripts/tests/test_view_structure.py)はコメント・文字列・protocol必須実装との区別も確認する。これは構文契約であり、型aliasの解決や業務ロジックの妥当性はSwiftコンパイラーとレビューの責務である。Viewの分割自体を高速化の根拠にせず、比較境界と実行時の更新を確認する。
 
@@ -134,7 +132,7 @@ Bindingの現在値が同じでも、その書込先は異なり得る。操作c
 
 State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関係で扱う。通常の格納入力を持たないViewには`inputRevision`を置かない。initializerでStateの初期値を受け取る場合は、その初期値と、表示中も差し替わる親入力を区別する。Stateの保持期間はViewのidentityに従う。
 
-`inputRevision`は比較専用であり、`.id()`、`ForEach`、永続データのIDには使わない。入力の差し替えのために、編集内容、フォーカス、タスク所有者、RiveのSessionを作り直さない。RiveCanvasの描画更新番号`renderingRevision`は別の役割を持ち、[RivePresentationの契約](../app/Packages/RivePresentation/README.md#比較と停止再描画)に従う。
+`inputRevision`は比較専用であり、`.id()`、`ForEach`、永続データのIDには使わない。入力の差し替えのために、編集内容、フォーカス、タスク所有者を作り直さない。製品外の保持資産にあるRiveCanvasの描画更新番号`renderingRevision`は別の役割を持ち、[RivePresentationの契約](../app/Packages/RivePresentation/README.md#比較と停止再描画)に従う。
 
 ### 実装上の制約と受入条件
 
@@ -147,13 +145,13 @@ State、StateObject、Environment、AppStorage等の更新はSwiftUIの依存関
 
 ## アニメーションの境界
 
-独自の表示変化は名前付きAnimationScopeへ限定し、valueまたはproxyのscope.animateを使う。複数triggerのfactoryはAnimationTrigger.animationと型名を明記する。入力等にはanimationBarrierを置く。
+現製品は独自のアニメーションを持たず、OS標準の画面・入力・スクロールを使う。保持する表示Packageで独自の表示変化を扱う場合は、名前付きAnimationScopeへ限定し、valueまたはproxyのscope.animateを使う。複数triggerのfactoryはAnimationTrigger.animationと型名を明記し、入力等にはanimationBarrierを置く。
 
 OSのsheet transactionとアプリ内部の変化は境界を分ける。Debug診断はmodifierへ届くtransactionを扱い、子孫の全表示やUIKitを保証しない。入力・スクロール・画面遷移は実行確認する。製品の表示設定は[固定方針](design/rationale/fixed-interface.md)に従う。
 
 ## Riveの表示境界
 
-RivePresentationのApple runtime APIとData Bindingを使い、RiveViewModel・RiveFile、Timer、DisplayLink、生Taskでフレームを進めない。ホストのtaskからロードとSession生成を直接awaitし、取消済みの結果を採用しない。業務状態と演出は独立させる。所有と停止中描画は[Package契約](../app/Packages/RivePresentation/README.md)、制作は[アセット手順](../app/Animations/README.md)に従う。
+この節は製品外で保持する制作資産の規約であり、製品への接続を要求しない。RivePresentationのApple runtime APIとData Bindingを使い、RiveViewModel・RiveFile、Timer、DisplayLink、生Taskでフレームを進めない。ホストのtaskからロードとSession生成を直接awaitし、取消済みの結果を採用しない。業務状態と演出は独立させる。所有と停止中描画は[Package契約](../app/Packages/RivePresentation/README.md)、制作は[アセット手順](../app/Animations/README.md)に従う。
 
 ## Lintと禁止する直接使用
 
@@ -175,7 +173,7 @@ nix flake check --no-update-lock-file --print-build-logs
 | UIKit / Core Animationの直接アニメーション | `UIView.animate`・`transition`等、`UIViewPropertyAnimator`、CAAnimation系、`CATransaction`等 | ScopedAnimation |
 | 直接の比較 | `.equatable`、`EquatableView`、`.equatableBody`、手書き`==` | AppMacros、データの標準Equatable合成 |
 
-対象名は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)に定義する。`StoreKit.Transaction`は購入権利の検証に限って使用し、SwiftUIのアニメーションtransactionと区別する。それ以外では予約名を別用途にも使わない。SQLiteのhelperには`readTransaction`・`writeTransaction`を使い、共通の確定・rollbackをprivateな`performTransaction`へ閉じ込める。
+対象名は[scripts/check_swift_policy.py](../scripts/check_swift_policy.py)に定義する。検査器にある`StoreKit.Transaction`の識別例外はSwiftUIのアニメーションtransactionとの区別であり、現製品への購入機能の採用を意味しない。それ以外では予約名を別用途にも使わない。SQLiteのhelperには`readTransaction`・`writeTransaction`を使い、共通の確定・rollbackをprivateな`performTransaction`へ閉じ込める。
 
 字句解析はコメント・通常/raw/複数行文字列・regexの本文を読み飛ばし、実行される補間を検査する。改行・コメントを挟む呼出し、修飾名、backtick、型aliasも対象とする。
 
@@ -231,10 +229,10 @@ Lintは型解決・マクロ展開・全プログラムの副作用解析を行�
 
 ## 採用理由と更新条件
 
-Taskingは所有と重複、ScopedAnimationは適用範囲、AppMacrosは値比較と親入力更新を宣言できるため使う。製品側は終了イベント、伝播、比較入力と状態寿命を設計し、compiler・テスト・画面・性能で確認する。
+Taskingは所有と重複、AppMacrosは値比較と親入力更新を宣言するため使う。製品側は終了イベント、比較入力と状態寿命を設計し、compiler・テスト・画面・性能で確認する。ScopedAnimationとRiveの規約は保持資産へ適用し、製品依存を再導入する根拠にしない。
 
 依存の更新はexact要求・lock・ソース・ライセンス・対応OSを照合する。保守停止、OS/toolchain不適合、実測悪化、表現上の制約を見直し条件とする。判断と実施範囲は[製品の検証範囲](testing.md#検証範囲と制約)に対応させる。
 
 ## ツールチェーン上の注意
 
-Swift 6.3.2ではKeyboardのBindingへsetterのメソッド参照を渡す構成でIR生成が終了し、明示的なsetter closureでビルドが成立する条件を確認している。該当箇所を簡略化する場合は製品targetのビルドで確認する。コンパイラー内部の原因と新しい版での解消は未確認。
+過去のSwift 6.3.2の試作では、KeyboardのBindingへsetterのメソッド参照を渡すとIR生成が終了し、明示的なsetter closureでビルドが成立する条件を確認した。コンパイラー内部の原因と新しい版での解消は未確認で、現在のKeyboardは値入力を持たない。この記録を新しいtargetの不適合や回避策の必要性の証拠にせず、該当構成を採用する場合に対象toolchainで確認する。

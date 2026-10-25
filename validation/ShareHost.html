@@ -7,20 +7,31 @@
 body { font: 17px system-ui; margin: 24px; color: #222; background: #faf9f5; }
 textarea { box-sizing: border-box; width: 100%; min-height: 140px; font: inherit; padding: 12px; }
 button, a { display: block; margin: 14px 0; padding: 12px; font: inherit; }
-output { overflow-wrap: anywhere; }
+output, pre { display: block; overflow-wrap: anywhere; white-space: pre-wrap; }
 </style>
 <h1>nibble 検証フォーム</h1>
 <p>共有・ペーストの検証専用ダミーデータです。</p>
-<label for="source">共有する本文</label>
+<label for="source">入力先 A / 共有する本文</label>
 <textarea id="source">  ご確認ありがとうございます。
 日本語 が 👩🏽‍💻  </textarea>
+<button id="observe-source" onclick="observe('source', 'source-observed-text', 'source-bytes')">A の本文とUTF-8を表示</button>
+<pre id="source-observed-text" aria-label="観測した本文 A"></pre>
+<output id="source-bytes" aria-label="A の UTF-8 バイト列"></output>
 <button id="markdown" onclick="fetch('EditorMarkdown.txt').then(response => { if (!response.ok) throw new Error(response.status); return response.text(); }).then(text => document.getElementById('source').value = text).catch(error => document.getElementById('status').textContent = error.message)">Markdownの入力例を使う</button>
 <button id="share" onclick="navigator.share({text: document.getElementById('source').value}).catch(error => document.getElementById('status').textContent = error.name)">テキストを共有</button>
 <p id="status" aria-live="polite"></p>
-<label for="destination">ペースト先</label>
+<label for="destination">入力先 B / ペースト先</label>
 <textarea id="destination"></textarea>
-<button onclick="document.getElementById('bytes').textContent = JSON.stringify(Array.from(new TextEncoder().encode(document.getElementById('destination').value)))">本文のUTF-8を表示</button>
-<output id="bytes"></output>
+<button id="observe-destination" onclick="observe('destination', 'destination-observed-text', 'bytes')">本文のUTF-8を表示</button>
+<pre id="destination-observed-text" aria-label="観測した本文 B"></pre>
+<output id="bytes" aria-label="B の UTF-8 バイト列"></output>
 <a href="nibble://library">nibbleの一覧を開く</a>
-<a href="nibble://new">新しいスニペットを作成</a>
+<a href="nibble://create">新しい文章を作成</a>
+<script>
+function observe(inputID, textID, bytesID) {
+  const text = document.getElementById(inputID).value;
+  document.getElementById(textID).textContent = text;
+  document.getElementById(bytesID).textContent = JSON.stringify(Array.from(new TextEncoder().encode(text)));
+}
+</script>
 </html>

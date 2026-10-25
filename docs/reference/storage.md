@@ -4,9 +4,9 @@ nibbleはApple同梱SQLiteをApp Groupで共有する。採用した状態・tra
 
 ## SQLiteを選ぶ理由
 
-本体・共有拡張・Keyboardの別プロセスで、原文、下書き、版の競合を明示的に扱う。SQLiteはtransactionと取得範囲を直接制御でき、既存DBの読取と限定的なピン更新を分離できる。別プロセスの表示更新は再取得、編集の衝突はrevisionの照合で処理する。[D06][D14]
+本体・共有拡張・Keyboardの別プロセスで、原文、途中作業、版の競合を明示的に扱う。SQLiteはtransactionと取得範囲を直接制御でき、Keyboardの読取と本体の更新を分離できる。別プロセスの表示更新は再取得、編集の衝突は版と保持済みsequenceの照合で処理する。[D06][D14]
 
-固定した一覧条件には索引を用い、SQLは接続内で上限付きで再利用する。検索走査・接続の保持量・索引容量は[性能手順](../performance-verification.md)で別々に測定する。同期・export/importは製品の提供範囲に含めない。
+固定した一覧条件には索引を用いる。操作ごとの短い接続でstatementを準備・解放し、常設のstatement cacheは持たない。検索走査・接続の保持量・索引容量は[性能手順](../performance-verification.md)で別々に測定する。同期・export/importは製品の提供範囲に含めない。
 
 ## App GroupとWAL
 
@@ -18,7 +18,7 @@ SQLite upstreamのWAL-reset修正がApple同梱版へ含まれるかは未確認
 
 ## 原文と検索値
 
-Swiftの文字列等価とUTF-8の完全一致は異なる。保存・コピーする原文を正規化せず、検索値だけへNFCと日本語localeのcase/width foldingを使う。ひらがな/カタカナと清音/濁音を区別するのは製品判断で、Unicode正規化が決める検索仕様ではない。[D17][D18]
+Swiftの文字列等価とUTF-8の完全一致は異なる。保存・コピーする原文を正規化せず、検索値だけへNFCと固定localeのcase/width foldingを使う。ひらがな/カタカナと清音/濁音を区別するのは製品判断で、Unicode正規化が決める検索仕様ではない。[D17][D18]
 
 FTS5のunicode61は単語単位で、trigramのMATCHは1〜2文字の部分一致を満たさない。日本語1文字からの検索を優先し、製品は正規化した値への部分一致を採用する。[D15]大きなデータでの走査時間は別途測定し、LIKEで結果が返ることを索引が効くことと混同しない。
 
