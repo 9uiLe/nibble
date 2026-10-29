@@ -16,11 +16,6 @@ struct WorkspaceHomeView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 24) {
-                Text("nibble")
-                    .font(.largeTitle.bold())
-                    .tracking(-0.8)
-                    .frame(minHeight: 44, alignment: .leading)
-                    .accessibilityAddTraits(.isHeader)
                 WorkspaceSearchField(search: $search)
                 ScrollView {
                     LazyVStack(spacing: 0) {
