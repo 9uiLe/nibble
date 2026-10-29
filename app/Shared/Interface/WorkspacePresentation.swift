@@ -50,6 +50,8 @@ enum WorkspacePresentation {
             "この作業を更新できません。入力を別の文章として保存してください。"
         case .emptyBody:
             "本文を入力してください。作業中の内容は残っています。"
+        case .emptyTitle:
+            "タイトルを入力してください。入力はこの画面に残っています。"
         case .missingValues(let names):
             "「\(names.joined(separator: "」「"))」を入力して完成文を確認してください。"
         }

@@ -4,134 +4,124 @@ import Tasking
 
 @MainActor @Equatable
 struct WorkspaceHomeView: View {
-    private enum Action {
-        case create, more, retry
-        case use(TextCard), edit(TextCard), pin(TextCard), trash(TextCard), restore(TextCard), resume(WorkDraft)
-    }
-    private struct Search: Hashable { let query: String; let pinned: Bool }
+    private enum Action { case create, more, retry, use(TextCard), copy(TextCard) }
     private let inputRevision = UUID()
     @SkipEquatable let model: WorkspaceModel
     @SkipEquatable let storage: any WorkspaceStorage
     @SkipEquatable let delivery: any TextDelivery
     @State private var search = ""
-    @State private var pinned = false
-    @State private var settings = false
-    @State private var deleting: TextCard?
     @State private var tasks = ViewTaskStore()
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                TextField("名前や本文から探す", text: $search)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .accessibilityIdentifier("workspace.search")
-                Picker("表示する文章", selection: $pinned) {
-                    Text("すべて").tag(false)
-                    Text("ピン留め").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("workspace.filter")
-                List {
-                    if let error = model.error {
-                        Section {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("nibble")
+                    .font(.largeTitle.bold())
+                    .tracking(-0.8)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                WorkspaceSearchField(search: $search)
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        if let error = model.error {
                             WorkspaceErrorView(error: error)
                             Button("もう一度読み込む") { startTask(.retry) }
                                 .accessibilityIdentifier("workspace.retry")
                         }
-                    }
-                    if !model.drafts.isEmpty {
-                        Section("作業中") {
-                            ForEach(Array(model.drafts.prefix(2))) { draft in
-                                Button { startTask(.resume(draft)) } label: {
-                                    Label(WorkspacePresentation.draftTitle(draft), systemImage: "pencil.and.outline")
-                                        .lineLimit(2)
-                                }
-                                .accessibilityIdentifier("workspace.draft.\(draft.id.uuidString)")
-                            }
-                            NavigationLink("作業中をすべて見る（\(model.drafts.count)）") {
-                                WorkspaceDraftsView(model: model)
-                            }
-                        }
-                    }
-                    Section {
                         ForEach(model.cards) { card in
-                            HStack(alignment: .top) {
+                            HStack(spacing: 16) {
                                 Button { startTask(.use(card)) } label: { WorkspaceCardRow(card: card) }
                                     .buttonStyle(.plain)
                                     .accessibilityIdentifier("workspace.card.\(card.id.uuidString)")
-                                Menu {
-                                    Button("編集", systemImage: "pencil") { startTask(.edit(card)) }
-                                    Button(card.pinned ? "ピン留めを外す" : "ピン留め", systemImage: "pin") { startTask(.pin(card)) }
-                                    Button("ごみ箱へ移す", systemImage: "trash", role: .destructive) { deleting = card }
-                                } label: {
-                                    Image(systemName: "ellipsis.circle").frame(minWidth: 44, minHeight: 44)
+                                Button { startTask(.copy(card)) } label: {
+                                    Label("\(WorkspacePresentation.title(card))をコピー", systemImage: "doc.on.doc")
+                                        .labelStyle(.iconOnly)
+                                        .font(.system(size: 16))
+                                        .frame(width: 44, height: 44)
+                                        .background(WorkspaceStyle.subtle, in: Circle())
+                                        .contentShape(Circle())
                                 }
-                                .accessibilityLabel("\(WorkspacePresentation.title(card))の管理")
-                                .accessibilityIdentifier("workspace.manage.\(card.id.uuidString)")
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("workspace.copy.\(card.id.uuidString)")
                             }
+                            .padding(.top, card.id == model.cards.first?.id ? 0 : 20)
+                            .padding(.bottom, 20)
+                            .overlay(alignment: .bottom) { Rectangle().fill(WorkspaceStyle.divider).frame(height: 1) }
                         }
                         if model.hasMore {
                             Button("続きを読み込む") { startTask(.more) }
+                                .padding(.vertical, 20)
                                 .accessibilityIdentifier("workspace.more")
                         }
                         if model.loading { ProgressView("読み込んでいます") }
                         if model.cards.isEmpty && !model.loading && model.error == nil {
-                            ContentUnavailableView(search.isEmpty ? "使う文章を用意しましょう" : "一致する文章がありません",
-                                                   systemImage: search.isEmpty ? "text.badge.plus" : "magnifyingglass",
-                                                   description: Text(search.isEmpty ? "作成するか、他のアプリの共有からnibbleへ取り込みます。" : "名前や本文の一部で探してください。"))
+                            ContentUnavailableView(search.isEmpty ? "プロンプトがありません" : "一致するプロンプトがありません",
+                                                   systemImage: search.isEmpty ? "text.badge.plus" : "magnifyingglass")
                         }
-                    } header: { Text("文章 \(model.total)件") }
+                    }
+                    .padding(.bottom, 140)
                 }
-                .listStyle(.insetGrouped)
+                .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
-                .refreshable { await model.refresh(search: search, pinned: pinned) }
+                .refreshable { await model.refresh(search: search) }
             }
-            .navigationTitle("nibble")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("使い方と管理", systemImage: "gearshape") { settings = true }
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .ignoresSafeArea(edges: .bottom)
+            .background(Color(uiColor: .systemBackground))
+            .foregroundStyle(WorkspaceStyle.text)
+            .overlay(alignment: .bottomTrailing) {
+                Button { startTask(.create) } label: {
+                    Label("新規プロンプトを作成", systemImage: "plus")
                         .labelStyle(.iconOnly)
-                        .accessibilityIdentifier("workspace.settings")
+                        .font(.system(size: 24, weight: .regular))
+                        .foregroundStyle(Color(uiColor: .systemBackground))
+                        .frame(width: 56, height: 56)
+                        .contentShape(Circle())
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("作成", systemImage: "plus") { startTask(.create) }
-                        .accessibilityIdentifier("workspace.create")
-                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.tint(Color.primary.opacity(0.9)).interactive(), in: .circle)
+                .padding(.trailing, 24)
+                .padding(.bottom, 2)
+                .accessibilityIdentifier("workspace.create")
             }
+            .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let notice = model.notice {
-                    WorkspaceNoticeView(model: model, notice: notice)
+                if let notice = model.notice { WorkspaceNoticeView(model: model, notice: notice) }
+            }
+            .navigationDestination(isPresented: Binding<Bool>(get: {
+                if case .prompt = model.route { return true }
+                return false
+            }, set: { presented in if !presented { model.route = nil } })) {
+                if case .prompt(let prompt) = model.route {
+                    PromptDetailView(model: prompt, delivery: delivery) { await model.finished() } onDeleted: { deleted in
+                        await model.finishedDeletingPrompt(deleted)
+                    }
                 }
             }
-            .sheet(item: Binding(get: { model.route }, set: { model.route = $0 })) { route in
+            .fullScreenCover(item: Binding<WorkspaceModel.Route?>(get: {
+                if case .prompt = model.route { return nil }
+                return model.route
+            }, set: { route in
+                if case .prompt = model.route { return }
+                model.route = route
+            })) { route in
                 switch route {
                 case .editor(let editor):
-                    WorkspaceEditorView(model: editor) { saved in await model.finished(saved: saved) }
+                    PromptEditorView(model: editor) { saved in await model.finished(saved: saved) }
                 case .use(let use):
                     WorkspaceUseView(model: use, delivery: delivery) { await model.finished() }
+                case .prompt: EmptyView()
                 }
             }
-            .sheet(isPresented: $settings, onDismiss: { startTask(.retry) }) {
-                WorkspaceSettingsView(storage: storage)
-            }
-            .confirmationDialog("「\(deleting.map(WorkspacePresentation.title) ?? "選んだ文章")」をごみ箱へ移しますか？ 後から戻せます。", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
-                if let card = deleting {
-                    Button("ごみ箱へ移す", role: .destructive) { startTask(.trash(card)); deleting = nil }
-                }
-            }
-            .task(id: Search(query: search, pinned: pinned)) { await model.refresh(search: search, pinned: pinned) }
+            .task(id: search) { await model.refresh(search: search) }
             .onChange(of: phase) { _, phase in
                 if phase == .active { startTask(.retry) }
             }
             .onDisappear { tasks.cancel(lifetime: .screenBound) }
         }
+        .tint(.primary)
     }
 
     private func startTask(_ action: Action) {
@@ -145,13 +135,9 @@ struct WorkspaceHomeView: View {
             switch action {
             case .create: await model.create()
             case .more: await model.loadMore()
-            case .retry: await model.refresh(search: search, pinned: pinned)
-            case .use(let card): await model.use(card)
-            case .edit(let card): await model.edit(card)
-            case .pin(let card): await model.pin(card)
-            case .trash(let card): await model.trash(card)
-            case .restore(let card): await model.restore(card)
-            case .resume(let draft): await model.resume(draft)
+            case .retry: await model.refresh(search: search)
+            case .use(let card): await model.openPrompt(card)
+            case .copy(let card): await model.copy(card, using: delivery)
             }
         }
     }

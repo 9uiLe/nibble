@@ -4,9 +4,17 @@ import UIKit
 
 @MainActor @Equatable(.mainActor)
 struct NativeDocumentPreview: UIViewRepresentable {
+    enum Style { case document, prompt }
     private let inputRevision = UUID()
     let text: String
     let identifier: String
+    let style: Style
+
+    init(text: String, identifier: String, style: Style = .document) {
+        self.text = text
+        self.identifier = identifier
+        self.style = style
+    }
 
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView(usingTextLayoutManager: true)
@@ -35,10 +43,13 @@ struct NativeDocumentPreview: UIViewRepresentable {
 
     private func configure(_ view: UITextView) {
         view.accessibilityIdentifier = identifier
-        view.accessibilityLabel = "使う文章の全文"
-        view.accessibilityHint = "枠内を上下にスクロールして全文を確認できます"
-        guard !text.utf8.elementsEqual((view.text ?? "").utf8) else { return }
-        view.text = text
-        view.setContentOffset(.zero, animated: false)
+        view.accessibilityLabel = style == .prompt ? "プロンプトの全文" : "使う文章の全文"
+        view.accessibilityHint = "上下にスクロールして全文を確認できます"
+        let changed = !text.utf8.elementsEqual((view.text ?? "").utf8)
+        if changed {
+            view.text = text
+            view.setContentOffset(.zero, animated: false)
+        }
+        if style == .prompt { PromptTextLayout.apply(to: view, field: .preview, force: changed) }
     }
 }

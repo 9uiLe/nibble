@@ -13,6 +13,7 @@ protocol WorkspaceStorage: Sendable {
     func discardDraft(id: UUID, expectedSequence: Int) async throws
     func setPinned(_ pinned: Bool, cardID: UUID, expectedVersion: Int) async throws -> TextCard
     func trash(cardID: UUID, expectedVersion: Int) async throws -> TextCard
+    func rename(cardID: UUID, expectedVersion: Int, title: String) async throws -> TextCard
     func restore(cardID: UUID, expectedVersion: Int) async throws -> TextCard
     func keyboardSummaries(limit: Int) async throws -> [PreparedCardSummary]
     func revalidate(cardID: UUID, expectedVersion: Int) async throws -> TextCard

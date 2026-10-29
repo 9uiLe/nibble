@@ -12,11 +12,12 @@ struct WorkspaceNoticeView: View {
     var body: some View {
         HStack(spacing: 12) {
             switch notice {
-            case .saved: Text("文章を保存しました").accessibilityIdentifier("workspace.notice.text")
-            case .restored: Text("文章をごみ箱から戻しました").accessibilityIdentifier("workspace.notice.text")
+            case .copied: Text("コピーしました").accessibilityIdentifier("workspace.notice.text")
+            case .saved: Text("プロンプトを保存しました").accessibilityIdentifier("workspace.notice.text")
+            case .restored: Text("プロンプトを元に戻しました").accessibilityIdentifier("workspace.notice.text")
             case .pinned(let pinned): Text(pinned ? "ピン留めしました" : "ピン留めを外しました").accessibilityIdentifier("workspace.notice.text")
             case .trashed(let card):
-                Text("「\(WorkspacePresentation.title(card))」をごみ箱へ移しました")
+                Text("「\(WorkspacePresentation.title(card))」を削除しました")
                     .accessibilityIdentifier("workspace.notice.text")
                 Button("元に戻す") { startTask(card) }
                     .accessibilityIdentifier("workspace.undo")

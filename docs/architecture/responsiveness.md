@@ -7,7 +7,8 @@
 | 状態 | 所有者 | 更新の境界 |
 | --- | --- | --- |
 | 検索要求・一覧・ページ・作業一覧 | `WorkspaceModel` | 要求IDが一致する結果だけを採用。検索条件と表示結果を取り違えない |
-| 検索文字・ピン選択・管理提示 | `WorkspaceHomeView` | OS標準入力とユーザー選択。操作後は同じ要求で再読込 |
+| 検索文字・フォーカス | `WorkspaceHomeView` / `WorkspaceSearchField` | OS標準入力と検索解除。同じ一覧へ結果を反映 |
+| 詳細の原文・本文編集・名前変更・コピー | `PromptSessionModel` | 版を照合して確定し、保存・再読込が終わってから元の詳細へ戻る |
 | 編集入力・保持済みsequence・失敗 | `DraftSessionModel` | UTF-8変更でsequenceを進め、checkpointと確定保存を区別 |
 | 差し替え値・完成文・copied | `UseSessionModel` | 準備値は作業、完成文は導出、コピー済みはその確認セッションの外部作用状態 |
 | marked text・選択・カーソル | `NativeDocumentField`のUITextView | OSが所有し、変換中のUIからの再設定を避ける |
@@ -23,13 +24,13 @@ Viewが始める有限操作はTaskingのownerで管理する。作業の保存�
 
 checkpointは入力snapshotをawaitし、現在のsequenceと照合して保持表示・失敗を採用する。作業除去後の遅いcheckpointで再生成しない。画面終了や取消で、確定済みの保存やコピーを巻き戻したと表示しない。
 
-OS作用前の取消と、DB確定後の結果反映を区別する。コピーが済んでから作業片付けに失敗しても、利用者へ再コピーを要求しない。Keyboardは入力先・可視性・本文の版も操作資格に含める。
+保存・削除後の一覧再読込は画面を閉じる前に完了させる。閉じる操作によるscreenBoundタスクの取消で結果反映を捨てない。OS作用前の取消と、DB確定後の結果反映を区別する。コピーが済んでから作業片付けに失敗しても、利用者へ再コピーを要求しない。Keyboardは入力先・可視性・本文の版も操作資格に含める。
 
 ## 更新、UIKit、配置
 
 UIKit入力はCoordinatorの接続先だけを更新し、原文がUTF-8で異なる場合に必要な同期を行う。変換中はmarked textを維持し、OSの入力状態とモデルを相互に上書きし続けない。文字の変更だけをViewのidentityへ使わない。
 
-レイアウトは標準のList・Form・NavigationStack、safe area、自然な折返しとスクロールを使う。本文入力と完成文が、OSキーボード・確認操作・エラーで読めなくならないようにする。Dynamic Typeと狭幅は別に評価する。
+本体のレイアウトは[採用した外観](../design/ios-polish.md)とNavigationStack、safe area、自然な折返しとスクロールを使う。共有など既存の入口は標準Formを使う。本文入力と完成文が、OSキーボード・確認操作・エラーで読めなくならないようにする。Dynamic Typeと狭幅は別に評価する。
 
 ## 開発時の確認
 

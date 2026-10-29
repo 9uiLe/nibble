@@ -18,11 +18,11 @@ nibbleは、本体を文章準備と利用の既定経路とし、共有拡張�
 
 | 配置 | 責務と主な型 |
 | --- | --- |
-| `app/Nibble/NibbleApp.swift`、`app/Nibble/Workspace/` | 本体の依存生成、起動、検索可能な一覧、作業の再開、確認とコピー、管理。`WorkspaceEntryView`、`WorkspaceHomeView`、`WorkspaceUseView` |
+| `app/Nibble/NibbleApp.swift`、`app/Nibble/Workspace/` | 本体の依存生成、起動、検索可能な一覧、作業の再開、確認とコピー、管理。`WorkspaceEntryView`、`WorkspaceHomeView`、`PromptDetailView`、`PromptEditorView` |
 | `app/NibbleShare/` | providerからの原文取得、耐久的な新規作業、共通エディター、共有元への終了 |
 | `app/NibbleKeyboard/` | 読取専用の固定文一覧と全文、入力先の同一性・可視性を照合した明示挿入 |
 | `app/Shared/Domain/` | `TextCard`、`WorkDraft`、`TextTemplate`、一覧要求、失敗。原文・差し替え・入力順序の規則 |
-| `app/Shared/Application/` | `WorkspaceModel`、`DraftSessionModel`、`UseSessionModel`。取得の採否、保存、準備、回復と一度のコピー |
+| `app/Shared/Application/` | `WorkspaceModel`、`PromptSessionModel`、`DraftSessionModel`、既存入口の`UseSessionModel`。取得の採否、保存、準備、回復と一度のコピー |
 | `app/Shared/Application/Contracts/` | `WorkspaceStorage`と`TextDelivery`。UIや具体的なSQLite接続を持たない操作境界 |
 | `app/Shared/Persistence/` | `WorkspaceRepository`。App Group、schema、短い接続、SQL、versionとsequenceのtransaction照合 |
 | `app/Shared/Editing/` | 本体と共有で使う`WorkspaceEditorView`、`NativeDocumentField`のUIKit標準入力接続 |

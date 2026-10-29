@@ -62,6 +62,10 @@ def plan(paths, scope='auto'):
             for name in PRODUCT_STEPS - {'product-test'}:
                 select(name, path + ': 製品UIの共通操作')
             continue
+        elif path == 'scripts/check_prompt_ui.py':
+            for name in PRODUCT_STEPS - {'product-test'}:
+                select(name, path + ': 現在のプロンプト導線')
+            continue
         elif (path.endswith('.md') or path.startswith(('docs/', '.agents/', 'marketing/'))
               or path == '.gitignore'):
             continue
@@ -92,8 +96,7 @@ def plan(paths, scope='auto'):
         elif path == 'scripts/check_interface_ui.py':
             select('interface-ui', path)
         elif path == 'scripts/check_about_ui.py':
-            select('about-ui', path)
-            select('keyboard-guide-ui', path)
+            manual.append('従来の設定・説明画面は現在の本体導線に含めない。docs/design/ios-polish.mdを参照')
         elif path in {'validation/StoreBenchmark.swift', 'scripts/benchmark_store.py'}:
             manual.append('保存層の性能: docs/performance-verification.md（' + path + '）')
         elif path.startswith('validation/'):

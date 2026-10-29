@@ -3,7 +3,10 @@ import Observation
 
 @MainActor @Observable
 final class DraftSessionModel: Identifiable {
+    enum ContentKind { case text, prompt }
     let id: UUID
+    private let initialDraft: WorkDraft
+    private let contentKind: ContentKind
     private let storage: any WorkspaceStorage
     @ObservationIgnored private var checkpointInProgress = false
     @ObservationIgnored private var checkpointWaiters: [CheckedContinuation<Void, Never>] = []
@@ -15,8 +18,10 @@ final class DraftSessionModel: Identifiable {
     private(set) var busy = false
     var isComposing = false
 
-    init(draft: WorkDraft, storage: any WorkspaceStorage) {
+    init(draft: WorkDraft, storage: any WorkspaceStorage, contentKind: ContentKind = .text) {
         id = draft.id
+        initialDraft = draft
+        self.contentKind = contentKind
         self.draft = draft
         self.storage = storage
     }
@@ -24,6 +29,18 @@ final class DraftSessionModel: Identifiable {
     var savedSequence: Int { draft.checkpointSequence }
     var hasCheckpoint: Bool { !discardsLocalInputOnly && savedSequence == draft.sequence }
     var hasIndependentRecovery: Bool { independentDraft != nil }
+    var hasChanges: Bool { !draft.hasSameInput(as: initialDraft) }
+    var canSavePrompt: Bool {
+        !busy && !isComposing && (draft.cardID == nil || hasChanges) && (try? validatePromptInput()) != nil
+    }
+
+    private func validatePromptInput() throws {
+        if draft.cardID == nil {
+            try TextCard.validatePrompt(title: draft.title, body: draft.body)
+        } else {
+            try TextCard.validateBody(draft.body)
+        }
+    }
 
     func update(title: String? = nil, body: String? = nil, usesVariables: Bool? = nil) {
         guard !busy else { return }
@@ -70,6 +87,10 @@ final class DraftSessionModel: Identifiable {
 
     func save() async -> TextCard? {
         guard !busy, !isComposing else { return nil }
+        if contentKind == .prompt {
+            do { try validatePromptInput() }
+            catch { recordFailure(error); return nil }
+        }
         busy = true
         defer { busy = false }
         guard await checkpoint() else { return nil }
