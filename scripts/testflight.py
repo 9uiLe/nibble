@@ -56,7 +56,7 @@ def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9ui
         require(info.get('CFBundleSupportedPlatforms') == ['iPhoneOS'], 'Device archive required.')
         require(info.get('MinimumOSVersion') == '26.0', 'Minimum iOS must remain 26.0.')
         require(info.get('DTPlatformName') == 'iphoneos', 'Device SDK required.')
-        require(info.get('DTPlatformVersion') == '26.5', 'Use the verified iOS 26.5 SDK.')
+        require(info.get('DTPlatformVersion') == '27.0', 'Use the configured iPhoneOS 27.0 SDK.')
         require(info.get('ITSAppUsesNonExemptEncryption') is False,
                 'App and extension must declare no non-exempt encryption with a Boolean false.')
         executable = info.get('CFBundleExecutable', '')
@@ -81,7 +81,7 @@ def archive_info(archive, bundle_id='nibble.9uiLe.com', extension_id='nibble.9ui
             'App icon configuration is missing.')
     return {'bundle_id': bundle_id, 'extension_bundle_id': extension_id, 'keyboard_bundle_id': keyboard_id,
             'version': app_info['CFBundleShortVersionString'], 'build': app_info['CFBundleVersion'],
-            'minimum_ios': '26.0', 'sdk': '26.5', 'uses_non_exempt_encryption': False}
+            'minimum_ios': '26.0', 'sdk': '27.0', 'uses_non_exempt_encryption': False}
 
 
 def private_path(path, directory=False):
@@ -262,7 +262,7 @@ class Deployment:
         self.unchanged()
         sdk = subprocess.check_output(['/usr/bin/xcrun', '--sdk', 'iphoneos', '--show-sdk-version'],
                                       env=apple_environment(), stderr=subprocess.DEVNULL, text=True).strip()
-        require(sdk == '26.5', 'iPhoneOS 26.5 SDKを選択してください。')
+        require(sdk == '27.0', 'iPhoneOS 27.0 SDKを選択してください。')
         self.native('prepare-rive-runtime', [nix, 'develop', '--command',
                     'python3', 'scripts/rive_runtime.py', 'prepare'], 3600)
         self.unchanged()

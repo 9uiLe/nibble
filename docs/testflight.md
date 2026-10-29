@@ -113,6 +113,8 @@ scripts/deploy-testflight.sh --dry-run
 
 コマンドはNixの全check、固定したSwift Packageの解決、Release archive、メタデータ検査、署名・送信を順に実行する。輸出コンプライアンスは、製品のInfo.plistに保存した申告をXcode経由で送信する。Appleの[buildアップロード](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds)と[輸出コンプライアンス](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)も参照する。
 
+配布archiveは開発環境と同じXcode 27.0 / iPhoneOS SDK 27.0で作成し、本体・両拡張のSDKと最低対応OS 26.0を検査する。Simulatorで実行検証するOSは26.5であり、ビルド用SDKの版とは区別する。
+
 ### ビルド番号
 
 既定値は実行時点のUTC日時`YYYYMMDDHHmm`。本体・共有拡張・キーボードに同じ番号を設定する。番号を明示する場合は、App Store Connectで未使用かつ配布済みビルドより新しい値を指定する。

@@ -24,7 +24,7 @@ def make_archive(archive, build='1'):
         path.mkdir(parents=True)
         info = {'CFBundleIdentifier': identifier, 'CFBundlePackageType': kind,
                 'CFBundleSupportedPlatforms': ['iPhoneOS'], 'DTPlatformName': 'iphoneos',
-                'DTPlatformVersion': '26.5', 'MinimumOSVersion': '26.0',
+                'DTPlatformVersion': '27.0', 'MinimumOSVersion': '26.0',
                 'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': build,
                 'CFBundleExecutable': 'fixture', 'ITSAppUsesNonExemptEncryption': False,
                 'CFBundleIcons': {'CFBundlePrimaryIcon': {'CFBundleIconName': 'AppIcon'}},
@@ -223,6 +223,19 @@ class CredentialTests(Fixture):
 
 
 class ArchiveTests(Fixture):
+    def test_archive_sdk_matches_the_build_toolchain_in_every_bundle(self):
+        archive = self.root / 'Nibble.xcarchive'
+        app, share = make_archive(archive)
+        self.assertEqual(tf.archive_info(archive)['sdk'], '27.0')
+        for bundle in [app, share, app / 'PlugIns/NibbleKeyboard.appex']:
+            path = bundle / 'Info.plist'
+            original = plistlib.loads(path.read_bytes())
+            info = dict(original, DTPlatformVersion='26.5')
+            path.write_bytes(plistlib.dumps(info))
+            with self.subTest(bundle=bundle.name), self.assertRaisesRegex(tf.DistributionError, 'SDK'):
+                tf.archive_info(archive)
+            path.write_bytes(plistlib.dumps(original))
+
     def test_device_bundle_versions_and_privacy_resources(self):
         archive = self.root / 'Nibble.xcarchive'
         app, share = make_archive(archive)
@@ -333,7 +346,7 @@ class DeploymentTests(Fixture):
         output = io.StringIO()
         with patch.object(run, 'native', side_effect=native), patch.object(run, 'unchanged'), \
                 patch.object(tf.shutil, 'which', return_value='/test/nix'), \
-                patch.object(tf.subprocess, 'check_output', return_value='26.5'), redirect_stdout(output):
+                patch.object(tf.subprocess, 'check_output', return_value='27.0'), redirect_stdout(output):
             run.execute()
         return run, calls, output.getvalue()
 
@@ -376,6 +389,15 @@ class DeploymentTests(Fixture):
             with self.assertRaises(tf.DistributionError):
                 run.execute()
         self.assertEqual(native.call_count, 1)
+
+    def test_unconfigured_sdk_stops_before_dependency_resolution_and_signing(self):
+        run = self.deployment()
+        with patch.object(run, 'native') as native, patch.object(run, 'unchanged'), \
+                patch.object(tf.shutil, 'which', return_value='/test/nix'), \
+                patch.object(tf.subprocess, 'check_output', return_value='26.5'):
+            with self.assertRaisesRegex(tf.DistributionError, '27.0 SDK'):
+                run.execute()
+        self.assertEqual([call.args[0] for call in native.call_args_list], ['checks'])
 
     def test_native_errors_and_timeouts_never_return_raw_output_or_inherited_credentials(self):
         run = self.deployment()
