@@ -60,7 +60,7 @@ struct WorkspaceEntryView: View {
         switch link {
         case .library: await model.reload()
         case .create(let title, let body): await model.create(title: title, body: body)
-        case .use(let id): await model.use(cardID: id)
+        case .use(let id): await model.openPrompt(cardID: id)
         }
     }
 

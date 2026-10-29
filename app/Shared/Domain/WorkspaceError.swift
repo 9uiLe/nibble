@@ -12,6 +12,7 @@ enum WorkspaceError: Error, Equatable, Sendable {
     case staleCheckpoint
     case invalidDraft
     case emptyBody
+    case emptyTitle
     case missingValues([String])
 
     static func normalize(_ error: any Error) -> Self {

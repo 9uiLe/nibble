@@ -6,16 +6,19 @@ final class WorkspaceModel {
     enum Route: Identifiable {
         case editor(DraftSessionModel)
         case use(UseSessionModel)
+        case prompt(PromptSessionModel)
         var id: UUID {
             switch self {
             case .editor(let model): model.id
             case .use(let model): model.id
+            case .prompt(let model): model.id
             }
         }
     }
 
     enum Notice {
         case saved
+        case copied
         case trashed(TextCard)
         case restored
         case pinned(Bool)
@@ -92,7 +95,7 @@ final class WorkspaceModel {
         do {
             let draft = try await storage.beginDraft(title: title, body: body)
             guard route == nil, !Task.isCancelled else { return }
-            route = .editor(DraftSessionModel(draft: draft, storage: storage))
+            route = .editor(DraftSessionModel(draft: draft, storage: storage, contentKind: .prompt))
         } catch { self.error = WorkspaceError.normalize(error) }
     }
 
@@ -109,6 +112,27 @@ final class WorkspaceModel {
 
     func use(_ card: TextCard) async {
         await use(cardID: card.id)
+    }
+
+    func openPrompt(_ card: TextCard) async {
+        await openPrompt(cardID: card.id)
+    }
+
+    func openPrompt(cardID: UUID) async {
+        guard !hasOpenWork else { return }
+        opening = true
+        defer { opening = false }
+        do {
+            let current = try await storage.card(id: cardID)
+            guard route == nil, !Task.isCancelled else { return }
+            route = .prompt(PromptSessionModel(card: current, storage: storage))
+        } catch { self.error = WorkspaceError.normalize(error) }
+    }
+
+    func finishedDeletingPrompt(_ deleted: TextCard) async {
+        notice = .trashed(deleted)
+        await reload()
+        route = nil
     }
 
     func use(cardID: UUID) async {
@@ -157,6 +181,16 @@ final class WorkspaceModel {
         } catch { self.error = WorkspaceError.normalize(error) }
     }
 
+    func copy(_ card: TextCard, using delivery: any TextDelivery) async {
+        do {
+            let current = try await storage.revalidate(cardID: card.id, expectedVersion: card.version)
+            try Task.checkCancellation()
+            delivery.copy(current.body)
+            error = nil
+            notice = .copied
+        } catch { self.error = WorkspaceError.normalize(error) }
+    }
+
     func trash(_ card: TextCard) async {
         do {
             let deleted = try await storage.trash(cardID: card.id, expectedVersion: card.version)
@@ -178,8 +212,8 @@ final class WorkspaceModel {
     }
 
     func finished(saved: Bool = false) async {
-        route = nil
         if saved { notice = .saved }
         await reload()
+        route = nil
     }
 }

@@ -54,18 +54,17 @@ python3 scripts/verify.py run --base origin/main --temporary-device
 python3 scripts/ios.py test --device "$NIBBLE_SIMULATOR" --configuration Release
 python3 scripts/ios.py run --device "$NIBBLE_SIMULATOR" --configuration Release \
   --project-config validation/project.json
-python3 scripts/check_library_ui.py --device "$NIBBLE_SIMULATOR"
-python3 scripts/check_notice_ui.py --device "$NIBBLE_SIMULATOR"
-python3 scripts/check_controls_ui.py --device "$NIBBLE_SIMULATOR"
-python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR"
-python3 scripts/check_about_ui.py --device "$NIBBLE_SIMULATOR" --story keyboard
+python3 scripts/check_prompt_ui.py --scenario library --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_prompt_ui.py --scenario notice --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_prompt_ui.py --scenario controls --device "$NIBBLE_SIMULATOR"
+python3 scripts/check_prompt_ui.py --scenario interface --device "$NIBBLE_SIMULATOR"
 ```
 
 `library-ui`の外部PasteにはVerificationAppの事前インストールが必要である。通常回帰はfixture工程を先に行う。製品だけのscopeや個別実行では上のfixture `run`を先に実行する。未準備なら失敗を残し、クリップボードへの書込みだけで外部利用の成功にしない。
 
 各driverは固有名のダミー文章だけを操作する。`library-ui`の保存失敗は、`simctl get_app_container`が返した製品のApp Group内の既存DBへ、対象の固有名だけに作用するSQLite ABORT triggerを入れる。失敗UIと同じ下書きの完全なUTF-8を照合し、finallyでtriggerを除去してから同じ画面の保存を再試行する。製品の試験用入口や、無関係な保存物の破壊を使わない。
 
-公開工程名`about-ui`と`keyboard-guide-ui`のrun名は互換性のため`rive-about` / `rive-keyboard`を維持する。現在は説明の読取と管理への到達を確認する工程で、演出再生の検査ではない。
+現在の本体UIの工程は `library-ui`（必須入力・保存失敗と再試行・原文コピーと外部Paste）、`notice-ui`（削除確認・取消・取り消し）、`controls-ui`（本文だけの編集・破棄確認・タイトルだけの変更）、`interface-ui`（明暗・最大文字・長文コピー）である。共通driverは `check_prompt_ui.py`、入口は `verification_catalog.py` に集約する。旧構成の設定・説明画面を使う `about-ui` / `keyboard-guide-ui` は通常回帰の対象に含めない。独自の設定・管理画面を再導入して旧検証を通すことはしない。
 
 ### 検証状態を確認する
 
@@ -109,10 +108,10 @@ python3 scripts/inspect_ui.py tree artifacts/ios/対象run/画面.json --text-li
 
 自動driverの成否に加えて、次の利用全体を実際の操作で確認する。
 
-1. 自分で作成、または他アプリの共有から取り込む。保存して後から検索し、全文を確認して使う。
-2. 編集中に閉じる・背景へ移る。作業中から再開し、元の保存文を取り違えず意図した文面で使う。
-3. 差し替えを明示的に有効にし、相手と用件を入れる。中断・再開して完成文を確認し、一度コピーする。取消ではコピーもカード公開も起きない。
-4. 固有名の文章を削除してUndoする。ごみ箱から同じ原文を戻し、通常一覧とキーボードへの復帰を確認する。
+1. 本体でタイトル・本文を入力する。必須条件と失敗時の入力保持を確認し、保存後に検索・全文確認・明示コピー・外部Pasteを行う。
+2. 本文編集ではタイトルが表示専用であること、変更時の×で破棄を確認すること、続行で入力を保つことを確認する。本文保存後は同じ詳細へ戻る。タイトル変更Alertでは本文を変更せず、取消は無作用であることを確認する。
+3. 既存の差し替え入口を別途検証する場合だけ、差し替えを明示的に有効にし、相手と用件を入れる。中断・再開して完成文を確認し、一度コピーする。取消ではコピーもカード公開も起きない。
+4. 固有名のプロンプトを対象名付きの標準Alertで確認して削除し、直後の通知から取り消す。同じUUIDと原文が一覧へ戻ることを確認する。
 5. 保存障害、元カードの版変更、入力先変更、OSの利用制約を起こす。入力と意図を保持し、失敗の説明から続行する。
 
 少量・5,000件、短文・長文、Unicode、通常幅・狭幅、標準・最大文字サイズで条件を分ける。正しい原文、意図しない作用の防止、作業保持が成立してから時間・操作判断の負担・読みやすさを評価する。
@@ -125,11 +124,13 @@ OSの日本語かな／ローマ字キーボードを選び、実際のキーか
 
 ### 変数の編集と利用を確認する
 
+以下は旧利用セッション・拡張の変更を調べるときの条件である。採用した本体の通常導線には差し替えの入口がないため、そこからの実行済みとは扱わない。
+
 本文へ`{{宛名}}`を入れ、編集の「差し替えを使う」を有効にして保存する。無効のままなら印を含む原文が文字どおり使われることも確認する。有効な文章を選び、値の未入力・空白、中断・再開、完成文確認、取消、コピー、元の版変更からの回復を確かめる。完成文を別カードへ保存した場合は、元のひな型を変えず、名前と由来で識別できることを確認する。
 
 ### 共有の操作検証
 
-Safariや[ShareHost](../validation/ShareHost.html)でダミー文章を選び、OS共有シートからnibbleを開く。受け取った文章・URLを確認し、閉じて再開、保存失敗と再試行、保存後の検索・原文コピーまで行う。共有を取消した場合は意図しないカード公開やコピーがないことを確認する。
+Safariや[ShareHost](../validation/ShareHost.html)でダミー文章を選び、OS共有シートからnibbleを開く。受け取った文章・URLを確認し、共有内の保存失敗と再試行、保存後の本体検索・原文コピーまで行う。旧エディターの「閉じる」は作業を保持するが、新しい本体には保持作業の再開入口を置いていない。共有を取消した場合は意図しないカード公開やコピーがないことを確認する。
 
 ### キーボードの操作検証
 

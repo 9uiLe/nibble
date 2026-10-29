@@ -41,7 +41,7 @@ class SelectionTests(unittest.TestCase):
     def test_controls_driver_selects_its_matching_evidence_stage(self):
         self.assertEqual(self.selected(['scripts/check_controls_ui.py']), {'static', 'controls-ui'})
         self.assertEqual(verify.command_for('controls-ui', 'device-id'),
-                         [sys.executable, 'scripts/check_controls_ui.py', '--device', 'device-id'])
+                         [sys.executable, 'scripts/check_prompt_ui.py', '--device', 'device-id', '--scenario', 'controls'])
         self.assertIn('controls-ui', self.selected(['app/Shared/Editing/EditorToolbar.swift']))
 
     def test_editor_fixture_and_product_operations_select_their_consumers(self):
@@ -89,7 +89,7 @@ class SelectionTests(unittest.TestCase):
             with self.subTest(path=path):
                 selected = self.selected([path])
                 self.assertTrue({'static', 'preview-native', 'fixture-test', 'fixture-smoke',
-                                 'product-test', 'library-ui', 'notice-ui', 'interface-ui', 'about-ui', 'keyboard-guide-ui'} <= selected)
+                                 'product-test', 'library-ui', 'notice-ui', 'interface-ui'} <= selected)
                 self.assertNotIn('performance-test', selected)
         selected = verify.plan(['app/Shared/Application/Contracts/LibraryRequest.swift'])
         self.assertIn('product-test', self.selected(['app/Shared/Application/Contracts/LibraryRequest.swift']))
@@ -122,8 +122,9 @@ class SelectionTests(unittest.TestCase):
     def test_ui_driver_changes_select_the_affected_flow(self):
         self.assertEqual(self.selected(['scripts/check_notice_ui.py']), {'static', 'notice-ui'})
         self.assertEqual(self.selected(['scripts/check_library_ui.py']), {'static', 'library-ui'})
-        self.assertEqual(self.selected(['scripts/check_about_ui.py']), {'static', 'about-ui', 'keyboard-guide-ui'})
-        self.assertEqual(verify.command_for('keyboard-guide-ui', 'explicit')[-2:], ['--story', 'keyboard'])
+        self.assertEqual(self.selected(['scripts/check_about_ui.py']), {'static'})
+        self.assertEqual(self.selected(['scripts/check_prompt_ui.py']),
+                         {'static', 'library-ui', 'notice-ui', 'controls-ui', 'interface-ui'})
         result = verify.plan(['README.md'], 'fixture')
         self.assertEqual({step['id'] for step in result['steps']}, {'static', 'fixture-test', 'fixture-smoke'})
         self.assertTrue(all(row['reason'] for row in result['excluded']))

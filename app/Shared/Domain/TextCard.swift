@@ -1,6 +1,19 @@
 import Foundation
 
 struct TextCard: Identifiable, Equatable, Sendable {
+    static func validatePrompt(title: String, body: String) throws {
+        try validatePromptTitle(title)
+        try validateBody(body)
+    }
+
+    static func validateBody(_ body: String) throws {
+        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WorkspaceError.emptyBody }
+    }
+
+    static func validatePromptTitle(_ title: String) throws {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WorkspaceError.emptyTitle }
+    }
+
     let id: UUID
     let title: String
     let body: String

@@ -5,19 +5,22 @@ import UIKit
 @MainActor
 @Equatable(.mainActor)
 struct NativeDocumentField: UIViewRepresentable {
+    enum Appearance { case standard, promptTitle, promptBody }
     private let inputRevision = UUID()
     @Binding private var text: String
     @Binding private var composing: Bool
     let identifier: String
     let label: String
     let singleLine: Bool
+    let appearance: Appearance
 
-    init(text: Binding<String>, composing: Binding<Bool>, identifier: String, label: String, singleLine: Bool = false) {
+    init(text: Binding<String>, composing: Binding<Bool>, identifier: String, label: String, singleLine: Bool = false, appearance: Appearance = .standard) {
         _text = text
         _composing = composing
         self.identifier = identifier
         self.label = label
         self.singleLine = singleLine
+        self.appearance = appearance
     }
 
     func makeUIView(context: Context) -> UITextView {
@@ -40,6 +43,7 @@ struct NativeDocumentField: UIViewRepresentable {
             input.text = text
         }
         input.delegate = context.coordinator
+        applyAppearance(input, force: true)
         return input
     }
 
@@ -51,7 +55,9 @@ struct NativeDocumentField: UIViewRepresentable {
         input.accessibilityIdentifier = identifier
         input.accessibilityLabel = label
         input.isEditable = context.environment.isEnabled
-        guard input.markedTextRange == nil, !text.utf8.elementsEqual((input.text ?? "").utf8) else { return }
+        guard input.markedTextRange == nil else { return }
+        let changed = !text.utf8.elementsEqual((input.text ?? "").utf8)
+        if !changed { applyAppearance(input, force: false); return }
         let selection = input.selectedRange
         input.text = text
         if Range(selection, in: text) != nil {
@@ -60,16 +66,26 @@ struct NativeDocumentField: UIViewRepresentable {
             input.selectedRange = NSRange(location: text.utf16.count, length: 0)
         }
         input.invalidateIntrinsicContentSize()
+        applyAppearance(input, force: true)
+    }
+
+    private func applyAppearance(_ input: UITextView, force: Bool) {
+        switch appearance {
+        case .standard: break
+        case .promptTitle: PromptTextLayout.apply(to: input, field: .title, force: force)
+        case .promptBody: PromptTextLayout.apply(to: input, field: .body, force: force)
+        }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         guard let width = proposal.width, width > 0, width.isFinite else { return nil }
-        if let height = proposal.height, height > 0, height.isFinite {
-            return CGSize(width: width, height: height)
-        }
         if singleLine {
             let lineHeight = (uiView.font ?? .preferredFont(forTextStyle: .body)).lineHeight
-            return CGSize(width: width, height: lineHeight + uiView.textContainerInset.top + uiView.textContainerInset.bottom)
+            let height = lineHeight + uiView.textContainerInset.top + uiView.textContainerInset.bottom
+            return CGSize(width: width, height: appearance == .promptTitle ? max(44, height) : height)
+        }
+        if let height = proposal.height, height > 0, height.isFinite {
+            return CGSize(width: width, height: height)
         }
         return uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
     }
@@ -104,6 +120,14 @@ struct NativeDocumentField: UIViewRepresentable {
 
         func textViewDidEndEditing(_ textView: UITextView) {
             publish(textView)
+        }
+
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            if connection.singleLine && text == "\n" {
+                textView.resignFirstResponder()
+                return false
+            }
+            return true
         }
 
         private func publish(_ input: UITextView) {

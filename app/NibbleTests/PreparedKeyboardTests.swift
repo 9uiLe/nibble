@@ -339,6 +339,7 @@ private actor PreparedKeyboardStorageProbe: WorkspaceStorage {
     func publish(_ draft: WorkDraft) throws -> TextCard { writeAttempts += 1; throw WorkspaceError.readOnly }
     func discardDraft(id: UUID, expectedSequence: Int) throws { writeAttempts += 1; throw WorkspaceError.readOnly }
     func setPinned(_ pinned: Bool, cardID: UUID, expectedVersion: Int) throws -> TextCard { writeAttempts += 1; throw WorkspaceError.readOnly }
+    func rename(cardID: UUID, expectedVersion: Int, title: String) throws -> TextCard { writeAttempts += 1; throw WorkspaceError.readOnly }
     func trash(cardID: UUID, expectedVersion: Int) throws -> TextCard { writeAttempts += 1; throw WorkspaceError.readOnly }
     func restore(cardID: UUID, expectedVersion: Int) throws -> TextCard { writeAttempts += 1; throw WorkspaceError.readOnly }
 }

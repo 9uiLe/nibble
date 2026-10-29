@@ -151,7 +151,7 @@ actor WorkspaceRepository: WorkspaceStorage {
                 let original = try Self.fetchActiveCard(cardID, expectedVersion: baseVersion, database: database)
                 candidate = TextCard(title: draft.title, body: try draft.renderedBody(), originTitle: original.title)
             }
-            guard !candidate.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WorkspaceError.emptyBody }
+            try TextCard.validateBody(candidate.body)
             try Self.writeCard(candidate, database: database)
             try database.execute("DELETE FROM work_drafts WHERE id=? AND sequence=?", [.text(draft.id.uuidString), .integer(draft.sequence)])
             guard database.changes == 1 else { throw WorkspaceError.staleCheckpoint }
@@ -200,7 +200,12 @@ actor WorkspaceRepository: WorkspaceStorage {
         try Self.fetchActiveCard(cardID, expectedVersion: expectedVersion, database: reader())
     }
 
-    private enum CardMutation { case pin(Bool), trash, restore }
+    func rename(cardID: UUID, expectedVersion: Int, title: String) throws -> TextCard {
+        try TextCard.validatePromptTitle(title)
+        return try mutateCard(cardID: cardID, expectedVersion: expectedVersion, operation: .rename(title))
+    }
+
+    private enum CardMutation { case pin(Bool), trash, restore, rename(String) }
 
     private func mutateCard(cardID: UUID, expectedVersion: Int, operation: CardMutation) throws -> TextCard {
         let database = try writer()
@@ -209,7 +214,12 @@ actor WorkspaceRepository: WorkspaceStorage {
             guard original.version == expectedVersion, original.version < Int.max else { throw WorkspaceError.conflict }
             var pinned = original.pinned
             var deletedAt = original.deletedAt
+            var title = original.title
             switch operation {
+            case .rename(let value):
+                guard original.deletedAt == nil else { throw WorkspaceError.missingCard }
+                if value.utf8.elementsEqual(title.utf8) { return original }
+                title = value
             case .pin(let value):
                 guard original.deletedAt == nil else { throw WorkspaceError.missingCard }
                 if value == pinned { return original }
@@ -221,7 +231,7 @@ actor WorkspaceRepository: WorkspaceStorage {
                 guard original.deletedAt != nil else { throw WorkspaceError.missingCard }
                 deletedAt = nil
             }
-            let result = TextCard(id: original.id, title: original.title, body: original.body, usesVariables: original.usesVariables, version: original.version + 1,
+            let result = TextCard(id: original.id, title: title, body: original.body, usesVariables: original.usesVariables, version: original.version + 1,
                                   pinned: pinned, deletedAt: deletedAt, originTitle: original.originTitle)
             try Self.writeCard(result, database: database)
             return result

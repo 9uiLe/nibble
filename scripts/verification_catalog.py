@@ -44,13 +44,10 @@ REGRESSION = (
     Stage('fixture-test', project=FIXTURE_CONFIG, command='test'),
     Stage('product-test', project=PRODUCT_CONFIG, command='test'),
     Stage('fixture-smoke', project=FIXTURE_CONFIG, command='fixture-smoke'),
-    Stage('library-ui', 'check_library_ui.py', project=PRODUCT_CONFIG, command='library-ui'),
-    Stage('notice-ui', 'check_notice_ui.py', project=PRODUCT_CONFIG, command='notice-ui'),
-    Stage('controls-ui', 'check_controls_ui.py', project=PRODUCT_CONFIG, command='controls-ui'),
-    Stage('interface-ui', 'check_interface_ui.py', project=PRODUCT_CONFIG, command='fixed-interface'),
-    Stage('about-ui', 'check_about_ui.py', project=PRODUCT_CONFIG, command='rive-about'),
-    Stage('keyboard-guide-ui', 'check_about_ui.py', project=PRODUCT_CONFIG, command='rive-keyboard',
-          arguments=('--story', 'keyboard')),
+    Stage('library-ui', 'check_prompt_ui.py', project=PRODUCT_CONFIG, command='library-ui', arguments=('--scenario', 'library')),
+    Stage('notice-ui', 'check_prompt_ui.py', project=PRODUCT_CONFIG, command='notice-ui', arguments=('--scenario', 'notice')),
+    Stage('controls-ui', 'check_prompt_ui.py', project=PRODUCT_CONFIG, command='controls-ui', arguments=('--scenario', 'controls')),
+    Stage('interface-ui', 'check_prompt_ui.py', project=PRODUCT_CONFIG, command='interface-ui', arguments=('--scenario', 'interface')),
 )
 PERFORMANCE = (
     Stage('performance-test', project=PERFORMANCE_CONFIG, command='test'),

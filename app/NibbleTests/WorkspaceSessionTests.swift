@@ -7,6 +7,34 @@ import UIKit
 @Suite("Workspace sessions reach durable and external results")
 @MainActor
 struct WorkspaceSessionTests {
+    @Test func listCopyDeliversTheExactSavedPromptWithoutOpeningAnEditingSession() async throws {
+        let fixture = try SessionWorkspaceFixture()
+        defer { fixture.removeFiles() }
+        let body = " \tか\u{3099}\r\n👩🏽‍💻 {{原文}}\0  "
+        let card = try await fixture.create(body: body)
+        let model = WorkspaceModel(storage: fixture.repository)
+        let delivery = SessionTextDeliverySpy()
+        await model.copy(card, using: delivery)
+        #expect(delivery.bodies.count == 1)
+        #expect(delivery.bodies.first?.utf8.elementsEqual(body.utf8) == true)
+        #expect(model.route == nil && model.error == nil)
+        #expect(try await fixture.repository.drafts().isEmpty)
+    }
+
+    @Test func listCopyDoesNotDeliverAChangedOrDeletedPromptFromAnOlderRow() async throws {
+        let fixture = try SessionWorkspaceFixture()
+        defer { fixture.removeFiles() }
+        let original = try await fixture.create(body: "一覧で表示した原文")
+        let changed = try await fixture.repository.setPinned(true, cardID: original.id, expectedVersion: original.version)
+        let model = WorkspaceModel(storage: fixture.repository)
+        let delivery = SessionTextDeliverySpy()
+        await model.copy(original, using: delivery)
+        #expect(delivery.bodies.isEmpty && model.error != nil)
+        _ = try await fixture.repository.trash(cardID: changed.id, expectedVersion: changed.version)
+        await model.copy(changed, using: delivery)
+        #expect(delivery.bodies.isEmpty && model.error != nil)
+    }
+
     @Test func awaitingSaveMakesTheExactEditedInputDurable() async throws {
         let fixture = try SessionWorkspaceFixture()
         defer { fixture.removeFiles() }
@@ -580,7 +608,7 @@ extension UIIntegrationTests {
     @Suite("Home entry remains available during refresh", .serialized)
     @MainActor
     struct WorkspaceHomeActionTests {
-        @Test func creatingFromTheMountedToolbarDoesNotWaitForAnActivationRefresh() async throws {
+        @Test func creatingFromTheMountedButtonDoesNotWaitForAnActivationRefresh() async throws {
             let fixture = try SessionWorkspaceFixture()
             defer { fixture.removeFiles() }
             let created = try await fixture.create(body: "既存の原文\r\nか\u{3099}👩🏽‍💻")
@@ -591,6 +619,7 @@ extension UIIntegrationTests {
             defer { host.close() }
             let view = WorkspaceHomeView(model: model, storage: storage, delivery: SessionTextDeliverySpy())
             host.show(AnyView(view), phase: .inactive)
+            try await host.wait { model.total == 1 && !model.loading }
             try await host.wait {
                 model.total == 1 && !model.loading && mountedHomeCreateAction(in: host.window) != nil
             }
@@ -605,7 +634,7 @@ extension UIIntegrationTests {
                 }
                 try #require(await refresh.isEntered, "The mounted active transition must begin a refresh")
                 try #require(model.loading && model.route == nil)
-                try #require(mountedHomeCreateAction(in: host.window)).activate()
+                try #require(try #require(mountedHomeCreateAction(in: host.window)).accessibilityActivate())
                 let presentationDeadline = ContinuousClock.now + .seconds(3)
                 while !mountedHomeEditorIsVisible(in: host.window), ContinuousClock.now < presentationDeadline {
                     host.controller.view.layoutIfNeeded()
@@ -617,7 +646,7 @@ extension UIIntegrationTests {
                 if !openedDuringRefresh {
                     // Prove this same public UIKit action reaches the product once
                     // the read finishes, rather than blaming an undispatchable tap.
-                    try #require(mountedHomeCreateAction(in: host.window)).activate()
+                    try #require(try #require(mountedHomeCreateAction(in: host.window)).accessibilityActivate())
                     try await host.wait { mountedHomeEditorIsVisible(in: host.window) }
                 }
                 guard case .editor(let editor) = model.route else {
@@ -638,40 +667,21 @@ extension UIIntegrationTests {
 }
 
 @MainActor
-private enum MountedHomeCreateAction {
-    case control(UIControl, UIControl.Event)
-    case barItem(UIBarButtonItem, Selector)
-
-    func activate() throws {
-        switch self {
-        case .control(let control, let event):
-            try #require(control.isEnabled && control.window != nil)
-            control.sendActions(for: event)
-        case .barItem(let item, let action):
-            try #require(item.isEnabled)
-            try #require(UIApplication.shared.sendAction(action, to: item.target, from: item, for: nil))
-        }
+private func mountedHomeCreateAction(in object: NSObject) -> NSObject? {
+    if object.accessibilityLabel == "新規プロンプトを作成", !object.accessibilityTraits.contains(.notEnabled) {
+        return object
     }
-}
-
-@MainActor
-private func mountedHomeCreateAction(in view: UIView) -> MountedHomeCreateAction? {
-    if view.accessibilityIdentifier == "workspace.create" {
-        var candidate: UIView? = view
-        while let current = candidate {
-            if let control = current as? UIControl {
-                if control.allControlEvents.contains(.primaryActionTriggered) { return .control(control, .primaryActionTriggered) }
-                if control.allControlEvents.contains(.touchUpInside) { return .control(control, .touchUpInside) }
-            }
-            candidate = current.superview
-        }
+    if let view = object as? UIView,
+       let action = view.subviews.lazy.compactMap({ mountedHomeCreateAction(in: $0) }).first {
+        return action
     }
-    if let bar = view as? UINavigationBar,
-       let item = bar.topItem?.rightBarButtonItems?.first(where: { $0.accessibilityIdentifier == "workspace.create" }),
-       let action = item.action {
-        return .barItem(item, action)
+    let count = object.accessibilityElementCount()
+    guard count > 0, count < 1000 else { return nil }
+    for index in 0..<count {
+        guard let child = object.accessibilityElement(at: index) as? NSObject, child !== object else { continue }
+        if let action = mountedHomeCreateAction(in: child) { return action }
     }
-    return view.subviews.lazy.compactMap { mountedHomeCreateAction(in: $0) }.first
+    return nil
 }
 
 @MainActor
@@ -794,6 +804,10 @@ private actor SessionStorageProbe: WorkspaceStorage {
 
     func setPinned(_ pinned: Bool, cardID: UUID, expectedVersion: Int) async throws -> TextCard {
         try await base.setPinned(pinned, cardID: cardID, expectedVersion: expectedVersion)
+    }
+
+    func rename(cardID: UUID, expectedVersion: Int, title: String) async throws -> TextCard {
+        try await base.rename(cardID: cardID, expectedVersion: expectedVersion, title: title)
     }
 
     func trash(cardID: UUID, expectedVersion: Int) async throws -> TextCard {
